@@ -15,6 +15,11 @@ rustls = "0.19.0"
 webpki = "0.21.4"
 webpki-roots = "0.21"
 
+openssl = { version = "0.10.33", features = ["vendored"] }
+
+[patch.crates-io]
+openssl-src = { path = './openssl-src' }
+
 [[bin]]
 name = "simpleclient"
 path = "src/simpleclient.rs"
@@ -22,3 +27,7 @@ path = "src/simpleclient.rs"
 [[bin]]
 name = "crotofuzz"
 path = "src/main.rs"
+
+[[bin]]
+name = "openssl_experiment"
+path = "src/openssl_experiment.rs"
