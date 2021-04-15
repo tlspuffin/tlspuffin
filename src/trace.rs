@@ -1,18 +1,38 @@
-use crate::variable::Variable;
-use crate::variable::VariableType;
+use crate::variable::{AsAny, ClientVersion, RandomVariableValue, Variable, VariableData};
+use rustls::internal::msgs::codec::Codec;
+use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
+use rustls::internal::msgs::enums::ProtocolVersion::TLSv1_2;
 use rustls::internal::msgs::enums::{AlertLevel, Compression, HandshakeType};
-use rustls::internal::msgs::handshake::{ClientExtension, Random, SessionID};
+use rustls::internal::msgs::handshake::{
+    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
+    SessionID,
+};
+use rustls::internal::msgs::message::Message;
+use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::{CipherSuite, ProtocolVersion};
+use std::env::var;
+use std::ptr::null;
 
-pub struct TraceContext {}
+pub struct TraceContext {
+    variables: Vec<Box<dyn VariableData>>
+}
 
 impl TraceContext {
-    fn save(variable: Variable, data: &[u8]) {
-        todo!()
+    pub fn new() -> TraceContext {
+        TraceContext { variables: vec![] }
     }
 
-    fn concretize<'a>(variable: Variable) -> &'a [u8] {
-        todo!()
+    fn get_variable<T: 'static>(&self) -> Option<&ClientVersion> {
+        for variable in self.variables.as_slice() {
+            if let Some(derived) = (**variable).as_any().downcast_ref::<ClientVersion>() {
+                return Some(derived)
+            }
+        }
+        None
+    }
+
+    pub fn add_variable(&mut self, data: Box<dyn VariableData>) {
+        self.variables.push(data)
     }
 }
 
@@ -21,56 +41,89 @@ pub struct Trace {
 }
 
 impl Trace {
-    fn execute(&self) {
+    pub fn execute(&self, ctx: &TraceContext) {
         for step in self.steps.iter() {
-            step.execute();
+            step.execute(ctx)
         }
     }
 }
 
 pub trait Step {
-    fn execute(&self);
+    fn execute(&self, ctx: &TraceContext);
 }
 
-enum ExpectType {
+pub enum ExpectType {
     Alert(AlertLevel),
     Handshake(HandshakeType),
 }
 
-pub trait Expect {
+pub trait ExpectStep: Step {
     fn get_type(&self) -> ExpectType;
+    fn get_concrete_variables(&self) -> Vec<Variable>; // Variables and the actual values
 }
 
-pub trait Send {
-    fn dependencies(&self) -> Vec<Variable>;
-
-    fn needed_size(&self) -> usize;
-    fn craft(&self, buffer: &mut [u8]) -> Result<usize, ()>;
+pub trait SendStep: Step {
+    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()>;
 }
 
-struct ClientHello {
-    pub client_version: ProtocolVersion,
-    pub random: Random,
-    pub session_id: SessionID,
-    pub cipher_suites: Vec<CipherSuite>,
-    pub compression_methods: Vec<Compression>,
-    pub extensions: Vec<ClientExtension>,
+struct ClientHelloData {
+    client_version: ProtocolVersion,
+    random: Random,
+    session_id: SessionID,
+    cipher_suites: Vec<CipherSuite>,
+    compression_methods: Vec<Compression>,
+}
+pub struct ClientHelloSendStep {
+    modifiers: Vec<Variable>,
 }
 
-impl Send for ClientHello {
-    fn dependencies(&self) -> Vec<Variable> {
-        return vec![Variable {
-            name: "client_version",
-            typ: VariableType::BINARY,
-        }];
+impl Step for ClientHelloSendStep {
+    fn execute(&self, ctx: &TraceContext) {
+        let result = self.craft(ctx);
+
+        match result {
+            Ok(buffer) => println!("Created packet!"),
+            _ => panic!("Error")
+        }
     }
+}
 
-    fn needed_size(&self) -> usize {
-        todo!()
+impl ClientHelloSendStep {
+    pub fn new(modifiers: Vec<Variable>) -> ClientHelloSendStep {
+        ClientHelloSendStep { modifiers }
     }
+}
 
-    fn craft(&self, buffer: &mut [u8]) -> Result<usize, ()> {
-        todo!()
+
+
+impl SendStep for ClientHelloSendStep {
+    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()> {
+        return if let Some(client_version) = ctx.get_variable::<ClientVersion>() {
+            let bytes: [u8; 1] = [5];
+            let random = [0u8; 32];
+            let payload = Handshake(HandshakeMessagePayload {
+                typ: HandshakeType::ClientHello,
+                payload: HandshakePayload::ClientHello(ClientHelloPayload {
+                    client_version: client_version.data,
+                    random: Random::from_slice(&random),
+                    session_id: SessionID::new(&bytes),
+                    cipher_suites: vec![],
+                    compression_methods: vec![],
+                    extensions: vec![],
+                }),
+            });
+            let message = Message {
+                typ: RecordHandshake,
+                version: TLSv1_2,
+                payload,
+            };
+
+            let mut out: Vec<u8> = Vec::new();
+            message.encode(&mut out);
+            Ok(out)
+        } else {
+            Err(())
+        };
     }
 }
 
@@ -85,7 +138,7 @@ struct InstructionStep {
 }
 
 impl Step for InstructionStep {
-    fn execute(&self) {
+    fn execute(&self, ctx: &TraceContext) {
         todo!()
     }
 }
