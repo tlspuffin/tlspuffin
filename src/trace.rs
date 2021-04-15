@@ -1,4 +1,4 @@
-use crate::variable::{AsAny, ClientVersion, RandomVariableValue, Variable, VariableData};
+use crate::variable::{AsAny, ClientVersionData, RandomData, RandomVariableValue, Variable, VariableData, SessionIDData};
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::ProtocolVersion::TLSv1_2;
@@ -14,7 +14,7 @@ use std::env::var;
 use std::ptr::null;
 
 pub struct TraceContext {
-    variables: Vec<Box<dyn VariableData>>
+    variables: Vec<Box<dyn VariableData>>,
 }
 
 impl TraceContext {
@@ -22,10 +22,10 @@ impl TraceContext {
         TraceContext { variables: vec![] }
     }
 
-    fn get_variable<T: 'static>(&self) -> Option<&ClientVersion> {
+    fn get_variable<T: 'static>(&self) -> Option<&T> {
         for variable in self.variables.as_slice() {
-            if let Some(derived) = (**variable).as_any().downcast_ref::<ClientVersion>() {
-                return Some(derived)
+            if let Some(derived) = (**variable).as_any().downcast_ref::<T>() {
+                return Some(derived);
             }
         }
         None
@@ -83,7 +83,7 @@ impl Step for ClientHelloSendStep {
 
         match result {
             Ok(buffer) => println!("Created packet!"),
-            _ => panic!("Error")
+            _ => panic!("Error"),
         }
     }
 }
@@ -94,19 +94,19 @@ impl ClientHelloSendStep {
     }
 }
 
-
-
 impl SendStep for ClientHelloSendStep {
     fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()> {
-        return if let Some(client_version) = ctx.get_variable::<ClientVersion>() {
-            let bytes: [u8; 1] = [5];
-            let random = [0u8; 32];
+        return if let (Some(client_version), Some(random), Some(session_id)) = (
+            ctx.get_variable::<ClientVersionData>(),
+            ctx.get_variable::<RandomData>(),
+            ctx.get_variable::<SessionIDData>(),
+        ) {
             let payload = Handshake(HandshakeMessagePayload {
                 typ: HandshakeType::ClientHello,
                 payload: HandshakePayload::ClientHello(ClientHelloPayload {
                     client_version: client_version.data,
-                    random: Random::from_slice(&random),
-                    session_id: SessionID::new(&bytes),
+                    random: random.data.clone(),
+                    session_id: session_id.data,
                     cipher_suites: vec![],
                     compression_methods: vec![],
                     extensions: vec![],
