@@ -1,3 +1,5 @@
+use std::io::{Read, stdout, Write};
+use std::net::TcpStream;
 /// This is the simplest possible client using rustls that does something useful:
 /// it accepts the default configuration, loads some root certs, and then connects
 /// to google.com and issues a basic HTTP request.  The response is printed to stdout.
@@ -9,14 +11,10 @@
 /// that is sensible outside of example code.
 use std::sync::Arc;
 
-use std::io::{stdout, Read, Write};
-use std::net::TcpStream;
-
 use rustls;
+use rustls::Session;
 use webpki;
 use webpki_roots;
-
-use rustls::Session;
 
 fn main() {
     let mut config = rustls::ClientConfig::new();
@@ -30,15 +28,15 @@ fn main() {
     let mut tls = rustls::Stream::new(&mut sess, &mut sock);
     tls.write(
         concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
+        "GET / HTTP/1.1\r\n",
+        "Host: google.com\r\n",
+        "Connection: close\r\n",
+        "Accept-Encoding: identity\r\n",
+        "\r\n"
         )
-        .as_bytes(),
+            .as_bytes(),
     )
-    .unwrap();
+        .unwrap();
     let ciphersuite = tls
         .sess
         .get_negotiated_ciphersuite()
@@ -48,7 +46,7 @@ fn main() {
         "Current ciphersuite: {:?}",
         ciphersuite.suite
     )
-    .unwrap();
+        .unwrap();
     let mut plaintext = Vec::new();
     tls.read_to_end(&mut plaintext).unwrap();
     stdout().write_all(&plaintext).unwrap();

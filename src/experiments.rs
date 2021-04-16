@@ -1,4 +1,3 @@
-use crate::trace::{ClientHelloSendStep, TraceContext};
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::HandshakeType;
@@ -10,12 +9,14 @@ use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::ProtocolVersion;
 
+use crate::trace::{ClientHelloSendStep, TraceContext};
+
 fn main() {
     let ctx = TraceContext {};
     let trace = trace::Trace {
         steps: vec![
             Box::new(ClientHelloSendStep::new(&ctx, vec![])),
-            Box::new(ClientHelloSendStep::new(&ctx,vec![]))
+            Box::new(ClientHelloSendStep::new(&ctx, vec![]))
         ],
     };
 

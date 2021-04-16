@@ -1,43 +1,47 @@
-mod agent;
-mod openssl_server;
-mod trace;
-mod debug;
-mod variable;
-use crate::trace::{ClientHelloSendStep, TraceContext};
+#[macro_use]
+extern crate log;
+extern crate pretty_env_logger;
+
+use std::io::ErrorKind;
+
 use crate::debug::debug_message_raw;
+use crate::trace::{ClientHelloSendStep, ServerHelloExpectStep, TraceContext};
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
     VariableData,
 };
-use std::io::ErrorKind;
-use pretty_env_logger::env_logger::{Target};
-use log::LevelFilter;
 
-extern crate pretty_env_logger;
-#[macro_use] extern crate log;
+mod agent;
+mod debug;
+mod openssl_server;
+mod trace;
+mod variable;
 
 fn main() {
-
-    //pretty_env_logger::init();
-    pretty_env_logger::formatted_builder()
-        .target(Target::Stdout)
-        .filter_level(LevelFilter::Trace)
-        .init();
+    pretty_env_logger::init();
+    //pretty_env_logger::formatted_builder().target(Target::Stdout).filter_level(LevelFilter::Trace).init();
 
     info!("{}", openssl_server::openssl_version());
 
-    while true {
+    let (cert, pkey) = openssl_server::creat_cert();
+
+    loop {
         let mut ctx = TraceContext::new();
         let trace = trace::Trace {
-            steps: vec![Box::new(ClientHelloSendStep::new())],
+            steps: vec![
+                Box::new(ClientHelloSendStep::new()),
+                Box::new(ServerHelloExpectStep::new()),
+            ],
         };
 
         ctx.add_variable(Box::new(ClientVersionData::random_value()));
         ctx.add_variable(Box::new(SessionIDData::random_value()));
         ctx.add_variable(Box::new(RandomData::random_value()));
-        // ctx.add_variable(Box::new(ExtensionData::random_value()));
-        // ctx.add_variable(Box::new(ExtensionData::random_value()));
-        // ctx.add_variable(Box::new(ExtensionData::random_value()));
+
+        // A random extension
+        ctx.add_variable(Box::new(ExtensionData::random_value()));
+
+        // Some static extensions
         ctx.add_variable(Box::new(ExtensionData::static_extension(
             ExtensionData::key_share(),
         )));
@@ -53,13 +57,14 @@ fn main() {
         ctx.add_variable(Box::new(ExtensionData::static_extension(
             ExtensionData::signature_algorithms(),
         )));
+
         ctx.add_variable(Box::new(CipherSuiteData::random_value()));
         ctx.add_variable(Box::new(CipherSuiteData::random_value()));
         ctx.add_variable(Box::new(CipherSuiteData::random_value()));
         ctx.add_variable(Box::new(CompressionData::random_value()));
         let buffer = trace.execute(&ctx);
 
-        let mut stream = openssl_server::create_openssl_server();
+        let mut stream = openssl_server::create_openssl_server(&cert, &pkey);
         stream.get_mut().extend_incoming(&buffer);
 
         match stream.accept() {

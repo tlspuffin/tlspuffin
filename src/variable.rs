@@ -1,13 +1,15 @@
-use crate::agent::{Agent, NO_AGENT};
+use std::any::Any;
+
 use rand;
 use rand::random;
 use rand::seq::SliceRandom;
+use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 use rustls::internal::msgs::base::PayloadU16;
 use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
 use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID};
 use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
-use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
-use std::any::Any;
+
+use crate::agent::{Agent, NO_AGENT};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -31,8 +33,8 @@ pub trait VariableData: Any + AsAny {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized;
+        where
+            Self: Sized;
 }
 
 // ClientVersion
@@ -48,8 +50,8 @@ impl VariableData for ClientVersionData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         ClientVersionData {
             metadata: Metadata { owner: &NO_AGENT },
@@ -71,8 +73,8 @@ impl VariableData for RandomData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let random_data: [u8; 32] = random();
         RandomData {
@@ -95,8 +97,8 @@ impl VariableData for SessionIDData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let random_data: [u8; 32] = random();
         SessionIDData {
@@ -119,8 +121,8 @@ impl VariableData for CipherSuiteData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         CipherSuiteData {
             metadata: Metadata { owner: &NO_AGENT },
@@ -131,8 +133,8 @@ impl VariableData for CipherSuiteData {
                 CipherSuite::TLS13_AES_256_GCM_SHA384,
                 CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
             ]
-            .choose(&mut rand::thread_rng())
-            .unwrap(),
+                .choose(&mut rand::thread_rng())
+                .unwrap(),
         }
     }
 }
@@ -150,8 +152,8 @@ impl VariableData for CompressionData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         CompressionData {
             metadata: Metadata { owner: &NO_AGENT },
@@ -207,7 +209,7 @@ impl ExtensionData {
     pub fn static_extension(extension: ClientExtension) -> Self {
         ExtensionData {
             metadata: Metadata { owner: &NO_AGENT },
-            data: extension
+            data: extension,
         }
     }
 }
@@ -218,8 +220,8 @@ impl VariableData for ExtensionData {
     }
 
     fn random_value() -> Self
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let server_name: ClientExtension = Self::server_name("maxammann.org");
 
@@ -237,9 +239,9 @@ impl VariableData for ExtensionData {
                 key_share,
                 supported_versions,
             ]
-            .choose(&mut rand::thread_rng())
-            .unwrap()
-            .clone(), // avoid clone
+                .choose(&mut rand::thread_rng())
+                .unwrap()
+                .clone(), // avoid clone
         }
     }
 }

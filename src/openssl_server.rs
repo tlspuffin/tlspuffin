@@ -1,18 +1,26 @@
-use openssl::asn1::Asn1Time;
-use openssl::bn::{BigNum, MsbOption};
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, Private};
-use openssl::ssl::{Ssl, SslContext, SslFiletype, SslMethod, SslOptions, SslStream};
-use openssl::version::version;
-use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
-use openssl::x509::{X509NameBuilder, X509};
 use std::io;
 use std::io::{Read, Write};
 use std::path::Path;
 
-fn creat_cert() -> (X509, PKey<Private>) {
+use openssl::asn1::Asn1Time;
+use openssl::bn::{BigNum, MsbOption};
+use openssl::hash::MessageDigest;
+use openssl::pkey::{PKey, PKeyRef, Private};
+use openssl::ssl::{Ssl, SslContext, SslFiletype, SslMethod, SslOptions, SslStream};
+use openssl::version::version;
+use openssl::x509::{X509, X509NameBuilder, X509Ref};
+use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
+
+/*
+   Change openssl version:
+   cargo clean -p openssl-src
+   cd openssl-src/openssl
+   git checkout OpenSSL_1_1_1j
+*/
+
+pub fn creat_cert() -> (X509, PKey<Private>) {
     let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
-    let privkey = PKey::from_rsa(rsa).unwrap();
+    let pkey = PKey::from_rsa(rsa).unwrap();
 
     let mut x509_name = X509NameBuilder::new().unwrap();
     x509_name.append_entry_by_text("C", "US").unwrap();
@@ -29,11 +37,11 @@ fn creat_cert() -> (X509, PKey<Private>) {
         serial.rand(159, MsbOption::MAYBE_ZERO, false);
         serial.to_asn1_integer()
     }
-    .unwrap();
+        .unwrap();
     cert_builder.set_serial_number(&serial_number);
     cert_builder.set_subject_name(&x509_name);
     cert_builder.set_issuer_name(&x509_name);
-    cert_builder.set_pubkey(&privkey);
+    cert_builder.set_pubkey(&pkey);
     let not_before = Asn1Time::days_from_now(0).unwrap();
     cert_builder.set_not_before(&not_before);
     let not_after = Asn1Time::days_from_now(365).unwrap();
@@ -54,9 +62,9 @@ fn creat_cert() -> (X509, PKey<Private>) {
         .unwrap();
     cert_builder.append_extension(subject_key_identifier);
 
-    cert_builder.sign(&privkey, MessageDigest::sha256());
+    cert_builder.sign(&pkey, MessageDigest::sha256());
     let cert = cert_builder.build();
-    return (cert, privkey);
+    return (cert, pkey);
 }
 
 #[derive(Debug)]
@@ -134,14 +142,11 @@ pub fn openssl_version() -> &'static str {
     version()
 }
 
-pub fn create_openssl_server() -> SslStream<MemoryStream> {
-    let mut client_ctx = SslContext::builder(SslMethod::tls()).unwrap();
-    client_ctx.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+pub fn create_openssl_server(cert: &X509Ref, key: &PKeyRef<Private>) -> SslStream<MemoryStream> {
     let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
-    let (cert, privkey) = creat_cert();
-    server_ctx.set_certificate(&cert).unwrap();
-    server_ctx.set_private_key(&privkey).unwrap();
-    let mut server_stream =
+    server_ctx.set_certificate(cert).unwrap();
+    server_ctx.set_private_key(key).unwrap();
+    let server_stream =
         SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), MemoryStream::new()).unwrap();
 
     return server_stream;

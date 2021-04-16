@@ -1,17 +1,17 @@
-use crate::variable::{AsAny, CipherSuiteData, ClientVersionData, CompressionData, RandomData, SessionIDData, VariableData, ExtensionData};
 use rustls::internal::msgs::codec::Codec;
+use rustls::internal::msgs::enums::{AlertLevel, HandshakeType};
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::ProtocolVersion::TLSv1_2;
-use rustls::internal::msgs::enums::{AlertLevel, Compression, HandshakeType};
 use rustls::internal::msgs::handshake::{
-    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
-    SessionID,
+    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
 };
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
-use rustls::{CipherSuite, ProtocolVersion};
-use crate::debug::debug_message;
-use rustls::internal::msgs::handshake::ClientExtension::Protocols;
+use rustls::ProtocolVersion;
+
+use crate::variable::{
+    CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData,
+    SessionIDData, VariableData,
+};
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -66,7 +66,11 @@ impl Trace {
 }
 
 pub trait Step {
-    fn execute(&self, ctx: &TraceContext) -> Vec<u8> ;
+    fn execute(&self, ctx: &TraceContext) -> Vec<u8>;
+}
+
+pub trait SendStep: Step {
+    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()>;
 }
 
 pub enum ExpectType {
@@ -79,25 +83,49 @@ pub trait ExpectStep: Step {
     fn get_concrete_variables(&self) -> Vec<String>; // Variables and the actual values
 }
 
-pub trait SendStep: Step {
-    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()>;
+// ServerHello
+
+pub struct ServerHelloExpectStep {}
+
+impl Step for ServerHelloExpectStep {
+    fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
+        todo!()
+    }
 }
+
+impl ServerHelloExpectStep {
+    pub fn new() -> Self {
+        ServerHelloExpectStep {}
+    }
+}
+
+impl ExpectStep for ClientHelloSendStep {
+    fn get_type(&self) -> ExpectType {
+        todo!()
+    }
+
+    fn get_concrete_variables(&self) -> Vec<String> {
+        todo!()
+    }
+}
+
+// ClientHello
 
 pub struct ClientHelloSendStep {}
 
 impl Step for ClientHelloSendStep {
-    fn execute(&self, ctx: &TraceContext)  -> Vec<u8> {
+    fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
         let result = self.craft(ctx);
 
         match result {
-            Ok(buffer) =>  {
+            Ok(buffer) => {
                 //print_as_message(&buffer);
                 buffer
-            },
+            }
             _ => {
                 println!("Error");
                 vec![]
-            },
+            }
         }
     }
 }

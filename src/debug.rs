@@ -1,5 +1,5 @@
-use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::internal::msgs::codec::Codec;
+use rustls::internal::msgs::message::{Message, MessagePayload};
 
 pub fn debug_message(buffer: &Vec<u8>) {
     debug_message_raw(buffer.as_slice())
@@ -18,11 +18,7 @@ pub fn debug_message_raw(buffer: &[u8]) {
             let output = format!("{:?}", payload.payload);
             trace!("{}", output);
         }
-        MessagePayload::ChangeCipherSpec(payload) => {
-
-        }
-        MessagePayload::Opaque(payload) => {
-
-        }
+        MessagePayload::ChangeCipherSpec(payload) => {}
+        MessagePayload::Opaque(payload) => {}
     }
 }
