@@ -1,6 +1,6 @@
 use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::enums::{AlertLevel, HandshakeType};
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
+use rustls::internal::msgs::enums::{AlertLevel, HandshakeType};
 use rustls::internal::msgs::handshake::{
     ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
 };
@@ -8,18 +8,24 @@ use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::ProtocolVersion;
 
+use crate::agent::{Agent, AgentName};
+use crate::debug::debug_message;
+use crate::openssl_server;
+use crate::openssl_server::openssl_version;
 use crate::variable::{
-    CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData,
-    SessionIDData, VariableData,
+    CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
+    VariableData,
 };
+use crate::io::MemoryStream;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
+    agents: Vec<Agent>,
 }
 
 impl TraceContext {
     pub fn new() -> TraceContext {
-        TraceContext { variables: vec![] }
+        TraceContext { variables: vec![], agents: vec![] }
     }
 
     pub fn add_variable(&mut self, data: Box<dyn VariableData>) {
@@ -48,25 +54,37 @@ impl TraceContext {
         }
         variables
     }
+
+    pub fn publish(&mut self, sending_agent_name: AgentName, data: &dyn AsRef<[u8]>) {
+        for agent in self.agents.iter_mut() {
+            if agent.name != sending_agent_name {
+                agent.stream.extend_incoming(data.as_ref());
+            }
+        }
+    }
+
+    pub fn new_agent(&mut self) -> AgentName {
+        let agent = Agent::new();
+        let name = agent.name;
+        self.agents.push(agent);
+        return name;
+    }
 }
 
 pub struct Trace {
-    pub steps: Vec<Box<dyn Step>>,
+    pub steps: Vec<Box<dyn Step>>
 }
 
 impl Trace {
-    pub fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
-        let mut buffer = Vec::new();
-        for step in self.steps.iter() {
-            buffer.extend(step.execute(ctx));
+    pub fn execute(&mut self, ctx: &mut TraceContext) {
+        for step in self.steps.iter_mut() {
+            step.execute(ctx);
         }
-
-        buffer
     }
 }
 
 pub trait Step {
-    fn execute(&self, ctx: &TraceContext) -> Vec<u8>;
+    fn execute(&mut self, ctx: &mut TraceContext);
 }
 
 pub trait SendStep: Step {
@@ -85,17 +103,20 @@ pub trait ExpectStep: Step {
 
 // ServerHello
 
-pub struct ServerHelloExpectStep {}
+pub struct ServerHelloExpectStep {
+}
 
 impl Step for ServerHelloExpectStep {
-    fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
-        todo!()
+    fn execute(&mut self, ctx: &mut TraceContext) {
+        // TODO
+        // let buffer = ctx.receive_from_previous();
+        // openssl_server::process(ssl_stream)
     }
 }
 
 impl ServerHelloExpectStep {
-    pub fn new() -> Self {
-        ServerHelloExpectStep {}
+    pub fn new(agent: AgentName) -> ServerHelloExpectStep {
+        ServerHelloExpectStep { }
     }
 }
 
@@ -111,28 +132,29 @@ impl ExpectStep for ClientHelloSendStep {
 
 // ClientHello
 
-pub struct ClientHelloSendStep {}
+pub struct ClientHelloSendStep {
+    pub agent: AgentName,
+}
 
 impl Step for ClientHelloSendStep {
-    fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
+    fn execute(&mut self, ctx: &mut TraceContext) {
         let result = self.craft(ctx);
 
         match result {
             Ok(buffer) => {
-                //print_as_message(&buffer);
-                buffer
+                debug_message(&buffer);
+                //ctx.publish(self.agent, &buffer);
             }
             _ => {
                 println!("Error");
-                vec![]
             }
         }
     }
 }
 
 impl ClientHelloSendStep {
-    pub fn new() -> ClientHelloSendStep {
-        ClientHelloSendStep {}
+    pub fn new(agent: AgentName) -> ClientHelloSendStep {
+        ClientHelloSendStep { agent }
     }
 }
 

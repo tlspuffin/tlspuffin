@@ -4,7 +4,8 @@ extern crate pretty_env_logger;
 
 use std::io::ErrorKind;
 
-use crate::debug::debug_message_raw;
+use crate::agent::Agent;
+use crate::debug::debug_message;
 use crate::trace::{ClientHelloSendStep, ServerHelloExpectStep, TraceContext};
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
@@ -13,6 +14,7 @@ use crate::variable::{
 
 mod agent;
 mod debug;
+mod io;
 mod openssl_server;
 mod trace;
 mod variable;
@@ -23,14 +25,21 @@ fn main() {
 
     info!("{}", openssl_server::openssl_version());
 
-    let (cert, pkey) = openssl_server::creat_cert();
+    let (cert, pkey) = openssl_server::generate_cert();
 
     loop {
         let mut ctx = TraceContext::new();
-        let trace = trace::Trace {
+        let openssl_agent = ctx.new_agent();
+        let agent1 = ctx.new_agent();
+
+        // TODO link this to openssl agent?
+        // ctx.new_openssl_agent() ?
+        //let mut stream = openssl_server::create_openssl_server(openssl_agent.stream, &cert, &pkey);
+
+        let mut trace = trace::Trace {
             steps: vec![
-                Box::new(ClientHelloSendStep::new()),
-                Box::new(ServerHelloExpectStep::new()),
+                Box::new(ClientHelloSendStep::new(agent1)),
+                Box::new(ServerHelloExpectStep::new(openssl_agent)),
             ],
         };
 
@@ -62,36 +71,7 @@ fn main() {
         ctx.add_variable(Box::new(CipherSuiteData::random_value()));
         ctx.add_variable(Box::new(CipherSuiteData::random_value()));
         ctx.add_variable(Box::new(CompressionData::random_value()));
-        let buffer = trace.execute(&ctx);
 
-        let mut stream = openssl_server::create_openssl_server(&cert, &pkey);
-        stream.get_mut().extend_incoming(&buffer);
-
-        match stream.accept() {
-            Ok(_) => {
-                println!("Handshake is done");
-                break;
-            }
-            Err(error) => {
-                let outgoing = stream.get_mut().take_outgoing();
-                let buffer = outgoing.as_ref();
-                debug_message_raw(buffer);
-
-                if let Some(io_error) = error.io_error() {
-                    match io_error.kind() {
-                        ErrorKind::WouldBlock => {
-                            // Not actually an error, we just reached the end of the stream
-                        }
-                        _ => {
-                            warn!("{}", io_error);
-                        }
-                    }
-                }
-
-                if let Some(ssl_error) = error.ssl_error() {
-                    warn!("{}", ssl_error);
-                }
-            }
-        }
+        trace.execute(&mut ctx);
     }
 }

@@ -1,12 +1,8 @@
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::message::{Message, MessagePayload};
 
-pub fn debug_message(buffer: &Vec<u8>) {
-    debug_message_raw(buffer.as_slice())
-}
-
-pub fn debug_message_raw(buffer: &[u8]) {
-    let mut message = Message::read_bytes(buffer).unwrap();
+pub fn debug_message(buffer: &dyn AsRef<[u8]>) {
+    let mut message = Message::read_bytes(buffer.as_ref()).unwrap();
     message.decode_payload();
 
     info!("{:?} Record ({:?}): ", message.typ, message.version);

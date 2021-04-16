@@ -1,15 +1,15 @@
-use std::io;
-use std::io::{Read, Write};
-use std::path::Path;
-
 use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslFiletype, SslMethod, SslOptions, SslStream};
+use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream};
 use openssl::version::version;
-use openssl::x509::{X509, X509NameBuilder, X509Ref};
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
+use openssl::x509::{X509NameBuilder, X509Ref, X509};
+
+use crate::io::{MemoryStream, Outgoing};
+use crate::debug::debug_message;
+use std::io::ErrorKind;
 
 /*
    Change openssl version:
@@ -18,7 +18,7 @@ use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier}
    git checkout OpenSSL_1_1_1j
 */
 
-pub fn creat_cert() -> (X509, PKey<Private>) {
+pub fn generate_cert() -> (X509, PKey<Private>) {
     let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
     let pkey = PKey::from_rsa(rsa).unwrap();
 
@@ -37,7 +37,7 @@ pub fn creat_cert() -> (X509, PKey<Private>) {
         serial.rand(159, MsbOption::MAYBE_ZERO, false);
         serial.to_asn1_integer()
     }
-        .unwrap();
+    .unwrap();
     cert_builder.set_serial_number(&serial_number);
     cert_builder.set_subject_name(&x509_name);
     cert_builder.set_issuer_name(&x509_name);
@@ -67,87 +67,47 @@ pub fn creat_cert() -> (X509, PKey<Private>) {
     return (cert, pkey);
 }
 
-#[derive(Debug)]
-pub struct MemoryStream {
-    incoming: io::Cursor<Vec<u8>>,
-    outgoing: Vec<u8>,
-}
-
-impl MemoryStream {
-    pub fn new() -> Self {
-        Self {
-            incoming: io::Cursor::new(Vec::new()),
-            outgoing: Vec::new(),
-        }
-    }
-
-    pub fn extend_incoming(&mut self, data: &[u8]) {
-        self.incoming.get_mut().extend_from_slice(data);
-    }
-
-    pub fn take_outgoing(&mut self) -> Outgoing<'_> {
-        Outgoing(&mut self.outgoing)
-    }
-}
-
-impl Read for MemoryStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let n = self.incoming.read(buf)?;
-        if self.incoming.position() == self.incoming.get_ref().len() as u64 {
-            self.incoming.set_position(0);
-            self.incoming.get_mut().clear();
-        }
-        if n == 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "no data available",
-            ));
-        }
-        Ok(n)
-    }
-}
-
-impl Write for MemoryStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.outgoing.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-pub struct Outgoing<'a>(&'a mut Vec<u8>);
-
-impl<'a> Drop for Outgoing<'a> {
-    fn drop(&mut self) {
-        self.0.clear();
-    }
-}
-
-impl<'a> ::std::ops::Deref for Outgoing<'a> {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl<'a> AsRef<[u8]> for Outgoing<'a> {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 pub fn openssl_version() -> &'static str {
     version()
 }
 
-pub fn create_openssl_server(cert: &X509Ref, key: &PKeyRef<Private>) -> SslStream<MemoryStream> {
+pub fn create_openssl_server(stream: MemoryStream, cert: &X509Ref, key: &PKeyRef<Private>) -> SslStream<MemoryStream> {
     let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
     server_ctx.set_certificate(cert).unwrap();
     server_ctx.set_private_key(key).unwrap();
     let server_stream =
-        SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), MemoryStream::new()).unwrap();
+        SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), stream).unwrap();
 
     return server_stream;
+}
+
+
+pub fn process(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
+    match stream.accept() {
+        Ok(_) => {
+            println!("Handshake is done");
+            None
+        }
+        Err(error) => {
+            let outgoing = stream.get_mut().take_outgoing();
+            debug_message(&outgoing);
+
+            if let Some(io_error) = error.io_error() {
+                match io_error.kind() {
+                    ErrorKind::WouldBlock => {
+                        // Not actually an error, we just reached the end of the stream
+                    }
+                    _ => {
+                        warn!("{}", io_error);
+                    }
+                }
+            }
+
+            if let Some(ssl_error) = error.ssl_error() {
+                warn!("{}", ssl_error);
+            }
+
+            Some(outgoing)
+        }
+    }
 }

@@ -9,7 +9,7 @@ use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
 use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID};
 use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
 
-use crate::agent::{Agent, NO_AGENT};
+use crate::agent::{Agent, NO_AGENT, AgentName};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -22,13 +22,13 @@ impl<T: Any> AsAny for T {
 }
 
 pub struct Metadata {
-    owner: &'static Agent,
+    owner: AgentName,
 }
 
 // VariableData trait should include AsAny so that `as_any` is in its vtable.
 pub trait VariableData: Any + AsAny {
     fn get_metadata(&self) -> &Metadata;
-    fn get_owner(&self) -> &Agent {
+    fn get_owner(&self) -> AgentName {
         self.get_metadata().owner
     }
 
@@ -54,7 +54,7 @@ impl VariableData for ClientVersionData {
             Self: Sized,
     {
         ClientVersionData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: ProtocolVersion::TLSv1_3,
         }
     }
@@ -78,7 +78,7 @@ impl VariableData for RandomData {
     {
         let random_data: [u8; 32] = random();
         RandomData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: Random::from_slice(&random_data),
         }
     }
@@ -102,7 +102,7 @@ impl VariableData for SessionIDData {
     {
         let random_data: [u8; 32] = random();
         SessionIDData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: SessionID::new(&random_data),
         }
     }
@@ -125,7 +125,7 @@ impl VariableData for CipherSuiteData {
             Self: Sized,
     {
         CipherSuiteData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: *vec![
                 CipherSuite::TLS13_AES_128_CCM_SHA256,
                 CipherSuite::TLS13_AES_128_CCM_8_SHA256,
@@ -156,7 +156,7 @@ impl VariableData for CompressionData {
             Self: Sized,
     {
         CompressionData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
                 .choose(&mut rand::thread_rng())
                 .unwrap(),
@@ -208,7 +208,7 @@ impl ExtensionData {
 
     pub fn static_extension(extension: ClientExtension) -> Self {
         ExtensionData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: extension,
         }
     }
@@ -231,7 +231,7 @@ impl VariableData for ExtensionData {
         let supported_versions: ClientExtension = Self::supported_versions();
 
         ExtensionData {
-            metadata: Metadata { owner: &NO_AGENT },
+            metadata: Metadata { owner: NO_AGENT },
             data: vec![
                 server_name,
                 supported_groups,
