@@ -1,13 +1,13 @@
 use crate::agent::{Agent, NO_AGENT};
 use rand;
+use rand::random;
 use rand::seq::SliceRandom;
-use rustls::internal::msgs::enums::{Compression, ServerNameType, NamedGroup};
-use rustls::internal::msgs::handshake::{ClientExtension, Random, SessionID, KeyShareEntry};
+use rustls::internal::msgs::base::PayloadU16;
+use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
+use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID};
 use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 use std::any::Any;
-use rustls::internal::msgs::base::PayloadU16;
-use rand::random;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -129,6 +129,7 @@ impl VariableData for CipherSuiteData {
                 CipherSuite::TLS13_AES_128_CCM_8_SHA256,
                 CipherSuite::TLS13_AES_128_GCM_SHA256,
                 CipherSuite::TLS13_AES_256_GCM_SHA384,
+                CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
             ]
             .choose(&mut rand::thread_rng())
             .unwrap(),
@@ -168,6 +169,49 @@ pub struct ExtensionData {
     pub data: ClientExtension,
 }
 
+impl ExtensionData {
+    pub fn server_name(dns_name: &str) -> ClientExtension {
+        ClientExtension::ServerName(vec![ServerName {
+            typ: ServerNameType::HostName,
+            payload: ServerNamePayload::HostName(
+                webpki::DNSNameRef::try_from_ascii_str(dns_name)
+                    .unwrap()
+                    .to_owned(),
+            ),
+        }])
+    }
+
+    pub fn supported_groups() -> ClientExtension {
+        ClientExtension::NamedGroups(vec![NamedGroup::X25519])
+    }
+
+    pub fn signature_algorithms() -> ClientExtension {
+        ClientExtension::SignatureAlgorithms(vec![
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PSS_SHA256
+        ])
+    }
+
+    pub fn key_share() -> ClientExtension {
+        let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
+        ClientExtension::KeyShare(vec![KeyShareEntry {
+            group: NamedGroup::X25519,
+            payload: PayloadU16::new(key),
+        }])
+    }
+
+    pub fn supported_versions() -> ClientExtension {
+        ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
+    }
+
+    pub fn static_extension(extension: ClientExtension) -> Self {
+        ExtensionData {
+            metadata: Metadata { owner: &NO_AGENT },
+            data: extension
+        }
+    }
+}
+
 impl VariableData for ExtensionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
@@ -177,36 +221,25 @@ impl VariableData for ExtensionData {
     where
         Self: Sized,
     {
-        let server_name: ClientExtension =
-            ClientExtension::ServerName(vec![ServerName {
-                typ: ServerNameType::HostName,
-                payload: ServerNamePayload::HostName(
-                    webpki::DNSNameRef::try_from_ascii_str("maxammann.org")
-                        .unwrap()
-                        .to_owned(),
-                ),
-            }]);
+        let server_name: ClientExtension = Self::server_name("maxammann.org");
 
-        let supported_groups: ClientExtension =
-            ClientExtension::NamedGroups(vec![NamedGroup::X25519]);
-        let signature_algorithms: ClientExtension =
-            ClientExtension::SignatureAlgorithms(vec![SignatureScheme::ED25519]);
+        let supported_groups: ClientExtension = Self::supported_groups();
+        let signature_algorithms: ClientExtension = Self::signature_algorithms();
+        let key_share: ClientExtension = Self::key_share();
+        let supported_versions: ClientExtension = Self::supported_versions();
 
-        let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
-        let key_share: ClientExtension =
-            ClientExtension::KeyShare(vec![KeyShareEntry {
-                group: NamedGroup::X25519,
-                payload: PayloadU16::new(key)
-            }]);
-
-        let supported_versions: ClientExtension =
-            ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3]);
         ExtensionData {
             metadata: Metadata { owner: &NO_AGENT },
-            data: vec![server_name, supported_groups, signature_algorithms, key_share, supported_versions]
-                .choose(&mut rand::thread_rng())
-                .unwrap()
-                .clone(), // avoid clone
+            data: vec![
+                server_name,
+                supported_groups,
+                signature_algorithms,
+                key_share,
+                supported_versions,
+            ]
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .clone(), // avoid clone
         }
     }
 }

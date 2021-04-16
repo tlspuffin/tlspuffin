@@ -10,6 +10,8 @@ edition = "2018"
 hexdump = "0.1.1"
 hex = "0.4.3"
 
+log = "0.4.14"
+pretty_env_logger = "0.4.0"
 rand = "0.8.3"
 rustls = "0.19.0"
 webpki = "0.21.4"

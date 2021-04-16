@@ -10,13 +10,6 @@ use std::io;
 use std::io::{Read, Write};
 use std::path::Path;
 
-/*
-Change openssl version:
-cargo clean -p openssl-src
-cd openssl-src/openssl
-git checkout OpenSSL_1_1_1j
- */
-
 fn creat_cert() -> (X509, PKey<Private>) {
     let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
     let privkey = PKey::from_rsa(rsa).unwrap();
@@ -67,7 +60,7 @@ fn creat_cert() -> (X509, PKey<Private>) {
 }
 
 #[derive(Debug)]
-struct MemoryStream {
+pub struct MemoryStream {
     incoming: io::Cursor<Vec<u8>>,
     outgoing: Vec<u8>,
 }
@@ -137,13 +130,11 @@ impl<'a> AsRef<[u8]> for Outgoing<'a> {
     }
 }
 
-fn send(from: &mut MemoryStream, to: &mut MemoryStream) {
-    to.extend_incoming(&from.take_outgoing());
+pub fn openssl_version() -> &'static str {
+    version()
 }
 
-fn main() {
-    println!("{}", version());
-
+pub fn create_openssl_server() -> SslStream<MemoryStream> {
     let mut client_ctx = SslContext::builder(SslMethod::tls()).unwrap();
     client_ctx.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
     let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
@@ -153,13 +144,5 @@ fn main() {
     let mut server_stream =
         SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), MemoryStream::new()).unwrap();
 
-    //
-    // Handshake
-    //
-
-
-    //send(client_stream.get_mut(), server_stream.get_mut());
-
-    server_stream.accept().unwrap_err();
-
+    return server_stream;
 }

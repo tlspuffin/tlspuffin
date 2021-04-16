@@ -10,7 +10,8 @@ use rustls::internal::msgs::handshake::{
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::{CipherSuite, ProtocolVersion};
-use crate::util::print_as_message;
+use crate::debug::debug_message;
+use rustls::internal::msgs::handshake::ClientExtension::Protocols;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -54,15 +55,18 @@ pub struct Trace {
 }
 
 impl Trace {
-    pub fn execute(&self, ctx: &TraceContext) {
+    pub fn execute(&self, ctx: &TraceContext) -> Vec<u8> {
+        let mut buffer = Vec::new();
         for step in self.steps.iter() {
-            step.execute(ctx)
+            buffer.extend(step.execute(ctx));
         }
+
+        buffer
     }
 }
 
 pub trait Step {
-    fn execute(&self, ctx: &TraceContext);
+    fn execute(&self, ctx: &TraceContext) -> Vec<u8> ;
 }
 
 pub enum ExpectType {
@@ -82,12 +86,18 @@ pub trait SendStep: Step {
 pub struct ClientHelloSendStep {}
 
 impl Step for ClientHelloSendStep {
-    fn execute(&self, ctx: &TraceContext) {
+    fn execute(&self, ctx: &TraceContext)  -> Vec<u8> {
         let result = self.craft(ctx);
 
         match result {
-            Ok(buffer) => print_as_message(&buffer),
-            _ => panic!("Error"),
+            Ok(buffer) =>  {
+                //print_as_message(&buffer);
+                buffer
+            },
+            _ => {
+                println!("Error");
+                vec![]
+            },
         }
     }
 }
@@ -128,7 +138,7 @@ impl SendStep for ClientHelloSendStep {
             });
             let message = Message {
                 typ: RecordHandshake,
-                version: TLSv1_2,
+                version: ProtocolVersion::TLSv1_3,
                 payload,
             };
 
@@ -138,21 +148,5 @@ impl SendStep for ClientHelloSendStep {
         } else {
             Err(())
         };
-    }
-}
-
-// Instructions
-
-enum InstructionType {
-    RESET,
-}
-
-struct InstructionStep {
-    typ: InstructionType,
-}
-
-impl Step for InstructionStep {
-    fn execute(&self, ctx: &TraceContext) {
-        todo!()
     }
 }
