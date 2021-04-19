@@ -25,30 +25,30 @@ fn main() {
 
     info!("{}", openssl_server::openssl_version());
 
-    let (cert, pkey) = openssl_server::generate_cert();
+
 
     loop {
         let mut ctx = TraceContext::new();
         let openssl_agent = ctx.new_agent();
-        let agent1 = ctx.new_agent();
+        let fuzz_agent = ctx.new_agent();
 
         // TODO link this to openssl agent?
         // ctx.new_openssl_agent() ?
         //let mut stream = openssl_server::create_openssl_server(openssl_agent.stream, &cert, &pkey);
 
-        let action = ServerHelloExpectAction::new();
-        let action1 = ClientHelloSendAction::new();
+        let client_hello = ClientHelloSendAction::new();
+        let server_hello = ServerHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![
                 Step {
-                    from: agent1,
-                    to: agent1,
-                    action: &action1
+                    from: fuzz_agent,
+                    to: openssl_agent,
+                    action: &client_hello
                 },
                 Step {
-                    from: agent1,
-                    to: agent1,
-                    action: &action
+                    from: openssl_agent,
+                    to: fuzz_agent,
+                    action: &server_hello
                 },
             ],
         };

@@ -62,11 +62,11 @@ impl TraceContext {
         variables
     }
 
-    pub fn publish(&mut self, sending_agent_name: AgentName, data: &dyn AsRef<[u8]>) {
-        for agent in self.agents.iter_mut() {
-            if agent.name != sending_agent_name {
-                agent.stream.extend_incoming(data.as_ref());
-            }
+    pub fn send(&mut self, to: AgentName, data: &dyn AsRef<[u8]>) {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(to_agent) = iter.find(|agent| agent.name == to) {
+            to_agent.stream.extend_incoming(data.as_ref());
         }
     }
 
@@ -93,7 +93,7 @@ impl<'a> Trace<'a> {
 pub struct Step<'a> {
     pub from: AgentName,
     pub to: AgentName,
-    pub action : &'a (dyn Action + 'static),
+    pub action: &'a (dyn Action + 'static),
 }
 
 pub trait Action {
@@ -134,8 +134,7 @@ impl ExpectAction for ClientHelloSendAction {
 
 // ClientHello
 
-pub struct ClientHelloSendAction {
-}
+pub struct ClientHelloSendAction {}
 
 impl Action for ClientHelloSendAction {
     fn execute(&self, ctx: &mut TraceContext) {
@@ -155,7 +154,7 @@ impl Action for ClientHelloSendAction {
 
 impl ClientHelloSendAction {
     pub fn new() -> ClientHelloSendAction {
-        ClientHelloSendAction { }
+        ClientHelloSendAction {}
     }
 }
 
