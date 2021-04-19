@@ -1,23 +1,26 @@
 use std::any::Any;
+use std::env::var;
 use std::io::Write;
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::HandshakeType;
+use rustls::internal::msgs::enums::{ContentType, HandshakeType};
 use rustls::internal::msgs::handshake::{
-    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
+    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, ServerExtension,
 };
-use rustls::internal::msgs::message::Message;
-use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::internal::msgs::message::MessagePayload::{Alert, Handshake};
+use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::ProtocolVersion;
 
 use crate::agent::{Agent, AgentName};
-use crate::debug::debug_message;
+use crate::debug::{debug_message, debug_message_with_info};
 use crate::io::Outgoing;
 use crate::variable::{
-    CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
+    AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData,
+    VersionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData,
     VariableData,
 };
+use std::iter::Map;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -32,8 +35,17 @@ impl TraceContext {
         }
     }
 
-    pub fn add_variable(&mut self, data: Box<dyn VariableData>) {
-        self.variables.push(data)
+    pub fn add_variable(&mut self, variable: Box<dyn VariableData>) {
+        self.variables.push(variable)
+    }
+
+    pub fn add_variables<I>(&mut self, variables: I)
+    where
+        I: IntoIterator<Item = Box<dyn VariableData>>
+    {
+        for variable in variables {
+            self.add_variable(variable)
+        }
     }
 
     // Why do we need to extend Any here? do we need to make sure that the types T are known during
@@ -136,15 +148,66 @@ pub trait ExpectAction: Action {
 
 pub struct ServerHelloExpectAction {}
 
+pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
+    return match ctx.receive(step.from) {
+        Ok(buffer) => {
+            debug_message_with_info("Received", &buffer);
+
+            if let Some(mut message) = Message::read_bytes(&buffer) {
+                message.decode_payload();
+
+                match message.payload {
+                    Handshake(payload) => Some(payload.payload),
+                    _ => None,
+                }
+            } else {
+                // decoding failed
+                None
+            }
+        }
+        Err(msg) => {
+            panic!("{}", msg)
+        }
+    };
+}
+
 impl Action for ServerHelloExpectAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        match ctx.receive(step.from) {
-            Ok(buffer) => {
-                debug_message(&buffer);
-            }
-            Err(msg) => {
-                panic!("{}", msg)
-            }
+        match receive_handshake_payload(step, ctx) {
+            None => {}
+            Some(payload) => match payload {
+                HandshakePayload::ServerHello(payload) => {
+                    let owner = step.to;
+                    let vec1: Vec<Box<dyn VariableData>> = vec![
+                        Box::new(RandomData {
+                            metadata: Metadata { owner },
+                            data: payload.random,
+                        }),
+                        Box::new(AgreedCipherSuiteData {
+                            metadata: Metadata { owner },
+                            data: payload.cipher_suite,
+                        }),
+                        Box::new(AgreedCompressionData {
+                            metadata: Metadata { owner },
+                            data: payload.compression_method,
+                        }),
+                        Box::new(VersionData {
+                            metadata: Metadata { owner },
+                            data: payload.legacy_version,
+                        }),
+                    ];
+                    ctx.add_variables(vec1);
+
+                    let vec2 = payload.extensions.iter().map(|extension: &ServerExtension| {
+                        Box::new(ServerExtensionData::static_extension(
+                            owner,
+                            extension.clone(),
+                        )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                    }).collect::<Vec<Box<dyn VariableData>>>();
+                    ctx.add_variables(vec2)
+                }
+                _ => {}
+            },
         }
     }
 }
@@ -200,12 +263,12 @@ impl SendAction for ClientHelloSendAction {
             compression_methods,
             extensions,
         ) = (
-            ctx.get_variable::<ClientVersionData>(agent),
+            ctx.get_variable::<VersionData>(agent),
             ctx.get_variable::<RandomData>(agent),
             ctx.get_variable::<SessionIDData>(agent),
             ctx.get_variable_set::<CipherSuiteData>(agent),
             ctx.get_variable_set::<CompressionData>(agent),
-            ctx.get_variable_set::<ExtensionData>(agent),
+            ctx.get_variable_set::<ClientExtensionData>(agent),
         ) {
             let payload = Handshake(HandshakeMessagePayload {
                 typ: HandshakeType::ClientHello,

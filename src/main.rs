@@ -3,7 +3,7 @@ extern crate log;
 extern crate pretty_env_logger;
 use crate::trace::{TraceContext, Step, ClientHelloSendAction, ServerHelloExpectAction};
 use crate::variable::{
-    CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
+    CipherSuiteData, VersionData, CompressionData, ClientExtensionData, RandomData, SessionIDData,
     VariableData,
 };
 
@@ -42,7 +42,7 @@ fn main() {
             ],
         };
 
-        ctx.add_variable(Box::new(ClientVersionData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(VersionData::random_value(fuzz_agent)));
         ctx.add_variable(Box::new(SessionIDData::random_value(fuzz_agent)));
         ctx.add_variable(Box::new(RandomData::random_value(fuzz_agent)));
 
@@ -50,20 +50,20 @@ fn main() {
         //ctx.add_variable(Box::new(ExtensionData::random_value(fuzz_agent)));
 
         // Some static extensions
-        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
-            ExtensionData::key_share(),
+        ctx.add_variable(Box::new(ClientExtensionData::static_extension(fuzz_agent,
+                                                                        ClientExtensionData::key_share(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
-            ExtensionData::supported_versions(),
+        ctx.add_variable(Box::new(ClientExtensionData::static_extension(fuzz_agent,
+                                                                        ClientExtensionData::supported_versions(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
-            ExtensionData::supported_groups(),
+        ctx.add_variable(Box::new(ClientExtensionData::static_extension(fuzz_agent,
+                                                                        ClientExtensionData::supported_groups(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
-            ExtensionData::server_name("maxammann.org"),
+        ctx.add_variable(Box::new(ClientExtensionData::static_extension(fuzz_agent,
+                                                                        ClientExtensionData::server_name("maxammann.org"),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
-            ExtensionData::signature_algorithms(),
+        ctx.add_variable(Box::new(ClientExtensionData::static_extension(fuzz_agent,
+                                                                        ClientExtensionData::signature_algorithms(),
         )));
 
         ctx.add_variable(Box::new(CipherSuiteData::random_value(fuzz_agent)));

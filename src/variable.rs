@@ -6,7 +6,7 @@ use rand::seq::SliceRandom;
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 use rustls::internal::msgs::base::PayloadU16;
 use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
-use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID};
+use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID, ServerExtension};
 use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
 
 use crate::agent::{NO_AGENT, AgentName};
@@ -37,14 +37,14 @@ pub trait VariableData: Any + AsAny {
             Self: Sized;
 }
 
-// ClientVersion
+// Client/Server Version
 
-pub struct ClientVersionData {
-    metadata: Metadata,
+pub struct VersionData {
+    pub metadata: Metadata,
     pub data: ProtocolVersion,
 }
 
-impl VariableData for ClientVersionData {
+impl VariableData for VersionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
     }
@@ -53,7 +53,7 @@ impl VariableData for ClientVersionData {
         where
             Self: Sized,
     {
-        ClientVersionData {
+        VersionData {
             metadata: Metadata { owner },
             data: ProtocolVersion::TLSv1_3,
         }
@@ -83,6 +83,47 @@ impl VariableData for RandomData {
         }
     }
 }
+
+// AgreedCipherSuite
+
+pub struct AgreedCipherSuiteData {
+    pub metadata: Metadata,
+    pub data: CipherSuite,
+}
+
+impl VariableData for AgreedCipherSuiteData {
+    fn get_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn random_value(owner: AgentName) -> Self
+        where
+            Self: Sized,
+    {
+        todo!()
+    }
+}
+
+// AgreedCompression
+
+pub struct AgreedCompressionData {
+    pub metadata: Metadata,
+    pub data: Compression,
+}
+
+impl VariableData for AgreedCompressionData {
+    fn get_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn random_value(owner: AgentName) -> Self
+        where
+            Self: Sized,
+    {
+        todo!()
+    }
+}
+
 
 // SessionId
 
@@ -164,14 +205,14 @@ impl VariableData for CompressionData {
     }
 }
 
-// Compression
+// Client Extensions
 
-pub struct ExtensionData {
+pub struct ClientExtensionData {
     pub metadata: Metadata,
     pub data: ClientExtension,
 }
 
-impl ExtensionData {
+impl ClientExtensionData {
     pub fn server_name(dns_name: &str) -> ClientExtension {
         ClientExtension::ServerName(vec![ServerName {
             typ: ServerNameType::HostName,
@@ -207,14 +248,14 @@ impl ExtensionData {
     }
 
     pub fn static_extension(owner: AgentName, extension: ClientExtension) -> Self {
-        ExtensionData {
+        ClientExtensionData {
             metadata: Metadata { owner },
             data: extension,
         }
     }
 }
 
-impl VariableData for ExtensionData {
+impl VariableData for ClientExtensionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
     }
@@ -230,7 +271,7 @@ impl VariableData for ExtensionData {
         let key_share: ClientExtension = Self::key_share();
         let supported_versions: ClientExtension = Self::supported_versions();
 
-        ExtensionData {
+        ClientExtensionData {
             metadata: Metadata { owner },
             data: vec![
                 server_name,
@@ -243,5 +284,34 @@ impl VariableData for ExtensionData {
                 .unwrap()
                 .clone(), // avoid clone
         }
+    }
+}
+
+// Server Extensions
+
+pub struct ServerExtensionData {
+    pub metadata: Metadata,
+    pub data: ServerExtension,
+}
+
+impl ServerExtensionData {
+    pub fn static_extension(owner: AgentName, extension: ServerExtension) -> Self {
+        ServerExtensionData {
+            metadata: Metadata { owner },
+            data: extension,
+        }
+    }
+}
+
+impl VariableData for ServerExtensionData {
+    fn get_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn random_value(owner: AgentName) -> Self
+        where
+            Self: Sized,
+    {
+       todo!()
     }
 }
