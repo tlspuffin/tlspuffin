@@ -1,9 +1,16 @@
 use rand::random;
 
 use crate::io::MemoryStream;
+use core::fmt;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct AgentName(u128);
+
+impl fmt::Display for AgentName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0.to_ne_bytes()))
+    }
+}
 
 impl PartialEq for AgentName {
     fn eq(&self, other: &Self) -> bool {
