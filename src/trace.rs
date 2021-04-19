@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::{AlertLevel, HandshakeType};
@@ -10,13 +12,13 @@ use rustls::ProtocolVersion;
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::debug_message;
+use crate::io::MemoryStream;
 use crate::openssl_server;
 use crate::openssl_server::openssl_version;
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
     VariableData,
 };
-use crate::io::MemoryStream;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -25,30 +27,35 @@ pub struct TraceContext {
 
 impl TraceContext {
     pub fn new() -> TraceContext {
-        TraceContext { variables: vec![], agents: vec![] }
+        TraceContext {
+            variables: vec![],
+            agents: vec![],
+        }
     }
 
     pub fn add_variable(&mut self, data: Box<dyn VariableData>) {
         self.variables.push(data)
     }
 
-    fn downcast<T: 'static>(variable: &Box<dyn VariableData>) -> Option<&T> {
-        (**variable).as_any().downcast_ref::<T>()
+    // Why do we need to extend Any here? do we need to make sure that the types T are known during
+    // compile time?
+    fn downcast<T: Any>(variable: &dyn VariableData) -> Option<&T> {
+        variable.as_any().downcast_ref::<T>()
     }
 
-    fn get_variable<T: 'static>(&self) -> Option<&T> {
-        for variable in self.variables.as_slice() {
-            if let Some(derived) = TraceContext::downcast(variable) {
+    fn get_variable<T: Any>(&self) -> Option<&T> {
+        for variable in &self.variables {
+            if let Some(derived) = TraceContext::downcast(variable.as_ref()) {
                 return Some(derived);
             }
         }
         None
     }
 
-    fn get_variable_set<T: 'static>(&self) -> Vec<&T> {
+    fn get_variable_set<T: Any>(&self) -> Vec<&T> {
         let mut variables: Vec<&T> = Vec::new();
-        for variable in self.variables.as_slice() {
-            if let Some(derived) = TraceContext::downcast(variable) {
+        for variable in &self.variables {
+            if let Some(derived) = TraceContext::downcast(variable.as_ref()) {
                 variables.push(derived);
             }
         }
@@ -72,7 +79,7 @@ impl TraceContext {
 }
 
 pub struct Trace {
-    pub steps: Vec<Box<dyn Step>>
+    pub steps: Vec<Box<dyn Step>>,
 }
 
 impl Trace {
@@ -103,8 +110,7 @@ pub trait ExpectStep: Step {
 
 // ServerHello
 
-pub struct ServerHelloExpectStep {
-}
+pub struct ServerHelloExpectStep {}
 
 impl Step for ServerHelloExpectStep {
     fn execute(&mut self, ctx: &mut TraceContext) {
@@ -116,7 +122,7 @@ impl Step for ServerHelloExpectStep {
 
 impl ServerHelloExpectStep {
     pub fn new(agent: AgentName) -> ServerHelloExpectStep {
-        ServerHelloExpectStep { }
+        ServerHelloExpectStep {}
     }
 }
 
