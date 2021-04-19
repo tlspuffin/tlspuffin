@@ -82,7 +82,6 @@ pub fn create_openssl_server(stream: MemoryStream, cert: &X509Ref, key: &PKeyRef
     return server_stream;
 }
 
-
 pub fn process(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
     match stream.accept() {
         Ok(_) => {
@@ -91,12 +90,11 @@ pub fn process(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
         }
         Err(error) => {
             let outgoing = stream.get_mut().take_outgoing();
-            debug_message(&outgoing);
 
             if let Some(io_error) = error.io_error() {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream
+                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
                     }
                     _ => {
                         warn!("{}", io_error);
@@ -105,6 +103,7 @@ pub fn process(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
             }
 
             if let Some(ssl_error) = error.ssl_error() {
+                // OpenSSL threw an error!
                 warn!("{}", ssl_error);
             }
 

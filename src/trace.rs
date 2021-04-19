@@ -1,9 +1,9 @@
 use std::any::Any;
-use std::io::{Error, ErrorKind, Write};
+use std::io::Write;
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{AlertLevel, HandshakeType};
+use rustls::internal::msgs::enums::HandshakeType;
 use rustls::internal::msgs::handshake::{
     ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
 };
@@ -13,9 +13,7 @@ use rustls::ProtocolVersion;
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::debug_message;
-use crate::io::{MemoryStream, Outgoing};
-use crate::openssl_server;
-use crate::openssl_server::openssl_version;
+use crate::io::Outgoing;
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
     VariableData,
@@ -40,23 +38,31 @@ impl TraceContext {
 
     // Why do we need to extend Any here? do we need to make sure that the types T are known during
     // compile time?
-    fn downcast<T: Any>(variable: &dyn VariableData) -> Option<&T> {
-        variable.as_any().downcast_ref::<T>()
+    fn downcast<T: Any>(variable: &dyn AsRef<dyn VariableData>) -> Option<&T> {
+        variable.as_ref().as_any().downcast_ref::<T>()
     }
 
-    fn get_variable<T: Any>(&self) -> Option<&T> {
+    pub fn get_variable<T: Any>(&self, agent: AgentName) -> Option<&T> {
         for variable in &self.variables {
-            if let Some(derived) = TraceContext::downcast(variable.as_ref()) {
+            if variable.get_metadata().owner != agent {
+                continue;
+            }
+
+            if let Some(derived) = TraceContext::downcast(variable) {
                 return Some(derived);
             }
         }
         None
     }
 
-    fn get_variable_set<T: Any>(&self) -> Vec<&T> {
+    pub fn get_variable_set<T: Any>(&self, agent: AgentName) -> Vec<&T> {
         let mut variables: Vec<&T> = Vec::new();
         for variable in &self.variables {
-            if let Some(derived) = TraceContext::downcast(variable.as_ref()) {
+            if variable.get_metadata().owner != agent {
+                continue;
+            }
+
+            if let Some(derived) = TraceContext::downcast(variable) {
                 variables.push(derived);
             }
         }
@@ -119,7 +125,7 @@ pub trait Action {
 }
 
 pub trait SendAction: Action {
-    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()>;
+    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Vec<u8>, ()>;
 }
 
 pub trait ExpectAction: Action {
@@ -137,8 +143,8 @@ impl Action for ServerHelloExpectAction {
                 debug_message(&buffer);
             }
             Err(msg) => {
-                panic!(msg)
-            },
+                panic!("{}", msg)
+            }
         }
     }
 }
@@ -161,7 +167,7 @@ pub struct ClientHelloSendAction {}
 
 impl Action for ClientHelloSendAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        let result = self.craft(ctx);
+        let result = self.craft(ctx, step.from);
 
         match result {
             Ok(buffer) => {
@@ -169,7 +175,10 @@ impl Action for ClientHelloSendAction {
                 ctx.send(step.to, &buffer);
             }
             _ => {
-                println!("Error");
+                error!(
+                    "Unable to craft message in {:?}",
+                    std::any::type_name::<Self>()
+                );
             }
         }
     }
@@ -182,7 +191,7 @@ impl ClientHelloSendAction {
 }
 
 impl SendAction for ClientHelloSendAction {
-    fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()> {
+    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Vec<u8>, ()> {
         return if let (
             Some(client_version),
             Some(random),
@@ -191,12 +200,12 @@ impl SendAction for ClientHelloSendAction {
             compression_methods,
             extensions,
         ) = (
-            ctx.get_variable::<ClientVersionData>(),
-            ctx.get_variable::<RandomData>(),
-            ctx.get_variable::<SessionIDData>(),
-            ctx.get_variable_set::<CipherSuiteData>(),
-            ctx.get_variable_set::<CompressionData>(),
-            ctx.get_variable_set::<ExtensionData>(),
+            ctx.get_variable::<ClientVersionData>(agent),
+            ctx.get_variable::<RandomData>(agent),
+            ctx.get_variable::<SessionIDData>(agent),
+            ctx.get_variable_set::<CipherSuiteData>(agent),
+            ctx.get_variable_set::<CompressionData>(agent),
+            ctx.get_variable_set::<ExtensionData>(agent),
         ) {
             let payload = Handshake(HandshakeMessagePayload {
                 typ: HandshakeType::ClientHello,

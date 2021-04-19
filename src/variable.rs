@@ -22,7 +22,7 @@ impl<T: Any> AsAny for T {
 }
 
 pub struct Metadata {
-    owner: AgentName,
+    pub owner: AgentName,
 }
 
 // VariableData trait should include AsAny so that `as_any` is in its vtable.
@@ -32,7 +32,7 @@ pub trait VariableData: Any + AsAny {
         self.get_metadata().owner
     }
 
-    fn random_value() -> Self
+    fn random_value(agent: AgentName) -> Self
         where
             Self: Sized;
 }
@@ -49,12 +49,12 @@ impl VariableData for ClientVersionData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
         ClientVersionData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: ProtocolVersion::TLSv1_3,
         }
     }
@@ -72,13 +72,13 @@ impl VariableData for RandomData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
         let random_data: [u8; 32] = random();
         RandomData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: Random::from_slice(&random_data),
         }
     }
@@ -96,13 +96,13 @@ impl VariableData for SessionIDData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
         let random_data: [u8; 32] = random();
         SessionIDData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: SessionID::new(&random_data),
         }
     }
@@ -120,12 +120,12 @@ impl VariableData for CipherSuiteData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
         CipherSuiteData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: *vec![
                 CipherSuite::TLS13_AES_128_CCM_SHA256,
                 CipherSuite::TLS13_AES_128_CCM_8_SHA256,
@@ -151,12 +151,12 @@ impl VariableData for CompressionData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
         CompressionData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
                 .choose(&mut rand::thread_rng())
                 .unwrap(),
@@ -206,9 +206,9 @@ impl ExtensionData {
         ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
     }
 
-    pub fn static_extension(extension: ClientExtension) -> Self {
+    pub fn static_extension(owner: AgentName, extension: ClientExtension) -> Self {
         ExtensionData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: extension,
         }
     }
@@ -219,7 +219,7 @@ impl VariableData for ExtensionData {
         &self.metadata
     }
 
-    fn random_value() -> Self
+    fn random_value(owner: AgentName) -> Self
         where
             Self: Sized,
     {
@@ -231,7 +231,7 @@ impl VariableData for ExtensionData {
         let supported_versions: ClientExtension = Self::supported_versions();
 
         ExtensionData {
-            metadata: Metadata { owner: NO_AGENT },
+            metadata: Metadata { owner },
             data: vec![
                 server_name,
                 supported_groups,

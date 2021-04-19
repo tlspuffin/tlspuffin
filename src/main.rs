@@ -20,16 +20,10 @@ fn main() {
 
     info!("{}", openssl_server::openssl_version());
 
-
-
     loop {
         let mut ctx = TraceContext::new();
         let openssl_agent = ctx.new_openssl_agent();
         let fuzz_agent = ctx.new_agent();
-
-        // TODO link this to openssl agent?
-        // ctx.new_openssl_agent() ?
-        //let mut stream = openssl_server::create_openssl_server(openssl_agent.stream, &cert, &pkey);
 
         let client_hello = ClientHelloSendAction::new();
         let server_hello = ServerHelloExpectAction::new();
@@ -48,34 +42,34 @@ fn main() {
             ],
         };
 
-        ctx.add_variable(Box::new(ClientVersionData::random_value()));
-        ctx.add_variable(Box::new(SessionIDData::random_value()));
-        ctx.add_variable(Box::new(RandomData::random_value()));
+        ctx.add_variable(Box::new(ClientVersionData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(SessionIDData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(RandomData::random_value(fuzz_agent)));
 
         // A random extension
-        ctx.add_variable(Box::new(ExtensionData::random_value()));
+        //ctx.add_variable(Box::new(ExtensionData::random_value(fuzz_agent)));
 
         // Some static extensions
-        ctx.add_variable(Box::new(ExtensionData::static_extension(
+        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
             ExtensionData::key_share(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(
+        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
             ExtensionData::supported_versions(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(
+        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
             ExtensionData::supported_groups(),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(
+        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
             ExtensionData::server_name("maxammann.org"),
         )));
-        ctx.add_variable(Box::new(ExtensionData::static_extension(
+        ctx.add_variable(Box::new(ExtensionData::static_extension(fuzz_agent,
             ExtensionData::signature_algorithms(),
         )));
 
-        ctx.add_variable(Box::new(CipherSuiteData::random_value()));
-        ctx.add_variable(Box::new(CipherSuiteData::random_value()));
-        ctx.add_variable(Box::new(CipherSuiteData::random_value()));
-        ctx.add_variable(Box::new(CompressionData::random_value()));
+        ctx.add_variable(Box::new(CipherSuiteData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(CipherSuiteData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(CipherSuiteData::random_value(fuzz_agent)));
+        ctx.add_variable(Box::new(CompressionData::random_value(fuzz_agent)));
 
         trace.execute(&mut ctx);
     }
