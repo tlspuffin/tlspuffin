@@ -7,7 +7,7 @@ use openssl::version::version;
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509};
 
-use crate::io::{MemoryStream, Outgoing};
+use crate::io::{MemoryStream, Outgoing, Stream};
 use crate::debug::debug_message;
 use std::io::ErrorKind;
 

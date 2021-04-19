@@ -1,10 +1,50 @@
-use std::io::{Read, Write};
 use std::io;
+use std::io::{Read, Write};
+
+use openssl::ssl::SslStream;
+
+use crate::openssl_server;
+
+pub trait Stream: std::io::Read + std::io::Write {
+    fn extend_incoming(&mut self, data: &[u8]);
+    fn take_outgoing(&mut self) -> Outgoing<'_>;
+}
 
 #[derive(Debug)]
 pub struct MemoryStream {
     incoming: io::Cursor<Vec<u8>>,
     outgoing: Vec<u8>,
+}
+
+pub struct OpenSSLStream {
+    openssl_stream: SslStream<MemoryStream>,
+}
+
+impl Stream for OpenSSLStream {
+    fn extend_incoming(&mut self, data: &[u8]) {
+        self.openssl_stream.get_mut().extend_incoming(data)
+    }
+
+    fn take_outgoing(&mut self) -> Outgoing<'_> {
+        let openssl_stream = &mut self.openssl_stream;
+        openssl_server::process(openssl_stream).unwrap()
+    }
+}
+
+impl Read for OpenSSLStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.openssl_stream.get_mut().read(buf)
+    }
+}
+
+impl Write for OpenSSLStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.openssl_stream.get_mut().write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.openssl_stream.get_mut().flush()
+    }
 }
 
 impl MemoryStream {
@@ -14,12 +54,25 @@ impl MemoryStream {
             outgoing: Vec::new(),
         }
     }
+}
 
-    pub fn extend_incoming(&mut self, data: &[u8]) {
+impl OpenSSLStream {
+    pub fn new() -> Self {
+        let (cert, pkey) = openssl_server::generate_cert();
+
+        let memory_stream = MemoryStream::new();
+        OpenSSLStream {
+            openssl_stream: openssl_server::create_openssl_server(memory_stream, &cert, &pkey),
+        }
+    }
+}
+
+impl Stream for MemoryStream {
+    fn extend_incoming(&mut self, data: &[u8]) {
         self.incoming.get_mut().extend_from_slice(data);
     }
 
-    pub fn take_outgoing(&mut self) -> Outgoing<'_> {
+    fn take_outgoing(&mut self) -> Outgoing<'_> {
         Outgoing(&mut self.outgoing)
     }
 }

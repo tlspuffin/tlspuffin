@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::io::{Error, ErrorKind, Write};
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
@@ -12,7 +13,7 @@ use rustls::ProtocolVersion;
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::debug_message;
-use crate::io::MemoryStream;
+use crate::io::{MemoryStream, Outgoing};
 use crate::openssl_server;
 use crate::openssl_server::openssl_version;
 use crate::variable::{
@@ -62,16 +63,33 @@ impl TraceContext {
         variables
     }
 
-    pub fn send(&mut self, to: AgentName, data: &dyn AsRef<[u8]>) {
+    pub fn send(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
-            to_agent.stream.extend_incoming(data.as_ref());
+            to_agent.stream.extend_incoming(buf.as_ref());
         }
+    }
+
+    pub fn receive(&mut self, from: AgentName) -> Option<Outgoing<'_>> {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
+            return Some(from_agent.stream.take_outgoing());
+        }
+
+        None
     }
 
     pub fn new_agent(&mut self) -> AgentName {
         let agent = Agent::new();
+        let name = agent.name;
+        self.agents.push(agent);
+        return name;
+    }
+
+    pub fn new_openssl_agent(&mut self) -> AgentName {
+        let agent = Agent::new_openssl();
         let name = agent.name;
         self.agents.push(agent);
         return name;
@@ -85,7 +103,7 @@ pub struct Trace<'a> {
 impl<'a> Trace<'a> {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
         for step in self.steps.iter_mut() {
-            step.action.execute(ctx);
+            step.action.execute(step, ctx);
         }
     }
 }
@@ -97,7 +115,7 @@ pub struct Step<'a> {
 }
 
 pub trait Action {
-    fn execute(&self, ctx: &mut TraceContext);
+    fn execute(&self, step: &Step, ctx: &mut TraceContext);
 }
 
 pub trait SendAction: Action {
@@ -113,10 +131,15 @@ pub trait ExpectAction: Action {
 pub struct ServerHelloExpectAction {}
 
 impl Action for ServerHelloExpectAction {
-    fn execute(&self, ctx: &mut TraceContext) {
-        // TODO
-        // let buffer = ctx.receive_from_previous();
-        // openssl_server::process(ssl_stream)
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+        match ctx.receive(step.from) {
+            Some(buffer) => {
+                debug_message(&buffer);
+            }
+            None => {
+                panic!("dunno")
+            },
+        }
     }
 }
 
@@ -137,13 +160,13 @@ impl ExpectAction for ClientHelloSendAction {
 pub struct ClientHelloSendAction {}
 
 impl Action for ClientHelloSendAction {
-    fn execute(&self, ctx: &mut TraceContext) {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
         let result = self.craft(ctx);
 
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                //ctx.publish(self.agent, &buffer);
+                ctx.send(step.to, &buffer);
             }
             _ => {
                 println!("Error");
@@ -192,9 +215,9 @@ impl SendAction for ClientHelloSendAction {
                 payload,
             };
 
-            let mut out: Vec<u8> = Vec::new();
-            message.encode(&mut out);
-            Ok(out)
+            let mut buffer: Vec<u8> = Vec::new();
+            message.encode(&mut buffer);
+            Ok(buffer)
         } else {
             Err(())
         };

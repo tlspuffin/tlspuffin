@@ -1,7 +1,8 @@
+use core::fmt;
+
 use rand::random;
 
-use crate::io::MemoryStream;
-use core::fmt;
+use crate::io::{MemoryStream, OpenSSLStream, Stream};
 
 #[derive(Copy, Clone)]
 pub struct AgentName(u128);
@@ -20,19 +21,23 @@ impl PartialEq for AgentName {
 
 pub struct Agent {
     pub name: AgentName,
-    pub stream: MemoryStream,
+    pub stream: Box<dyn Stream>,
 }
 
 impl Agent {
     pub fn new() -> Self {
-        Self::from_stream(MemoryStream::new())
+        Self::from_stream(Box::new(MemoryStream::new()))
     }
 
-    pub fn from_stream(stream: MemoryStream) -> Agent {
+    pub fn from_stream(stream: Box<dyn Stream>) -> Agent {
         Agent {
             name: AgentName(random()),
             stream,
         }
+    }
+
+    pub fn new_openssl() -> Self {
+        Self::from_stream(Box::new(OpenSSLStream::new()))
     }
 }
 

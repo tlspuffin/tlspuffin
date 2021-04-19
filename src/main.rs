@@ -29,7 +29,7 @@ fn main() {
 
     loop {
         let mut ctx = TraceContext::new();
-        let openssl_agent = ctx.new_agent();
+        let openssl_agent = ctx.new_openssl_agent();
         let fuzz_agent = ctx.new_agent();
 
         // TODO link this to openssl agent?
