@@ -6,7 +6,7 @@ use std::io::ErrorKind;
 
 use crate::agent::Agent;
 use crate::debug::debug_message;
-use crate::trace::{ClientHelloSendStep, ServerHelloExpectStep, TraceContext};
+use crate::trace::{TraceContext, Step, ClientHelloSendAction, ServerHelloExpectAction};
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,
     VariableData,
@@ -36,10 +36,20 @@ fn main() {
         // ctx.new_openssl_agent() ?
         //let mut stream = openssl_server::create_openssl_server(openssl_agent.stream, &cert, &pkey);
 
+        let action = ServerHelloExpectAction::new();
+        let action1 = ClientHelloSendAction::new();
         let mut trace = trace::Trace {
             steps: vec![
-                Box::new(ClientHelloSendStep::new(agent1)),
-                Box::new(ServerHelloExpectStep::new(openssl_agent)),
+                Step {
+                    from: agent1,
+                    to: agent1,
+                    action: &action1
+                },
+                Step {
+                    from: agent1,
+                    to: agent1,
+                    action: &action
+                },
             ],
         };
 

@@ -78,59 +78,55 @@ impl TraceContext {
     }
 }
 
-pub struct Trace {
-    pub steps: Vec<Box<dyn Step>>,
+pub struct Trace<'a> {
+    pub steps: Vec<Step<'a>>,
 }
 
-impl Trace {
+impl<'a> Trace<'a> {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
         for step in self.steps.iter_mut() {
-            step.execute(ctx);
+            step.action.execute(ctx);
         }
     }
 }
 
-pub trait Step {
-    fn execute(&mut self, ctx: &mut TraceContext);
+pub struct Step<'a> {
+    pub from: AgentName,
+    pub to: AgentName,
+    pub action : &'a (dyn Action + 'static),
 }
 
-pub trait SendStep: Step {
+pub trait Action {
+    fn execute(&self, ctx: &mut TraceContext);
+}
+
+pub trait SendAction: Action {
     fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()>;
 }
 
-pub enum ExpectType {
-    Alert(AlertLevel),
-    Handshake(HandshakeType),
-}
-
-pub trait ExpectStep: Step {
-    fn get_type(&self) -> ExpectType;
+pub trait ExpectAction: Action {
     fn get_concrete_variables(&self) -> Vec<String>; // Variables and the actual values
 }
 
 // ServerHello
 
-pub struct ServerHelloExpectStep {}
+pub struct ServerHelloExpectAction {}
 
-impl Step for ServerHelloExpectStep {
-    fn execute(&mut self, ctx: &mut TraceContext) {
+impl Action for ServerHelloExpectAction {
+    fn execute(&self, ctx: &mut TraceContext) {
         // TODO
         // let buffer = ctx.receive_from_previous();
         // openssl_server::process(ssl_stream)
     }
 }
 
-impl ServerHelloExpectStep {
-    pub fn new(agent: AgentName) -> ServerHelloExpectStep {
-        ServerHelloExpectStep {}
+impl ServerHelloExpectAction {
+    pub fn new() -> ServerHelloExpectAction {
+        ServerHelloExpectAction {}
     }
 }
 
-impl ExpectStep for ClientHelloSendStep {
-    fn get_type(&self) -> ExpectType {
-        todo!()
-    }
-
+impl ExpectAction for ClientHelloSendAction {
     fn get_concrete_variables(&self) -> Vec<String> {
         todo!()
     }
@@ -138,12 +134,11 @@ impl ExpectStep for ClientHelloSendStep {
 
 // ClientHello
 
-pub struct ClientHelloSendStep {
-    pub agent: AgentName,
+pub struct ClientHelloSendAction {
 }
 
-impl Step for ClientHelloSendStep {
-    fn execute(&mut self, ctx: &mut TraceContext) {
+impl Action for ClientHelloSendAction {
+    fn execute(&self, ctx: &mut TraceContext) {
         let result = self.craft(ctx);
 
         match result {
@@ -158,13 +153,13 @@ impl Step for ClientHelloSendStep {
     }
 }
 
-impl ClientHelloSendStep {
-    pub fn new(agent: AgentName) -> ClientHelloSendStep {
-        ClientHelloSendStep { agent }
+impl ClientHelloSendAction {
+    pub fn new() -> ClientHelloSendAction {
+        ClientHelloSendAction { }
     }
 }
 
-impl SendStep for ClientHelloSendStep {
+impl SendAction for ClientHelloSendAction {
     fn craft(&self, ctx: &TraceContext) -> Result<Vec<u8>, ()> {
         return if let (
             Some(client_version),
