@@ -71,14 +71,14 @@ impl TraceContext {
         }
     }
 
-    pub fn receive(&mut self, from: AgentName) -> Option<Outgoing<'_>> {
+    pub fn receive(&mut self, from: AgentName) -> Result<Outgoing<'_>, String> {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            return Some(from_agent.stream.take_outgoing());
+            return Ok(from_agent.stream.take_outgoing());
         }
 
-        None
+        Err(format!("Could not find agent {}", from))
     }
 
     pub fn new_agent(&mut self) -> AgentName {
@@ -133,11 +133,11 @@ pub struct ServerHelloExpectAction {}
 impl Action for ServerHelloExpectAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
         match ctx.receive(step.from) {
-            Some(buffer) => {
+            Ok(buffer) => {
                 debug_message(&buffer);
             }
-            None => {
-                panic!("dunno")
+            Err(msg) => {
+                panic!(msg)
             },
         }
     }

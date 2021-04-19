@@ -1,11 +1,6 @@
 #[macro_use]
 extern crate log;
 extern crate pretty_env_logger;
-
-use std::io::ErrorKind;
-
-use crate::agent::Agent;
-use crate::debug::debug_message;
 use crate::trace::{TraceContext, Step, ClientHelloSendAction, ServerHelloExpectAction};
 use crate::variable::{
     CipherSuiteData, ClientVersionData, CompressionData, ExtensionData, RandomData, SessionIDData,

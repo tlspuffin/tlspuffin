@@ -2,7 +2,7 @@ use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream};
+use openssl::ssl::{Ssl, SslContext, SslMethod, SslStream};
 use openssl::version::version;
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509};
@@ -31,23 +31,24 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
     x509_name.append_entry_by_text("CN", "ca test").unwrap();
     let x509_name = x509_name.build();
     let mut cert_builder = X509::builder().unwrap();
-    cert_builder.set_version(2);
+    cert_builder.set_version(2).unwrap();
     let serial_number = {
         let mut serial = BigNum::new().unwrap();
-        serial.rand(159, MsbOption::MAYBE_ZERO, false);
+        serial.rand(159, MsbOption::MAYBE_ZERO, false).unwrap();
         serial.to_asn1_integer()
     }
     .unwrap();
-    cert_builder.set_serial_number(&serial_number);
-    cert_builder.set_subject_name(&x509_name);
-    cert_builder.set_issuer_name(&x509_name);
-    cert_builder.set_pubkey(&pkey);
+    cert_builder.set_serial_number(&serial_number).unwrap();
+    cert_builder.set_subject_name(&x509_name).unwrap();
+    cert_builder.set_issuer_name(&x509_name).unwrap();
+    cert_builder.set_pubkey(&pkey).unwrap();
     let not_before = Asn1Time::days_from_now(0).unwrap();
-    cert_builder.set_not_before(&not_before);
+    cert_builder.set_not_before(&not_before).unwrap();
     let not_after = Asn1Time::days_from_now(365).unwrap();
-    cert_builder.set_not_after(&not_after);
+    cert_builder.set_not_after(&not_after).unwrap();
 
-    cert_builder.append_extension(BasicConstraints::new().critical().ca().build().unwrap());
+    let extension = BasicConstraints::new().critical().ca().build().unwrap();
+    cert_builder.append_extension(extension).unwrap();
     cert_builder.append_extension(
         KeyUsage::new()
             .critical()
@@ -55,14 +56,14 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
             .crl_sign()
             .build()
             .unwrap(),
-    );
+    ).unwrap();
 
     let subject_key_identifier = SubjectKeyIdentifier::new()
         .build(&cert_builder.x509v3_context(None, None))
         .unwrap();
-    cert_builder.append_extension(subject_key_identifier);
+    cert_builder.append_extension(subject_key_identifier).unwrap();
 
-    cert_builder.sign(&pkey, MessageDigest::sha256());
+    cert_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
     let cert = cert_builder.build();
     return (cert, pkey);
 }

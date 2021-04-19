@@ -14,8 +14,8 @@ pub fn debug_message(buffer: &dyn AsRef<[u8]>) {
                 let output = format!("{:?}", payload.payload);
                 trace!("{}", output);
             }
-            MessagePayload::ChangeCipherSpec(payload) => {}
-            MessagePayload::Opaque(payload) => {}
+            MessagePayload::ChangeCipherSpec(_) => {}
+            MessagePayload::Opaque(_) => {}
         }
     } else {
         panic!("Failed to decode message!")

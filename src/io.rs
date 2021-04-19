@@ -80,6 +80,7 @@ impl Stream for MemoryStream {
 impl Read for MemoryStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.incoming.read(buf)?;
+
         if self.incoming.position() == self.incoming.get_ref().len() as u64 {
             self.incoming.set_position(0);
             self.incoming.get_mut().clear();
