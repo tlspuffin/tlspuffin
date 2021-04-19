@@ -29,7 +29,3 @@ path = "src/simpleclient.rs"
 [[bin]]
 name = "crotofuzz"
 path = "src/main.rs"
-
-[[bin]]
-name = "openssl_experiment"
-path = "src/openssl_experiment.rs"
