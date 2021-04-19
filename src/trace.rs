@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::env::var;
 use std::io::Write;
+use std::iter::Map;
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
@@ -17,10 +18,9 @@ use crate::debug::{debug_message, debug_message_with_info};
 use crate::io::Outgoing;
 use crate::variable::{
     AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData,
-    VersionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData,
-    VariableData,
+    CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
+    VersionData,
 };
-use std::iter::Map;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -41,7 +41,7 @@ impl TraceContext {
 
     pub fn add_variables<I>(&mut self, variables: I)
     where
-        I: IntoIterator<Item = Box<dyn VariableData>>
+        I: IntoIterator<Item = Box<dyn VariableData>>,
     {
         for variable in variables {
             self.add_variable(variable)
@@ -178,33 +178,37 @@ impl Action for ServerHelloExpectAction {
             Some(payload) => match payload {
                 HandshakePayload::ServerHello(payload) => {
                     let owner = step.to;
-                    let vec1: Vec<Box<dyn VariableData>> = vec![
-                        Box::new(RandomData {
-                            metadata: Metadata { owner },
-                            data: payload.random,
-                        }),
-                        Box::new(AgreedCipherSuiteData {
-                            metadata: Metadata { owner },
-                            data: payload.cipher_suite,
-                        }),
-                        Box::new(AgreedCompressionData {
-                            metadata: Metadata { owner },
-                            data: payload.compression_method,
-                        }),
-                        Box::new(VersionData {
-                            metadata: Metadata { owner },
-                            data: payload.legacy_version,
-                        }),
-                    ];
-                    ctx.add_variables(vec1);
 
-                    let vec2 = payload.extensions.iter().map(|extension: &ServerExtension| {
-                        Box::new(ServerExtensionData::static_extension(
-                            owner,
-                            extension.clone(),
-                        )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
-                    }).collect::<Vec<Box<dyn VariableData>>>();
-                    ctx.add_variables(vec2)
+                    ctx.add_variables(
+                        payload
+                            .extensions
+                            .iter()
+                            .map(|extension: &ServerExtension| {
+                                Box::new(ServerExtensionData::static_extension(
+                                    owner,
+                                    extension.clone(),
+                                )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                            })
+                            .chain::<Vec<Box<dyn VariableData>>>(vec![
+                                Box::new(RandomData {
+                                    metadata: Metadata { owner },
+                                    data: payload.random,
+                                }),
+                                Box::new(AgreedCipherSuiteData {
+                                    metadata: Metadata { owner },
+                                    data: payload.cipher_suite,
+                                }),
+                                Box::new(AgreedCompressionData {
+                                    metadata: Metadata { owner },
+                                    data: payload.compression_method,
+                                }),
+                                Box::new(VersionData {
+                                    metadata: Metadata { owner },
+                                    data: payload.legacy_version,
+                                }),
+                            ])
+                            .collect::<Vec<Box<dyn VariableData>>>(),
+                    );
                 }
                 _ => {}
             },
