@@ -78,7 +78,7 @@ impl TraceContext {
     }
 
     /// Adds data to the inbound channel of the Agent referenced by the AgentName [`to`].
-    pub fn send(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
+    pub fn add_to_inbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
@@ -87,7 +87,7 @@ impl TraceContext {
     }
 
     /// Takes data from the outbound channel of the Agent referenced by the AgentName [`from`].
-    pub fn receive(&mut self, from: AgentName) -> Result<&Vec<u8>, String> {
+    pub fn take_from_outbound(&mut self, from: AgentName) -> Result<&Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
@@ -162,7 +162,7 @@ pub trait ExpectAction: Action {
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    return match ctx.receive(step.from) {
+    return match ctx.take_from_outbound(step.to) {
         Ok(buffer) => {
             debug_message_with_info("Received", &buffer);
 
@@ -209,7 +209,7 @@ impl ServerHelloExpectAction {
 impl ExpectAction for ServerHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.to;
+            let owner = step.from; // corresponds to the OpenSSL client usually
 
             ctx.add_variables(
                 payload
@@ -264,7 +264,7 @@ impl Action for ClientHelloSendAction {
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.send(step.to, &buffer);
+                ctx.add_to_inbound(step.to, &buffer);
             }
             _ => {
                 error!(
@@ -350,7 +350,7 @@ impl ClientHelloExpectAction {
 impl ExpectAction for ClientHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ClientHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.to;
+            let owner = step.from;
 
             let simple_variables: Vec<Box<dyn VariableData>> = vec![
                 Box::new(RandomData {

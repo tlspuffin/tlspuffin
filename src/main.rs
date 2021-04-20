@@ -33,8 +33,8 @@ fn exec_1() {
                 action: &client_hello
             },
             Step {
-                from: openssl_server_agent,
-                to: honest_agent,
+                from: honest_agent,
+                to: openssl_server_agent,
                 action: &server_hello
             },
         ],
@@ -86,8 +86,8 @@ fn exec_2() {
     let mut trace = trace::Trace {
         steps: vec![
             Step {
-                from: openssl_client_agent,
-                to: honest_agent,
+                to: openssl_client_agent,
+                from: honest_agent,
                 action: &send
             },
             Step {
@@ -96,8 +96,8 @@ fn exec_2() {
                 action: &expect
             },
             Step {
-                from: openssl_client_agent,
-                to: honest_agent,
+                to: openssl_client_agent,
+                from: honest_agent,
                 action: &expect2
             },
         ],
