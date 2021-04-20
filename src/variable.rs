@@ -156,6 +156,15 @@ pub struct CipherSuiteData {
     pub data: CipherSuite,
 }
 
+impl CipherSuiteData {
+    pub fn static_extension(owner: AgentName, cipher_suite: CipherSuite) -> Self {
+        Self {
+            metadata: Metadata { owner },
+            data: cipher_suite,
+        }
+    }
+}
+
 impl VariableData for CipherSuiteData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
@@ -185,6 +194,15 @@ impl VariableData for CipherSuiteData {
 pub struct CompressionData {
     pub metadata: Metadata,
     pub data: Compression,
+}
+
+impl CompressionData {
+    pub fn static_extension(owner: AgentName, compression: Compression) -> Self {
+        Self {
+            metadata: Metadata { owner },
+            data: compression,
+        }
+    }
 }
 
 impl VariableData for CompressionData {
@@ -248,7 +266,7 @@ impl ClientExtensionData {
     }
 
     pub fn static_extension(owner: AgentName, extension: ClientExtension) -> Self {
-        ClientExtensionData {
+        Self {
             metadata: Metadata { owner },
             data: extension,
         }
@@ -296,7 +314,7 @@ pub struct ServerExtensionData {
 
 impl ServerExtensionData {
     pub fn static_extension(owner: AgentName, extension: ServerExtension) -> Self {
-        ServerExtensionData {
+        Self {
             metadata: Metadata { owner },
             data: extension,
         }

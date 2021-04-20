@@ -3,13 +3,11 @@ use std::any::Any;
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{HandshakeType};
-use rustls::internal::msgs::handshake::{
-    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, ServerExtension,
-};
-use rustls::internal::msgs::message::MessagePayload::{Handshake};
-use rustls::internal::msgs::message::{Message};
-use rustls::ProtocolVersion;
+use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, ServerExtension, SessionID};
+use rustls::internal::msgs::message::Message;
+use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::{ProtocolVersion, CipherSuite};
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
@@ -18,6 +16,7 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
+use openssl::symm::Cipher;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -25,8 +24,8 @@ pub struct TraceContext {
 }
 
 impl TraceContext {
-    pub fn new() -> TraceContext {
-        TraceContext {
+    pub fn new() -> Self {
+        Self {
             variables: vec![],
             agents: vec![],
         }
@@ -92,7 +91,10 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            return from_agent.stream.take_from_outbound().ok_or::<String>("Failed to take data from inbound channel".to_string());
+            return from_agent
+                .stream
+                .take_from_outbound()
+                .ok_or::<String>("Failed to take data from inbound channel".to_string());
         }
 
         Err(format!("Could not find agent {}", from))
@@ -109,7 +111,7 @@ impl TraceContext {
     }
 
     pub fn new_openssl_agent(&mut self, server: bool) -> AgentName {
-        return self.add_agent(Agent::new_openssl(server))
+        return self.add_agent(Agent::new_openssl(server));
     }
 }
 
@@ -154,12 +156,10 @@ pub trait SendAction: Action {
 }
 
 pub trait ExpectAction: Action {
-    fn get_concrete_variables(&self) -> Vec<String>; // Variables and the actual values
+    fn expect(&self, step: &Step, ctx: &mut TraceContext);
 }
 
-// ServerHello
-
-pub struct ServerHelloExpectAction {}
+// parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
     return match ctx.receive(step.from) {
@@ -184,6 +184,10 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
     };
 }
 
+// Expect ServerHello
+
+pub struct ServerHelloExpectAction {}
+
 impl fmt::Display for ServerHelloExpectAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", "Expect ServerHello")
@@ -192,6 +196,18 @@ impl fmt::Display for ServerHelloExpectAction {
 
 impl Action for ServerHelloExpectAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+        self.expect(step, ctx);
+    }
+}
+
+impl ServerHelloExpectAction {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl ExpectAction for ServerHelloExpectAction {
+    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
             let owner = step.to;
 
@@ -203,7 +219,7 @@ impl Action for ServerHelloExpectAction {
                         Box::new(ServerExtensionData::static_extension(
                             owner,
                             extension.clone(),
-                        )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                        )) as Box<dyn VariableData> // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
                     })
                     .chain::<Vec<Box<dyn VariableData>>>(vec![
                         Box::new(RandomData {
@@ -228,18 +244,6 @@ impl Action for ServerHelloExpectAction {
         } else {
             // no ServerHello or decoding failed
         }
-    }
-}
-
-impl ServerHelloExpectAction {
-    pub fn new() -> ServerHelloExpectAction {
-        ServerHelloExpectAction {}
-    }
-}
-
-impl ExpectAction for ClientHelloSendAction {
-    fn get_concrete_variables(&self) -> Vec<String> {
-        todo!()
     }
 }
 
@@ -273,8 +277,8 @@ impl Action for ClientHelloSendAction {
 }
 
 impl ClientHelloSendAction {
-    pub fn new() -> ClientHelloSendAction {
-        ClientHelloSendAction {}
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -318,5 +322,80 @@ impl SendAction for ClientHelloSendAction {
         } else {
             Err(())
         };
+    }
+}
+
+// Expect ClientHello
+
+pub struct ClientHelloExpectAction {}
+
+impl fmt::Display for ClientHelloExpectAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", "Expect ClientHello")
+    }
+}
+
+impl Action for ClientHelloExpectAction {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+        self.expect(step, ctx);
+    }
+}
+
+impl ClientHelloExpectAction {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl ExpectAction for ClientHelloExpectAction {
+    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
+        if let Some(HandshakePayload::ClientHello(payload)) = receive_handshake_payload(step, ctx) {
+            let owner = step.to;
+
+            let simple_variables: Vec<Box<dyn VariableData>> = vec![
+                Box::new(RandomData {
+                    metadata: Metadata { owner },
+                    data: payload.random,
+                }),
+                Box::new(SessionIDData {
+                    metadata: Metadata { owner },
+                    data: payload.session_id,
+                }),
+                Box::new(VersionData {
+                    metadata: Metadata { owner },
+                    data: payload.client_version,
+                })
+            ];
+            ctx.add_variables(
+                simple_variables.into_iter()
+                    .chain(payload.extensions.iter().map(
+                        |extension: &ClientExtension| {
+                            Box::new(ClientExtensionData::static_extension(
+                                owner,
+                                extension.clone(),
+                            )) as Box<dyn VariableData>
+                        },
+                    ))
+                    .chain(payload.compression_methods.iter().map(
+                        |compression: &Compression| {
+                            Box::new(CompressionData::static_extension(
+                                owner,
+                                compression.clone(),
+                            )) as Box<dyn VariableData>
+                        },
+                    ))
+                    .chain(payload.cipher_suites.iter().map(
+                        |cipher_suite: &CipherSuite| {
+                            Box::new(CipherSuiteData::static_extension(
+                                owner,
+                                cipher_suite.clone(),
+                            )) as Box<dyn VariableData>
+                        },
+                    ))
+                    .collect::<Vec<Box<dyn VariableData>>>(),
+            );
+        } else {
+            // no ServerHello or decoding failed
+        }
     }
 }
