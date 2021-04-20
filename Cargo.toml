@@ -23,7 +23,7 @@ openssl = { version = "0.10.33", features = ["vendored"] }
 openssl-src = { path = './openssl-src' }
 
 [[bin]]
-name = "simpleclient"
+name = "rustls_client"
 path = "src/rustls_client.rs"
 
 [[bin]]
