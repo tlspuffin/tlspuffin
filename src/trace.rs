@@ -1,5 +1,7 @@
+use core::fmt;
 use std::any::Any;
 use std::env::var;
+use std::fmt::Formatter;
 use std::io::Write;
 use std::iter::Map;
 
@@ -21,8 +23,6 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
-use core::fmt;
-use std::fmt::Formatter;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -101,18 +101,18 @@ impl TraceContext {
         Err(format!("Could not find agent {}", from))
     }
 
-    pub fn new_agent(&mut self) -> AgentName {
-        let agent = Agent::new();
+    fn add_agent(&mut self, agent: Agent) -> AgentName {
         let name = agent.name;
         self.agents.push(agent);
         return name;
     }
 
-    pub fn new_openssl_agent(&mut self) -> AgentName {
-        let agent = Agent::new_openssl();
-        let name = agent.name;
-        self.agents.push(agent);
-        return name;
+    pub fn new_agent(&mut self) -> AgentName {
+        return self.add_agent(Agent::new());
+    }
+
+    pub fn new_openssl_agent(&mut self, server: bool) -> AgentName {
+        return self.add_agent(Agent::new_openssl(server))
     }
 }
 
@@ -191,45 +191,41 @@ impl fmt::Display for ServerHelloExpectAction {
 
 impl Action for ServerHelloExpectAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        match receive_handshake_payload(step, ctx) {
-            None => {}
-            Some(payload) => match payload {
-                HandshakePayload::ServerHello(payload) => {
-                    let owner = step.to;
+        if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
+            let owner = step.to;
 
-                    ctx.add_variables(
-                        payload
-                            .extensions
-                            .iter()
-                            .map(|extension: &ServerExtension| {
-                                Box::new(ServerExtensionData::static_extension(
-                                    owner,
-                                    extension.clone(),
-                                )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
-                            })
-                            .chain::<Vec<Box<dyn VariableData>>>(vec![
-                                Box::new(RandomData {
-                                    metadata: Metadata { owner },
-                                    data: payload.random,
-                                }),
-                                Box::new(AgreedCipherSuiteData {
-                                    metadata: Metadata { owner },
-                                    data: payload.cipher_suite,
-                                }),
-                                Box::new(AgreedCompressionData {
-                                    metadata: Metadata { owner },
-                                    data: payload.compression_method,
-                                }),
-                                Box::new(VersionData {
-                                    metadata: Metadata { owner },
-                                    data: payload.legacy_version,
-                                }),
-                            ])
-                            .collect::<Vec<Box<dyn VariableData>>>(),
-                    );
-                }
-                _ => {}
-            },
+            ctx.add_variables(
+                payload
+                    .extensions
+                    .iter()
+                    .map(|extension: &ServerExtension| {
+                        Box::new(ServerExtensionData::static_extension(
+                            owner,
+                            extension.clone(),
+                        )) as Box<dyn VariableData> // it is important to case here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                    })
+                    .chain::<Vec<Box<dyn VariableData>>>(vec![
+                        Box::new(RandomData {
+                            metadata: Metadata { owner },
+                            data: payload.random,
+                        }),
+                        Box::new(AgreedCipherSuiteData {
+                            metadata: Metadata { owner },
+                            data: payload.cipher_suite,
+                        }),
+                        Box::new(AgreedCompressionData {
+                            metadata: Metadata { owner },
+                            data: payload.compression_method,
+                        }),
+                        Box::new(VersionData {
+                            metadata: Metadata { owner },
+                            data: payload.legacy_version,
+                        }),
+                    ])
+                    .collect::<Vec<Box<dyn VariableData>>>(),
+            );
+        } else {
+            // no ServerHello or decoding failed
         }
     }
 }

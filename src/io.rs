@@ -18,6 +18,7 @@ pub struct MemoryStream {
 
 pub struct OpenSSLStream {
     openssl_stream: SslStream<MemoryStream>,
+    server: bool
 }
 
 impl Stream for OpenSSLStream {
@@ -27,7 +28,12 @@ impl Stream for OpenSSLStream {
 
     fn take_outgoing(&mut self) -> Outgoing<'_> {
         let openssl_stream = &mut self.openssl_stream;
-        openssl_server::process(openssl_stream).unwrap()
+
+        if self.server {
+            openssl_server::server_accept(openssl_stream).unwrap()
+        } else {
+            openssl_server::client_connect(openssl_stream).unwrap()
+        }
     }
 }
 
@@ -57,12 +63,16 @@ impl MemoryStream {
 }
 
 impl OpenSSLStream {
-    pub fn new() -> Self {
-        let (cert, pkey) = openssl_server::generate_cert();
-
+    pub fn new(server: bool) -> Self {
         let memory_stream = MemoryStream::new();
         OpenSSLStream {
-            openssl_stream: openssl_server::create_openssl_server(memory_stream, &cert, &pkey),
+            openssl_stream: if server {
+                let (cert, pkey) = openssl_server::generate_cert();
+                openssl_server::create_openssl_server(memory_stream, &cert, &pkey)
+            } else {
+                openssl_server::create_openssl_client(memory_stream)
+            },
+            server
         }
     }
 }

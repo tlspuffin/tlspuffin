@@ -24,7 +24,7 @@ openssl-src = { path = './openssl-src' }
 
 [[bin]]
 name = "simpleclient"
-path = "src/simpleclient.rs"
+path = "src/rustls_client.rs"
 
 [[bin]]
 name = "crotofuzz"

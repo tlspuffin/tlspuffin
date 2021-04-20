@@ -2,7 +2,7 @@ use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslMethod, SslStream};
+use openssl::ssl::{Ssl, SslContext, SslMethod, SslStream, SslOptions};
 use openssl::version::version;
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509};
@@ -82,7 +82,49 @@ pub fn create_openssl_server(stream: MemoryStream, cert: &X509Ref, key: &PKeyRef
     return server_stream;
 }
 
-pub fn process(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
+
+pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
+    let mut ctx_builder = SslContext::builder(SslMethod::tls()).unwrap();
+    // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
+    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+
+    let client_stream =
+        SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), MemoryStream::new()).unwrap();
+
+    return client_stream;
+}
+
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
+    match stream.connect() {
+        Ok(_) => {
+            println!("Handshake is done");
+            None
+        }
+        Err(error) => {
+            let outgoing = stream.get_mut().take_outgoing();
+
+            if let Some(io_error) = error.io_error() {
+                match io_error.kind() {
+                    ErrorKind::WouldBlock => {
+                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
+                    }
+                    _ => {
+                        warn!("{}", io_error);
+                    }
+                }
+            }
+
+            if let Some(ssl_error) = error.ssl_error() {
+                // OpenSSL threw an error!
+                warn!("{}", ssl_error);
+            }
+
+            Some(outgoing)
+        }
+    }
+}
+
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
     match stream.accept() {
         Ok(_) => {
             println!("Handshake is done");

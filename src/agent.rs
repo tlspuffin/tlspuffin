@@ -31,14 +31,14 @@ impl Agent {
         Self::from_stream(Box::new(MemoryStream::new()))
     }
 
+    pub fn new_openssl(server: bool) -> Self {
+        Self::from_stream(Box::new(OpenSSLStream::new(server)))
+    }
+
     pub fn from_stream(stream: Box<dyn Stream>) -> Agent {
         Agent {
             name: AgentName(random()),
             stream,
         }
-    }
-
-    pub fn new_openssl() -> Self {
-        Self::from_stream(Box::new(OpenSSLStream::new()))
     }
 }
