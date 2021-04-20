@@ -42,6 +42,8 @@ fn main() {
             ],
         };
 
+        info!("{}", trace);
+
         ctx.add_variable(Box::new(VersionData::random_value(fuzz_agent)));
         ctx.add_variable(Box::new(SessionIDData::random_value(fuzz_agent)));
         ctx.add_variable(Box::new(RandomData::random_value(fuzz_agent)));

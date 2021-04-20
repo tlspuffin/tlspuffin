@@ -9,7 +9,7 @@ use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
 use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, SessionID, ServerExtension};
 use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
 
-use crate::agent::{NO_AGENT, AgentName};
+use crate::agent::{AgentName};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;

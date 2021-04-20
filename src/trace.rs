@@ -21,6 +21,8 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
+use core::fmt;
+use std::fmt::Formatter;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -126,13 +128,23 @@ impl<'a> Trace<'a> {
     }
 }
 
+impl fmt::Display for Trace<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}\n", "Trace:")?;
+        for step in &self.steps {
+            write!(f, "{} -> {}\t({})\n", step.from, step.to, step.action)?;
+        }
+        Ok(())
+    }
+}
+
 pub struct Step<'a> {
     pub from: AgentName,
     pub to: AgentName,
     pub action: &'a (dyn Action + 'static),
 }
 
-pub trait Action {
+pub trait Action: fmt::Display {
     fn execute(&self, step: &Step, ctx: &mut TraceContext);
 }
 
@@ -169,6 +181,12 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
             panic!("{}", msg)
         }
     };
+}
+
+impl fmt::Display for ServerHelloExpectAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", "Expect ServerHello")
+    }
 }
 
 impl Action for ServerHelloExpectAction {
@@ -231,6 +249,12 @@ impl ExpectAction for ClientHelloSendAction {
 // ClientHello
 
 pub struct ClientHelloSendAction {}
+
+impl fmt::Display for ClientHelloSendAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", "Send ClientHello")
+    }
+}
 
 impl Action for ClientHelloSendAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {

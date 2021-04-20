@@ -9,7 +9,9 @@ pub struct AgentName(u128);
 
 impl fmt::Display for AgentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0.to_ne_bytes()))
+        let mut encoded = hex::encode(self.0.to_ne_bytes());
+        encoded.truncate(8); // only display first 4 byte
+        write!(f, "{}", encoded)
     }
 }
 
@@ -40,5 +42,3 @@ impl Agent {
         Self::from_stream(Box::new(OpenSSLStream::new()))
     }
 }
-
-pub const NO_AGENT: AgentName = AgentName(u128::min_value());
