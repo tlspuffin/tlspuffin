@@ -1,44 +1,53 @@
 use std::io;
-use std::io::{Read, Write, Cursor, Seek, SeekFrom};
+use std::io::{Read, Write};
 
 use openssl::ssl::SslStream;
 
 use crate::openssl_server;
 
 pub trait Stream: std::io::Read + std::io::Write {
-    fn send(&mut self, data: &[u8]);
-    fn receive(&mut self) -> Vec<u8>;
+    fn add_to_inbound(&mut self, data: &[u8]);
+    fn take_from_outbound(&mut self) -> Option<&Vec<u8>>;
 }
 
-#[derive(Debug)]
+/// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
+/// This is modeled by two separate Channels in [`MemoryStream`]. Internally a Channel is just an
+/// in-memory seekable buffer.
+type Channel = io::Cursor<Vec<u8>>;
+
+/// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`] trait.
+/// * When writing to a MemoryStream its outbound channel gets filled.
+/// * When reading from a MemoryStream data is taken from the inbound channel.
+///
+/// This makes it possible for an Agent to treat a [`MemoryStream`] like a TLS socket! By writing
+/// to this socket you are sending data out. By reading from it you receive data.
+///
+/// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
+/// into the same buffer**
 pub struct MemoryStream {
-    read_position: u64,
-    write_position: u64,
-    buffer: io::Cursor<Vec<u8>>,
+    inbound: Channel,
+    outbound: Channel,
 }
 
+/// A MemoryStream which wraps an SslStream.
 pub struct OpenSSLStream {
     openssl_stream: SslStream<MemoryStream>,
     server: bool
 }
 
 impl Stream for OpenSSLStream {
-    fn send(&mut self, data: &[u8]) {
-        self.openssl_stream.get_mut().send(data)
+    fn add_to_inbound(&mut self, data: &[u8]) {
+        self.openssl_stream.get_mut().add_to_inbound(data)
     }
 
-    fn receive(&mut self) -> Vec<u8> {
+    fn take_from_outbound(&mut self) -> Option<&Vec<u8>> {
         let openssl_stream = &mut self.openssl_stream;
 
-        let mut buffer: Vec<u8> = Vec::new();
-
         if self.server {
-            buffer.extend(openssl_server::server_accept(openssl_stream).unwrap())
+            openssl_server::server_accept(openssl_stream)
         } else {
-            buffer.extend(openssl_server::client_connect(openssl_stream).unwrap())
+            openssl_server::client_connect(openssl_stream)
         }
-
-        buffer
     }
 }
 
@@ -58,16 +67,6 @@ impl Write for OpenSSLStream {
     }
 }
 
-impl MemoryStream {
-    pub fn new() -> Self {
-        Self {
-            read_position: 0,
-            write_position: 0,
-            buffer: io::Cursor::new(Vec::new())
-        }
-    }
-}
-
 impl OpenSSLStream {
     pub fn new(server: bool) -> Self {
         let memory_stream = MemoryStream::new();
@@ -83,28 +82,34 @@ impl OpenSSLStream {
     }
 }
 
+impl MemoryStream {
+    pub fn new() -> Self {
+        Self {
+            inbound: io::Cursor::new(Vec::new()),
+            outbound: io::Cursor::new(Vec::new()),
+        }
+    }
+}
+
 impl Stream for MemoryStream {
-    fn send(&mut self, data: &[u8]) {
-        self.write(data).unwrap();
+    fn add_to_inbound(&mut self, data: &[u8]) {
+        self.inbound.get_mut().extend_from_slice(data);
     }
 
-    fn receive(&mut self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = vec![0; self.buffer.get_ref().len() as usize];
-        self.read_exact(&mut buffer).unwrap();
-        return buffer;
+    fn take_from_outbound(&mut self) -> Option<&Vec<u8>> {
+        return Some(&self.outbound.get_ref())
     }
 }
 
 impl Read for MemoryStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.buffer.set_position(self.read_position);
-        let n = self.buffer.read(buf).unwrap();
-        self.read_position = self.buffer.position();
+        let n = self.inbound.read(buf)?;
 
-        //if self.buffer.position() == self.buffer.get_ref().len() as u64 {
-        //    self.buffer.set_position(0);
-        //    self.buffer.get_mut().clear();
-        //}
+        // Clear as soon as we read all data
+        if self.inbound.position() == self.inbound.get_ref().len() as u64 {
+            self.inbound.set_position(0);
+            self.inbound.get_mut().clear();
+        }
         if n == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
@@ -117,34 +122,10 @@ impl Read for MemoryStream {
 
 impl Write for MemoryStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buffer.set_position(self.write_position);
-        let result = self.buffer.write(buf);
-        self.write_position = self.buffer.position();
-        result
+        self.outbound.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
-    }
-}
-
-pub struct Outgoing<'a>(pub &'a mut Vec<u8>);
-
-impl<'a> Drop for Outgoing<'a> {
-    fn drop(&mut self) {
-        self.0.clear();
-    }
-}
-
-impl<'a> ::std::ops::Deref for Outgoing<'a> {
-    type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl<'a> AsRef<[u8]> for Outgoing<'a> {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
     }
 }

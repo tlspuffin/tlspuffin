@@ -1,15 +1,16 @@
+use std::io::ErrorKind;
+
 use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslMethod, SslStream, SslOptions};
+use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream, Error};
 use openssl::version::version;
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509};
 
-use crate::io::{MemoryStream, Outgoing, Stream};
 use crate::debug::debug_message;
-use std::io::ErrorKind;
+use crate::io::{MemoryStream, Stream};
 
 /*
    Change openssl version:
@@ -49,19 +50,23 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
 
     let extension = BasicConstraints::new().critical().ca().build().unwrap();
     cert_builder.append_extension(extension).unwrap();
-    cert_builder.append_extension(
-        KeyUsage::new()
-            .critical()
-            .key_cert_sign()
-            .crl_sign()
-            .build()
-            .unwrap(),
-    ).unwrap();
+    cert_builder
+        .append_extension(
+            KeyUsage::new()
+                .critical()
+                .key_cert_sign()
+                .crl_sign()
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
 
     let subject_key_identifier = SubjectKeyIdentifier::new()
         .build(&cert_builder.x509v3_context(None, None))
         .unwrap();
-    cert_builder.append_extension(subject_key_identifier).unwrap();
+    cert_builder
+        .append_extension(subject_key_identifier)
+        .unwrap();
 
     cert_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
     let cert = cert_builder.build();
@@ -72,83 +77,70 @@ pub fn openssl_version() -> &'static str {
     version()
 }
 
-pub fn create_openssl_server(stream: MemoryStream, cert: &X509Ref, key: &PKeyRef<Private>) -> SslStream<MemoryStream> {
+pub fn create_openssl_server(
+    stream: MemoryStream,
+    cert: &X509Ref,
+    key: &PKeyRef<Private>,
+) -> SslStream<MemoryStream> {
     let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
     server_ctx.set_certificate(cert).unwrap();
     server_ctx.set_private_key(key).unwrap();
-    let server_stream =
-        SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), stream).unwrap();
+    let server_stream = SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), stream).unwrap();
 
     return server_stream;
 }
 
+pub fn log_io_error(error: &openssl::ssl::Error) {
+    if let Some(io_error) = error.io_error() {
+        match io_error.kind() {
+            ErrorKind::WouldBlock => {
+                // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
+                info!("Would have blocked but the underlying stream is non-blocking!");
+            }
+            _ => {
+                panic!("Unexpected IO Error: {}", io_error);
+            }
+        }
+    }
+}
+pub fn log_ssl_error(error: &openssl::ssl::Error) {
+    if let Some(ssl_error) = error.ssl_error() {
+        // OpenSSL threw an error, that means that there should be an Alert message in the
+        // outbound channel
+        error!("SSL Error: {}", ssl_error);
+    }
+}
 
 pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     let mut ctx_builder = SslContext::builder(SslMethod::tls()).unwrap();
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    let client_stream =
-        SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), stream).unwrap();
+    let client_stream = SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), stream).unwrap();
 
     return client_stream;
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
-    match stream.connect() {
-        Ok(_) => {
-            println!("Handshake is done");
-            None
-        }
-        Err(error) => {
-            let outgoing = stream.get_mut().receive();
-
-            if let Some(io_error) = error.io_error() {
-                match io_error.kind() {
-                    ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                    }
-                    _ => {
-                        warn!("{}", io_error);
-                    }
-                }
-            }
-
-            if let Some(ssl_error) = error.ssl_error() {
-                // OpenSSL threw an error!
-                warn!("{}", ssl_error);
-            }
-
-            Some(outgoing)
-        }
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<&Vec<u8>> {
+    if let Err(error) = stream.connect() {
+        log_io_error(&error);
+        log_ssl_error(&error);
+        stream.get_mut().take_from_outbound()
+    } else {
+        info!("Handshake is done");
+        None
     }
 }
 
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
-    match stream.accept() {
-        Ok(_) => {
-            println!("Handshake is done");
-            None
-        }
-        Err(error) => {
-            if let Some(io_error) = error.io_error() {
-                match io_error.kind() {
-                    ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        info!("Would have blocked but the underlying stream is non-blocking!");
-                    }
-                    _ => {
-                        error!("Unexpected IO Error: {}", io_error);
-                    }
-                }
-            }
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<&Vec<u8>> {
+    if let Err(error) = stream.accept() {
+        log_io_error(&error);
+        log_ssl_error(&error);
 
-            if let Some(ssl_error) = error.ssl_error() {
-                // OpenSSL threw an error!
-                error!("SSL Error: {}", ssl_error);
-            }
-            let outgoing = stream.get_mut().receive();
-            Some(outgoing)
-        }
+        // Should contain an Alert or a Handshake message
+        stream.get_mut().take_from_outbound()
+    } else {
+        info!("Handshake is done");
+        None
     }
 }

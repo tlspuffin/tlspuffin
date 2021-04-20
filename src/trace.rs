@@ -1,23 +1,18 @@
 use core::fmt;
 use std::any::Any;
-use std::env::var;
-use std::fmt::Formatter;
-use std::io::Write;
-use std::iter::Map;
 
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{ContentType, HandshakeType};
+use rustls::internal::msgs::enums::{HandshakeType};
 use rustls::internal::msgs::handshake::{
     ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, ServerExtension,
 };
-use rustls::internal::msgs::message::MessagePayload::{Alert, Handshake};
-use rustls::internal::msgs::message::{Message, MessagePayload};
+use rustls::internal::msgs::message::MessagePayload::{Handshake};
+use rustls::internal::msgs::message::{Message};
 use rustls::ProtocolVersion;
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
-use crate::io::Outgoing;
 use crate::variable::{
     AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData,
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
@@ -83,19 +78,21 @@ impl TraceContext {
         variables
     }
 
+    /// Adds data to the inbound channel of the Agent referenced by the AgentName [`to`].
     pub fn send(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
-            to_agent.stream.send(buf.as_ref());
+            to_agent.stream.add_to_inbound(buf.as_ref());
         }
     }
 
-    pub fn receive(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
+    /// Takes data from the outbound channel of the Agent referenced by the AgentName [`from`].
+    pub fn receive(&mut self, from: AgentName) -> Result<&Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            return Ok(from_agent.stream.receive());
+            return from_agent.stream.take_from_outbound().ok_or::<String>("Failed to take data from inbound channel".to_string());
         }
 
         Err(format!("Could not find agent {}", from))
@@ -139,7 +136,11 @@ impl fmt::Display for Trace<'_> {
 }
 
 pub struct Step<'a> {
+    /// * If action is a SendAction: The Agent from which the message is sent.
+    /// * If action is a ExpectAction: The Agent from which we expect the message.
     pub from: AgentName,
+    /// * If action is a SendAction: The Agent which will receive the message.
+    /// * If action is a ExpectAction: The Agent which expects the message.
     pub to: AgentName,
     pub action: &'a (dyn Action + 'static),
 }
@@ -259,7 +260,7 @@ impl Action for ClientHelloSendAction {
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.send(step.from, &buffer);
+                ctx.send(step.to, &buffer);
             }
             _ => {
                 error!(

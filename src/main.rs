@@ -26,7 +26,7 @@ fn main() {
         let mut ctx = TraceContext::new();
         let openssl_server_agent = ctx.new_openssl_agent(true);
         let honest_agent = ctx.new_agent();
-        // TODO: let openssl_client_agent = ctx.new_openssl_agent(false);
+        let openssl_client_agent = ctx.new_openssl_agent(false);
         // TODO: let attacker_agent = ctx.new_agent();
 
         let client_hello = ClientHelloSendAction::new();
@@ -39,8 +39,8 @@ fn main() {
                     action: &client_hello
                 },
                 Step {
-                    from: honest_agent,
-                    to: openssl_server_agent,
+                    from: openssl_server_agent,
+                    to: honest_agent,
                     action: &server_hello
                 },
             ],
