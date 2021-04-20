@@ -6,6 +6,8 @@ use crate::variable::{
     CipherSuiteData, VersionData, CompressionData, ClientExtensionData, RandomData, SessionIDData,
     VariableData,
 };
+use std::thread;
+use core::time;
 
 mod agent;
 mod debug;
@@ -37,8 +39,8 @@ fn main() {
                     action: &client_hello
                 },
                 Step {
-                    from: openssl_server_agent,
-                    to: honest_agent,
+                    from: honest_agent,
+                    to: openssl_server_agent,
                     action: &server_hello
                 },
             ],
@@ -76,5 +78,7 @@ fn main() {
         ctx.add_variable(Box::new(CompressionData::random_value(honest_agent)));
 
         trace.execute(&mut ctx);
+
+        thread::sleep(time::Duration::from_millis(500));
     }
 }

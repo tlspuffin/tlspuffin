@@ -87,15 +87,15 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
-            to_agent.stream.extend_incoming(buf.as_ref());
+            to_agent.stream.send(buf.as_ref());
         }
     }
 
-    pub fn receive(&mut self, from: AgentName) -> Result<Outgoing<'_>, String> {
+    pub fn receive(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            return Ok(from_agent.stream.take_outgoing());
+            return Ok(from_agent.stream.receive());
         }
 
         Err(format!("Could not find agent {}", from))
@@ -259,7 +259,7 @@ impl Action for ClientHelloSendAction {
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.send(step.to, &buffer);
+                ctx.send(step.from, &buffer);
             }
             _ => {
                 error!(

@@ -89,19 +89,19 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     let client_stream =
-        SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), MemoryStream::new()).unwrap();
+        SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), stream).unwrap();
 
     return client_stream;
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     match stream.connect() {
         Ok(_) => {
             println!("Handshake is done");
             None
         }
         Err(error) => {
-            let outgoing = stream.get_mut().take_outgoing();
+            let outgoing = stream.get_mut().receive();
 
             if let Some(io_error) = error.io_error() {
                 match io_error.kind() {
@@ -124,31 +124,30 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> 
     }
 }
 
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Outgoing> {
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     match stream.accept() {
         Ok(_) => {
             println!("Handshake is done");
             None
         }
         Err(error) => {
-            let outgoing = stream.get_mut().take_outgoing();
-
             if let Some(io_error) = error.io_error() {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
+                        info!("Would have blocked but the underlying stream is non-blocking!");
                     }
                     _ => {
-                        warn!("{}", io_error);
+                        error!("Unexpected IO Error: {}", io_error);
                     }
                 }
             }
 
             if let Some(ssl_error) = error.ssl_error() {
                 // OpenSSL threw an error!
-                warn!("{}", ssl_error);
+                error!("SSL Error: {}", ssl_error);
             }
-
+            let outgoing = stream.get_mut().receive();
             Some(outgoing)
         }
     }

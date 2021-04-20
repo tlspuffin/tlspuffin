@@ -1,19 +1,20 @@
 use std::io;
-use std::io::{Read, Write};
+use std::io::{Read, Write, Cursor, Seek, SeekFrom};
 
 use openssl::ssl::SslStream;
 
 use crate::openssl_server;
 
 pub trait Stream: std::io::Read + std::io::Write {
-    fn extend_incoming(&mut self, data: &[u8]);
-    fn take_outgoing(&mut self) -> Outgoing<'_>;
+    fn send(&mut self, data: &[u8]);
+    fn receive(&mut self) -> Vec<u8>;
 }
 
 #[derive(Debug)]
 pub struct MemoryStream {
-    incoming: io::Cursor<Vec<u8>>,
-    outgoing: Vec<u8>,
+    read_position: u64,
+    write_position: u64,
+    buffer: io::Cursor<Vec<u8>>,
 }
 
 pub struct OpenSSLStream {
@@ -22,18 +23,22 @@ pub struct OpenSSLStream {
 }
 
 impl Stream for OpenSSLStream {
-    fn extend_incoming(&mut self, data: &[u8]) {
-        self.openssl_stream.get_mut().extend_incoming(data)
+    fn send(&mut self, data: &[u8]) {
+        self.openssl_stream.get_mut().send(data)
     }
 
-    fn take_outgoing(&mut self) -> Outgoing<'_> {
+    fn receive(&mut self) -> Vec<u8> {
         let openssl_stream = &mut self.openssl_stream;
 
+        let mut buffer: Vec<u8> = Vec::new();
+
         if self.server {
-            openssl_server::server_accept(openssl_stream).unwrap()
+            buffer.extend(openssl_server::server_accept(openssl_stream).unwrap())
         } else {
-            openssl_server::client_connect(openssl_stream).unwrap()
+            buffer.extend(openssl_server::client_connect(openssl_stream).unwrap())
         }
+
+        buffer
     }
 }
 
@@ -56,8 +61,9 @@ impl Write for OpenSSLStream {
 impl MemoryStream {
     pub fn new() -> Self {
         Self {
-            incoming: io::Cursor::new(Vec::new()),
-            outgoing: Vec::new(),
+            read_position: 0,
+            write_position: 0,
+            buffer: io::Cursor::new(Vec::new())
         }
     }
 }
@@ -78,23 +84,27 @@ impl OpenSSLStream {
 }
 
 impl Stream for MemoryStream {
-    fn extend_incoming(&mut self, data: &[u8]) {
-        self.incoming.get_mut().extend_from_slice(data);
+    fn send(&mut self, data: &[u8]) {
+        self.write(data).unwrap();
     }
 
-    fn take_outgoing(&mut self) -> Outgoing<'_> {
-        Outgoing(&mut self.outgoing)
+    fn receive(&mut self) -> Vec<u8> {
+        let mut buffer: Vec<u8> = vec![0; self.buffer.get_ref().len() as usize];
+        self.read_exact(&mut buffer).unwrap();
+        return buffer;
     }
 }
 
 impl Read for MemoryStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let n = self.incoming.read(buf)?;
+        self.buffer.set_position(self.read_position);
+        let n = self.buffer.read(buf).unwrap();
+        self.read_position = self.buffer.position();
 
-        if self.incoming.position() == self.incoming.get_ref().len() as u64 {
-            self.incoming.set_position(0);
-            self.incoming.get_mut().clear();
-        }
+        //if self.buffer.position() == self.buffer.get_ref().len() as u64 {
+        //    self.buffer.set_position(0);
+        //    self.buffer.get_mut().clear();
+        //}
         if n == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::WouldBlock,
@@ -107,7 +117,10 @@ impl Read for MemoryStream {
 
 impl Write for MemoryStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.outgoing.write(buf)
+        self.buffer.set_position(self.write_position);
+        let result = self.buffer.write(buf);
+        self.write_position = self.buffer.position();
+        result
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -115,7 +128,7 @@ impl Write for MemoryStream {
     }
 }
 
-pub struct Outgoing<'a>(&'a mut Vec<u8>);
+pub struct Outgoing<'a>(pub &'a mut Vec<u8>);
 
 impl<'a> Drop for Outgoing<'a> {
     fn drop(&mut self) {
