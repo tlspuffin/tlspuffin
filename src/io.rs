@@ -7,7 +7,7 @@ use crate::openssl_server;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
-    fn take_from_outbound(&mut self) -> Option<&Vec<u8>>;
+    fn take_from_outbound(&mut self) -> Option<Vec<u8>>;
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -40,7 +40,7 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.get_mut().add_to_inbound(data)
     }
 
-    fn take_from_outbound(&mut self) -> Option<&Vec<u8>> {
+    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
         let openssl_stream = &mut self.openssl_stream;
 
         if self.server {
@@ -96,8 +96,8 @@ impl Stream for MemoryStream {
         self.inbound.get_mut().extend_from_slice(data);
     }
 
-    fn take_from_outbound(&mut self) -> Option<&Vec<u8>> {
-        return Some(&self.outbound.get_ref())
+    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
+        return Some(self.outbound.get_ref().clone()) // Copy of outbound
     }
 }
 

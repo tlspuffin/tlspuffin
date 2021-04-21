@@ -1,13 +1,17 @@
 use core::fmt;
 use std::any::Any;
 
+use openssl::symm::Cipher;
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::{Compression, HandshakeType};
-use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, ServerExtension, SessionID};
+use rustls::internal::msgs::handshake::{
+    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
+    ServerExtension, SessionID,
+};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
-use rustls::{ProtocolVersion, CipherSuite};
+use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
@@ -16,7 +20,6 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
-use openssl::symm::Cipher;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -87,7 +90,7 @@ impl TraceContext {
     }
 
     /// Takes data from the outbound channel of the Agent referenced by the AgentName [`from`].
-    pub fn take_from_outbound(&mut self, from: AgentName) -> Result<&Vec<u8>, String> {
+    pub fn take_from_outbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
@@ -131,7 +134,15 @@ impl fmt::Display for Trace<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}\n", "Trace:")?;
         for step in &self.steps {
-            write!(f, "{} -> {}\t({})\n", step.from, step.to, step.action)?;
+            let expect = step.action.to_string().to_lowercase().contains("expect"); // TODO, add api
+            write!(
+                f,
+                "{} {} {}\t({})\n",
+                step.from,
+                if expect { "🠐" } else { "🠒" }, // expect sends data back therefore invert arrow
+                step.to,
+                step.action
+            )?;
         }
         Ok(())
     }
@@ -162,7 +173,7 @@ pub trait ExpectAction: Action {
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    return match ctx.take_from_outbound(step.to) {
+    let option = match ctx.take_from_outbound(step.to) {
         Ok(buffer) => {
             debug_message_with_info("Received", &buffer);
 
@@ -170,7 +181,7 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
                 message.decode_payload();
 
                 match message.payload {
-                    Handshake(payload) => Some(payload.payload),
+                    Handshake(payload) => Some((buffer, payload.payload)),
                     _ => None,
                 }
             } else {
@@ -182,6 +193,13 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
             panic!("{}", msg)
         }
     };
+
+    if let Some((buffer, payload)) = option {
+        ctx.add_to_inbound(step.from, &buffer);
+        return Some(payload);
+    }
+
+    return None;
 }
 
 // Expect ServerHello
@@ -364,34 +382,44 @@ impl ExpectAction for ClientHelloExpectAction {
                 Box::new(VersionData {
                     metadata: Metadata { owner },
                     data: payload.client_version,
-                })
+                }),
             ];
             ctx.add_variables(
-                simple_variables.into_iter()
-                    .chain(payload.extensions.iter().map(
-                        |extension: &ClientExtension| {
-                            Box::new(ClientExtensionData::static_extension(
-                                owner,
-                                extension.clone(),
-                            )) as Box<dyn VariableData>
-                        },
-                    ))
-                    .chain(payload.compression_methods.iter().map(
-                        |compression: &Compression| {
-                            Box::new(CompressionData::static_extension(
-                                owner,
-                                compression.clone(),
-                            )) as Box<dyn VariableData>
-                        },
-                    ))
-                    .chain(payload.cipher_suites.iter().map(
-                        |cipher_suite: &CipherSuite| {
-                            Box::new(CipherSuiteData::static_extension(
-                                owner,
-                                cipher_suite.clone(),
-                            )) as Box<dyn VariableData>
-                        },
-                    ))
+                simple_variables
+                    .into_iter()
+                    .chain(
+                        payload
+                            .extensions
+                            .iter()
+                            .map(|extension: &ClientExtension| {
+                                Box::new(ClientExtensionData::static_extension(
+                                    owner,
+                                    extension.clone(),
+                                )) as Box<dyn VariableData>
+                            }),
+                    )
+                    .chain(
+                        payload
+                            .compression_methods
+                            .iter()
+                            .map(|compression: &Compression| {
+                                Box::new(CompressionData::static_extension(
+                                    owner,
+                                    compression.clone(),
+                                )) as Box<dyn VariableData>
+                            }),
+                    )
+                    .chain(
+                        payload
+                            .cipher_suites
+                            .iter()
+                            .map(|cipher_suite: &CipherSuite| {
+                                Box::new(CipherSuiteData::static_extension(
+                                    owner,
+                                    cipher_suite.clone(),
+                                )) as Box<dyn VariableData>
+                            }),
+                    )
                     .collect::<Vec<Box<dyn VariableData>>>(),
             );
         } else {

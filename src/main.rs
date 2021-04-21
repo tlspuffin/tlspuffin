@@ -116,8 +116,8 @@ fn main() {
     info!("{}", openssl_server::openssl_version());
 
     loop {
-        //exec_1();
-        exec_2();
+        exec_1();
+        //exec_2();
 
         thread::sleep(time::Duration::from_millis(500));
     }

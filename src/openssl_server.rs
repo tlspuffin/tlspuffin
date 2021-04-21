@@ -121,7 +121,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     return client_stream;
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<&Vec<u8>> {
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     if let Err(error) = stream.connect() {
         log_io_error(&error);
         log_ssl_error(&error);
@@ -132,7 +132,7 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<&Vec<u8>> 
     }
 }
 
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<&Vec<u8>> {
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     if let Err(error) = stream.accept() {
         log_io_error(&error);
         log_ssl_error(&error);
