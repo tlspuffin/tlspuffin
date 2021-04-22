@@ -22,6 +22,7 @@ use crate::variable::{
 };
 #[allow(unused)] // used in docs
 use crate::io::Channel;
+use std::io::Write;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -105,6 +106,28 @@ impl TraceContext {
         Err(format!("Could not find agent {}", from))
     }
 
+    pub fn add_to_outbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(to_agent) = iter.find(|agent| agent.name == to) {
+            to_agent.stream.write_all(buf.as_ref()).unwrap();
+        }
+    }
+
+    pub fn take_from_inbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
+            let mut buffer: Vec<u8> = Vec::new();
+            from_agent
+                .stream
+                .read_to_end(&mut buffer); // TODO: right now re ignore WouldBlock, error: "no data available"
+            return Ok(buffer);
+        }
+
+        Err(format!("Could not find agent {}", from))
+    }
+
     fn add_agent(&mut self, agent: Agent) -> AgentName {
         let name = agent.name;
         self.agents.push(agent);
@@ -128,6 +151,10 @@ impl<'a> Trace<'a> {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
         for step in self.steps.iter_mut() {
             step.action.execute(step, ctx);
+
+            // TODO: move data between channels
+            let result = ctx.take_from_outbound(step.from).unwrap();
+            ctx.add_to_inbound(step.to, &result);
         }
     }
 }
@@ -229,7 +256,7 @@ impl ServerHelloExpectAction {
 impl ExpectAction for ServerHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.from; // corresponds to the OpenSSL client usually
+            let owner = step.to; // corresponds to the OpenSSL client usually
 
             ctx.add_variables(
                 payload
@@ -284,7 +311,7 @@ impl Action for ClientHelloSendAction {
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.add_to_inbound(step.to, &buffer);
+                ctx.add_to_outbound(step.from, &buffer);
             }
             _ => {
                 error!(
@@ -370,7 +397,7 @@ impl ClientHelloExpectAction {
 impl ExpectAction for ClientHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ClientHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.from;
+            let owner = step.to;
 
             let simple_variables: Vec<Box<dyn VariableData>> = vec![
                 Box::new(RandomData {

@@ -26,7 +26,7 @@ fn main() {
     let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
     let mut sock = TcpStream::connect("google.com:443").unwrap();
     let mut tls = rustls::Stream::new(&mut sess, &mut sock);
-    tls.write(
+    tls.write_all(
         concat!(
         "GET / HTTP/1.1\r\n",
         "Host: google.com\r\n",
