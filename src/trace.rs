@@ -20,6 +20,8 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
+#[allow(unused)] // used in docs
+use crate::io::Channel;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -80,7 +82,7 @@ impl TraceContext {
         variables
     }
 
-    /// Adds data to the inbound channel of the Agent referenced by the AgentName [`to`].
+    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "to".
     pub fn add_to_inbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
@@ -89,7 +91,7 @@ impl TraceContext {
         }
     }
 
-    /// Takes data from the outbound channel of the Agent referenced by the AgentName [`from`].
+    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "from".
     pub fn take_from_outbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 

@@ -4,6 +4,8 @@ use std::io::{Read, Write};
 use openssl::ssl::SslStream;
 
 use crate::openssl_server;
+#[allow(unused)] // used in docs
+use crate::agent::Agent;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
@@ -13,7 +15,7 @@ pub trait Stream: std::io::Read + std::io::Write {
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
 /// This is modeled by two separate Channels in [`MemoryStream`]. Internally a Channel is just an
 /// in-memory seekable buffer.
-type Channel = io::Cursor<Vec<u8>>;
+pub type Channel = io::Cursor<Vec<u8>>;
 
 /// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`] trait.
 /// * When writing to a MemoryStream its outbound channel gets filled.

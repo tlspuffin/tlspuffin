@@ -24,6 +24,16 @@ cargo build
 RUST_LOG=trace cargo run --package crotofuzz --bin crotofuzz
 ```
 
+## Documentation
+
+This generates the documentation for this crate and opens the browser. This also incldues the documentation of every 
+dependency like LibAFL or rustls.
+
+```bash
+cargo doc --open
+```
+
+
 ## Interesting Libraries:
 
 * Graph/Tree https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
