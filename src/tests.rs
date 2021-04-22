@@ -50,11 +50,11 @@ pub mod test_utils {
             ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction, Step,
             TraceContext,
         };
+        use test_env_log::test;
 
         #[test]
         /// Test for having an OpenSSL server (honest) agent
         pub fn openssl_server() {
-            pretty_env_logger::try_init().ok();
             let mut ctx = TraceContext::new();
             let client = ctx.new_agent();
             let openssl_server = ctx.new_openssl_agent(true);
@@ -83,7 +83,6 @@ pub mod test_utils {
         #[test]
         /// Test for having an OpenSSL client (honest) agent
         fn openssl_client() {
-            pretty_env_logger::try_init().ok();
             let mut ctx = TraceContext::new();
             let honest_agent = ctx.new_agent();
             let openssl_client_agent = ctx.new_openssl_agent(false);
@@ -121,7 +120,6 @@ pub mod test_utils {
         /// Having two dishonest agents:
         /// * Send message from client to server, and receive variables
         fn two_dishonest() {
-            pretty_env_logger::try_init().ok();
             let mut ctx = TraceContext::new();
             let client = ctx.new_agent();
             let server = ctx.new_openssl_agent(true);
@@ -149,7 +147,6 @@ pub mod test_utils {
 
         #[test]
         fn only_openssl() {
-            pretty_env_logger::try_init().ok();
             let mut ctx = TraceContext::new();
             let client_openssl = ctx.new_openssl_agent(false);
             let server_openssl = ctx.new_openssl_agent(true);

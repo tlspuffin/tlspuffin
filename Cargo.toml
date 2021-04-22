@@ -11,7 +11,7 @@ hexdump = "0.1.1"
 hex = "0.4.3"
 
 log = "0.4.14"
-pretty_env_logger = "0.4.0"
+env_logger = "0.8.3"
 rand = "0.8.3"
 rustls = "0.19.0"
 webpki = "0.21.4"
@@ -22,12 +22,12 @@ openssl = { version = "0.10.33", features = ["vendored"] }
 
 libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" }
 
+test-env-log = "0.2.7"
+
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
 [features]
-default = ["std"]
-std = []
 
 [profile.release]
 panic = "abort"

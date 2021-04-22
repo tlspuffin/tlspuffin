@@ -1,23 +1,54 @@
 #[macro_use]
 extern crate log;
-extern crate pretty_env_logger;
 
-use std::thread;
 use core::time;
+use std::fmt::Debug;
+use std::io::Write;
+use std::thread;
+
+use env_logger::{fmt, Builder, Env};
+use log::Level;
+
+use crate::tests::test_utils::setup_client_hello_variables;
+use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
 
 mod agent;
 mod debug;
 mod io;
 mod openssl_server;
+mod tests;
 mod trace;
 mod variable;
-mod tests;
-
-use crate::trace::{TraceContext, ClientHelloSendAction, ServerHelloExpectAction, Step};
-use crate::tests::test_utils::setup_client_hello_variables;
 
 fn main() {
-    pretty_env_logger::init();
+    fn init_logger() {
+        let env = Env::default().filter("RUST_LOG");
+
+        Builder::from_env(env)
+            .format(|buf, record| {
+                let mut style = buf.style();
+                match record.level() {
+                    Level::Error => {
+                        style.set_color(fmt::Color::Red).set_bold(true);
+                    }
+                    Level::Warn => {
+                        style.set_color(fmt::Color::Yellow).set_bold(true);
+                    }
+                    Level::Info => {
+                        style.set_color(fmt::Color::Blue).set_bold(true);
+                    }
+                    Level::Debug => {}
+                    Level::Trace => {}
+                };
+
+                let timestamp = buf.timestamp();
+
+                writeln!(buf, "{} {}", timestamp, style.value(record.args()))
+            })
+            .init();
+    }
+
+    init_logger();
     //pretty_env_logger::formatted_builder().target(Target::Stdout).filter_level(LevelFilter::Trace).init();
 
     info!("{}", openssl_server::openssl_version());
