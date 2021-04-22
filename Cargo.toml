@@ -25,6 +25,20 @@ libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" 
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
+[features]
+default = ["std"]
+std = []
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = true
+
+[profile.dev]
+#panic = "abort"
+
 [[bin]]
 name = "rustls_client"
 path = "src/rustls_client.rs"
