@@ -19,6 +19,7 @@ webpki-roots = "0.21"
 
 openssl = { version = "0.10.33", features = ["vendored"] }
 
+
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
