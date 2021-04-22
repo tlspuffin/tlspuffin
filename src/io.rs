@@ -9,7 +9,9 @@ use crate::agent::Agent;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
+    fn add_to_outbound(&mut self, data: &[u8]);
     fn take_from_outbound(&mut self) -> Option<Vec<u8>>;
+    fn take_from_inbound(&mut self) -> Option<Vec<u8>>;
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -42,9 +44,16 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.get_mut().add_to_inbound(data)
     }
 
-    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
-        let openssl_stream = &mut self.openssl_stream;
+    fn add_to_outbound(&mut self, data: &[u8]) {
+        self.openssl_stream.get_mut().add_to_outbound(data)
+    }
 
+    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
+        self.openssl_stream.get_mut().take_from_outbound()
+    }
+
+    fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
+        let openssl_stream = &mut self.openssl_stream;
         if self.server {
             openssl_server::server_accept(openssl_stream)
         } else {
@@ -98,9 +107,22 @@ impl Stream for MemoryStream {
         self.inbound.get_mut().extend_from_slice(data);
     }
 
+    fn add_to_outbound(&mut self, data: &[u8]) {
+        self.outbound.get_mut().extend_from_slice(data);
+    }
+
     fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
-        // TODO: empty outbound here?
-        return Some(self.outbound.get_ref().clone()) // Copy of outbound
+        let buffer = self.outbound.get_ref().clone();
+        self.outbound.get_mut().clear();
+        self.outbound.set_position(0);
+        return Some(buffer)
+    }
+
+    fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
+        let buffer = self.inbound.get_ref().clone();
+        self.inbound.get_mut().clear();
+        self.inbound.set_position(0);
+        return Some(buffer)
     }
 }
 

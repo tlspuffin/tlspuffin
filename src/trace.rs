@@ -22,7 +22,6 @@ use crate::variable::{
 };
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use std::io::Write;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -110,8 +109,19 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
-            to_agent.stream.write_all(buf.as_ref()).unwrap();
+            to_agent.stream.add_to_outbound(&buf.as_ref());
         }
+    }
+    pub fn take_from_inbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
+            return Ok(from_agent
+                          .stream
+                          .take_from_inbound().unwrap());
+        }
+
+        Err(format!("Could not find agent {}", from))
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -186,9 +196,11 @@ pub trait ExpectAction: Action {
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    match ctx.take_from_outbound(step.agent) { // reads internally from inbound of agent
+    match ctx.take_from_inbound(step.agent) { // reads internally from inbound of agent
         Ok(buffer) => {
             debug_message_with_info("Received", &buffer);
+
+            ctx.add_to_outbound(step.agent, &buffer);
 
             if let Some(mut message) = Message::read_bytes(&buffer) {
                 message.decode_payload();

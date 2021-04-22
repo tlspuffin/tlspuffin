@@ -149,6 +149,7 @@ pub mod test_utils {
 
         #[test]
         fn only_openssl() {
+            pretty_env_logger::try_init().ok();
             let mut ctx = TraceContext::new();
             let client_openssl = ctx.new_openssl_agent(false);
             let server_openssl = ctx.new_openssl_agent(true);
