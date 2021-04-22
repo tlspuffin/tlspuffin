@@ -119,6 +119,7 @@ fn main() {
         exec_1();
         //exec_2();
 
+        // Slow down the fuzzing
         thread::sleep(time::Duration::from_millis(500));
     }
 }

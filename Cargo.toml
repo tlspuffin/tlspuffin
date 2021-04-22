@@ -20,6 +20,8 @@ webpki-roots = "0.21"
 openssl = { version = "0.10.33", features = ["vendored"] }
 
 
+libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" }
+
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
