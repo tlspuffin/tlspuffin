@@ -32,13 +32,11 @@ fn main() {
         let mut trace = trace::Trace {
             steps: vec![
                 Step {
-                    from: honest_agent,
-                    to: openssl_server_agent,
+                    agent: honest_agent,
                     action: &client_hello,
                 },
                 Step {
-                    from: honest_agent,
-                    to: openssl_server_agent,
+                    agent: openssl_server_agent,
                     action: &server_hello,
                 },
             ],

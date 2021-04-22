@@ -99,6 +99,7 @@ impl Stream for MemoryStream {
     }
 
     fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
+        // TODO: empty outbound here?
         return Some(self.outbound.get_ref().clone()) // Copy of outbound
     }
 }

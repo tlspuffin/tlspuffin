@@ -106,26 +106,12 @@ impl TraceContext {
         Err(format!("Could not find agent {}", from))
     }
 
-    pub fn add_to_outbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
+    fn add_to_outbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
         if let Some(to_agent) = iter.find(|agent| agent.name == to) {
             to_agent.stream.write_all(buf.as_ref()).unwrap();
         }
-    }
-
-    pub fn take_from_inbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            let mut buffer: Vec<u8> = Vec::new();
-            from_agent
-                .stream
-                .read_to_end(&mut buffer); // TODO: right now re ignore WouldBlock, error: "no data available"
-            return Ok(buffer);
-        }
-
-        Err(format!("Could not find agent {}", from))
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -149,12 +135,16 @@ pub struct Trace<'a> {
 
 impl<'a> Trace<'a> {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
-        for step in self.steps.iter_mut() {
+        let steps = &self.steps;
+        for i in 0..steps.len() {
+            let step = &steps[i];
             step.action.execute(step, ctx);
 
-            // TODO: move data between channels
-            let result = ctx.take_from_outbound(step.from).unwrap();
-            ctx.add_to_inbound(step.to, &result);
+            if i != steps.len() - 1 {
+                let next_step = &steps[i + 1];
+                let result = ctx.take_from_outbound(step.agent).unwrap();
+                ctx.add_to_inbound(next_step.agent, &result);
+            }
         }
     }
 }
@@ -163,13 +153,10 @@ impl fmt::Display for Trace<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}\n", "Trace:")?;
         for step in &self.steps {
-            let expect = step.action.to_string().to_lowercase().contains("expect"); // TODO, add api
             write!(
                 f,
-                "{} {} {}\t({})\n",
-                step.from,
-                if expect { "🠐" } else { "🠒" }, // expect sends data back therefore invert arrow
-                step.to,
+                "{} \t({})\n",
+                step.agent,
                 step.action
             )?;
         }
@@ -180,10 +167,7 @@ impl fmt::Display for Trace<'_> {
 pub struct Step<'a> {
     /// * If action is a SendAction: The Agent from which the message is sent.
     /// * If action is a ExpectAction: The Agent from which we expect the message.
-    pub from: AgentName,
-    /// * If action is a SendAction: The Agent which will receive the message.
-    /// * If action is a ExpectAction: The Agent which expects the message.
-    pub to: AgentName,
+    pub agent: AgentName,
     pub action: &'a (dyn Action + 'static),
 }
 
@@ -202,7 +186,7 @@ pub trait ExpectAction: Action {
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    let option = match ctx.take_from_outbound(step.to) {
+    match ctx.take_from_outbound(step.agent) { // reads internally from inbound of agent
         Ok(buffer) => {
             debug_message_with_info("Received", &buffer);
 
@@ -210,7 +194,7 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
                 message.decode_payload();
 
                 match message.payload {
-                    Handshake(payload) => Some((buffer, payload.payload)),
+                    Handshake(payload) => Some(payload.payload),
                     _ => None,
                 }
             } else {
@@ -221,14 +205,7 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
         Err(msg) => {
             panic!("{}", msg)
         }
-    };
-
-    if let Some((buffer, payload)) = option {
-        ctx.add_to_inbound(step.from, &buffer);
-        return Some(payload);
     }
-
-    return None;
 }
 
 // Expect ServerHello
@@ -256,7 +233,7 @@ impl ServerHelloExpectAction {
 impl ExpectAction for ServerHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.to; // corresponds to the OpenSSL client usually
+            let owner = step.agent; // corresponds to the OpenSSL client usually
 
             ctx.add_variables(
                 payload
@@ -306,12 +283,12 @@ impl fmt::Display for ClientHelloSendAction {
 
 impl Action for ClientHelloSendAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        let result = self.craft(ctx, step.from);
+        let result = self.craft(ctx, step.agent);
 
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.add_to_outbound(step.from, &buffer);
+                ctx.add_to_outbound(step.agent, &buffer);
             }
             _ => {
                 error!(
@@ -397,7 +374,7 @@ impl ClientHelloExpectAction {
 impl ExpectAction for ClientHelloExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
         if let Some(HandshakePayload::ClientHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.to;
+            let owner = step.agent;
 
             let simple_variables: Vec<Box<dyn VariableData>> = vec![
                 Box::new(RandomData {
