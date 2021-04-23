@@ -10,7 +10,11 @@ pub fn debug_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8]>) {
 
         info!(
             "{}{:?} Record ({:?}): ",
-            if info.is_empty() { info.to_string() } else { info.to_string() + " " },
+            if info.is_empty() {
+                info.to_string()
+            } else {
+                info.to_string() + " "
+            },
             message.typ,
             message.version
         );

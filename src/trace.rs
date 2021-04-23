@@ -15,13 +15,13 @@ use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
+#[allow(unused)] // used in docs
+use crate::io::Channel;
 use crate::variable::{
     AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData,
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
-#[allow(unused)] // used in docs
-use crate::io::Channel;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -116,9 +116,7 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         if let Some(from_agent) = iter.find(|agent| agent.name == from) {
-            return Ok(from_agent
-                          .stream
-                          .take_from_inbound().unwrap());
+            return Ok(from_agent.stream.take_from_inbound().unwrap());
         }
 
         Err(format!("Could not find agent {}", from))
@@ -163,12 +161,7 @@ impl fmt::Display for Trace<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}\n", "Trace:")?;
         for step in &self.steps {
-            write!(
-                f,
-                "{} \t({})\n",
-                step.agent,
-                step.action
-            )?;
+            write!(f, "{} \t({})\n", step.agent, step.action)?;
         }
         Ok(())
     }
@@ -196,7 +189,8 @@ pub trait ExpectAction: Action {
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    match ctx.take_from_inbound(step.agent) { // reads internally from inbound of agent
+    match ctx.take_from_inbound(step.agent) {
+        // reads internally from inbound of agent
         Ok(buffer) => {
             debug_message_with_info("Received", &buffer);
 

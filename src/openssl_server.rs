@@ -4,7 +4,7 @@ use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream, Error};
+use openssl::ssl::{Error, Ssl, SslContext, SslMethod, SslOptions, SslStream};
 use openssl::version::version;
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509};

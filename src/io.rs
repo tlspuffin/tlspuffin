@@ -3,9 +3,9 @@ use std::io::{Read, Write};
 
 use openssl::ssl::SslStream;
 
-use crate::openssl_server;
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
+use crate::openssl_server;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
@@ -36,7 +36,7 @@ pub struct MemoryStream {
 /// A MemoryStream which wraps an SslStream.
 pub struct OpenSSLStream {
     openssl_stream: SslStream<MemoryStream>,
-    server: bool
+    server: bool,
 }
 
 impl Stream for OpenSSLStream {
@@ -88,7 +88,7 @@ impl OpenSSLStream {
             } else {
                 openssl_server::create_openssl_client(memory_stream)
             },
-            server
+            server,
         }
     }
 }
@@ -115,14 +115,14 @@ impl Stream for MemoryStream {
         let buffer = self.outbound.get_ref().clone();
         self.outbound.get_mut().clear();
         self.outbound.set_position(0);
-        return Some(buffer)
+        return Some(buffer);
     }
 
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
         let buffer = self.inbound.get_ref().clone();
         self.inbound.get_mut().clear();
         self.inbound.set_position(0);
-        return Some(buffer)
+        return Some(buffer);
     }
 }
 

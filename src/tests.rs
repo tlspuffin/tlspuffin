@@ -1,6 +1,6 @@
 pub mod test_utils {
     use crate::agent::AgentName;
-    use crate::trace::{TraceContext, Trace};
+    use crate::trace::{Trace, TraceContext};
     use crate::variable::{
         CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData,
         VariableData, VersionData,
@@ -40,7 +40,10 @@ pub mod test_utils {
         ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
         ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
         ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-        ctx.add_variable(Box::new(CompressionData::static_extension(agent, Compression::Null)));
+        ctx.add_variable(Box::new(CompressionData::static_extension(
+            agent,
+            Compression::Null,
+        )));
     }
 
     #[cfg(test)]

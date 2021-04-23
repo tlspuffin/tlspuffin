@@ -1,4 +1,4 @@
-use std::io::{Read, stdout, Write};
+use std::io::{stdout, Read, Write};
 use std::net::TcpStream;
 /// This is the simplest possible client using rustls that does something useful:
 /// it accepts the default configuration, loads some root certs, and then connects
@@ -28,25 +28,22 @@ fn main() {
     let mut tls = rustls::Stream::new(&mut sess, &mut sock);
     tls.write_all(
         concat!(
-        "GET / HTTP/1.1\r\n",
-        "Host: google.com\r\n",
-        "Connection: close\r\n",
-        "Accept-Encoding: identity\r\n",
-        "\r\n"
+            "GET / HTTP/1.1\r\n",
+            "Host: google.com\r\n",
+            "Connection: close\r\n",
+            "Accept-Encoding: identity\r\n",
+            "\r\n"
         )
-            .as_bytes(),
+        .as_bytes(),
     )
-        .unwrap();
-    let ciphersuite = tls
-        .sess
-        .get_negotiated_ciphersuite()
-        .unwrap();
+    .unwrap();
+    let ciphersuite = tls.sess.get_negotiated_ciphersuite().unwrap();
     writeln!(
         &mut std::io::stderr(),
         "Current ciphersuite: {:?}",
         ciphersuite.suite
     )
-        .unwrap();
+    .unwrap();
     let mut plaintext = Vec::new();
     tls.read_to_end(&mut plaintext).unwrap();
     stdout().write_all(&plaintext).unwrap();
