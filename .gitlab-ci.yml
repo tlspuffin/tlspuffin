@@ -17,7 +17,7 @@ before_script:
   - ssh-keyscan -H github.com | tee -a /root/.ssh/known_hosts
   
   - apt update -y && apt install openssh-client -y
-  - ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa
+  - echo $GITHUB_OPENSSL_RS > /root/.ssh/id_rsa
     
   - git submodule sync --recursive
   - git submodule update --init --recursive
