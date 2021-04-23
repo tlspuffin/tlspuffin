@@ -16,11 +16,8 @@ before_script:
   
   - ssh-keyscan -H github.com | tee -a /root/.ssh/known_hosts
   
-  - 'which ssh-agent || ( apt update -y && apt install openssh-client -y )'
-  
-  - eval $(ssh-agent -s) 
-  
-  - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+  - apt update -y && apt install openssh-client -y
+  - ssh-keygen -b 2048 -t rsa -f /root/.ssh/id_rsa
     
   - git submodule sync --recursive
   - git submodule update --init --recursive
