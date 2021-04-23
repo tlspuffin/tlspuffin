@@ -1,4 +1,4 @@
-# protofuzz, profuzz, protfuzz, proto-tls-fuzz
+# tlspuffin - TLS under FuzzINg
 
 ## Setup
 
@@ -17,6 +17,8 @@ git clone git@gitlab.inria.fr:mammann/symbolic-tls-fuzzer.git
 git submodule update --init --recursive
 cargo build
 ```
+
+This should build openssl as part of the Rust build. That means you need the usual tools for building it like `make`, `gcc` etc.
 
 ## Run
 
