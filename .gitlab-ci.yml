@@ -1,11 +1,4 @@
-# This file is a template, and might need editing before it works on your project.
-# Official language image. Look for the different tagged releases at:
-# https://hub.docker.com/r/library/rust/tags/
 image: "rust:1.51.0"
-
-#variables:
-#  GIT_SUBMODULE_STRATEGY: recursive
-
 
 before_script:
   - echo "Preparing run..."
@@ -13,33 +6,25 @@ before_script:
   - chmod 700 /root/.ssh
   - touch /root/.ssh/known_hosts
   - chmod 600 /root/.ssh/known_hosts
-  
   - ssh-keyscan -H github.com | tee -a /root/.ssh/known_hosts
-  
   - apt update -y && apt install openssh-client -y
   - eval $(ssh-agent -s) 
   - echo "$GITHUB_OPENSSL_RS" | tr -d '\r' | ssh-add - > /dev/null
-
   - git submodule sync --recursive
   - git submodule update --init --recursive
 
 
-# Optional: Pick zero or more services to be used on all builds.
-# Only needed when using a docker container to run your tests in.
-# Check out: http://docs.gitlab.com/ee/ci/docker/using_docker_images.html#what-is-a-service
-# services:
-#   - mysql:latest
-#   - redis:latest
-#   - postgres:latest
-
-# Optional: Install a C compiler, cmake and git into the container.
-# You will often need this when you (or any of your dependencies) depends on C code.
-# before_script:
-#   - apt-get update -yqq
-#   - apt-get install -yqq --no-install-recommends build-essential
-
-# Use cargo to test the project
-test:cargo:
+test:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo test --workspace --verbose
+
+pages:
+  script:
+  - cargo doc
+  artifacts:
+    paths:
+    - target/doc
+  only:
+  - main
+
