@@ -22,9 +22,10 @@ test:
 pages:
   script:
   - cargo doc
+  - mv target/doc public
   artifacts:
     paths:
-    - target/doc
+    - public
   only:
   - main
 
