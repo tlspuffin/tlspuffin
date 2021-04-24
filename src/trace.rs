@@ -135,6 +135,12 @@ impl TraceContext {
     pub fn new_openssl_agent(&mut self, server: bool) -> AgentName {
         return self.add_agent(Agent::new_openssl(server));
     }
+
+    pub fn get_agent(&self, name: AgentName) -> Option<&Agent> {
+        let mut iter = self.agents.iter();
+
+        return iter.find(|agent| agent.name == name)
+    }
 }
 
 pub struct Trace<'a> {

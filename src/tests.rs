@@ -1,11 +1,12 @@
 pub mod test_utils {
+    use rustls::internal::msgs::enums::Compression;
+
     use crate::agent::AgentName;
     use crate::trace::{Trace, TraceContext};
     use crate::variable::{
         CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData,
         VariableData, VersionData,
     };
-    use rustls::internal::msgs::enums::Compression;
 
     pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
         ctx.add_variable(Box::new(VersionData::random_value(agent)));
@@ -48,12 +49,13 @@ pub mod test_utils {
 
     #[cfg(test)]
     pub mod tests {
+        use test_env_log::test;
+
         use crate::trace;
         use crate::trace::{
             ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction, Step,
             TraceContext,
         };
-        use test_env_log::test;
 
         #[test]
         /// Test for having an OpenSSL server (honest) agent
@@ -171,6 +173,20 @@ pub mod test_utils {
 
             info!("{}", trace);
             trace.execute(&mut ctx);
+            info!(
+                "Client State: {}",
+                ctx.get_agent(client_openssl)
+                    .unwrap()
+                    .stream
+                    .describe_state()
+            );
+            info!(
+                "Server State:{}",
+                ctx.get_agent(server_openssl)
+                    .unwrap()
+                    .stream
+                    .describe_state()
+            );
         }
     }
 }

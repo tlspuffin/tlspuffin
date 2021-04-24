@@ -12,6 +12,8 @@ pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_outbound(&mut self, data: &[u8]);
     fn take_from_outbound(&mut self) -> Option<Vec<u8>>;
     fn take_from_inbound(&mut self) -> Option<Vec<u8>>;
+
+    fn describe_state(&self) -> &'static str;
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -59,6 +61,10 @@ impl Stream for OpenSSLStream {
         } else {
             openssl_server::client_connect(openssl_stream)
         }
+    }
+
+    fn describe_state(&self) -> &'static str {
+        self.openssl_stream.ssl().state_string_long()
     }
 }
 
@@ -123,6 +129,10 @@ impl Stream for MemoryStream {
         self.inbound.get_mut().clear();
         self.inbound.set_position(0);
         return Some(buffer);
+    }
+
+    fn describe_state(&self) -> &'static str {
+        todo!()
     }
 }
 
