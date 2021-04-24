@@ -28,12 +28,14 @@ RUST_LOG=trace cargo run --package crotofuzz --bin crotofuzz
 
 ## Documentation
 
-This generates the documentation for this crate and opens the browser. This also incldues the documentation of every 
+This generates the documentation for this crate and opens the browser. This also includes the documentation of every 
 dependency like LibAFL or rustls.
 
 ```bash
 cargo doc --open
 ```
+
+You can also view the up-to-date documentation [here](https://mammann.gitlabpages.inria.fr/tlspuffin/tlspuffin/).
 
 
 ## Interesting Libraries:
