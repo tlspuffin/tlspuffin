@@ -40,10 +40,10 @@ debug = true
 #panic = "abort"
 
 [[bin]]
-name = "rustls_client"
-path = "src/rustls_client.rs"
+name = "tlspuffin"
+path = "src/main.rs"
 
 [[bin]]
-name = "crotofuzz"
-path = "src/main.rs"
+name = "rustls_sample_client"
+path = "src/rustls_client.rs"
 
