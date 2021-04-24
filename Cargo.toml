@@ -1,5 +1,5 @@
 [package]
-name = "crotofuzz"
+name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2018"

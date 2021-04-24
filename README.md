@@ -1,4 +1,4 @@
-# tlspuffin - TLS under FuzzINg
+# tlspuffin - TLS Protocol Under FuzzINg
 
 ## Setup
 
