@@ -64,6 +64,11 @@ impl Stream for OpenSSLStream {
     }
 
     fn describe_state(&self) -> &'static str {
+        // Very useful for nonblocking according to docs:
+        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
+        // When using nonblocking sockets, the function call performing the handshake may return
+        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
+        // so that SSL_state_string[_long]() may be called.
         self.openssl_stream.ssl().state_string_long()
     }
 }
