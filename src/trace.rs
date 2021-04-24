@@ -169,9 +169,9 @@ impl<'a> Trace<'a> {
             step.action.execute(step, ctx);
 
             if i != steps.len() - 1 {
-                let next_step = &steps[i + 1];
+                // TODO do not skip the last one, handle if no next
                 let result = ctx.take_message_from_outbound(step.agent).unwrap();
-                ctx.add_to_inbound(next_step.agent, &result);
+                ctx.add_to_inbound(step.send_to, &result);
             }
         }
     }
@@ -191,6 +191,7 @@ pub struct Step<'a> {
     /// * If action is a SendAction: The Agent from which the message is sent.
     /// * If action is a ExpectAction: The Agent from which we expect the message.
     pub agent: AgentName,
+    pub send_to: AgentName,
     pub action: &'a (dyn Action + 'static),
 }
 

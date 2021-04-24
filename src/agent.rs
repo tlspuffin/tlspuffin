@@ -5,7 +5,7 @@ use rand::random;
 use crate::io::{MemoryStream, OpenSSLStream, Stream};
 
 #[derive(Copy, Clone)]
-pub struct AgentName(u128);
+pub struct AgentName(pub u128); // TODO make u128 private again
 
 impl fmt::Display for AgentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

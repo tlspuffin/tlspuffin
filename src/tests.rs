@@ -53,6 +53,8 @@ pub mod test_utils {
 
         use crate::trace;
         use crate::trace::{ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext, CCCExpectAction};
+        use crate::agent::AgentName;
+        use rand::random;
 
         #[test]
         /// Test for having an OpenSSL server (honest) agent
@@ -68,10 +70,12 @@ pub mod test_utils {
                     Step {
                         agent: client,
                         action: &client_hello,
+                        send_to: openssl_server
                     },
                     Step {
                         agent: openssl_server,
                         action: &server_hello,
+                        send_to: AgentName(random())
                     },
                 ],
             };
@@ -98,18 +102,22 @@ pub mod test_utils {
                     Step {
                         agent: openssl_client_agent,
                         action: &client_hello_initial,
+                        send_to: honest_agent
                     },
                     Step {
                         agent: honest_agent,
                         action: &client_hello_expect,
+                        send_to: honest_agent
                     },
                     Step {
                         agent: honest_agent,
                         action: &client_hello,
+                        send_to: openssl_client_agent
                     },
                     Step {
                         agent: openssl_client_agent,
                         action: &server_hello_expect,
+                        send_to: AgentName(random())
                     },
                 ],
             };
@@ -133,10 +141,12 @@ pub mod test_utils {
                     Step {
                         agent: client,
                         action: &a,
+                        send_to: server
                     },
                     Step {
                         agent: server,
                         action: &b,
+                        send_to: AgentName(random())
                     },
                 ],
             };
@@ -161,14 +171,17 @@ pub mod test_utils {
                     Step {
                         agent: client_openssl,
                         action: &client_hello_expect,
+                        send_to: server_openssl
                     },
                     Step {
                         agent: server_openssl,
                         action: &server_hello_expect,
+                        send_to: client_openssl
                     },
                     Step {
                         agent: server_openssl,
                         action: &ccc_expect,
+                        send_to: client_openssl
                     },
                 ],
             };

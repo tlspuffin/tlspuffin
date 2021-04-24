@@ -11,6 +11,8 @@ use log::Level;
 
 use crate::tests::test_utils::setup_client_hello_variables;
 use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
+use crate::agent::AgentName;
+use rand::random;
 
 mod agent;
 mod debug;
@@ -65,10 +67,12 @@ fn main() {
                 Step {
                     agent: honest_agent,
                     action: &client_hello,
+                    send_to: openssl_server_agent
                 },
                 Step {
                     agent: openssl_server_agent,
                     action: &server_hello,
+                    send_to: AgentName(random()) // TODO remove
                 },
             ],
         };
