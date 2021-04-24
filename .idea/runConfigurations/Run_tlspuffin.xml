@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run crotofuzz" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Run tlspuffin" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="run --package crotofuzz --bin crotofuzz" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
