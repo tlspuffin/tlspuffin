@@ -125,22 +125,21 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     if let Err(error) = stream.connect() {
         log_io_error(&error);
         log_ssl_error(&error);
-        stream.get_mut().take_from_outbound()
     } else {
         info!("Handshake is done");
-        None
     }
+
+    stream.get_mut().take_message_from_outbound()
 }
 
 pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     if let Err(error) = stream.accept() {
         log_io_error(&error);
         log_ssl_error(&error);
-
-        // Should contain an Alert or a Handshake message
-        stream.get_mut().take_from_outbound()
     } else {
         info!("Handshake is done");
-        None
     }
+
+    // Should contain an Alert or a Handshake message
+    stream.get_mut().take_message_from_outbound()
 }

@@ -52,10 +52,7 @@ pub mod test_utils {
         use test_env_log::test;
 
         use crate::trace;
-        use crate::trace::{
-            ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction, Step,
-            TraceContext,
-        };
+        use crate::trace::{ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext, CCCExpectAction};
 
         #[test]
         /// Test for having an OpenSSL server (honest) agent
@@ -156,37 +153,40 @@ pub mod test_utils {
             let client_openssl = ctx.new_openssl_agent(false);
             let server_openssl = ctx.new_openssl_agent(true);
 
-            let client_hello = ClientHelloExpectAction::new();
+            let client_hello_expect = ClientHelloExpectAction::new();
             let server_hello_expect = ServerHelloExpectAction::new();
+            let ccc_expect = CCCExpectAction::new();
             let mut trace = trace::Trace {
                 steps: vec![
                     Step {
                         agent: client_openssl,
-                        action: &client_hello,
+                        action: &client_hello_expect,
                     },
                     Step {
                         agent: server_openssl,
                         action: &server_hello_expect,
+                    },
+                    Step {
+                        agent: server_openssl,
+                        action: &ccc_expect,
                     },
                 ],
             };
 
             info!("{}", trace);
             trace.execute(&mut ctx);
-            info!(
-                "Client State: {}",
-                ctx.get_agent(client_openssl)
-                    .unwrap()
-                    .stream
-                    .describe_state()
-            );
-            info!(
-                "Server State:{}",
-                ctx.get_agent(server_openssl)
-                    .unwrap()
-                    .stream
-                    .describe_state()
-            );
+
+
+            let client_state = ctx.get_agent(client_openssl)
+                .unwrap()
+                .stream
+                .describe_state();
+            let server_state = ctx.get_agent(server_openssl)
+                .unwrap()
+                .stream
+                .describe_state();
+            assert!(client_state.contains("SSL negotiation finished successfully"));
+            assert!(server_state.contains("TLSv1.3 early data"));
         }
     }
 }

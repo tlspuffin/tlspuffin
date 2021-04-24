@@ -10,7 +10,7 @@ use rustls::internal::msgs::handshake::{
     ServerExtension, SessionID,
 };
 use rustls::internal::msgs::message::Message;
-use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::internal::msgs::message::MessagePayload::{ChangeCipherSpec, Handshake};
 use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
@@ -22,6 +22,7 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
+use rustls::internal::msgs::deframer::MessageDeframer;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -82,44 +83,57 @@ impl TraceContext {
         variables
     }
 
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "to".
-    pub fn add_to_inbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
+    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
+    pub fn add_to_inbound(&mut self, agent_name: AgentName, buf: &dyn AsRef<[u8]>) {
         let mut iter = self.agents.iter_mut();
 
-        if let Some(to_agent) = iter.find(|agent| agent.name == to) {
+        if let Some(to_agent) = iter.find(|agent| agent.name == agent_name) {
             to_agent.stream.add_to_inbound(buf.as_ref());
         }
     }
 
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "from".
-    pub fn take_from_outbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
+    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
+    pub fn take_from_outbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
-        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
+        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
             return from_agent
                 .stream
                 .take_from_outbound()
                 .ok_or::<String>("Failed to take data from inbound channel".to_string());
         }
 
-        Err(format!("Could not find agent {}", from))
+        Err(format!("Could not find agent {}", agent_name))
     }
 
-    fn add_to_outbound(&mut self, to: AgentName, buf: &dyn AsRef<[u8]>) {
+    pub fn take_message_from_outbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
-        if let Some(to_agent) = iter.find(|agent| agent.name == to) {
-            to_agent.stream.add_to_outbound(&buf.as_ref());
+        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
+            return from_agent
+                .stream
+                .take_message_from_outbound()
+                .ok_or::<String>("Failed to take data from inbound channel".to_string());
+        }
+
+        Err(format!("Could not find agent {}", agent_name))
+    }
+
+    fn add_to_outbound(&mut self, agent_name: AgentName, buf: &dyn AsRef<[u8]>, prepend: bool) {
+        let mut iter = self.agents.iter_mut();
+
+        if let Some(to_agent) = iter.find(|agent| agent.name == agent_name) {
+            to_agent.stream.add_to_outbound(&buf.as_ref(), prepend);
         }
     }
-    pub fn take_from_inbound(&mut self, from: AgentName) -> Result<Vec<u8>, String> {
+    pub fn take_from_inbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
         let mut iter = self.agents.iter_mut();
 
-        if let Some(from_agent) = iter.find(|agent| agent.name == from) {
+        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
             return Ok(from_agent.stream.take_from_inbound().unwrap());
         }
 
-        Err(format!("Could not find agent {}", from))
+        Err(format!("Could not find agent {}", agent_name))
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -139,7 +153,7 @@ impl TraceContext {
     pub fn get_agent(&self, name: AgentName) -> Option<&Agent> {
         let mut iter = self.agents.iter();
 
-        return iter.find(|agent| agent.name == name)
+        return iter.find(|agent| agent.name == name);
     }
 }
 
@@ -156,7 +170,7 @@ impl<'a> Trace<'a> {
 
             if i != steps.len() - 1 {
                 let next_step = &steps[i + 1];
-                let result = ctx.take_from_outbound(step.agent).unwrap();
+                let result = ctx.take_message_from_outbound(step.agent).unwrap();
                 ctx.add_to_inbound(next_step.agent, &result);
             }
         }
@@ -198,9 +212,14 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
     match ctx.take_from_inbound(step.agent) {
         // reads internally from inbound of agent
         Ok(buffer) => {
+            let mut deframer = MessageDeframer::new();
+            if let Ok(size) = deframer.read(&mut buffer.as_slice()) {
+                info!("{}", size)
+            }
+
             debug_message_with_info("Received", &buffer);
 
-            ctx.add_to_outbound(step.agent, &buffer);
+            ctx.add_to_outbound(step.agent, &buffer, true);
 
             if let Some(mut message) = Message::read_bytes(&buffer) {
                 message.decode_payload();
@@ -300,7 +319,7 @@ impl Action for ClientHelloSendAction {
         match result {
             Ok(buffer) => {
                 debug_message(&buffer);
-                ctx.add_to_outbound(step.agent, &buffer);
+                ctx.add_to_outbound(step.agent, &buffer, false);
             }
             _ => {
                 error!(
@@ -443,5 +462,62 @@ impl ExpectAction for ClientHelloExpectAction {
         } else {
             // no ServerHello or decoding failed
         }
+    }
+}
+
+// Expect ChangeCipherSpec
+
+pub struct CCCExpectAction;
+
+impl fmt::Display for CCCExpectAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", "Expect CCC")
+    }
+}
+
+impl Action for CCCExpectAction {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+        self.expect(step, ctx);
+    }
+}
+
+impl CCCExpectAction {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl ExpectAction for CCCExpectAction {
+    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
+        match ctx.take_from_inbound(step.agent) { // TODO: Do not take internally from outbound and add it again here:  ctx.add_to_outbound(step.agent, &buffer, true); -> removes prepend
+            // reads internally from inbound of agent
+            Ok(buffer) => {
+                let mut deframer = MessageDeframer::new();
+                if let Ok(size) = deframer.read(&mut buffer.as_slice()) {
+                    info!("{}", size)
+                }
+                debug_message_with_info("Received", &buffer);
+
+                ctx.add_to_outbound(step.agent, &buffer, true);
+
+                if let Some(mut message) = Message::read_bytes(&buffer) {
+                    message.decode_payload();
+
+                    match message.payload {
+                        ChangeCipherSpec(payload) => {
+                            // Add no new variables
+                        }
+                        _ => {
+                            panic!("Expected CCC!")
+                        }
+                    }
+                } else {
+                    // decoding failed
+                }
+            }
+            Err(msg) => {
+                panic!("{}", msg)
+            }
+        };
     }
 }
