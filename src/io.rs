@@ -12,8 +12,12 @@ use crate::openssl_server;
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
     fn add_to_outbound(&mut self, data: &[u8], prepend: bool);
-    fn take_from_outbound(&mut self) -> Option<Vec<u8>>;
+    /// Takes a single TLS message from the outbound channel in binary
     fn take_message_from_outbound(&mut self) -> Option<Vec<u8>>;
+    // Gets a TLS message from the outbound channel and does NOT remove the content
+    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>>;
+    /// Takes the whole content of the outbound channel; after this call the outbound
+    /// channel is empty
     fn take_from_inbound(&mut self) -> Option<Vec<u8>>;
 
     fn describe_state(&self) -> &'static str;
@@ -53,12 +57,12 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.get_mut().add_to_outbound(data, prepend)
     }
 
-    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
-        self.openssl_stream.get_mut().take_from_outbound()
-    }
-
     fn take_message_from_outbound(&mut self) -> Option<Vec<u8>> {
         self.openssl_stream.get_mut().take_message_from_outbound()
+    }
+
+    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+        todo!()
     }
 
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
@@ -135,14 +139,6 @@ impl Stream for MemoryStream {
         }
     }
 
-    /// Takes all bytes of the outbound channel and clears it
-    fn take_from_outbound(&mut self) -> Option<Vec<u8>> {
-        let buffer = self.outbound.get_ref().clone();
-        self.outbound.get_mut().clear();
-        self.outbound.set_position(0);
-        return Some(buffer);
-    }
-
     fn take_message_from_outbound(&mut self) -> Option<Vec<u8>> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
@@ -164,6 +160,10 @@ impl Stream for MemoryStream {
         } else {
             None
         }
+    }
+
+    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+        todo!()
     }
 
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {

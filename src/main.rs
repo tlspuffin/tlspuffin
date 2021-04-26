@@ -72,7 +72,7 @@ fn main() {
                 Step {
                     agent: openssl_server_agent,
                     action: &server_hello,
-                    send_to: AgentName(random()) // TODO remove
+                    send_to: AgentName::none()
                 },
             ],
         };

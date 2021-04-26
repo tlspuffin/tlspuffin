@@ -1,8 +1,8 @@
 use core::fmt;
 use std::any::Any;
 
-use openssl::symm::Cipher;
 use rustls::internal::msgs::codec::Codec;
+use rustls::internal::msgs::deframer::MessageDeframer;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::{Compression, HandshakeType};
 use rustls::internal::msgs::handshake::{
@@ -22,7 +22,6 @@ use crate::variable::{
     CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
     VersionData,
 };
-use rustls::internal::msgs::deframer::MessageDeframer;
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -84,56 +83,39 @@ impl TraceContext {
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn add_to_inbound(&mut self, agent_name: AgentName, buf: &dyn AsRef<[u8]>) {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(to_agent) = iter.find(|agent| agent.name == agent_name) {
-            to_agent.stream.add_to_inbound(buf.as_ref());
-        }
+    pub fn add_to_inbound(
+        &mut self,
+        agent_name: AgentName,
+        buf: &dyn AsRef<[u8]>,
+    ) -> Result<(), String> {
+        self.find_agent_mut(agent_name)
+            .map(|agent| agent.stream.add_to_inbound(buf.as_ref()))
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn take_from_outbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
-            return from_agent
-                .stream
-                .take_from_outbound()
-                .ok_or::<String>("Failed to take data from inbound channel".to_string());
-        }
-
-        Err(format!("Could not find agent {}", agent_name))
-    }
-
+    /// See [`MemoryStream::take_message_from_outbound`]
     pub fn take_message_from_outbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
-            return from_agent
+        self.find_agent_mut(agent_name).and_then(|agent| {
+            agent
                 .stream
                 .take_message_from_outbound()
-                .ok_or::<String>("Failed to take data from inbound channel".to_string());
-        }
-
-        Err(format!("Could not find agent {}", agent_name))
+                .ok_or::<String>("Failed to take data from inbound channel".to_string())
+        })
     }
 
-    fn add_to_outbound(&mut self, agent_name: AgentName, buf: &dyn AsRef<[u8]>, prepend: bool) {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(to_agent) = iter.find(|agent| agent.name == agent_name) {
-            to_agent.stream.add_to_outbound(&buf.as_ref(), prepend);
-        }
+    fn add_to_outbound(
+        &mut self,
+        agent_name: AgentName,
+        buf: &dyn AsRef<[u8]>,
+        prepend: bool,
+    ) -> Result<(), String> {
+        self.find_agent_mut(agent_name)
+            .map(|agent| agent.stream.add_to_outbound(&buf.as_ref(), prepend))
     }
+
     pub fn take_from_inbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
-        let mut iter = self.agents.iter_mut();
-
-        if let Some(from_agent) = iter.find(|agent| agent.name == agent_name) {
-            return Ok(from_agent.stream.take_from_inbound().unwrap());
-        }
-
-        Err(format!("Could not find agent {}", agent_name))
+        self.find_agent_mut(agent_name)
+            .map(|agent| agent.stream.take_from_inbound().unwrap())
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -150,10 +132,25 @@ impl TraceContext {
         return self.add_agent(Agent::new_openssl(server));
     }
 
-    pub fn get_agent(&self, name: AgentName) -> Option<&Agent> {
-        let mut iter = self.agents.iter();
+    fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
+        if name == AgentName::none() {
+            panic!("None Agent does not exist")
+        }
 
-        return iter.find(|agent| agent.name == name);
+        let mut iter = self.agents.iter_mut();
+
+        iter.find(|agent| agent.name == name)
+            .ok_or(format!("Could not find agent {}", name))
+    }
+
+    pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
+        if name == AgentName::none() {
+            panic!("None Agent does not exist")
+        }
+
+        let mut iter = self.agents.iter();
+        iter.find(|agent| agent.name == name)
+            .ok_or(format!("Could not find agent {}", name))
     }
 }
 
@@ -163,6 +160,14 @@ pub struct Trace<'a> {
 
 impl<'a> Trace<'a> {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
+        self.execute_with_listener(ctx, |step| {})
+    }
+
+    pub fn execute_with_listener(
+        &mut self,
+        ctx: &mut TraceContext,
+        execution_listener: fn(step: &Step) -> (),
+    ) {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
@@ -173,6 +178,8 @@ impl<'a> Trace<'a> {
                 let result = ctx.take_message_from_outbound(step.agent).unwrap();
                 ctx.add_to_inbound(step.send_to, &result);
             }
+
+            execution_listener(step);
         }
     }
 }
@@ -490,7 +497,8 @@ impl CCCExpectAction {
 
 impl ExpectAction for CCCExpectAction {
     fn expect(&self, step: &Step, ctx: &mut TraceContext) {
-        match ctx.take_from_inbound(step.agent) { // TODO: Do not take internally from outbound and add it again here:  ctx.add_to_outbound(step.agent, &buffer, true); -> removes prepend
+        match ctx.take_from_inbound(step.agent) {
+            // TODO: Do not take internally from outbound and add it again here:  ctx.add_to_outbound(step.agent, &buffer, true); -> removes prepend
             // reads internally from inbound of agent
             Ok(buffer) => {
                 let mut deframer = MessageDeframer::new();

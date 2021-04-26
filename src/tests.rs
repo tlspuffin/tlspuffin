@@ -75,7 +75,7 @@ pub mod test_utils {
                     Step {
                         agent: openssl_server,
                         action: &server_hello,
-                        send_to: AgentName(random())
+                        send_to: AgentName::none()
                     },
                 ],
             };
@@ -117,7 +117,7 @@ pub mod test_utils {
                     Step {
                         agent: openssl_client_agent,
                         action: &server_hello_expect,
-                        send_to: AgentName(random())
+                        send_to: AgentName::none()
                     },
                 ],
             };
@@ -146,7 +146,7 @@ pub mod test_utils {
                     Step {
                         agent: server,
                         action: &b,
-                        send_to: AgentName(random())
+                        send_to: AgentName::none()
                     },
                 ],
             };
@@ -190,11 +190,11 @@ pub mod test_utils {
             trace.execute(&mut ctx);
 
 
-            let client_state = ctx.get_agent(client_openssl)
+            let client_state = ctx.find_agent(client_openssl)
                 .unwrap()
                 .stream
                 .describe_state();
-            let server_state = ctx.get_agent(server_openssl)
+            let server_state = ctx.find_agent(server_openssl)
                 .unwrap()
                 .stream
                 .describe_state();
