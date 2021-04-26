@@ -13,11 +13,11 @@ impl AgentName {
     }
 
     pub fn none() -> AgentName {
-        AgentName(0u128)
+        NONE_AGENT
     }
 }
 
-pub const NONE: AgentName = AgentName(0u128);
+const NONE_AGENT: AgentName = AgentName(0u128);
 
 impl fmt::Display for AgentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -36,21 +36,24 @@ impl PartialEq for AgentName {
 pub struct Agent {
     pub name: AgentName,
     pub stream: Box<dyn Stream>,
+    // Wether this agent automatically forwards data form the inbound channel to the outbound channel
+    pub is_producing: bool
 }
 
 impl Agent {
     pub fn new() -> Self {
-        Self::from_stream(Box::new(MemoryStream::new()))
+        Self::from_stream(Box::new(MemoryStream::new()), false)
     }
 
     pub fn new_openssl(server: bool) -> Self {
-        Self::from_stream(Box::new(OpenSSLStream::new(server)))
+        Self::from_stream(Box::new(OpenSSLStream::new(server)), true)
     }
 
-    pub fn from_stream(stream: Box<dyn Stream>) -> Agent {
+    pub fn from_stream(stream: Box<dyn Stream>, is_producing: bool) -> Agent {
         Agent {
             name: AgentName::random(),
             stream,
+            is_producing
         }
     }
 }

@@ -62,7 +62,7 @@ impl Stream for OpenSSLStream {
     }
 
     fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
-        todo!()
+        self.openssl_stream.get_mut().peek_message_from_outbound()
     }
 
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
@@ -142,28 +142,37 @@ impl Stream for MemoryStream {
     fn take_message_from_outbound(&mut self) -> Option<Vec<u8>> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
-            let mut rest: Vec<u8> = Vec::new();
+            let mut rest_buffer: Vec<u8> = Vec::new();
 
             let first_message = deframer.frames.pop_front().unwrap();
-            let mut message: Vec<u8> = Vec::new();
-            first_message.encode(&mut message);
+            let mut buffer: Vec<u8> = Vec::new();
+            first_message.encode(&mut buffer);
 
             for message in deframer.frames {
-                message.encode(&mut rest);
+                message.encode(&mut rest_buffer);
             }
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();
-            self.outbound.write_all(&rest).unwrap();
+            self.outbound.write_all(&rest_buffer).unwrap();
 
-            return Some(message);
+            return Some(buffer);
         } else {
             None
         }
     }
 
     fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
-        todo!()
+        let mut deframer = MessageDeframer::new();
+        if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
+            let first_message = deframer.frames.pop_front().unwrap();
+            let mut buffer: Vec<u8> = Vec::new();
+            first_message.encode(&mut buffer);
+
+            return Some(buffer);
+        } else {
+            None
+        }
     }
 
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {

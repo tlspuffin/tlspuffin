@@ -212,11 +212,19 @@ pub trait SendAction: Action {
 
 pub trait ExpectAction: Action {
     fn expect(&self, step: &Step, ctx: &mut TraceContext);
+
+    fn craft_outbound_message(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext,
+    ) -> Result<Vec<u8>, String>;
 }
 
 // parsing utils
 
 pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
+    // todo, we are creating variables only from the message in the oubound buffer, but the reeiver
+    // // of a message also has access to the message in the inbound
     match ctx.take_from_inbound(step.agent) {
         // reads internally from inbound of agent
         Ok(buffer) => {
@@ -225,9 +233,9 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
                 info!("{}", size)
             }
 
-            debug_message_with_info("Received", &buffer);
+            // TODO: We need to add data to the outbound channel here if the agent is not an openssl agent
 
-            ctx.add_to_outbound(step.agent, &buffer, true);
+            debug_message_with_info("Received", &buffer);
 
             if let Some(mut message) = Message::read_bytes(&buffer) {
                 message.decode_payload();
@@ -307,6 +315,14 @@ impl ExpectAction for ServerHelloExpectAction {
         } else {
             // no ServerHello or decoding failed
         }
+    }
+
+    fn craft_outbound_message(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext,
+    ) -> Result<Vec<u8>, String> {
+        todo!()
     }
 }
 
@@ -401,6 +417,13 @@ impl fmt::Display for ClientHelloExpectAction {
 impl Action for ClientHelloExpectAction {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
         self.expect(step, ctx);
+        // TODO: We need to do this as an expect also has to output if the agent is not taking care
+        // himself
+        if let Ok(agent) = ctx.find_agent(step.agent) {
+            if !agent.is_producing {
+                self.craft_outbound_message(step, ctx);
+            }
+        }
     }
 }
 
@@ -471,6 +494,15 @@ impl ExpectAction for ClientHelloExpectAction {
             // no ServerHello or decoding failed
         }
     }
+
+    fn craft_outbound_message(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext,
+    ) -> Result<Vec<u8>, String> {
+        ClientHelloSendAction {}.execute(step, ctx);
+        Ok(Vec::new()) // todo generalize
+    }
 }
 
 // Expect ChangeCipherSpec
@@ -507,8 +539,6 @@ impl ExpectAction for CCCExpectAction {
                 }
                 debug_message_with_info("Received", &buffer);
 
-                ctx.add_to_outbound(step.agent, &buffer, true);
-
                 if let Some(mut message) = Message::read_bytes(&buffer) {
                     message.decode_payload();
 
@@ -528,5 +558,13 @@ impl ExpectAction for CCCExpectAction {
                 panic!("{}", msg)
             }
         };
+    }
+
+    fn craft_outbound_message(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext,
+    ) -> Result<Vec<u8>, String> {
+        todo!()
     }
 }

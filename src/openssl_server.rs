@@ -129,7 +129,7 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
         info!("Handshake is done");
     }
 
-    stream.get_mut().take_message_from_outbound()
+    stream.get_mut().peek_message_from_outbound()
 }
 
 pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
@@ -141,5 +141,5 @@ pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     }
 
     // Should contain an Alert or a Handshake message
-    stream.get_mut().take_message_from_outbound()
+    stream.get_mut().peek_message_from_outbound()
 }
