@@ -17,7 +17,7 @@ use rand::random;
 mod agent;
 mod debug;
 mod io;
-mod openssl_server;
+mod openssl_binding;
 mod tests;
 mod trace;
 mod variable;
@@ -53,7 +53,7 @@ fn main() {
     init_logger();
     //pretty_env_logger::formatted_builder().target(Target::Stdout).filter_level(LevelFilter::Trace).init();
 
-    info!("{}", openssl_server::openssl_version());
+    info!("{}", openssl_binding::openssl_version());
 
     loop {
         let mut ctx = TraceContext::new();

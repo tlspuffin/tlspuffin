@@ -7,7 +7,7 @@ use rustls::internal::msgs::deframer::MessageDeframer;
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
-use crate::openssl_server;
+use crate::openssl_binding;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &[u8]);
@@ -68,9 +68,9 @@ impl Stream for OpenSSLStream {
     fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
         let openssl_stream = &mut self.openssl_stream;
         if self.server {
-            openssl_server::server_accept(openssl_stream)
+            openssl_binding::server_accept(openssl_stream)
         } else {
-            openssl_server::client_connect(openssl_stream)
+            openssl_binding::client_connect(openssl_stream)
         }
     }
 
@@ -105,10 +105,10 @@ impl OpenSSLStream {
         let memory_stream = MemoryStream::new();
         OpenSSLStream {
             openssl_stream: if server {
-                let (cert, pkey) = openssl_server::generate_cert();
-                openssl_server::create_openssl_server(memory_stream, &cert, &pkey)
+                let (cert, pkey) = openssl_binding::generate_cert();
+                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey)
             } else {
-                openssl_server::create_openssl_client(memory_stream)
+                openssl_binding::create_openssl_client(memory_stream)
             },
             server,
         }
