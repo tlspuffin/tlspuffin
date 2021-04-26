@@ -198,7 +198,7 @@ pub mod test_utils {
                 .unwrap()
                 .stream
                 .describe_state();
-            assert!(client_state.contains("SSL negotiation finished successfully"));
+            assert!(client_state.contains("SSLv3/TLS write client hello"));
             assert!(server_state.contains("TLSv1.3 early data"));
         }
     }
