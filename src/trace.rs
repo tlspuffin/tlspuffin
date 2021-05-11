@@ -154,6 +154,52 @@ impl TraceContext {
     }
 }
 
+///
+/// A *Trace* consists of several *Steps*. Each has either a *Send-* or an *Expect-Action*. Each *Step* references an *Agents* by name.
+/// In case of a *Send* *Action* the *Agent* denotes: From which *Agent* a message is sent.
+/// In case of an *Expect* *Action* the *Agent* denotes: Which *Agent* is expecting a message.
+///
+/// *Agents* represent communication participants like Alice, Bob or Eve.
+/// Each *Agent* has an *inbound* and an *outbound channel*. These are currently implemented by using an in-memory buffer.
+///
+/// One might ask why we need two channels. There two reasons for this:
+/// * Having two buffers resembles how networking works in reality: Each computer has a input and a output buffer. In case of TCP the input buffer can become full and therefore the transmission is throttled.
+/// * It is beneficial to model each agent with two buffers according to the Single-responsibility principle. When sending or receiving data each agent only has to look at its own two buffers. If each agent had only one buffer, then you would need to read from another agent which has the data you want. Or if you design it the other way around you would need to write to the buffer of the agent to which you want to send data.
+/// <!-- TODO
+/// Minor comment: if you had honest agents sending all message to the ONE attacker and all honest agents receiving message fro this ONE attacker, this argument no longer works as the attacker, simulating the network, would write in the buffer of the honest agents who expect a message and read in the buffer of honest agents who send a message.
+/// -->
+/// * By having two buffers it is possible to define a message passing semantic. The routine which is executing a trace can decide which message should be sent to which agents.
+///
+/// The *Agent* Alice can add data to the *inbound channel* of Bob. Bob can then read the data from his *inbound channel* and put data in his *outbound channel*. If Bob is an OpenSSL *Agent* then OpenSSL handles this.
+/// Not the message passing semantics make sure that messages are fetched from agents and delivered to others.
+///
+/// An *Expect Action* can then verify whether the *inbound channel* contains the expected message and extract *VariableData* from it.
+///
+/// The implementation of this trace looks like this:
+///
+/// ```rust
+/// let trace = trace::Trace {
+///   steps: vec![
+///         Step {
+///             agent: dishonest_agent,
+///             action: &ClientHelloSendAction::new()
+///         },
+///         Step {
+///             agent: openssl_server_agent,
+///             action: &ServerHelloExpectAction::new()
+///         },
+///     ],
+/// };
+/// ```
+///
+/// <!--
+/// TODO How do you implement agents that do not follow the spec?
+/// -->
+/// There are currently two different kinds of *Agents*. Firstly, a dishonest agent, which can craft arbitrary TLS messages and do not need to follow the RFC spec. Remember the arbitrary $f$ which can perform computations not defined in any RFCs.
+///
+/// Secondly, there are OpenSSL agents, which use OpenSSL to craft messages and respond to messages.
+///
+/// The *TraceContext* contains a list of *VariableData*, of which each has a *type* and an *owner*. *Send Actions* consume *VariableData*, whereas *Expect Actions* produce *VariableData*. *VariableData* can also be produced by initiating a *TraceContext* with predefined *VariableData*. *VariableData* can contain data of various types. For example client and server extensions, cipher suits, session IDs etc.
 pub struct Trace<'a> {
     pub steps: Vec<Step<'a>>,
 }
