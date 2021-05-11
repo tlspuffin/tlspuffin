@@ -24,6 +24,8 @@ libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" 
 
 test-env-log = "0.2.7"
 
+term_rewriting = "0.7"
+
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
@@ -46,4 +48,8 @@ path = "src/main.rs"
 [[bin]]
 name = "rustls_sample_client"
 path = "src/rustls_client.rs"
+
+[[bin]]
+name = "rewrite_experiments"
+path = "src/rewrite_experiments.rs"
 
