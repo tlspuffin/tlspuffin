@@ -1,6 +1,6 @@
+use std::any::TypeId;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, RwLock};
 
 use crate::term::Variable;
 
@@ -38,10 +38,10 @@ use super::Operator;
 pub struct Signature {
     /// Stores the (arity, name) for every [`Operator`].
     /// [`Operator`]: struct.Operator.html
-    pub(crate) operators: Vec<(u32, Option<String>)>,
+    pub(crate) operators: Vec<Operator>,
     /// Stores the name for every [`Variable`].
     /// [`Variable`]: struct.Variable.html
-    pub(crate) variables: Vec<Option<String>>,
+    pub(crate) variables: Vec<(Option<String>, TypeId)>,
 }
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
@@ -84,9 +84,9 @@ impl Signature {
     ///
     /// assert_eq!(sig, sig2);
     ///```
-    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> Signature {
+    pub fn new(operators: Vec<Operator>) -> Signature {
         Signature {
-            operators: operator_spec,
+            operators,
             variables: vec![],
         }
     }
@@ -109,14 +109,7 @@ impl Signature {
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///```
     pub fn operators(&self) -> Vec<Operator> {
-        (0..self.operators.len())
-            .collect::<Vec<usize>>()
-            .into_iter()
-            .map(|id| Operator {
-                id,
-                sig: self.clone(),
-            })
-            .collect()
+        self.operators.clone()
     }
     /// Returns every [`Variable`] known to the `Signature`, in the order they were created.
     ///
@@ -152,13 +145,12 @@ impl Signature {
     /// assert_ne!(a, s2);
     /// assert_ne!(s, s2);
     /// ```
-    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
-        self.operators.push((arity, name));
-        let id = self.operators.len() - 1;
-        Operator {
-            id,
-            sig: self.clone(),
-        }
+    pub fn new_op(&mut self, arity: u8, name: &'static str) -> Operator {
+        todo!()
+        //let operator = Operator { name, arity };
+        //self.operators.push(operator.clone());
+
+        //operator
     }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
     ///
@@ -175,8 +167,8 @@ impl Signature {
     ///
     /// assert_ne!(z, z2);
     /// ```
-    pub fn new_var(&mut self, name: Option<String>) -> Variable {
-        self.variables.push(name);
+    pub fn new_var(&mut self, typ: TypeId, name: Option<String>) -> Variable {
+        self.variables.push((name, typ));
         let id = self.variables.len() - 1;
         Variable {
             id,
@@ -205,13 +197,7 @@ impl PartialEq for Signature {
                 .operators
                 .iter()
                 .zip(&other.operators)
-                .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
+                .all(|(o1, o2)| o1.arity() == o2.arity())
     }
 }
 impl Eq for Signature {}
-impl Hash for Signature {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.variables.hash(state);
-        self.operators.hash(state);
-    }
-}

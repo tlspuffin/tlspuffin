@@ -1,4 +1,8 @@
+#![feature(clone_closures)]
+use std::any::{TypeId, Any};
+
 use super::Signature;
+use crate::term::type_helper::{DynamicFunctionShape, DynamicFunction};
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
@@ -6,40 +10,24 @@ use super::Signature;
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Variable {
-    pub(crate) sig: Signature,
     pub(crate) id: usize,
+    pub(crate) sig: Signature,
 }
 impl Variable {
-    /// Returns a `Variable`'s name.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("z".to_string()));
-    ///
-    /// assert_eq!(var.name(), Some("z".to_string()));
-    /// ```
-    pub fn name(&self) -> Option<String> {
-        self.sig.variables[self.id].clone()
-    }
     /// Serialize a `Variable`.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("z".to_string()));
     ///
     /// assert_eq!(var.display(), "z_");
     /// ```
     pub fn display(&self) -> String {
-        if let Some(ref name) = self.sig.variables[self.id]
-        {
+        if let Some(ref name) = self.sig.variables[self.id].0 {
             format!("{}_", name)
         } else {
             format!("var{}_", self.id)
@@ -53,10 +41,12 @@ impl Variable {
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 pub struct Operator {
-    pub(crate) sig: Signature,
-    pub(crate) id: usize,
+    pub(crate) name: &'static str,
+    pub(crate) arity: u8,
+    pub(crate) shape: DynamicFunctionShape,
+    pub(crate) dynamic_fn: Box<DynamicFunction>,
 }
 impl Operator {
     /// Returns an `Operator`'s arity.
@@ -64,49 +54,40 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// let op = sig.new_op(2, "Z");
     ///
     /// assert_eq!(op.arity(), 2);
     /// ```
-    pub fn arity(&self) -> u32 {
-        self.sig.operators[self.id].0
+    pub fn arity(&self) -> u8 {
+        self.arity
     }
     /// Returns an `Operator`'s name.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// let op = sig.new_op(2, "Z");
     ///
-    /// assert_eq!(op.name(), Some("Z".to_string()));
+    /// assert_eq!(op.name(), "Z");
     /// ```
-    pub fn name(&self) -> Option<String> {
-        self.sig.operators[self.id]
-            .1
-            .clone()
+    pub fn name(&self) -> &'static str {
+        self.name
     }
     /// Serialize an `Operator`.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
     ///
     /// assert_eq!(op.display(), "Z");
     /// ```
     pub fn display(&self) -> String {
-        if let (_, Some(ref name)) =
-            self.sig.operators[self.id]
-        {
-            name.clone()
-        } else {
-            format!("op{}", self.id)
-        }
+        format!("{}", self.name)
     }
+
+
 }

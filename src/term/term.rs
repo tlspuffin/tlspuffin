@@ -8,7 +8,7 @@ use crate::term::pretty::Pretty;
 ///
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.html
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Clone)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
@@ -53,7 +53,7 @@ impl Term {
         match *self {
             Term::Variable(ref v) => vec![v.clone()],
             Term::Application { ref args, .. } => {
-                args.iter().flat_map(Term::variables).unique().collect()
+                args.iter().flat_map(Term::variables).collect()
             }
         }
     }
@@ -68,7 +68,6 @@ impl Term {
                 .iter()
                 .flat_map(Term::operators)
                 .chain(iter::once(op.clone()))
-                .unique()
                 .collect(),
         }
     }

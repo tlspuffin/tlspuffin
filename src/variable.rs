@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 
 use rand;
 use rand::random;
@@ -33,6 +33,11 @@ pub trait VariableData: Any + AsAny {
     fn get_owner(&self) -> AgentName {
         self.get_metadata().owner
     }
+    fn get_data(&self) -> &dyn Any;
+
+    fn get_type_id(&self) -> TypeId {
+        self.get_data().type_id()
+    }
 
     fn random_value(agent: AgentName) -> Self
     where
@@ -49,6 +54,10 @@ pub struct VersionData {
 impl VariableData for VersionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self
@@ -72,6 +81,10 @@ pub struct RandomData {
 impl VariableData for RandomData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self
@@ -98,6 +111,10 @@ impl VariableData for AgreedCipherSuiteData {
         &self.metadata
     }
 
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
+    }
+
     fn random_value(owner: AgentName) -> Self
     where
         Self: Sized,
@@ -118,6 +135,10 @@ impl VariableData for AgreedCompressionData {
         &self.metadata
     }
 
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
+    }
+
     fn random_value(owner: AgentName) -> Self
     where
         Self: Sized,
@@ -136,6 +157,10 @@ pub struct SessionIDData {
 impl VariableData for SessionIDData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self
@@ -169,6 +194,10 @@ impl CipherSuiteData {
 impl VariableData for CipherSuiteData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self
@@ -209,6 +238,10 @@ impl CompressionData {
 impl VariableData for CompressionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self
@@ -279,6 +312,10 @@ impl VariableData for ClientExtensionData {
         &self.metadata
     }
 
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
+    }
+
     fn random_value(owner: AgentName) -> Self
     where
         Self: Sized,
@@ -325,6 +362,10 @@ impl ServerExtensionData {
 impl VariableData for ServerExtensionData {
     fn get_metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    fn get_data(&self) -> &dyn Any {
+        self.data.as_any()
     }
 
     fn random_value(owner: AgentName) -> Self

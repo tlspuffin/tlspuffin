@@ -32,7 +32,7 @@ pub trait Pretty: Sized {
 impl Pretty for Term {
     fn as_application(&self) -> Option<(Operator, &[Term])> {
         match *self {
-            Term::Application { ref op, ref args } => Some((op.clone(), &args)),
+           //todo Term::Application { ref op, ref args } => Some((op.clone(), &args)),
             _ => None,
         }
     }
