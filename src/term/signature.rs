@@ -1,8 +1,10 @@
-use super::{Operator};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock};
+
 use crate::term::Variable;
+
+use super::Operator;
 
 /// Records a universe of symbols.
 ///
@@ -34,7 +36,12 @@ use crate::term::Variable;
 /// ```
 #[derive(Clone)]
 pub struct Signature {
-    pub(crate) sig: Arc<RwLock<Sig>>,
+    /// Stores the (arity, name) for every [`Operator`].
+    /// [`Operator`]: struct.Operator.html
+    pub(crate) operators: Vec<(u32, Option<String>)>,
+    /// Stores the name for every [`Variable`].
+    /// [`Variable`]: struct.Variable.html
+    pub(crate) variables: Vec<Option<String>>,
 }
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
@@ -79,7 +86,8 @@ impl Signature {
     ///```
     pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> Signature {
         Signature {
-            sig: Arc::new(RwLock::new(Sig::new(operator_spec))),
+            operators: operator_spec,
+            variables: vec![],
         }
     }
     /// Returns every [`Operator`] known to the `Signature`, in the order they were created.
@@ -101,10 +109,8 @@ impl Signature {
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///```
     pub fn operators(&self) -> Vec<Operator> {
-        self.sig
-            .read()
-            .expect("poisoned signature")
-            .operators()
+        (0..self.operators.len())
+            .collect::<Vec<usize>>()
             .into_iter()
             .map(|id| Operator {
                 id,
@@ -118,10 +124,8 @@ impl Signature {
     ///
     ///
     pub fn variables(&self) -> Vec<Variable> {
-        self.sig
-            .read()
-            .expect("poisoned signature")
-            .variables()
+        (0..self.variables.len())
+            .collect::<Vec<usize>>()
             .into_iter()
             .map(|id| Variable {
                 id,
@@ -149,11 +153,8 @@ impl Signature {
     /// assert_ne!(s, s2);
     /// ```
     pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
-        let id = self
-            .sig
-            .write()
-            .expect("poisoned signature")
-            .new_op(arity, name);
+        self.operators.push((arity, name));
+        let id = self.operators.len() - 1;
         Operator {
             id,
             sig: self.clone(),
@@ -175,7 +176,8 @@ impl Signature {
     /// assert_ne!(z, z2);
     /// ```
     pub fn new_var(&mut self, name: Option<String>) -> Variable {
-        let id = self.sig.write().expect("poisoned signature").new_var(name);
+        self.variables.push(name);
+        let id = self.variables.len() - 1;
         Variable {
             id,
             sig: self.clone(),
@@ -184,85 +186,32 @@ impl Signature {
 }
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let sig = self.sig.read();
-        write!(f, "Signature{{{:?}}}", sig)
+        write!(f, "Signature{{{:?}}}", self)
     }
 }
 impl Default for Signature {
     fn default() -> Signature {
         Signature {
-            sig: Arc::new(RwLock::new(Sig::default())),
-        }
-    }
-}
-impl PartialEq for Signature {
-    fn eq(&self, other: &Signature) -> bool {
-        self.sig
-            .read()
-            .expect("poisoned signature")
-            .eq(&other.sig.read().expect("poisoned signature"))
-    }
-}
-impl Eq for Signature {}
-impl Hash for Signature {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.sig.read().expect("poisoned signature").hash(state);
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Sig {
-    /// Stores the (arity, name) for every [`Operator`].
-    /// [`Operator`]: struct.Operator.html
-    pub(crate) operators: Vec<(u32, Option<String>)>,
-    /// Stores the name for every [`Variable`].
-    /// [`Variable`]: struct.Variable.html
-    pub(crate) variables: Vec<Option<String>>,
-}
-impl Sig {
-    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> Sig {
-        Sig {
-            operators: operator_spec,
-            variables: vec![],
-        }
-    }
-    pub fn operators(&self) -> Vec<usize> {
-        (0..self.operators.len()).collect()
-    }
-    pub fn variables(&self) -> Vec<usize> {
-        (0..self.variables.len()).collect()
-    }
-    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> usize {
-        self.operators.push((arity, name));
-        self.operators.len() - 1
-    }
-    pub fn new_var(&mut self, name: Option<String>) -> usize {
-        self.variables.push(name);
-        self.variables.len() - 1
-    }
-}
-impl Default for Sig {
-    fn default() -> Sig {
-        Sig {
             operators: Vec::new(),
             variables: Vec::new(),
         }
     }
 }
-impl Hash for Sig {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.variables.hash(state);
-        self.operators.hash(state);
-    }
-}
-impl PartialEq for Sig {
-    fn eq(&self, other: &Sig) -> bool {
+impl PartialEq for Signature {
+    fn eq(&self, other: &Signature) -> bool {
         self.variables.len() == other.variables.len()
             && self.operators.len() == other.operators.len()
             && self
-            .operators
-            .iter()
-            .zip(&other.operators)
-            .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
+                .operators
+                .iter()
+                .zip(&other.operators)
+                .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
+    }
+}
+impl Eq for Signature {}
+impl Hash for Signature {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.variables.hash(state);
+        self.operators.hash(state);
     }
 }

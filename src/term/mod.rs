@@ -40,9 +40,9 @@ mod tests {
     #[test]
     fn example() {
         let mut sig = Signature::default();
-        let app = sig.new_op(2, Some(".".to_string()));
-        let s = sig.new_op(0, Some("S".to_string()));
-        let k = sig.new_op(0, Some("K".to_string()));
+        let app = sig.new_op(2, Some("senc".to_string()));
+        let s = sig.new_op(0, Some("s".to_string()));
+        let k = sig.new_op(0, Some("k".to_string()));
 
         let constructed_term = Term::Application {
             op: app.clone(),
@@ -75,5 +75,7 @@ mod tests {
                 }
             ]
         };
+
+        println!("{}", constructed_term.pretty());
     }
 }

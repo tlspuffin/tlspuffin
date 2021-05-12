@@ -24,7 +24,7 @@ impl Variable {
     /// assert_eq!(var.name(), Some("z".to_string()));
     /// ```
     pub fn name(&self) -> Option<String> {
-        self.sig.sig.read().expect("poisoned signature").variables[self.id].clone()
+        self.sig.variables[self.id].clone()
     }
     /// Serialize a `Variable`.
     ///
@@ -38,7 +38,7 @@ impl Variable {
     /// assert_eq!(var.display(), "z_");
     /// ```
     pub fn display(&self) -> String {
-        if let Some(ref name) = self.sig.sig.read().expect("poisoned signature").variables[self.id]
+        if let Some(ref name) = self.sig.variables[self.id]
         {
             format!("{}_", name)
         } else {
@@ -71,7 +71,7 @@ impl Operator {
     /// assert_eq!(op.arity(), 2);
     /// ```
     pub fn arity(&self) -> u32 {
-        self.sig.sig.read().expect("poisoned signature").operators[self.id].0
+        self.sig.operators[self.id].0
     }
     /// Returns an `Operator`'s name.
     ///
@@ -85,7 +85,7 @@ impl Operator {
     /// assert_eq!(op.name(), Some("Z".to_string()));
     /// ```
     pub fn name(&self) -> Option<String> {
-        self.sig.sig.read().expect("poisoned signature").operators[self.id]
+        self.sig.operators[self.id]
             .1
             .clone()
     }
@@ -102,7 +102,7 @@ impl Operator {
     /// ```
     pub fn display(&self) -> String {
         if let (_, Some(ref name)) =
-            self.sig.sig.read().expect("poisoned signature").operators[self.id]
+            self.sig.operators[self.id]
         {
             name.clone()
         } else {
