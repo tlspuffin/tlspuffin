@@ -75,6 +75,7 @@ mod tests {
         println!("{:?}", var_data.get_type_id());
         print_type_of(&closure_inferred);
         inspect_function(&closure_inferred);
+        inspect_function(example_op_c);
         //inspect_function(&SessionIDData::get_metadata);
 
         let (shape, dynamic_fn) = wrap_function(&example_op_c);
@@ -84,10 +85,10 @@ mod tests {
             name: "example_op",
             arity: 2,
             shape,
-            dynamic_fn,
+            dynamic_fn: dynamic_fn.clone(),
         };
 
-
+        dynamic_fn.clone();
 
 
         println!(
