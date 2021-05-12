@@ -21,6 +21,7 @@ mod openssl_binding;
 mod tests;
 mod trace;
 mod variable;
+mod term;
 
 fn main() {
     fn init_logger() {
