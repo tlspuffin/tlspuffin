@@ -120,7 +120,7 @@ mod tests {
         let dynamic_fn = s.clone().dynamic_fn;
         println!(
             "{:?}",
-            dynamic_fn(vec![Box::new(1u8.as_any())])
+            dynamic_fn(&vec![Box::new(1u8.as_any())])
                 .downcast_ref::<u16>()
                 .unwrap()
         );

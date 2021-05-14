@@ -86,23 +86,46 @@ impl Term {
         }
     }
 
-    pub fn evaluate<'a>(&self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
+    pub fn evaluate<'a>(&'a self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
         match self {
             Term::Variable(v) => {
                 let x = context.find_variable_data(&v).unwrap();
                 let x1 = x.get_data();
-                Box::new(x1)
+                Box::new(1)
             }
-            Term::Application { ref op, ref args } => {
+            Term::Application { op, args } => {
                 // todo: it would be cool not to save all arguments on the head, but I think the
                 // todo: only alternative is to copy all data around
-                let evaluated_args = args
-                    .iter()
-                    .map(|term| term.evaluate(context))
-                    .collect::<Vec<Box<dyn Any>>>();
+                /*let evaluated_args = args
+                .iter()
+                .map(|term| term.evaluate(context).as_ref())
+                .collect::<Vec<&dyn Any>>();*/
+
+                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+
+                for i in 0..args.len() {
+                    let term = args.get(i).unwrap();
+
+                    match term {
+                        Term::Variable(v) => {
+                            let data = context.find_variable_data(&v).unwrap();
+                            dynamic_args.push(Box::new(data.get_data()));
+                        }
+                        Term::Application { .. } => {
+                            let eval = term.evaluate(context);
+                            dynamic_args.push(eval);
+                        }
+                    }
+                }
+
+                //for i in args.iter() {
+                //    let x2: Box<dyn Any> = i.evaluate(context);
+                //    d.push(x2.as_any());
+                //}
 
                 let f = &op.dynamic_fn;
-                f(evaluated_args)
+                //f(&vec![args.get(0).unwrap().evaluate(context).as_any()])
+                f(&dynamic_args)
             }
         }
     }

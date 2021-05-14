@@ -41,13 +41,13 @@ impl fmt::Display for DynamicFunctionShape {
 
 // Make DynamicFunction cloneable
 // https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
-pub trait DynamicFunction: Fn(Vec<Box<dyn Any>>) -> Box<dyn Any> {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -78,7 +78,7 @@ impl<F, R: 'static> DescribableFunction<(R,)> for F
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: Vec<Box<dyn Any>>| {
+        Box::new(move |args: &Vec<Box<dyn Any>>| {
             Box::new(self())
         })
     }
@@ -96,7 +96,7 @@ where
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        let f = move |args: Vec<Box<dyn Any>>| {
+        let f = move |args: &Vec<Box<dyn Any>>| {
             let ret: R = self(args[0].downcast_ref::<T1>().unwrap());
             return Box::new(ret) as Box<dyn Any>;
         };
@@ -119,7 +119,7 @@ where
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: Vec<Box<dyn Any>>| {
+        Box::new(move |args: &Vec<Box<dyn Any>>| {
             Box::new(self(
                 args[0].downcast_ref::<T1>().unwrap(),
                 args[1].downcast_ref::<T2>().unwrap(),
@@ -141,7 +141,7 @@ where
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: Vec<Box<dyn Any>>| {
+        Box::new(move |args: &Vec<Box<dyn Any>>| {
             Box::new(self(
                 args[0].downcast_ref::<T1>().unwrap(),
                 args[1].downcast_ref::<T2>().unwrap(),
