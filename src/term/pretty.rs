@@ -7,10 +7,6 @@ pub trait Pretty: Sized {
     fn display(&self) -> String;
 
     fn pretty(&self) -> String {
-        self.pretty_inner(true)
-    }
-    /// `spaces_allowed` informs whether most top-level prettified item can contain spaces.
-    fn pretty_inner(&self, spaces_allowed: bool) -> String {
         if let Some((op, args)) = self.as_application() {
             let op_str = op.display();
             // the following match `return`s applicable special cases
@@ -21,7 +17,7 @@ pub trait Pretty: Sized {
                 (_, 0) => return op_str,
                 _ => (),
             }
-            let args_str = args.iter().map(|arg| arg.pretty_inner(true)).join(", ");
+            let args_str = args.iter().map(|arg| arg.pretty()).join(", ");
             format!("{}({})", op_str, args_str)
         } else {
             self.display()
@@ -32,7 +28,7 @@ pub trait Pretty: Sized {
 impl Pretty for Term {
     fn as_application(&self) -> Option<(Operator, &[Term])> {
         match *self {
-           //todo Term::Application { ref op, ref args } => Some((op.clone(), &args)),
+           Term::Application { ref op, ref args } => Some((op.clone(), &args)),
             _ => None,
         }
     }
