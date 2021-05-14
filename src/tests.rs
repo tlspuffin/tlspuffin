@@ -3,7 +3,7 @@ pub mod test_utils {
 
     use crate::agent::AgentName;
     use crate::trace::{Trace, TraceContext};
-    use crate::variable::{
+    use crate::variable_data::{
         CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData,
         VariableData, VersionData,
     };

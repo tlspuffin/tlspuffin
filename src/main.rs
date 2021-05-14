@@ -20,7 +20,7 @@ mod io;
 mod openssl_binding;
 mod tests;
 mod trace;
-mod variable;
+mod variable_data;
 mod term;
 
 fn main() {
