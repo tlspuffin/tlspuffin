@@ -45,7 +45,9 @@ mod tests {
     use crate::term::op_impl::{op_hmac256, op_hmac256_new_key};
     use crate::term::type_helper::{function_shape, make_dynamic, print_type_of};
     use crate::term::{Operator, Signature, Term, Variable, VariableContext};
-    use crate::variable_data::{AgreedCipherSuiteData, AsAny, SessionIDData, VariableData};
+    use crate::variable_data::{
+        AgreedCipherSuiteData, AsAny, Metadata, SessionIDData, VariableData,
+    };
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
@@ -53,6 +55,32 @@ mod tests {
 
     struct MockVariableContext {
         data: Vec<Box<dyn VariableData>>,
+    }
+
+    pub struct DataVariable {
+        pub metadata: Metadata,
+        pub data: Vec<u8>,
+    }
+
+    impl VariableData for DataVariable {
+        fn get_metadata(&self) -> &Metadata {
+            &self.metadata
+        }
+
+        fn get_data(&self) -> &dyn Any {
+            self.data.as_any()
+        }
+
+        fn random_value(owner: AgentName) -> Self
+        where
+            Self: Sized,
+        {
+            todo!()
+        }
+
+        fn clone_data(&self) -> Box<dyn Any> {
+            Box::new(self.data.clone())
+        }
     }
 
     impl<'a> VariableContext for MockVariableContext {
@@ -81,17 +109,24 @@ mod tests {
         let generated_term = Term::Application {
             op: hmac256,
             args: vec![
-                Term::Variable(data),
                 Term::Application {
                     op: hmac256_new_key,
                     args: vec![],
                 },
+                Term::Variable(data),
             ],
         };
 
         println!("{}", generated_term.pretty());
-        let context = MockVariableContext { data: vec![] };
-        println!("{:?}", generated_term.evaluate(&context));
+        let context = MockVariableContext {
+            data: vec![Box::new(DataVariable {
+                metadata: Metadata {
+                    owner: AgentName::none(),
+                },
+                data: vec![5u8],
+            })],
+        };
+        println!("{:?}", generated_term.evaluate(&context).as_ref().downcast_ref::<Vec<u8>>());
     }
 
     #[test]

@@ -86,13 +86,9 @@ impl Term {
         }
     }
 
-    pub fn evaluate<'a>(&'a self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
+    pub fn evaluate(&self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
         match self {
-            Term::Variable(v) => {
-                let x = context.find_variable_data(&v).unwrap();
-                let x1 = x.get_data();
-                Box::new(1)
-            }
+            Term::Variable(v) => context.find_variable_data(&v).unwrap().clone_data(),
             Term::Application { op, args } => {
                 // todo: it would be cool not to save all arguments on the head, but I think the
                 // todo: only alternative is to copy all data around
@@ -106,16 +102,8 @@ impl Term {
                 for i in 0..args.len() {
                     let term = args.get(i).unwrap();
 
-                    match term {
-                        Term::Variable(v) => {
-                            let data = context.find_variable_data(&v).unwrap();
-                            dynamic_args.push(Box::new(data.get_data()));
-                        }
-                        Term::Application { .. } => {
-                            let eval = term.evaluate(context);
-                            dynamic_args.push(eval);
-                        }
-                    }
+                    let eval = term.evaluate(context);
+                    dynamic_args.push(eval);
                 }
 
                 //for i in args.iter() {

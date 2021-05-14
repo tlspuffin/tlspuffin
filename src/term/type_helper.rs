@@ -3,6 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ptr::hash;
+use crate::variable_data::AsAny;
 
 #[derive(Debug, Clone)]
 pub struct DynamicFunctionShape {
@@ -120,9 +121,15 @@ where
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
         Box::new(move |args: &Vec<Box<dyn Any>>| {
+            println!("{}", std::any::type_name::<T1>());
+            println!("{}", std::any::type_name::<T2>());
+            println!("{:?}", TypeId::of::<T1>());
+            println!("{:?}", TypeId::of::<T2>());
+            println!("{:?}", args[0].as_ref().type_id());
+            println!("{:?}", args[1].as_ref().type_id());
             Box::new(self(
-                args[0].downcast_ref::<T1>().unwrap(),
-                args[1].downcast_ref::<T2>().unwrap(),
+                args[0].as_ref().downcast_ref::<T1>().unwrap(),
+                args[1].as_ref().downcast_ref::<T2>().unwrap(),
             ))
         })
     }

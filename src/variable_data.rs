@@ -12,6 +12,7 @@ use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 
 use crate::agent::AgentName;
+use crate::term::Variable;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -23,6 +24,7 @@ impl<T: Any> AsAny for T {
     }
 }
 
+#[derive(Clone)]
 pub struct Metadata {
     pub owner: AgentName,
 }
@@ -42,6 +44,8 @@ pub trait VariableData: Any + AsAny {
     fn random_value(agent: AgentName) -> Self
     where
         Self: Sized;
+
+    fn clone_data(&self) -> Box<dyn Any>;
 }
 
 // Client/Server Version
@@ -68,6 +72,10 @@ impl VariableData for VersionData {
             metadata: Metadata { owner },
             data: ProtocolVersion::TLSv1_3,
         }
+    }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
     }
 }
 
@@ -97,6 +105,10 @@ impl VariableData for RandomData {
             data: Random::from_slice(&random_data),
         }
     }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
+    }
 }
 
 // AgreedCipherSuite
@@ -121,6 +133,10 @@ impl VariableData for AgreedCipherSuiteData {
     {
         todo!()
     }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
+    }
 }
 
 // AgreedCompression
@@ -144,6 +160,10 @@ impl VariableData for AgreedCompressionData {
         Self: Sized,
     {
         todo!()
+    }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
     }
 }
 
@@ -172,6 +192,10 @@ impl VariableData for SessionIDData {
             metadata: Metadata { owner },
             data: SessionID::new(&random_data),
         }
+    }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
     }
 }
 
@@ -217,6 +241,10 @@ impl VariableData for CipherSuiteData {
             .unwrap(),
         }
     }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
+    }
 }
 
 // Compression
@@ -254,6 +282,10 @@ impl VariableData for CompressionData {
                 .choose(&mut rand::thread_rng())
                 .unwrap(),
         }
+    }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
     }
 }
 
@@ -341,6 +373,10 @@ impl VariableData for ClientExtensionData {
             .clone(), // avoid clone
         }
     }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
+    }
 }
 
 // Server Extensions
@@ -373,5 +409,9 @@ impl VariableData for ServerExtensionData {
         Self: Sized,
     {
         todo!()
+    }
+
+    fn clone_data(&self) -> Box<dyn Any> {
+        Box::new(self.data.clone())
     }
 }
