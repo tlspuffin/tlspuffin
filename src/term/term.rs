@@ -1,8 +1,16 @@
-use super::{Operator, Variable};
-use itertools::Itertools;
+use std::any::Any;
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::iter;
+
+use itertools::Itertools;
+
+use crate::agent::AgentName;
 use crate::term::pretty::Pretty;
+use crate::trace::TraceContext;
+use crate::variable_data::{AsAny, VariableData};
+
+use super::{Operator, Variable};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///
@@ -52,9 +60,7 @@ impl Term {
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
             Term::Variable(ref v) => vec![v.clone()],
-            Term::Application { ref args, .. } => {
-                args.iter().flat_map(Term::variables).collect()
-            }
+            Term::Application { ref args, .. } => args.iter().flat_map(Term::variables).collect(),
         }
     }
     /// Every [`Operator`] used in the `Term`.
@@ -79,5 +85,29 @@ impl Term {
             Term::Application { args, .. } => args.clone(),
         }
     }
+
+    pub fn evaluate<'a>(&self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
+        match self {
+            Term::Variable(v) => {
+                let x = context.find_variable_data(&v).unwrap();
+                let x1 = x.get_data();
+                Box::new(x1)
+            }
+            Term::Application { ref op, ref args } => {
+                // todo: it would be cool not to save all arguments on the head, but I think the
+                // todo: only alternative is to copy all data around
+                let evaluated_args = args
+                    .iter()
+                    .map(|term| term.evaluate(context))
+                    .collect::<Vec<Box<dyn Any>>>();
+
+                let f = &op.dynamic_fn;
+                f(evaluated_args)
+            }
+        }
+    }
 }
 
+pub trait VariableContext {
+    fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData>;
+}

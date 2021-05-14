@@ -28,6 +28,7 @@ pub use self::signature::*;
 pub use self::term::*;
 
 mod atoms;
+mod op_impl;
 mod pretty;
 mod signature;
 mod term;
@@ -36,20 +37,65 @@ mod type_helper;
 #[cfg(test)]
 mod tests {
     use std::any::{Any, TypeId};
+    use std::env::var;
 
-    use crate::agent::{Agent, AgentName};
-    use crate::term::{Signature, Term, Operator};
-    use crate::variable_data::{AgreedCipherSuiteData, AsAny, SessionIDData, VariableData};
-    use crate::term::type_helper::{function_shape, print_type_of, make_dynamic};
     use rustls::internal::msgs::handshake::SessionID;
 
+    use crate::agent::{Agent, AgentName};
+    use crate::term::op_impl::{op_hmac256, op_hmac256_new_key};
+    use crate::term::type_helper::{function_shape, make_dynamic, print_type_of};
+    use crate::term::{Operator, Signature, Term, Variable, VariableContext};
+    use crate::variable_data::{AgreedCipherSuiteData, AsAny, SessionIDData, VariableData};
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
     }
 
+    struct MockVariableContext {
+        data: Vec<Box<dyn VariableData>>,
+    }
+
+    impl<'a> VariableContext for MockVariableContext {
+        fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData> {
+            for d in &self.data {
+                if d.get_type_id() == variable.typ {
+                    return Some(d.as_ref());
+                }
+            }
+
+            return None;
+        }
+    }
+
     #[test]
     fn example() {
+        let mut sig = Signature::default();
+
+        let hmac256_new_key = sig.new_op("hmac256_new_key", &op_hmac256_new_key);
+        let hmac256 = sig.new_op("op_hmac256", &op_hmac256);
+
+        let variable_data = "hello".as_bytes().to_vec();
+
+        let data = sig.new_var(variable_data.type_id());
+
+        let generated_term = Term::Application {
+            op: hmac256,
+            args: vec![
+                Term::Variable(data),
+                Term::Application {
+                    op: hmac256_new_key,
+                    args: vec![],
+                },
+            ],
+        };
+
+        println!("{}", generated_term.pretty());
+        let context = MockVariableContext { data: vec![] };
+        println!("{:?}", generated_term.evaluate(&context));
+    }
+
+    #[test]
+    fn playground() {
         let mut sig = Signature::default();
 
         let app = sig.new_op("app", &example_op_c);
@@ -60,19 +106,27 @@ mod tests {
 
         let k = sig.new_var(var_data.type_id());
 
+        println!("vec {:?}", TypeId::of::<Vec<u8>>());
+        println!("vec {:?}", TypeId::of::<Vec<u16>>());
+
         println!("{:?}", TypeId::of::<SessionID>());
         println!("{:?}", var_data.get_type_id());
 
-        let closure_inferred = |i:&u64, d:&u32| i + 1;
+        let closure_inferred = |i: &u64, d: &u32| i + 1;
         function_shape(&closure_inferred);
         function_shape(example_op_c);
         //inspect_function(&SessionIDData::get_metadata);
 
         let dynamic_fn = s.clone().dynamic_fn;
-        println!("{:?}", dynamic_fn(vec![1u8.as_any()]).downcast_ref::<u8>().unwrap());
+        println!(
+            "{:?}",
+            dynamic_fn(vec![Box::new(1u8.as_any())])
+                .downcast_ref::<u16>()
+                .unwrap()
+        );
         println!("{}", s.shape);
 
-       let constructed_term = Term::Application {
+        let constructed_term = Term::Application {
             op: app.clone(),
             args: vec![
                 Term::Application {

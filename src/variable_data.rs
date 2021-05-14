@@ -46,6 +46,7 @@ pub trait VariableData: Any + AsAny {
 
 // Client/Server Version
 
+#[derive(Clone)]
 pub struct VersionData {
     pub metadata: Metadata,
     pub data: ProtocolVersion,

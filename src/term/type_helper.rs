@@ -37,17 +37,17 @@ impl fmt::Display for DynamicFunctionShape {
 }
 
 // The type of dynamically typed functions is:
-// Fn(Vec<&dyn Any>) -> Box<dyn Any>
+// Fn(Vec<Box<dyn Any>>) -> Box<dyn Any>
 
 // Make DynamicFunction cloneable
 // https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
-pub trait DynamicFunction: Fn(Vec<&dyn Any>) -> Box<dyn Any> {
+pub trait DynamicFunction: Fn(Vec<Box<dyn Any>>) -> Box<dyn Any> {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(Vec<&dyn Any>) -> Box<dyn Any> + Clone,
+    T: 'static + Fn(Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -66,20 +66,38 @@ pub trait DescribableFunction<Types> {
     fn wrap(&'static self) -> Box<dyn DynamicFunction>;
 }
 
-impl<F, T1: 'static, T2: 'static> DescribableFunction<(T1, T2)> for F
-where
-    F: Fn(&T1) -> T2,
+impl<F, R: 'static> DescribableFunction<(R,)> for F
+    where
+        F: Fn() -> R,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
-            argument_types: vec![TypeId::of::<T1>()],
-            return_type: TypeId::of::<T2>(),
+            argument_types: vec![],
+            return_type: TypeId::of::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        let f = move |args: Vec<&dyn Any>| {
-            let ret: T2 = self(args[0].downcast_ref::<T1>().unwrap());
+        Box::new(move |args: Vec<Box<dyn Any>>| {
+            Box::new(self())
+        })
+    }
+}
+
+impl<F, T1: 'static, R: 'static> DescribableFunction<(T1, R)> for F
+where
+    F: Fn(&T1) -> R,
+{
+    fn shape() -> DynamicFunctionShape {
+        DynamicFunctionShape {
+            argument_types: vec![TypeId::of::<T1>()],
+            return_type: TypeId::of::<R>(),
+        }
+    }
+
+    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
+        let f = move |args: Vec<Box<dyn Any>>| {
+            let ret: R = self(args[0].downcast_ref::<T1>().unwrap());
             return Box::new(ret) as Box<dyn Any>;
         };
 
@@ -89,22 +107,45 @@ where
     }
 }
 
-impl<F, T1: 'static, T2: 'static, T3: 'static> DescribableFunction<(T1, T2, T3)> for F
+impl<F, T1: 'static, T2: 'static, R: 'static> DescribableFunction<(T1, T2, R)> for F
 where
-    F: Fn(&T1, &T2) -> T3,
+    F: Fn(&T1, &T2) -> R,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
             argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>()],
-            return_type: TypeId::of::<T3>(),
+            return_type: TypeId::of::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: Vec<&dyn Any>| {
+        Box::new(move |args: Vec<Box<dyn Any>>| {
             Box::new(self(
                 args[0].downcast_ref::<T1>().unwrap(),
                 args[1].downcast_ref::<T2>().unwrap(),
+            ))
+        })
+    }
+}
+
+impl<F, T1: 'static, T2: 'static, T3: 'static, R: 'static> DescribableFunction<(T1, T2, T3, R)>
+    for F
+where
+    F: Fn(&T1, &T2, &T3) -> R,
+{
+    fn shape() -> DynamicFunctionShape {
+        DynamicFunctionShape {
+            argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>(), TypeId::of::<T3>()],
+            return_type: TypeId::of::<R>(),
+        }
+    }
+
+    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
+        Box::new(move |args: Vec<Box<dyn Any>>| {
+            Box::new(self(
+                args[0].downcast_ref::<T1>().unwrap(),
+                args[1].downcast_ref::<T2>().unwrap(),
+                args[1].downcast_ref::<T3>().unwrap(),
             ))
         })
     }
