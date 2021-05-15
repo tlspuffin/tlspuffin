@@ -40,7 +40,7 @@ mod tests {
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::agent::{AgentName};
-    use crate::term::op_impl::{op_hmac256, op_hmac256_new_key};
+    use crate::term::op_impl::{op_hmac256, op_hmac256_new_key, op_client_hello};
     use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::variable_data::{
         AsAny, Metadata, SessionIDData, VariableData,
@@ -99,6 +99,7 @@ mod tests {
 
         let hmac256_new_key = sig.new_op("hmac256_new_key", &op_hmac256_new_key);
         let hmac256 = sig.new_op("op_hmac256", &op_hmac256);
+        let client_hello = sig.new_op("op_client_hello", &op_client_hello);
 
         let variable_data = "hello".as_bytes().to_vec();
 

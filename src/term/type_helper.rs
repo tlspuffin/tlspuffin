@@ -140,69 +140,55 @@ where
     }
 }
 
-impl<F, T1: 'static, T2: 'static, R: 'static> DescribableFunction<(T1, T2, R)> for F
+macro_rules! dynamic_fn {
+    ($( $($arg:ident)* => $res:ident ),+) => (
+        $(
+impl<F, $($arg: 'static),*, $res: 'static> // 'static missing
+    DescribableFunction<($($arg),*, $res)> for F
 where
-    F: Fn(&T1, &T2) -> R,
+    F: Fn($(&$arg),*) -> $res,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
-            argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>()],
-            argument_type_names: vec![type_name::<T1>(), type_name::<T2>()],
-            return_type: TypeId::of::<R>(),
-            return_type_name: type_name::<R>(),
+            argument_types: vec![$(TypeId::of::<$arg>()),*],
+            argument_type_names: vec![$(type_name::<$arg>()),*],
+            return_type: TypeId::of::<$res>(),
+            return_type_name: type_name::<$res>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
         Box::new(move |args: &Vec<Box<dyn Any>>| {
-            if let (Some(a1), Some(a2)) = (
-                args[0].as_ref().downcast_ref::<T1>(),
-                args[1].as_ref().downcast_ref::<T2>(),
-            ) {
-                Box::new(self(a1, a2))
-            } else {
-                panic!(
-                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
-                    Self::shape(),
-                    format_anys(args)
-                )
-            }
+            let mut index = 0;
+
+            Box::new(self($(
+                   {
+                       if let Some(arg_) = args[index].as_ref().downcast_ref::<$arg>() {
+                           index = index + 1;
+                           arg_
+                       } else {
+                           panic!(
+                                "Passed arguments did not match the shape {}. Passed arguments are {:?}",
+                                Self::shape(),
+                                format_anys(args)
+                           )
+                       }
+                   }
+            ),*))
         })
     }
 }
-
-impl<F, T1: 'static, T2: 'static, T3: 'static, R: 'static> DescribableFunction<(T1, T2, T3, R)>
-    for F
-where
-    F: Fn(&T1, &T2, &T3) -> R,
-{
-    fn shape() -> DynamicFunctionShape {
-        DynamicFunctionShape {
-            argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>(), TypeId::of::<T3>()],
-            argument_type_names: vec![type_name::<T1>(), type_name::<T2>(), type_name::<T3>()],
-            return_type: TypeId::of::<R>(),
-            return_type_name: type_name::<R>(),
-        }
-    }
-
-    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: &Vec<Box<dyn Any>>| {
-            if let (Some(a1), Some(a2), Some(a3)) = (
-                args[0].as_ref().downcast_ref::<T1>(),
-                args[1].as_ref().downcast_ref::<T2>(),
-                args[1].as_ref().downcast_ref::<T3>(),
-            ) {
-                Box::new(self(a1, a2, a3))
-            } else {
-                panic!(
-                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
-                    Self::shape(),
-                    format_anys(args)
-                )
-            }
-        })
-    }
+        )+
+    )
 }
+
+dynamic_fn!(
+    T1 T2 => R,
+    T1 T2 T3 => R,
+    T1 T2 T3 T4 => R,
+    T1 T2 T3 T4 T5 => R,
+    T1 T2 T3 T4 T5 T6 => R
+);
 
 pub fn make_dynamic<F: 'static, Types>(
     f: &'static F,

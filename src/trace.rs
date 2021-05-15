@@ -17,11 +17,7 @@ use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::{
-    AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData,
-    CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
-    VersionData,
-};
+use crate::variable_data::{AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData, VersionData, AsAny};
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,

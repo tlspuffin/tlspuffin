@@ -1,7 +1,13 @@
-use ring::hkdf::{KeyType, HKDF_SHA256, Prk};
-use ring::hmac::{Key};
-use ring::{hkdf, hmac};
+use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
+use ring::hmac::Key;
 use ring::rand::SystemRandom;
+use ring::{hkdf, hmac};
+use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
+use rustls::internal::msgs::enums::{HandshakeType, Compression};
+use rustls::internal::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID, ClientExtension};
+use rustls::internal::msgs::message::Message;
+use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::{ProtocolVersion, CipherSuite};
 
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
@@ -48,7 +54,7 @@ fn derive_secret<L, F, T>(
     kind: SecretKind,
     algorithm: L,
     context: &Vec<u8>,
-    into: F
+    into: F,
 ) -> T
 where
     L: KeyType,
@@ -84,4 +90,30 @@ pub fn op_client_handshake_traffic_secret(secret: &hkdf::Prk, hs_hash: &Vec<u8>)
     );
 
     secret
+}
+
+pub fn op_client_hello(
+    client_version: &ProtocolVersion,
+    random: &Random,
+    session_id: &SessionID,
+    cipher_suites: &Vec<CipherSuite>,
+    compression_methods: &Vec<Compression>,
+    extensions: &Vec<ClientExtension>,
+) -> Message {
+    let payload = Handshake(HandshakeMessagePayload {
+        typ: HandshakeType::ClientHello,
+        payload: HandshakePayload::ClientHello(ClientHelloPayload {
+            client_version: client_version.clone(),
+            random: random.clone(),
+            session_id: session_id.clone(),
+            cipher_suites: cipher_suites.clone(),
+            compression_methods: compression_methods.clone(),
+            extensions: extensions.clone(),
+        }),
+    });
+    Message {
+        typ: RecordHandshake,
+        version: ProtocolVersion::TLSv1_2,
+        payload,
+    }
 }
