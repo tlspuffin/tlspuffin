@@ -1,4 +1,4 @@
-use std::any::{type_name, Any, TypeId};
+use std::any::{Any, type_name, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -141,54 +141,52 @@ where
 }
 
 macro_rules! dynamic_fn {
-    ($( $($arg:ident)* => $res:ident ),+) => (
-        $(
-impl<F, $($arg: 'static),*, $res: 'static> // 'static missing
-    DescribableFunction<($($arg),*, $res)> for F
-where
-    F: Fn($(&$arg),*) -> $res,
-{
-    fn shape() -> DynamicFunctionShape {
-        DynamicFunctionShape {
-            argument_types: vec![$(TypeId::of::<$arg>()),*],
-            argument_type_names: vec![$(type_name::<$arg>()),*],
-            return_type: TypeId::of::<$res>(),
-            return_type_name: type_name::<$res>(),
+    ($($arg:ident)* => $res:ident) => (
+    impl<F, $($arg: 'static),*, $res: 'static> // 'static missing
+        DescribableFunction<($($arg),*, $res)> for F
+    where
+        F: Fn($(&$arg),*) -> $res,
+    {
+        fn shape() -> DynamicFunctionShape {
+            DynamicFunctionShape {
+                argument_types: vec![$(TypeId::of::<$arg>()),*],
+                argument_type_names: vec![$(type_name::<$arg>()),*],
+                return_type: TypeId::of::<$res>(),
+                return_type_name: type_name::<$res>(),
+            }
+        }
+
+        fn wrap(&'static self) -> Box<dyn DynamicFunction> {
+            Box::new(move |args: &Vec<Box<dyn Any>>| {
+                let mut index = 0;
+
+                Box::new(self($(
+                       #[allow(unused_assignments)]
+                       {
+                           if let Some(arg_) = args[index].as_ref().downcast_ref::<$arg>() {
+                               index = index + 1;
+                               arg_
+                           } else {
+                               panic!(
+                                    "Passed argument #{} did not match the shape {}. Hashes of passed types are {}.",
+                                    index + 1,
+                                    Self::shape(),
+                                    format_anys(args)
+                               )
+                           }
+                       }
+                ),*))
+            })
         }
     }
-
-    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: &Vec<Box<dyn Any>>| {
-            let mut index = 0;
-
-            Box::new(self($(
-                   {
-                       if let Some(arg_) = args[index].as_ref().downcast_ref::<$arg>() {
-                           index = index + 1;
-                           arg_
-                       } else {
-                           panic!(
-                                "Passed arguments did not match the shape {}. Passed arguments are {:?}",
-                                Self::shape(),
-                                format_anys(args)
-                           )
-                       }
-                   }
-            ),*))
-        })
-    }
-}
-        )+
     )
 }
 
-dynamic_fn!(
-    T1 T2 => R,
-    T1 T2 T3 => R,
-    T1 T2 T3 T4 => R,
-    T1 T2 T3 T4 T5 => R,
-    T1 T2 T3 T4 T5 T6 => R
-);
+dynamic_fn!(T1 T2 => R);
+dynamic_fn!(T1 T2 T3 => R);
+dynamic_fn!(T1 T2 T3 T4 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 => R);
+dynamic_fn!(T1 T2 T3 T4 T5 T6 => R);
 
 pub fn make_dynamic<F: 'static, Types>(
     f: &'static F,
