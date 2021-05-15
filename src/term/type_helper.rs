@@ -1,14 +1,17 @@
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ptr::hash;
-use crate::variable_data::AsAny;
 
+use itertools::Itertools;
+
+/// Describes the shape of a [`DynamicFunction`]
 #[derive(Debug, Clone)]
 pub struct DynamicFunctionShape {
     argument_types: Vec<TypeId>,
+    argument_type_names: Vec<&'static str>,
     return_type: TypeId,
+    return_type_name: &'static str,
 }
 
 impl DynamicFunctionShape {
@@ -17,31 +20,47 @@ impl DynamicFunctionShape {
     }
 }
 
+impl fmt::Display for DynamicFunctionShape {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "({}) -> {}",
+            self.argument_type_names
+                .iter()
+                .map(|name| format!("{}", name))
+                .join(","),
+            self.return_type_name
+        )
+    }
+}
+
+/// Hashes [`TypeId`]s to be more readable
+///
 pub fn hash_type_id(type_id: &TypeId) -> u64 {
     let mut hasher = DefaultHasher::new();
     type_id.hash(&mut hasher);
     hasher.finish()
 }
 
-impl fmt::Display for DynamicFunctionShape {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Arguments:\t{:?}\nReturn:\t{:x}",
-            self.argument_types
-                .iter()
-                .map(|type_id| format!("{:x}", hash_type_id(type_id)))
-                .collect::<Vec<String>>(),
-            hash_type_id(&self.return_type)
-        )
-    }
+pub fn format_anys<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
+    format!(
+        "({})",
+        anys.iter()
+            .map(|any| {
+                let id = any.type_id();
+                format!("{:x}", hash_type_id(&id))
+            })
+            .join(",")
+    )
 }
 
 // The type of dynamically typed functions is:
-// Fn(Vec<Box<dyn Any>>) -> Box<dyn Any>
 
-// Make DynamicFunction cloneable
-// https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
+/// Cloneable type for dynamic functions. This trait is automatically implemented for arbitrary
+/// closures and functions of the form: `Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any>`
+///
+/// [`Clone`] is implemented for `Box<dyn DynamicFunction>` using this trick:
+/// https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
 pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
@@ -61,6 +80,10 @@ impl Clone for Box<dyn DynamicFunction> {
     }
 }
 
+/// This trait is implemented for function traits in order to:
+/// * describe their shape during runtime
+/// * wrap them into a [`DynamicFunction`] which is callable with arbitrary data
+///
 /// Adapted from https://jsdw.me/posts/rust-fn-traits/ but using type ids
 pub trait DescribableFunction<Types> {
     fn shape() -> DynamicFunctionShape;
@@ -68,20 +91,20 @@ pub trait DescribableFunction<Types> {
 }
 
 impl<F, R: 'static> DescribableFunction<(R,)> for F
-    where
-        F: Fn() -> R,
+where
+    F: Fn() -> R,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
             argument_types: vec![],
+            argument_type_names: vec![],
             return_type: TypeId::of::<R>(),
+            return_type_name: type_name::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |args: &Vec<Box<dyn Any>>| {
-            Box::new(self())
-        })
+        Box::new(move |_: &Vec<Box<dyn Any>>| Box::new(self()))
     }
 }
 
@@ -92,19 +115,28 @@ where
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
             argument_types: vec![TypeId::of::<T1>()],
+            argument_type_names: vec![type_name::<T1>()],
             return_type: TypeId::of::<R>(),
+            return_type_name: type_name::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        let f = move |args: &Vec<Box<dyn Any>>| {
-            let ret: R = self(args[0].downcast_ref::<T1>().unwrap());
-            return Box::new(ret) as Box<dyn Any>;
+        let closure = move |args: &Vec<Box<dyn Any>>| {
+            if let Some(a1) = args[0].as_ref().downcast_ref::<T1>() {
+                Box::new(self(a1)) as Box<dyn Any>
+            } else {
+                panic!(
+                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
+                    Self::shape(),
+                    format_anys(args)
+                )
+            }
         };
 
-        // The closure f is cloneable and therefore compatible with DynamicFunction because:
+        // The closure is cloneable and therefore compatible with DynamicFunction because:
         // self is cloneable as it is a 'static reference
-        Box::new(f)
+        Box::new(closure)
     }
 }
 
@@ -115,22 +147,26 @@ where
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
             argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>()],
+            argument_type_names: vec![type_name::<T1>(), type_name::<T2>()],
             return_type: TypeId::of::<R>(),
+            return_type_name: type_name::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
         Box::new(move |args: &Vec<Box<dyn Any>>| {
-            println!("{}", std::any::type_name::<T1>());
-            println!("{}", std::any::type_name::<T2>());
-            println!("{:?}", TypeId::of::<T1>());
-            println!("{:?}", TypeId::of::<T2>());
-            println!("{:?}", args[0].as_ref().type_id());
-            println!("{:?}", args[1].as_ref().type_id());
-            Box::new(self(
-                args[0].as_ref().downcast_ref::<T1>().unwrap(),
-                args[1].as_ref().downcast_ref::<T2>().unwrap(),
-            ))
+            if let (Some(a1), Some(a2)) = (
+                args[0].as_ref().downcast_ref::<T1>(),
+                args[1].as_ref().downcast_ref::<T2>(),
+            ) {
+                Box::new(self(a1, a2))
+            } else {
+                panic!(
+                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
+                    Self::shape(),
+                    format_anys(args)
+                )
+            }
         })
     }
 }
@@ -143,26 +179,29 @@ where
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
             argument_types: vec![TypeId::of::<T1>(), TypeId::of::<T2>(), TypeId::of::<T3>()],
+            argument_type_names: vec![type_name::<T1>(), type_name::<T2>(), type_name::<T3>()],
             return_type: TypeId::of::<R>(),
+            return_type_name: type_name::<R>(),
         }
     }
 
     fn wrap(&'static self) -> Box<dyn DynamicFunction> {
         Box::new(move |args: &Vec<Box<dyn Any>>| {
-            Box::new(self(
-                args[0].downcast_ref::<T1>().unwrap(),
-                args[1].downcast_ref::<T2>().unwrap(),
-                args[1].downcast_ref::<T3>().unwrap(),
-            ))
+            if let (Some(a1), Some(a2), Some(a3)) = (
+                args[0].as_ref().downcast_ref::<T1>(),
+                args[1].as_ref().downcast_ref::<T2>(),
+                args[1].as_ref().downcast_ref::<T3>(),
+            ) {
+                Box::new(self(a1, a2, a3))
+            } else {
+                panic!(
+                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
+                    Self::shape(),
+                    format_anys(args)
+                )
+            }
         })
     }
-}
-
-pub fn function_shape<F, Types>(_: F) -> DynamicFunctionShape
-where
-    F: DescribableFunction<Types>,
-{
-    F::shape()
 }
 
 pub fn make_dynamic<F: 'static, Types>(
@@ -172,8 +211,4 @@ where
     F: DescribableFunction<Types>,
 {
     (F::shape(), f.wrap())
-}
-
-pub fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
 }

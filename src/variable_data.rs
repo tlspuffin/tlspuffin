@@ -13,6 +13,7 @@ use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 
 use crate::agent::AgentName;
 use crate::term::Variable;
+use dyn_clone::DynClone;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -30,7 +31,7 @@ pub struct Metadata {
 }
 
 // VariableData trait should include AsAny so that `as_any` is in its vtable.
-pub trait VariableData: Any + AsAny {
+pub trait VariableData: Any + AsAny + DynClone {
     fn get_metadata(&self) -> &Metadata;
     fn get_owner(&self) -> AgentName {
         self.get_metadata().owner
@@ -48,8 +49,10 @@ pub trait VariableData: Any + AsAny {
     fn clone_data(&self) -> Box<dyn Any>;
 }
 
-// Client/Server Version
+dyn_clone::clone_trait_object!(VariableData);
 
+// Client/Server Version
+#[derive(Clone)]
 pub struct VersionData {
     pub metadata: Metadata,
     pub data: ProtocolVersion,
@@ -80,7 +83,7 @@ impl VariableData for VersionData {
 }
 
 // Random
-
+#[derive(Clone)]
 pub struct RandomData {
     pub metadata: Metadata,
     pub data: Random,
@@ -112,7 +115,7 @@ impl VariableData for RandomData {
 }
 
 // AgreedCipherSuite
-
+#[derive(Clone)]
 pub struct AgreedCipherSuiteData {
     pub metadata: Metadata,
     pub data: CipherSuite,
@@ -140,7 +143,7 @@ impl VariableData for AgreedCipherSuiteData {
 }
 
 // AgreedCompression
-
+#[derive(Clone)]
 pub struct AgreedCompressionData {
     pub metadata: Metadata,
     pub data: Compression,
@@ -168,7 +171,7 @@ impl VariableData for AgreedCompressionData {
 }
 
 // SessionId
-
+#[derive(Clone)]
 pub struct SessionIDData {
     pub metadata: Metadata,
     pub data: SessionID,
@@ -200,7 +203,7 @@ impl VariableData for SessionIDData {
 }
 
 // CipherSuite
-
+#[derive(Clone)]
 pub struct CipherSuiteData {
     pub metadata: Metadata,
     pub data: CipherSuite,
@@ -248,7 +251,7 @@ impl VariableData for CipherSuiteData {
 }
 
 // Compression
-
+#[derive(Clone)]
 pub struct CompressionData {
     pub metadata: Metadata,
     pub data: Compression,
@@ -290,7 +293,7 @@ impl VariableData for CompressionData {
 }
 
 // Client Extensions
-
+#[derive(Clone)]
 pub struct ClientExtensionData {
     pub metadata: Metadata,
     pub data: ClientExtension,
@@ -380,7 +383,7 @@ impl VariableData for ClientExtensionData {
 }
 
 // Server Extensions
-
+#[derive(Clone)]
 pub struct ServerExtensionData {
     pub metadata: Metadata,
     pub data: ServerExtension,

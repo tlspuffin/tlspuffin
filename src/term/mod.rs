@@ -37,16 +37,13 @@ mod type_helper;
 #[cfg(test)]
 mod tests {
     use std::any::{Any, TypeId};
-    use std::env::var;
-
     use rustls::internal::msgs::handshake::SessionID;
 
-    use crate::agent::{Agent, AgentName};
+    use crate::agent::{AgentName};
     use crate::term::op_impl::{op_hmac256, op_hmac256_new_key};
-    use crate::term::type_helper::{function_shape, make_dynamic, print_type_of};
-    use crate::term::{Operator, Signature, Term, Variable, VariableContext};
+    use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::variable_data::{
-        AgreedCipherSuiteData, AsAny, Metadata, SessionIDData, VariableData,
+        AsAny, Metadata, SessionIDData, VariableData,
     };
 
     fn example_op_c(a: &u8) -> u16 {
@@ -57,6 +54,7 @@ mod tests {
         data: Vec<Box<dyn VariableData>>,
     }
 
+    #[derive(Clone)]
     pub struct DataVariable {
         pub metadata: Metadata,
         pub data: Vec<u8>,
@@ -118,13 +116,15 @@ mod tests {
         };
 
         println!("{}", generated_term.pretty());
+        let x = Box::new(DataVariable {
+            metadata: Metadata {
+                owner: AgentName::none(),
+            },
+            data: vec![5u8],
+        });
+
         let context = MockVariableContext {
-            data: vec![Box::new(DataVariable {
-                metadata: Metadata {
-                    owner: AgentName::none(),
-                },
-                data: vec![5u8],
-            })],
+            data: vec![x],
         };
         println!("{:?}", generated_term.evaluate(&context).as_ref().downcast_ref::<Vec<u8>>());
     }
@@ -147,15 +147,10 @@ mod tests {
         println!("{:?}", TypeId::of::<SessionID>());
         println!("{:?}", var_data.get_type_id());
 
-        let closure_inferred = |i: &u64, d: &u32| i + 1;
-        function_shape(&closure_inferred);
-        function_shape(example_op_c);
-        //inspect_function(&SessionIDData::get_metadata);
-
         let dynamic_fn = s.clone().dynamic_fn;
         println!(
             "{:?}",
-            dynamic_fn(&vec![Box::new(1u8.as_any())])
+            dynamic_fn(&vec![Box::new(1u8)])
                 .downcast_ref::<u16>()
                 .unwrap()
         );
