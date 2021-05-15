@@ -9,24 +9,22 @@ edition = "2018"
 [dependencies]
 hexdump = "0.1.1"
 hex = "0.4.3"
-
-log = "0.4.14"
-env_logger = "0.8.3"
 rand = "0.8.3"
-rustls = "0.19.0"
-ring = "0.16.11"
+itertools = "0.10.0"
 
+dyn-clone = "1.0.4"
+
+rustls = "0.19.0"
 webpki = "0.21.4"
 webpki-roots = "0.21"
-
+ring = "0.16.11"
 openssl = { version = "0.10.33", features = ["vendored"] }
-
 
 libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" }
 
+log = "0.4.14"
+env_logger = "0.8.3"
 test-env-log = "0.2.7"
-
-itertools = "0.10.0"
 
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
