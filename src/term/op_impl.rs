@@ -1,19 +1,26 @@
-use ring::{hkdf, hmac};
-use ring::hkdf::{HKDF_SHA256, KeyType, Prk};
+use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
 use ring::hmac::Key;
 use ring::rand::SystemRandom;
-use rustls::{CipherSuite, ProtocolVersion};
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use ring::{hkdf, hmac};
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID};
+use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use rustls::internal::msgs::handshake::{
+    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
+    SessionID,
+};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::{CipherSuite, ProtocolVersion};
 
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
     let random = SystemRandom::new();
     let key = hmac::Key::generate(hmac::HMAC_SHA256, &random).unwrap();
     key
+}
+
+pub fn op_arbitrary_to_key(key: &Vec<u8>) -> Key {
+    Key::new(hmac::HMAC_SHA256, key.as_slice())
 }
 
 pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
@@ -56,9 +63,9 @@ fn derive_secret<L, F, T>(
     context: &Vec<u8>,
     into: F,
 ) -> T
-    where
-        L: KeyType,
-        F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
+where
+    L: KeyType,
+    F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
 {
     const LABEL_PREFIX: &[u8] = b"tls13 ";
 
