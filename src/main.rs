@@ -9,7 +9,7 @@ use env_logger::{Builder, Env, fmt};
 use log::Level;
 
 use crate::agent::AgentName;
-use crate::tests::test_utils::setup_client_hello_variables;
+use crate::tests::setup_client_hello_variables;
 use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
 
 mod agent;

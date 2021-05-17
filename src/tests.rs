@@ -1,215 +1,213 @@
-pub mod test_utils {
-    use rustls::internal::msgs::enums::Compression;
+use rustls::internal::msgs::enums::Compression;
+
+use crate::agent::AgentName;
+use crate::trace::TraceContext;
+use crate::variable_data::{
+    CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData, VariableData,
+    VersionData,
+};
+
+pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
+    ctx.add_variable(Box::new(VersionData::random_value(agent)));
+    ctx.add_variable(Box::new(SessionIDData::random_value(agent)));
+    ctx.add_variable(Box::new(RandomData::random_value(agent)));
+
+    // A random extension
+    //ctx.add_variable(Box::new(ExtensionData::random_value(fuzz_agent)));
+
+    // Some static extensions
+    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
+        agent,
+        ClientExtensionData::key_share(),
+    )));
+    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
+        agent,
+        ClientExtensionData::supported_versions(),
+    )));
+    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
+        agent,
+        ClientExtensionData::supported_groups(),
+    )));
+    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
+        agent,
+        ClientExtensionData::server_name("maxammann.org"),
+    )));
+    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
+        agent,
+        ClientExtensionData::signature_algorithms(),
+    )));
+
+    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
+    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
+    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
+    ctx.add_variable(Box::new(CompressionData::static_extension(
+        agent,
+        Compression::Null,
+    )));
+}
+
+#[cfg(test)]
+pub mod tlspuffin {
+    use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::trace::TraceContext;
-    use crate::variable_data::{
-        CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData,
-        VariableData, VersionData,
+    use crate::trace;
+    use crate::trace::{
+        CCCExpectAction, ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction,
+        Step, TraceContext,
     };
 
-    pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
-        ctx.add_variable(Box::new(VersionData::random_value(agent)));
-        ctx.add_variable(Box::new(SessionIDData::random_value(agent)));
-        ctx.add_variable(Box::new(RandomData::random_value(agent)));
+    #[test]
+    /// Test for having an OpenSSL server (honest) agent
+    pub fn openssl_server() {
+        let mut ctx = TraceContext::new();
+        let client = ctx.new_agent();
+        let openssl_server = ctx.new_openssl_agent(true);
 
-        // A random extension
-        //ctx.add_variable(Box::new(ExtensionData::random_value(fuzz_agent)));
-
-        // Some static extensions
-        ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-            agent,
-            ClientExtensionData::key_share(),
-        )));
-        ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-            agent,
-            ClientExtensionData::supported_versions(),
-        )));
-        ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-            agent,
-            ClientExtensionData::supported_groups(),
-        )));
-        ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-            agent,
-            ClientExtensionData::server_name("maxammann.org"),
-        )));
-        ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-            agent,
-            ClientExtensionData::signature_algorithms(),
-        )));
-
-        ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-        ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-        ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-        ctx.add_variable(Box::new(CompressionData::static_extension(
-            agent,
-            Compression::Null,
-        )));
-    }
-
-    #[cfg(test)]
-    pub mod tlspuffin {
-        use test_env_log::test;
-
-        use crate::agent::AgentName;
-        use crate::trace;
-        use crate::trace::{
-            CCCExpectAction, ClientHelloExpectAction, ClientHelloSendAction,
-            ServerHelloExpectAction, Step, TraceContext,
+        let client_hello = ClientHelloSendAction::new();
+        let server_hello = ServerHelloExpectAction::new();
+        let mut trace = trace::Trace {
+            steps: vec![
+                Step {
+                    agent: client,
+                    action: &client_hello,
+                    send_to: openssl_server,
+                },
+                Step {
+                    agent: openssl_server,
+                    action: &server_hello,
+                    send_to: AgentName::none(),
+                },
+            ],
         };
 
-        #[test]
-        /// Test for having an OpenSSL server (honest) agent
-        pub fn openssl_server() {
-            let mut ctx = TraceContext::new();
-            let client = ctx.new_agent();
-            let openssl_server = ctx.new_openssl_agent(true);
+        info!("{}", trace);
 
-            let client_hello = ClientHelloSendAction::new();
-            let server_hello = ServerHelloExpectAction::new();
-            let mut trace = trace::Trace {
-                steps: vec![
-                    Step {
-                        agent: client,
-                        action: &client_hello,
-                        send_to: openssl_server,
-                    },
-                    Step {
-                        agent: openssl_server,
-                        action: &server_hello,
-                        send_to: AgentName::none(),
-                    },
-                ],
-            };
+        super::setup_client_hello_variables(&mut ctx, client);
+        trace.execute(&mut ctx);
+    }
 
-            info!("{}", trace);
+    #[test]
+    /// Test for having an OpenSSL client (honest) agent
+    fn openssl_client() {
+        let mut ctx = TraceContext::new();
+        let honest_agent = ctx.new_agent();
+        let openssl_client_agent = ctx.new_openssl_agent(false);
 
-            super::setup_client_hello_variables(&mut ctx, client);
-            trace.execute(&mut ctx);
-        }
+        let client_hello_initial = ClientHelloExpectAction::new();
+        let client_hello_expect = ClientHelloExpectAction::new();
+        let client_hello = ClientHelloSendAction::new();
+        let server_hello_expect = ServerHelloExpectAction::new();
+        let mut trace = trace::Trace {
+            steps: vec![
+                Step {
+                    agent: openssl_client_agent,
+                    action: &client_hello_initial,
+                    send_to: honest_agent,
+                },
+                Step {
+                    agent: honest_agent,
+                    action: &client_hello_expect,
+                    send_to: honest_agent,
+                },
+                Step {
+                    agent: honest_agent,
+                    action: &client_hello,
+                    send_to: openssl_client_agent,
+                },
+                Step {
+                    agent: openssl_client_agent,
+                    action: &server_hello_expect,
+                    send_to: AgentName::none(),
+                },
+            ],
+        };
 
-        #[test]
-        /// Test for having an OpenSSL client (honest) agent
-        fn openssl_client() {
-            let mut ctx = TraceContext::new();
-            let honest_agent = ctx.new_agent();
-            let openssl_client_agent = ctx.new_openssl_agent(false);
+        info!("{}", trace);
+        trace.execute(&mut ctx);
+    }
 
-            let client_hello_initial = ClientHelloExpectAction::new();
-            let client_hello_expect = ClientHelloExpectAction::new();
-            let client_hello = ClientHelloSendAction::new();
-            let server_hello_expect = ServerHelloExpectAction::new();
-            let mut trace = trace::Trace {
-                steps: vec![
-                    Step {
-                        agent: openssl_client_agent,
-                        action: &client_hello_initial,
-                        send_to: honest_agent,
-                    },
-                    Step {
-                        agent: honest_agent,
-                        action: &client_hello_expect,
-                        send_to: honest_agent,
-                    },
-                    Step {
-                        agent: honest_agent,
-                        action: &client_hello,
-                        send_to: openssl_client_agent,
-                    },
-                    Step {
-                        agent: openssl_client_agent,
-                        action: &server_hello_expect,
-                        send_to: AgentName::none(),
-                    },
-                ],
-            };
+    #[test]
+    /// Having two dishonest agents:
+    /// * Send message from client to server, and receive variables
+    fn two_dishonest() {
+        let mut ctx = TraceContext::new();
+        let client = ctx.new_agent();
+        let server = ctx.new_openssl_agent(true);
 
-            info!("{}", trace);
-            trace.execute(&mut ctx);
-        }
+        let a = ClientHelloSendAction::new();
+        let b = ClientHelloExpectAction::new();
+        let mut trace = trace::Trace {
+            steps: vec![
+                Step {
+                    agent: client,
+                    action: &a,
+                    send_to: server,
+                },
+                Step {
+                    agent: server,
+                    action: &b,
+                    send_to: AgentName::none(),
+                },
+            ],
+        };
 
-        #[test]
-        /// Having two dishonest agents:
-        /// * Send message from client to server, and receive variables
-        fn two_dishonest() {
-            let mut ctx = TraceContext::new();
-            let client = ctx.new_agent();
-            let server = ctx.new_openssl_agent(true);
+        info!("{}", trace);
 
-            let a = ClientHelloSendAction::new();
-            let b = ClientHelloExpectAction::new();
-            let mut trace = trace::Trace {
-                steps: vec![
-                    Step {
-                        agent: client,
-                        action: &a,
-                        send_to: server,
-                    },
-                    Step {
-                        agent: server,
-                        action: &b,
-                        send_to: AgentName::none(),
-                    },
-                ],
-            };
+        super::setup_client_hello_variables(&mut ctx, client);
+        trace.execute(&mut ctx);
+    }
 
-            info!("{}", trace);
+    #[test]
+    fn only_openssl() {
+        let mut ctx = TraceContext::new();
+        let client_openssl = ctx.new_openssl_agent(false);
+        let server_openssl = ctx.new_openssl_agent(true);
 
-            super::setup_client_hello_variables(&mut ctx, client);
-            trace.execute(&mut ctx);
-        }
+        let client_hello_expect = ClientHelloExpectAction::new();
+        let server_hello_expect = ServerHelloExpectAction::new();
+        let ccc_expect = CCCExpectAction::new();
+        let mut trace = trace::Trace {
+            steps: vec![
+                Step {
+                    agent: client_openssl,
+                    action: &client_hello_expect,
+                    send_to: server_openssl,
+                },
+                Step {
+                    agent: server_openssl,
+                    action: &server_hello_expect,
+                    send_to: client_openssl,
+                },
+                Step {
+                    agent: server_openssl,
+                    action: &ccc_expect,
+                    send_to: client_openssl,
+                },
+            ],
+        };
 
-        #[test]
-        fn only_openssl() {
-            let mut ctx = TraceContext::new();
-            let client_openssl = ctx.new_openssl_agent(false);
-            let server_openssl = ctx.new_openssl_agent(true);
+        info!("{}", trace);
+        trace.execute(&mut ctx);
 
-            let client_hello_expect = ClientHelloExpectAction::new();
-            let server_hello_expect = ServerHelloExpectAction::new();
-            let ccc_expect = CCCExpectAction::new();
-            let mut trace = trace::Trace {
-                steps: vec![
-                    Step {
-                        agent: client_openssl,
-                        action: &client_hello_expect,
-                        send_to: server_openssl,
-                    },
-                    Step {
-                        agent: server_openssl,
-                        action: &server_hello_expect,
-                        send_to: client_openssl,
-                    },
-                    Step {
-                        agent: server_openssl,
-                        action: &ccc_expect,
-                        send_to: client_openssl,
-                    },
-                ],
-            };
-
-            info!("{}", trace);
-            trace.execute(&mut ctx);
-
-            let client_state = ctx
-                .find_agent(client_openssl)
-                .unwrap()
-                .stream
-                .describe_state();
-            let server_state = ctx
-                .find_agent(server_openssl)
-                .unwrap()
-                .stream
-                .describe_state();
-            assert!(client_state.contains("SSLv3/TLS write client hello"));
-            assert!(server_state.contains("TLSv1.3 early data"));
-        }
+        let client_state = ctx
+            .find_agent(client_openssl)
+            .unwrap()
+            .stream
+            .describe_state();
+        let server_state = ctx
+            .find_agent(server_openssl)
+            .unwrap()
+            .stream
+            .describe_state();
+        assert!(client_state.contains("SSLv3/TLS write client hello"));
+        assert!(server_state.contains("TLSv1.3 early data"));
     }
 }
 
 #[cfg(test)]
 pub mod integration {
-    use std::io::{Read, stdout, Write};
+    use std::io::{stdout, Read, Write};
     use std::net::TcpStream;
     use std::sync::Arc;
 
@@ -296,22 +294,22 @@ pub mod integration {
         let mut tls = rustls::Stream::new(&mut sess, &mut sock);
         tls.write_all(
             concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
+                "GET / HTTP/1.1\r\n",
+                "Host: google.com\r\n",
+                "Connection: close\r\n",
+                "Accept-Encoding: identity\r\n",
+                "\r\n"
             )
-                .as_bytes(),
+            .as_bytes(),
         )
-            .unwrap();
+        .unwrap();
         let ciphersuite = tls.sess.get_negotiated_ciphersuite().unwrap();
         writeln!(
             &mut std::io::stderr(),
             "Current ciphersuite: {:?}",
             ciphersuite.suite
         )
-            .unwrap();
+        .unwrap();
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
         stdout().write_all(&plaintext).unwrap();
