@@ -28,6 +28,7 @@ pub enum Term {
     ///
     Application { op: Operator, args: Vec<Term> },
 }
+
 impl Term {
     /// Serialize a `Term`.
     pub fn display(&self) -> String {

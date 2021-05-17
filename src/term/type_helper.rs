@@ -66,8 +66,8 @@ pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
 }
 
 impl<T> DynamicFunction for T
-where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
+    where
+        T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -90,9 +90,9 @@ pub trait DescribableFunction<Types> {
     fn wrap(&'static self) -> Box<dyn DynamicFunction>;
 }
 
-impl<F, R: 'static> DescribableFunction<(R,)> for F
-where
-    F: Fn() -> R,
+impl<F, R: 'static> DescribableFunction<(R, )> for F
+    where
+        F: Fn() -> R,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
@@ -109,8 +109,8 @@ where
 }
 
 impl<F, T1: 'static, R: 'static> DescribableFunction<(T1, R)> for F
-where
-    F: Fn(&T1) -> R,
+    where
+        F: Fn(&T1) -> R,
 {
     fn shape() -> DynamicFunctionShape {
         DynamicFunctionShape {
@@ -191,8 +191,8 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 => R);
 pub fn make_dynamic<F: 'static, Types>(
     f: &'static F,
 ) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
-where
-    F: DescribableFunction<Types>,
+    where
+        F: DescribableFunction<Types>,
 {
     (F::shape(), f.wrap())
 }

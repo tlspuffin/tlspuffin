@@ -6,8 +6,8 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::ssl::{Error, Ssl, SslContext, SslMethod, SslOptions, SslStream};
 use openssl::version::version;
+use openssl::x509::{X509, X509NameBuilder, X509Ref};
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
-use openssl::x509::{X509NameBuilder, X509Ref, X509};
 
 use crate::debug::debug_message;
 use crate::io::{MemoryStream, Stream};
@@ -38,7 +38,7 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
         serial.rand(159, MsbOption::MAYBE_ZERO, false).unwrap();
         serial.to_asn1_integer()
     }
-    .unwrap();
+        .unwrap();
     cert_builder.set_serial_number(&serial_number).unwrap();
     cert_builder.set_subject_name(&x509_name).unwrap();
     cert_builder.set_issuer_name(&x509_name).unwrap();
@@ -103,6 +103,7 @@ pub fn log_io_error(error: &openssl::ssl::Error) {
         }
     }
 }
+
 pub fn log_ssl_error(error: &openssl::ssl::Error) {
     if let Some(ssl_error) = error.ssl_error() {
         // OpenSSL threw an error, that means that there should be an Alert message in the

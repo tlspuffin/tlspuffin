@@ -1,4 +1,4 @@
-use std::any::{TypeId};
+use std::any::TypeId;
 
 use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape, hash_type_id};
 
@@ -13,6 +13,7 @@ pub struct Variable {
     pub(crate) id: u32,
     pub(crate) typ: TypeId,
 }
+
 impl Variable {
     /// Serialize a `Variable`.
     pub fn display(&self) -> String {
@@ -33,6 +34,7 @@ pub struct Operator {
     pub(crate) shape: DynamicFunctionShape,
     pub(crate) dynamic_fn: Box<dyn DynamicFunction>,
 }
+
 impl Operator {
     /// Returns an `Operator`'s arity.
     pub fn arity(&self) -> u16 {

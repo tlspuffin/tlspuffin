@@ -1,23 +1,23 @@
 use core::fmt;
 use std::any::Any;
 
+use rustls::{CipherSuite, ProtocolVersion};
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::deframer::MessageDeframer;
-use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
 use rustls::internal::msgs::handshake::{
     ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
     ServerExtension, SessionID,
 };
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::{ChangeCipherSpec, Handshake};
-use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
 use crate::debug::{debug_message, debug_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::{AgreedCipherSuiteData, AgreedCompressionData, CipherSuiteData, ClientExtensionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData, VersionData, AsAny};
+use crate::variable_data::{AgreedCipherSuiteData, AgreedCompressionData, AsAny, CipherSuiteData, ClientExtensionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData, VersionData};
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -37,8 +37,8 @@ impl TraceContext {
     }
 
     pub fn add_variables<I>(&mut self, variables: I)
-    where
-        I: IntoIterator<Item = Box<dyn VariableData>>,
+        where
+            I: IntoIterator<Item=Box<dyn VariableData>>,
     {
         for variable in variables {
             self.add_variable(variable)

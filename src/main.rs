@@ -5,12 +5,12 @@ use core::time;
 use std::io::Write;
 use std::thread;
 
-use env_logger::{fmt, Builder, Env};
+use env_logger::{Builder, Env, fmt};
 use log::Level;
 
+use crate::agent::AgentName;
 use crate::tests::test_utils::setup_client_hello_variables;
 use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
-use crate::agent::AgentName;
 
 mod agent;
 mod debug;
@@ -66,12 +66,12 @@ fn main() {
                 Step {
                     agent: honest_agent,
                     action: &client_hello,
-                    send_to: openssl_server_agent
+                    send_to: openssl_server_agent,
                 },
                 Step {
                     agent: openssl_server_agent,
                     action: &server_hello,
-                    send_to: AgentName::none()
+                    send_to: AgentName::none(),
                 },
             ],
         };

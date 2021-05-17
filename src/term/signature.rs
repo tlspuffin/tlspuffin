@@ -2,7 +2,7 @@ use std::any::TypeId;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
-use crate::term::type_helper::{make_dynamic, DescribableFunction};
+use crate::term::type_helper::{DescribableFunction, make_dynamic};
 use crate::term::Variable;
 
 use super::Operator;
@@ -21,6 +21,7 @@ pub struct Signature {
     pub(crate) operators: Vec<Operator>,
     pub(crate) variables: Vec<Variable>,
 }
+
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
     ///
@@ -54,8 +55,8 @@ impl Signature {
     /// [`Operator`]: struct.Operator.html
     ///
     pub fn new_op<F: 'static, Types>(&mut self, name: &'static str, f: &'static F) -> Operator
-    where
-        F: DescribableFunction<Types>,
+        where
+            F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let operator = Operator {
@@ -75,17 +76,19 @@ impl Signature {
     pub fn new_var(&mut self, typ: TypeId) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
-            typ
+            typ,
         };
         self.variables.push(variable.clone());
         variable
     }
 }
+
 impl fmt::Debug for Signature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Signature{{{:?}}}", self)
     }
 }
+
 impl Default for Signature {
     fn default() -> Signature {
         Signature {
@@ -94,15 +97,16 @@ impl Default for Signature {
         }
     }
 }
+
 impl PartialEq for Signature {
     fn eq(&self, other: &Signature) -> bool {
         self.variables.len() == other.variables.len()
             && self.operators.len() == other.operators.len()
             && self
-                .operators
-                .iter()
-                .zip(&other.operators)
-                .all(|(o1, o2)| o1.arity() == o2.arity() && o1.name.eq(o2.name))
+            .operators
+            .iter()
+            .zip(&other.operators)
+            .all(|(o1, o2)| o1.arity() == o2.arity() && o1.name.eq(o2.name))
     }
 }
 

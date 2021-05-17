@@ -37,7 +37,7 @@ pub struct Agent {
     pub name: AgentName,
     pub stream: Box<dyn Stream>,
     // Wether this agent automatically forwards data form the inbound channel to the outbound channel
-    pub is_producing: bool
+    pub is_producing: bool,
 }
 
 impl Agent {
@@ -53,7 +53,7 @@ impl Agent {
         Agent {
             name: AgentName::random(),
             stream,
-            is_producing
+            is_producing,
         }
     }
 }

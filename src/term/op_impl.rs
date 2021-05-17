@@ -1,13 +1,13 @@
-use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
+use ring::{hkdf, hmac};
+use ring::hkdf::{HKDF_SHA256, KeyType, Prk};
 use ring::hmac::Key;
 use ring::rand::SystemRandom;
-use ring::{hkdf, hmac};
+use rustls::{CipherSuite, ProtocolVersion};
+use rustls::internal::msgs::enums::{Compression, HandshakeType};
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{HandshakeType, Compression};
-use rustls::internal::msgs::handshake::{ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID, ClientExtension};
+use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
-use rustls::{ProtocolVersion, CipherSuite};
 
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
@@ -56,9 +56,9 @@ fn derive_secret<L, F, T>(
     context: &Vec<u8>,
     into: F,
 ) -> T
-where
-    L: KeyType,
-    F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
+    where
+        L: KeyType,
+        F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
 {
     const LABEL_PREFIX: &[u8] = b"tls13 ";
 
