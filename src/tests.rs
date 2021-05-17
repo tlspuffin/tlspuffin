@@ -48,7 +48,7 @@ pub mod test_utils {
     }
 
     #[cfg(test)]
-    pub mod tests {
+    pub mod tlspuffin {
         use test_env_log::test;
 
         use crate::agent::AgentName;

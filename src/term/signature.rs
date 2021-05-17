@@ -1,6 +1,6 @@
 use std::any::TypeId;
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::{Hasher};
 
 use crate::term::type_helper::{DescribableFunction, make_dynamic};
 use crate::term::Variable;
