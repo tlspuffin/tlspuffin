@@ -2,7 +2,6 @@
 extern crate log;
 
 use core::time;
-use std::fmt::Debug;
 use std::io::Write;
 use std::thread;
 
@@ -12,7 +11,6 @@ use log::Level;
 use crate::tests::test_utils::setup_client_hello_variables;
 use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
 use crate::agent::AgentName;
-use rand::random;
 
 mod agent;
 mod debug;

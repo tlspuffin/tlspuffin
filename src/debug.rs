@@ -4,6 +4,7 @@ use rustls::internal::msgs::message::{Message, MessagePayload};
 pub fn debug_message(buffer: &dyn AsRef<[u8]>) {
     debug_message_with_info("", buffer);
 }
+
 pub fn debug_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8]>) {
     if let Some(mut message) = Message::read_bytes(buffer.as_ref()) {
         message.decode_payload();

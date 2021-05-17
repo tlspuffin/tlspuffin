@@ -44,8 +44,3 @@ debug = true
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
-
-[[bin]]
-name = "rustls_sample_client"
-path = "src/rustls_client.rs"
-
