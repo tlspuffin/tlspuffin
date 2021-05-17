@@ -36,7 +36,7 @@ impl PartialEq for AgentName {
 pub struct Agent {
     pub name: AgentName,
     pub stream: Box<dyn Stream>,
-    // Wether this agent automatically forwards data form the inbound channel to the outbound channel
+    // Whether this agent automatically forwards data form the inbound channel to the outbound channel
     pub is_producing: bool,
 }
 
