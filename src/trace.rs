@@ -2,15 +2,14 @@ use core::fmt;
 use std::any::Any;
 use std::fmt::Formatter;
 
+use rustls::internal::msgs::handshake::HandshakePayload;
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use rustls::internal::msgs::handshake::HandshakePayload;
 use crate::variable_data::VariableData;
-
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -79,6 +78,11 @@ impl TraceContext {
     ) -> Result<(), String> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.stream.add_to_inbound(message))
+    }
+
+    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), String> {
+        self.find_agent_mut(agent_name)
+            .map(|agent| agent.stream.next_state())
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -161,14 +165,6 @@ impl Trace {
         for i in 0..steps.len() {
             let step = &steps[i];
             step.action.execute(step, ctx);
-
-            if i != steps.len() - 1 {
-                // TODO do not skip the last one, handle if no next
-                let result = ctx.take_message_from_outbound(step.agent).unwrap();
-                // TODO send_to no longer exists
-                // ctx.add_to_inbound(step.send_to, &result);
-            }
-
             execution_listener(step);
         }
     }
@@ -202,11 +198,11 @@ impl Execute for Action {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) {
         match self {
             Action::Input(input) => {
-                input.receive(step, ctx);
-            },
+                input.input(step, ctx);
+            }
             Action::Output(output) => {
-                output.craft(ctx, step.agent);
-            },
+                output.output(step, ctx);
+            }
         }
     }
 }
@@ -228,13 +224,15 @@ pub struct OutputAction;
 pub struct InputAction;
 
 impl OutputAction {
-    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()> {
-        Ok(Message::build_key_update_notify())
+    fn output(&self, step: &Step, ctx: &mut TraceContext) {
+        ctx.next_state(step.agent).unwrap();
+        let message = ctx.take_message_from_outbound(step.agent);
+        message.unwrap();
     }
 }
 
 impl InputAction {
-    fn receive(&self, step: &Step, ctx: &mut TraceContext) {}
+    fn input(&self, step: &Step, ctx: &mut TraceContext) {}
 }
 
 // parsing utils

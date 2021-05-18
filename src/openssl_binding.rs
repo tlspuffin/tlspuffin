@@ -123,7 +123,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     return client_stream;
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Message> {
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
     if let Err(error) = stream.connect() {
         log_io_error(&error);
         log_ssl_error(&error);
@@ -131,17 +131,13 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Message> {
         info!("Handshake is done");
     }
 
-    stream.get_mut().peek_message_from_outbound()
 }
 
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Message> {
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) {
     if let Err(error) = stream.accept() {
         log_io_error(&error);
         log_ssl_error(&error);
     } else {
         info!("Handshake is done");
     }
-
-    // Should contain an Alert or a Handshake message
-    stream.get_mut().peek_message_from_outbound()
 }

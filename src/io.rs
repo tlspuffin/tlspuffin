@@ -10,11 +10,12 @@ use crate::agent::Agent;
 use crate::openssl_binding;
 use rustls::internal::msgs::message::Message;
 use crate::debug::debug_binary_message_with_info;
+use std::borrow::BorrowMut;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &Message);
     fn add_to_outbound(&mut self, data: &Message, prepend: bool);
-    /// Takes a single TLS message from the outbound channel in binary
+    /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(&mut self) -> Option<Message>;
     // Gets a TLS message from the outbound channel and does NOT remove the content
     fn peek_message_from_outbound(&mut self) -> Option<Message>;
@@ -23,6 +24,8 @@ pub trait Stream: std::io::Read + std::io::Write {
     fn take_from_inbound(&mut self) -> Option<Message>;
 
     fn describe_state(&self) -> &'static str;
+
+    fn next_state(&mut self);
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -50,6 +53,7 @@ pub struct OpenSSLStream {
     server: bool,
 }
 
+
 impl Stream for OpenSSLStream {
     fn add_to_inbound(&mut self, data: &Message) {
         self.openssl_stream.get_mut().add_to_inbound(data)
@@ -64,16 +68,12 @@ impl Stream for OpenSSLStream {
     }
 
     fn peek_message_from_outbound(&mut self) -> Option<Message> {
+        // Should contain an Alert or a Handshake message if next_state has been called before
         self.openssl_stream.get_mut().peek_message_from_outbound()
     }
 
     fn take_from_inbound(&mut self) -> Option<Message> {
-        let openssl_stream = &mut self.openssl_stream;
-        if self.server {
-            openssl_binding::server_accept(openssl_stream)
-        } else {
-            openssl_binding::client_connect(openssl_stream)
-        }
+        self.openssl_stream.get_mut().take_from_inbound()
     }
 
     fn describe_state(&self) -> &'static str {
@@ -83,6 +83,15 @@ impl Stream for OpenSSLStream {
         // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
         // so that SSL_state_string[_long]() may be called.
         self.openssl_stream.ssl().state_string_long()
+    }
+
+    fn next_state(&mut self) {
+        let stream = &mut self.openssl_stream;
+        if self.server {
+            openssl_binding::server_accept(stream);
+        } else {
+            openssl_binding::client_connect(stream);
+        }
     }
 }
 
@@ -201,6 +210,10 @@ impl Stream for MemoryStream {
     }
 
     fn describe_state(&self) -> &'static str {
+        todo!()
+    }
+
+    fn next_state(&mut self) {
         todo!()
     }
 }

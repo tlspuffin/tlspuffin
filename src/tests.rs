@@ -52,9 +52,7 @@ pub mod tlspuffin {
 
     use crate::agent::AgentName;
     use crate::trace;
-    use crate::trace::{
-        Step, TraceContext,
-    };
+    use crate::trace::{Step, TraceContext, OutputAction, Action};
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -130,38 +128,6 @@ pub mod tlspuffin {
     }
 
     #[test]
-    /// Having two dishonest agents:
-    /// * Send message from client to server, and receive variables
-    fn two_dishonest() {
-        let mut ctx = TraceContext::new();
-        let client = ctx.new_agent();
-        let server = ctx.new_openssl_agent(true);
-
-        /*        let a = ClientHelloSendAction::new();
-        let b = ClientHelloExpectAction::new();
-        let mut trace = trace::Trace {
-            steps: vec![
-                Step {
-                    agent: client,
-                    action: &a,
-                    send_to: server,
-                },
-                Step {
-                    agent: server,
-                    action: &b,
-                    send_to: AgentName::none(),
-                },
-            ],
-        };*/
-        let mut trace = trace::Trace { steps: vec![] };
-
-        info!("{}", trace);
-
-        super::setup_client_hello_variables(&mut ctx, client);
-        trace.execute(&mut ctx);
-    }
-
-    #[test]
     fn only_openssl() {
         let mut ctx = TraceContext::new();
         let client_openssl = ctx.new_openssl_agent(false);
@@ -189,7 +155,12 @@ pub mod tlspuffin {
                 },
             ],
         };*/
-        let mut trace = trace::Trace { steps: vec![] };
+        let mut trace = trace::Trace { steps: vec![
+            Step {
+                agent: client_openssl,
+                action: Action::Output(OutputAction)
+            }
+        ] };
 
         info!("{}", trace);
         trace.execute(&mut ctx);
