@@ -14,21 +14,9 @@ use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 use rustls::internal::msgs::base::PayloadU16;
 
-pub fn op_hmac256_new_key() -> Key {
-    // todo maybe we need a context for rng? Maybe also for hs_hash?
-    let random = SystemRandom::new();
-    let key = hmac::Key::generate(hmac::HMAC_SHA256, &random).unwrap();
-    key
-}
-
-pub fn op_arbitrary_to_key(key: &Vec<u8>) -> Key {
-    Key::new(hmac::HMAC_SHA256, key.as_slice())
-}
-
-pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
-    let tag = hmac::sign(&key, msg);
-    Vec::from(tag.as_ref())
-}
+// -----
+// utils
+// -----
 
 enum SecretKind {
     ResumptionPSKBinderKey,
@@ -86,6 +74,26 @@ where
     ];
     let okm = secret.expand(info, algorithm).unwrap();
     into(okm)
+}
+
+// ----
+// Concrete implementations
+// ----
+
+pub fn op_hmac256_new_key() -> Key {
+    // todo maybe we need a context for rng? Maybe also for hs_hash?
+    let random = SystemRandom::new();
+    let key = hmac::Key::generate(hmac::HMAC_SHA256, &random).unwrap();
+    key
+}
+
+pub fn op_arbitrary_to_key(key: &Vec<u8>) -> Key {
+    Key::new(hmac::HMAC_SHA256, key.as_slice())
+}
+
+pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
+    let tag = hmac::sign(&key, msg);
+    Vec::from(tag.as_ref())
 }
 
 // https://github.com/ctz/rustls/blob/d03bf27e0b520fe73c901d0027bab12753a42bb6/rustls/src/key_schedule.rs#L164
@@ -192,7 +200,7 @@ pub fn on_compression() -> Compression {
         .unwrap()
 }
 
-pub fn server_name_extension(dns_name: &str) -> ClientExtension {
+pub fn op_server_name_extension(dns_name: &str) -> ClientExtension {
     ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName(
@@ -203,18 +211,18 @@ pub fn server_name_extension(dns_name: &str) -> ClientExtension {
     }])
 }
 
-pub fn support_group_extension() -> ClientExtension {
+pub fn op_support_group_extension() -> ClientExtension {
     ClientExtension::NamedGroups(vec![NamedGroup::X25519])
 }
 
-pub fn signature_algorithm_extension() -> ClientExtension {
+pub fn op_signature_algorithm_extension() -> ClientExtension {
     ClientExtension::SignatureAlgorithms(vec![
         SignatureScheme::RSA_PKCS1_SHA256,
         SignatureScheme::RSA_PSS_SHA256,
     ])
 }
 
-pub fn random_key_share_extension() -> ClientExtension {
+pub fn op_random_key_share_extension() -> ClientExtension {
     let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
     ClientExtension::KeyShare(vec![KeyShareEntry {
         group: NamedGroup::X25519,
@@ -222,17 +230,17 @@ pub fn random_key_share_extension() -> ClientExtension {
     }])
 }
 
-pub fn supported_versions_extension() -> ClientExtension {
+pub fn op_supported_versions_extension() -> ClientExtension {
     ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
 }
 
-pub fn random_extensions() -> Vec<ClientExtension> {
-    let server_name: ClientExtension = server_name_extension("maxammann.org");
+pub fn op_random_extensions() -> Vec<ClientExtension> {
+    let server_name: ClientExtension = op_server_name_extension("maxammann.org");
 
-    let supported_groups: ClientExtension = support_group_extension();
-    let signature_algorithms: ClientExtension = signature_algorithm_extension();
-    let key_share: ClientExtension = random_key_share_extension();
-    let supported_versions: ClientExtension = supported_versions_extension();
+    let supported_groups: ClientExtension = op_support_group_extension();
+    let signature_algorithms: ClientExtension = op_signature_algorithm_extension();
+    let key_share: ClientExtension = op_random_key_share_extension();
+    let supported_versions: ClientExtension = op_supported_versions_extension();
 
 
     vec![
