@@ -1,27 +1,16 @@
 use core::fmt;
 use std::any::Any;
+use std::fmt::Formatter;
 
-use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::deframer::MessageDeframer;
-use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
-use rustls::internal::msgs::handshake::{
-    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
-    ServerExtension, SessionID,
-};
 use rustls::internal::msgs::message::Message;
-use rustls::internal::msgs::message::MessagePayload::{ChangeCipherSpec, Handshake};
-use rustls::{CipherSuite, ProtocolVersion};
+use rustls::internal::msgs::message::MessagePayload::Handshake;
 
 use crate::agent::{Agent, AgentName};
-use crate::debug::{debug_binary_message, debug_binary_message_with_info, debug_message};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::{
-    AgreedCipherSuiteData, AgreedCompressionData, AsAny, CipherSuiteData, ClientExtensionData,
-    CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
-    VersionData,
-};
+use rustls::internal::msgs::handshake::HandshakePayload;
+use crate::variable_data::VariableData;
+
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -154,57 +143,11 @@ impl TraceContext {
     }
 }
 
-///
-/// A *Trace* consists of several *Steps*. Each has either a *Send-* or an *Expect-Action*. Each *Step* references an *Agents* by name.
-/// In case of a *Send* *Action* the *Agent* denotes: From which *Agent* a message is sent.
-/// In case of an *Expect* *Action* the *Agent* denotes: Which *Agent* is expecting a message.
-///
-/// *Agents* represent communication participants like Alice, Bob or Eve.
-/// Each *Agent* has an *inbound* and an *outbound channel*. These are currently implemented by using an in-memory buffer.
-///
-/// One might ask why we need two channels. There two reasons for this:
-/// * Having two buffers resembles how networking works in reality: Each computer has a input and a output buffer. In case of TCP the input buffer can become full and therefore the transmission is throttled.
-/// * It is beneficial to model each agent with two buffers according to the Single-responsibility principle. When sending or receiving data each agent only has to look at its own two buffers. If each agent had only one buffer, then you would need to read from another agent which has the data you want. Or if you design it the other way around you would need to write to the buffer of the agent to which you want to send data.
-/// <!-- TODO
-/// Minor comment: if you had honest agents sending all message to the ONE attacker and all honest agents receiving message fro this ONE attacker, this argument no longer works as the attacker, simulating the network, would write in the buffer of the honest agents who expect a message and read in the buffer of honest agents who send a message.
-/// -->
-/// * By having two buffers it is possible to define a message passing semantic. The routine which is executing a trace can decide which message should be sent to which agents.
-///
-/// The *Agent* Alice can add data to the *inbound channel* of Bob. Bob can then read the data from his *inbound channel* and put data in his *outbound channel*. If Bob is an OpenSSL *Agent* then OpenSSL handles this.
-/// Not the message passing semantics make sure that messages are fetched from agents and delivered to others.
-///
-/// An *Expect Action* can then verify whether the *inbound channel* contains the expected message and extract *VariableData* from it.
-///
-/// The implementation of this trace looks like this:
-///
-/// ```rust
-/// let trace = trace::Trace {
-///   steps: vec![
-///         Step {
-///             agent: dishonest_agent,
-///             action: &ClientHelloSendAction::new()
-///         },
-///         Step {
-///             agent: openssl_server_agent,
-///             action: &ServerHelloExpectAction::new()
-///         },
-///     ],
-/// };
-/// ```
-///
-/// <!--
-/// TODO How do you implement agents that do not follow the spec?
-/// -->
-/// There are currently two different kinds of *Agents*. Firstly, a dishonest agent, which can craft arbitrary TLS messages and do not need to follow the RFC spec. Remember the arbitrary $f$ which can perform computations not defined in any RFCs.
-///
-/// Secondly, there are OpenSSL agents, which use OpenSSL to craft messages and respond to messages.
-///
-/// The *TraceContext* contains a list of *VariableData*, of which each has a *type* and an *owner*. *Send Actions* consume *VariableData*, whereas *Expect Actions* produce *VariableData*. *VariableData* can also be produced by initiating a *TraceContext* with predefined *VariableData*. *VariableData* can contain data of various types. For example client and server extensions, cipher suits, session IDs etc.
-pub struct Trace<'a> {
-    pub steps: Vec<Step<'a>>,
+pub struct Trace {
+    pub steps: Vec<Step>,
 }
 
-impl<'a> Trace<'a> {
+impl Trace {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
         self.execute_with_listener(ctx, |step| {})
     }
@@ -222,7 +165,8 @@ impl<'a> Trace<'a> {
             if i != steps.len() - 1 {
                 // TODO do not skip the last one, handle if no next
                 let result = ctx.take_message_from_outbound(step.agent).unwrap();
-                ctx.add_to_inbound(step.send_to, &result);
+                // TODO send_to no longer exists
+                // ctx.add_to_inbound(step.send_to, &result);
             }
 
             execution_listener(step);
@@ -230,7 +174,7 @@ impl<'a> Trace<'a> {
     }
 }
 
-impl fmt::Display for Trace<'_> {
+impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}\n", "Trace:")?;
         for step in &self.steps {
@@ -240,35 +184,62 @@ impl fmt::Display for Trace<'_> {
     }
 }
 
-pub struct Step<'a> {
-    /// * If action is a SendAction: The Agent from which the message is sent.
-    /// * If action is a ExpectAction: The Agent from which we expect the message.
+pub struct Step {
     pub agent: AgentName,
-    pub send_to: AgentName,
-    pub action: &'a (dyn Action + 'static),
+    pub action: Action,
 }
 
-pub trait Action: fmt::Display {
+pub enum Action {
+    Input(InputAction),
+    Output(OutputAction),
+}
+
+pub trait Execute: fmt::Display {
     fn execute(&self, step: &Step, ctx: &mut TraceContext);
 }
 
-pub trait SendAction: Action {
-    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()>;
+impl Execute for Action {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+        match self {
+            Action::Input(input) => {
+                input.receive(step, ctx);
+            },
+            Action::Output(output) => {
+                output.craft(ctx, step.agent);
+            },
+        }
+    }
 }
 
-pub trait ExpectAction: Action {
-    fn expect(&self, step: &Step, ctx: &mut TraceContext);
+impl fmt::Display for Action {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Action::Input(_) => "Input",
+                Action::Output(_) => "Output",
+            }
+        )
+    }
+}
 
-    fn craft_outbound_message(
-        &self,
-        step: &Step,
-        ctx: &mut TraceContext,
-    ) -> Result<Vec<u8>, String>;
+pub struct OutputAction;
+pub struct InputAction;
+
+impl OutputAction {
+    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()> {
+        Ok(Message::build_key_update_notify())
+    }
+}
+
+impl InputAction {
+    fn receive(&self, step: &Step, ctx: &mut TraceContext) {}
 }
 
 // parsing utils
 
-pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
+pub fn take_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
     // todo, we are creating variables only from the message in the oubound buffer, but the reeiver
     // // of a message also has access to the message in the inbound
     match ctx.take_from_inbound(step.agent) {
@@ -280,305 +251,5 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
         Err(msg) => {
             panic!("{}", msg)
         }
-    }
-}
-
-// Expect ServerHello
-
-pub struct ServerHelloExpectAction {}
-
-impl fmt::Display for ServerHelloExpectAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", "Expect ServerHello")
-    }
-}
-
-impl Action for ServerHelloExpectAction {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        self.expect(step, ctx);
-    }
-}
-
-impl ServerHelloExpectAction {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl ExpectAction for ServerHelloExpectAction {
-    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
-        if let Some(HandshakePayload::ServerHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.agent; // corresponds to the OpenSSL client usually
-
-            ctx.add_variables(
-                payload
-                    .extensions
-                    .iter()
-                    .map(|extension: &ServerExtension| {
-                        Box::new(ServerExtensionData::static_extension(
-                            owner,
-                            extension.clone(),
-                        )) as Box<dyn VariableData> // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
-                    })
-                    .chain::<Vec<Box<dyn VariableData>>>(vec![
-                        Box::new(RandomData {
-                            metadata: Metadata { owner },
-                            data: payload.random,
-                        }),
-                        Box::new(AgreedCipherSuiteData {
-                            metadata: Metadata { owner },
-                            data: payload.cipher_suite,
-                        }),
-                        Box::new(AgreedCompressionData {
-                            metadata: Metadata { owner },
-                            data: payload.compression_method,
-                        }),
-                        Box::new(VersionData {
-                            metadata: Metadata { owner },
-                            data: payload.legacy_version,
-                        }),
-                    ])
-                    .collect::<Vec<Box<dyn VariableData>>>(),
-            );
-        } else {
-            // no ServerHello or decoding failed
-        }
-    }
-
-    fn craft_outbound_message(
-        &self,
-        step: &Step,
-        ctx: &mut TraceContext,
-    ) -> Result<Vec<u8>, String> {
-        todo!()
-    }
-}
-
-// ClientHello
-
-pub struct ClientHelloSendAction {}
-
-impl fmt::Display for ClientHelloSendAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", "Send ClientHello")
-    }
-}
-
-impl Action for ClientHelloSendAction {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        let result = self.craft(ctx, step.agent);
-
-        match result {
-            Ok(message) => {
-                debug_message(&message);
-                ctx.add_to_outbound(step.agent, &message, false);
-            }
-            _ => {
-                error!(
-                    "Unable to craft message in {:?}",
-                    std::any::type_name::<Self>()
-                );
-            }
-        }
-    }
-}
-
-impl ClientHelloSendAction {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl SendAction for ClientHelloSendAction {
-    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()> {
-        return if let (
-            Some(client_version),
-            Some(random),
-            Some(session_id),
-            ciphersuits,
-            compression_methods,
-            extensions,
-        ) = (
-            ctx.get_variable::<VersionData>(agent),
-            ctx.get_variable::<RandomData>(agent),
-            ctx.get_variable::<SessionIDData>(agent),
-            ctx.get_variable_set::<CipherSuiteData>(agent),
-            ctx.get_variable_set::<CompressionData>(agent),
-            ctx.get_variable_set::<ClientExtensionData>(agent),
-        ) {
-            let payload = Handshake(HandshakeMessagePayload {
-                typ: HandshakeType::ClientHello,
-                payload: HandshakePayload::ClientHello(ClientHelloPayload {
-                    client_version: client_version.data,
-                    random: random.data.clone(),
-                    session_id: session_id.data,
-                    cipher_suites: ciphersuits.into_iter().map(|c| c.data).collect(),
-                    compression_methods: compression_methods.into_iter().map(|c| c.data).collect(),
-                    extensions: extensions.into_iter().map(|c| c.data.clone()).collect(),
-                }),
-            });
-            let message = Message {
-                typ: RecordHandshake,
-                version: ProtocolVersion::TLSv1_3,
-                payload,
-            };
-
-            Ok(message)
-        } else {
-            Err(())
-        };
-    }
-}
-
-// Expect ClientHello
-
-pub struct ClientHelloExpectAction {}
-
-impl fmt::Display for ClientHelloExpectAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", "Expect ClientHello")
-    }
-}
-
-impl Action for ClientHelloExpectAction {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        self.expect(step, ctx);
-        // TODO: We need to do this as an expect also has to output if the agent is not taking care
-        // himself
-        if let Ok(agent) = ctx.find_agent(step.agent) {
-            if !agent.is_producing {
-                self.craft_outbound_message(step, ctx);
-            }
-        }
-    }
-}
-
-impl ClientHelloExpectAction {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl ExpectAction for ClientHelloExpectAction {
-    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
-        if let Some(HandshakePayload::ClientHello(payload)) = receive_handshake_payload(step, ctx) {
-            let owner = step.agent;
-
-            let simple_variables: Vec<Box<dyn VariableData>> = vec![
-                Box::new(RandomData {
-                    metadata: Metadata { owner },
-                    data: payload.random,
-                }),
-                Box::new(SessionIDData {
-                    metadata: Metadata { owner },
-                    data: payload.session_id,
-                }),
-                Box::new(VersionData {
-                    metadata: Metadata { owner },
-                    data: payload.client_version,
-                }),
-            ];
-            ctx.add_variables(
-                simple_variables
-                    .into_iter()
-                    .chain(
-                        payload
-                            .extensions
-                            .iter()
-                            .map(|extension: &ClientExtension| {
-                                Box::new(ClientExtensionData::static_extension(
-                                    owner,
-                                    extension.clone(),
-                                )) as Box<dyn VariableData>
-                            }),
-                    )
-                    .chain(
-                        payload
-                            .compression_methods
-                            .iter()
-                            .map(|compression: &Compression| {
-                                Box::new(CompressionData::static_extension(
-                                    owner,
-                                    compression.clone(),
-                                )) as Box<dyn VariableData>
-                            }),
-                    )
-                    .chain(
-                        payload
-                            .cipher_suites
-                            .iter()
-                            .map(|cipher_suite: &CipherSuite| {
-                                Box::new(CipherSuiteData::static_extension(
-                                    owner,
-                                    cipher_suite.clone(),
-                                )) as Box<dyn VariableData>
-                            }),
-                    )
-                    .collect::<Vec<Box<dyn VariableData>>>(),
-            );
-        } else {
-            // no ServerHello or decoding failed
-        }
-    }
-
-    fn craft_outbound_message(
-        &self,
-        step: &Step,
-        ctx: &mut TraceContext,
-    ) -> Result<Vec<u8>, String> {
-        ClientHelloSendAction {}.execute(step, ctx);
-        Ok(Vec::new()) // todo generalize
-    }
-}
-
-// Expect ChangeCipherSpec
-
-pub struct CCCExpectAction;
-
-impl fmt::Display for CCCExpectAction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", "Expect CCC")
-    }
-}
-
-impl Action for CCCExpectAction {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
-        self.expect(step, ctx);
-    }
-}
-
-impl CCCExpectAction {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl ExpectAction for CCCExpectAction {
-    fn expect(&self, step: &Step, ctx: &mut TraceContext) {
-        match ctx.take_from_inbound(step.agent) {
-            // TODO: Do not take internally from outbound and add it again here:  ctx.add_to_outbound(step.agent, &buffer, true); -> removes prepend
-            // reads internally from inbound of agent
-            Ok(message) => {
-                match message.payload {
-                    ChangeCipherSpec(payload) => {
-                        // Add no new variables
-                    }
-                    _ => {
-                        panic!("Expected CCC!")
-                    }
-                }
-            }
-            Err(msg) => {
-                panic!("{}", msg)
-            }
-        };
-    }
-
-    fn craft_outbound_message(
-        &self,
-        step: &Step,
-        ctx: &mut TraceContext,
-    ) -> Result<Vec<u8>, String> {
-        todo!()
     }
 }

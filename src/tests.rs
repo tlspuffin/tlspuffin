@@ -53,7 +53,6 @@ pub mod tlspuffin {
     use crate::agent::AgentName;
     use crate::trace;
     use crate::trace::{
-        CCCExpectAction, ClientHelloExpectAction, ClientHelloSendAction, ServerHelloExpectAction,
         Step, TraceContext,
     };
 
@@ -64,7 +63,7 @@ pub mod tlspuffin {
         let client = ctx.new_agent();
         let openssl_server = ctx.new_openssl_agent(true);
 
-        let client_hello = ClientHelloSendAction::new();
+        /*        let client_hello = ClientHelloSendAction::new();
         let server_hello = ServerHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![
@@ -79,7 +78,8 @@ pub mod tlspuffin {
                     send_to: AgentName::none(),
                 },
             ],
-        };
+        };*/
+        let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
 
@@ -94,7 +94,7 @@ pub mod tlspuffin {
         let honest_agent = ctx.new_agent();
         let openssl_client_agent = ctx.new_openssl_agent(false);
 
-        let client_hello_initial = ClientHelloExpectAction::new();
+        /*        let client_hello_initial = ClientHelloExpectAction::new();
         let client_hello_expect = ClientHelloExpectAction::new();
         let client_hello = ClientHelloSendAction::new();
         let server_hello_expect = ServerHelloExpectAction::new();
@@ -121,7 +121,9 @@ pub mod tlspuffin {
                     send_to: AgentName::none(),
                 },
             ],
-        };
+        };*/
+
+        let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
         trace.execute(&mut ctx);
@@ -135,7 +137,7 @@ pub mod tlspuffin {
         let client = ctx.new_agent();
         let server = ctx.new_openssl_agent(true);
 
-        let a = ClientHelloSendAction::new();
+        /*        let a = ClientHelloSendAction::new();
         let b = ClientHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![
@@ -150,7 +152,8 @@ pub mod tlspuffin {
                     send_to: AgentName::none(),
                 },
             ],
-        };
+        };*/
+        let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
 
@@ -164,7 +167,7 @@ pub mod tlspuffin {
         let client_openssl = ctx.new_openssl_agent(false);
         let server_openssl = ctx.new_openssl_agent(true);
 
-        let client_hello_expect = ClientHelloExpectAction::new();
+/*        let client_hello_expect = ClientHelloExpectAction::new();
         let server_hello_expect = ServerHelloExpectAction::new();
         let ccc_expect = CCCExpectAction::new();
         let mut trace = trace::Trace {
@@ -185,7 +188,8 @@ pub mod tlspuffin {
                     send_to: client_openssl,
                 },
             ],
-        };
+        };*/
+        let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
         trace.execute(&mut ctx);

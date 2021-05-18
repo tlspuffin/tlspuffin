@@ -10,7 +10,7 @@ use log::Level;
 
 use crate::agent::AgentName;
 use crate::tests::setup_client_hello_variables;
-use crate::trace::{ClientHelloSendAction, ServerHelloExpectAction, Step, TraceContext};
+use crate::trace::{Step, TraceContext};
 
 mod agent;
 mod debug;
@@ -59,7 +59,7 @@ fn main() {
         let openssl_server_agent = ctx.new_openssl_agent(true);
         let honest_agent = ctx.new_agent();
 
-        let client_hello = ClientHelloSendAction::new();
+/*        let client_hello = ClientHelloSendAction::new();
         let server_hello = ServerHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![
@@ -74,7 +74,8 @@ fn main() {
                     send_to: AgentName::none(),
                 },
             ],
-        };
+        };*/
+        let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
 
