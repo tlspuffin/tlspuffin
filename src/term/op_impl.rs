@@ -2,14 +2,16 @@ use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
 use ring::hmac::Key;
 use ring::rand::SystemRandom;
 use ring::{hkdf, hmac};
+use rustls::internal::msgs::alert::AlertMessagePayload;
+use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use rustls::internal::msgs::enums::{AlertDescription, Compression, HandshakeType};
 use rustls::internal::msgs::handshake::{
     ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
     SessionID,
 };
-use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::{CipherSuite, ProtocolVersion};
 
 pub fn op_hmac256_new_key() -> Key {
@@ -122,5 +124,26 @@ pub fn op_client_hello(
         typ: RecordHandshake,
         version: ProtocolVersion::TLSv1_2,
         payload,
+    }
+}
+
+pub fn op_alert_description(message: &Message) -> Option<AlertDescription> {
+    if let MessagePayload::Alert(payload) = &message.payload {
+        Some(payload.description)
+    } else {
+        None
+    }
+}
+
+pub fn op_alert_payload(message: &Message) -> Option<AlertMessagePayload> {
+    // todo expensive clone action here
+    let mut out: Vec<u8> = Vec::new();
+    message.encode(&mut out);
+    let cloned = Message::read_bytes(out.as_slice()).unwrap();
+
+    if let MessagePayload::Alert(payload) = cloned.payload {
+        Some(payload)
+    } else {
+        None
     }
 }
