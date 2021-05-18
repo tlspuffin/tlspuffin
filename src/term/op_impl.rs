@@ -1,3 +1,6 @@
+use std::any::Any;
+
+use openssl::sha::sha1;
 use rand::random;
 use rand::seq::SliceRandom;
 use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
@@ -5,14 +8,20 @@ use ring::hmac::Key;
 use ring::rand::SystemRandom;
 use ring::{hkdf, hmac};
 use rustls::internal::msgs::alert::AlertMessagePayload;
+use rustls::internal::msgs::base::PayloadU16;
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{AlertDescription, Compression, HandshakeType, ServerNameType, NamedGroup};
-use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, ServerName, ServerNamePayload, SessionID, KeyShareEntry};
+use rustls::internal::msgs::enums::{
+    AlertDescription, Compression, HandshakeType, NamedGroup, ServerNameType,
+};
+use rustls::internal::msgs::handshake::{
+    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, KeyShareEntry,
+    Random, ServerExtension, ServerName, ServerNamePayload, SessionID,
+};
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
-use rustls::internal::msgs::base::PayloadU16;
+use crate::variable_data::VariableData;
 
 // -----
 // utils
@@ -242,7 +251,6 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     let key_share: ClientExtension = op_random_key_share_extension();
     let supported_versions: ClientExtension = op_supported_versions_extension();
 
-
     vec![
         server_name,
         supported_groups,
@@ -250,4 +258,123 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
         key_share,
         supported_versions,
     ]
+}
+
+pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn Any>> {
+    match &message.payload {
+        MessagePayload::Alert(alert) => {
+            vec![Box::new(alert.description.clone()), Box::new(alert.level.clone())]
+        }
+        Handshake(hs) => {
+            match &hs.payload {
+                HandshakePayload::HelloRequest => {
+                    vec![Box::new(hs.typ.clone())]
+                }
+                HandshakePayload::ClientHello(ch) => {
+                    let vars: Vec<Box<dyn Any>> = vec![
+                        Box::new(hs.typ.clone()),
+                        Box::new(ch.random.clone()),
+                        Box::new(ch.session_id.clone()),
+                        Box::new(ch.client_version.clone()),
+                    ];
+
+                    vars.into_iter()
+                        .chain(
+                            ch.extensions.iter().map(|extension: &ClientExtension| {
+                                Box::new(extension.clone()) as Box<dyn Any>
+                            }),
+                        )
+                        .chain(
+                            ch.compression_methods
+                                .iter()
+                                .map(|compression: &Compression| {
+                                    Box::new(compression.clone()) as Box<dyn Any>
+                                }),
+                        )
+                        .chain(ch.cipher_suites.iter().map(|cipher_suite: &CipherSuite| {
+                            Box::new(cipher_suite.clone()) as Box<dyn Any>
+                        }))
+                        .collect::<Vec<Box<dyn Any>>>()
+                }
+                HandshakePayload::ServerHello(sh) => {
+                    let vars: Vec<Box<dyn Any>> = vec![
+                        hs.typ.clone_box(),
+                        Box::new(sh.random.clone()),
+                        Box::new(sh.cipher_suite.clone()),
+                        Box::new(sh.compression_method.clone()),
+                        Box::new(sh.legacy_version.clone()),
+                    ];
+
+                    vars.into_iter()
+                        .chain(sh.extensions.iter().map(|extension: &ServerExtension| {
+                            Box::new(extension.clone()) as Box<dyn Any> // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                        }))
+                        .collect::<Vec<Box<dyn Any>>>()
+                }
+                HandshakePayload::HelloRetryRequest(hrr) => {
+                    todo!()
+                }
+                HandshakePayload::Certificate(_) => {
+                    todo!()
+                }
+                HandshakePayload::CertificateTLS13(_) => {
+                    todo!()
+                }
+                HandshakePayload::ServerKeyExchange(_) => {
+                    todo!()
+                }
+                HandshakePayload::CertificateRequest(_) => {
+                    todo!()
+                }
+                HandshakePayload::CertificateRequestTLS13(_) => {
+                    todo!()
+                }
+                HandshakePayload::CertificateVerify(_) => {
+                    todo!()
+                }
+                HandshakePayload::ServerHelloDone => {
+                    todo!()
+                }
+                HandshakePayload::EarlyData => {
+                    todo!()
+                }
+                HandshakePayload::EndOfEarlyData => {
+                    todo!()
+                }
+                HandshakePayload::ClientKeyExchange(_) => {
+                    todo!()
+                }
+                HandshakePayload::NewSessionTicket(_) => {
+                    todo!()
+                }
+                HandshakePayload::NewSessionTicketTLS13(_) => {
+                    todo!()
+                }
+                HandshakePayload::EncryptedExtensions(_) => {
+                    todo!()
+                }
+                HandshakePayload::KeyUpdate(_) => {
+                    todo!()
+                }
+                HandshakePayload::Finished(fin) => {
+                    todo!()
+                }
+                HandshakePayload::CertificateStatus(_) => {
+                    todo!()
+                }
+                HandshakePayload::MessageHash(_) => {
+                    todo!()
+                }
+                HandshakePayload::Unknown(_) => {
+                    todo!()
+                }
+            }
+        }
+        MessagePayload::ChangeCipherSpec(ccs) => {
+            vec![]
+        }
+        MessagePayload::Opaque(opaque) => {
+            vec![Box::new(opaque.0.clone())]
+        }
+    }
 }
