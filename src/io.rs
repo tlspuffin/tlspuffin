@@ -8,17 +8,19 @@ use rustls::internal::msgs::deframer::MessageDeframer;
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
 use crate::openssl_binding;
+use rustls::internal::msgs::message::Message;
+use crate::debug::debug_binary_message_with_info;
 
 pub trait Stream: std::io::Read + std::io::Write {
-    fn add_to_inbound(&mut self, data: &[u8]);
-    fn add_to_outbound(&mut self, data: &[u8], prepend: bool);
+    fn add_to_inbound(&mut self, data: &Message);
+    fn add_to_outbound(&mut self, data: &Message, prepend: bool);
     /// Takes a single TLS message from the outbound channel in binary
-    fn take_message_from_outbound(&mut self) -> Option<Vec<u8>>;
+    fn take_message_from_outbound(&mut self) -> Option<Message>;
     // Gets a TLS message from the outbound channel and does NOT remove the content
-    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>>;
+    fn peek_message_from_outbound(&mut self) -> Option<Message>;
     /// Takes the whole content of the outbound channel; after this call the outbound
     /// channel is empty
-    fn take_from_inbound(&mut self) -> Option<Vec<u8>>;
+    fn take_from_inbound(&mut self) -> Option<Message>;
 
     fn describe_state(&self) -> &'static str;
 }
@@ -49,23 +51,23 @@ pub struct OpenSSLStream {
 }
 
 impl Stream for OpenSSLStream {
-    fn add_to_inbound(&mut self, data: &[u8]) {
+    fn add_to_inbound(&mut self, data: &Message) {
         self.openssl_stream.get_mut().add_to_inbound(data)
     }
 
-    fn add_to_outbound(&mut self, data: &[u8], prepend: bool) {
+    fn add_to_outbound(&mut self, data: &Message, prepend: bool) {
         self.openssl_stream.get_mut().add_to_outbound(data, prepend)
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+    fn take_message_from_outbound(&mut self) -> Option<Message> {
         self.openssl_stream.get_mut().take_message_from_outbound()
     }
 
-    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+    fn peek_message_from_outbound(&mut self) -> Option<Message> {
         self.openssl_stream.get_mut().peek_message_from_outbound()
     }
 
-    fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
+    fn take_from_inbound(&mut self) -> Option<Message> {
         let openssl_stream = &mut self.openssl_stream;
         if self.server {
             openssl_binding::server_accept(openssl_stream)
@@ -125,28 +127,31 @@ impl MemoryStream {
 }
 
 impl Stream for MemoryStream {
-    fn add_to_inbound(&mut self, data: &[u8]) {
-        self.inbound.get_mut().extend_from_slice(data);
+    fn add_to_inbound(&mut self, message: &Message) {
+        let mut out: Vec<u8> = Vec::new();
+        message.encode(&mut out);
+        self.inbound.get_mut().extend_from_slice(&out);
     }
 
-    fn add_to_outbound(&mut self, data: &[u8], prepend: bool) {
+    fn add_to_outbound(&mut self, message: &Message, prepend: bool) {
+        let mut out: Vec<u8> = Vec::new();
+        message.encode(&mut out);
+
         if prepend {
-            for datum in data.iter().rev() {
+            for datum in out.iter().rev() {
                 self.outbound.get_mut().insert(0, *datum);
             }
         } else {
-            self.outbound.get_mut().extend_from_slice(data);
+            self.outbound.get_mut().extend_from_slice(out.as_slice());
         }
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+    fn take_message_from_outbound(&mut self) -> Option<Message> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
             let mut rest_buffer: Vec<u8> = Vec::new();
 
-            let first_message = deframer.frames.pop_front().unwrap();
-            let mut buffer: Vec<u8> = Vec::new();
-            first_message.encode(&mut buffer);
+            let mut first_message = deframer.frames.pop_front().unwrap();
 
             for message in deframer.frames {
                 message.encode(&mut rest_buffer);
@@ -156,30 +161,43 @@ impl Stream for MemoryStream {
             self.outbound.get_mut().clear();
             self.outbound.write_all(&rest_buffer).unwrap();
 
-            return Some(buffer);
+            first_message.decode_payload();
+
+            return Some(first_message);
         } else {
             None
         }
     }
 
-    fn peek_message_from_outbound(&mut self) -> Option<Vec<u8>> {
+    fn peek_message_from_outbound(&mut self) -> Option<Message> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
-            let first_message = deframer.frames.pop_front().unwrap();
-            let mut buffer: Vec<u8> = Vec::new();
-            first_message.encode(&mut buffer);
+            let mut first_message = deframer.frames.pop_front().unwrap();
 
-            return Some(buffer);
+            first_message.decode_payload();
+            return Some(first_message);
         } else {
             None
         }
     }
 
-    fn take_from_inbound(&mut self) -> Option<Vec<u8>> {
+    fn take_from_inbound(&mut self) -> Option<Message> {
         let buffer = self.inbound.get_ref().clone();
         self.inbound.get_mut().clear();
         self.inbound.set_position(0);
-        return Some(buffer);
+
+        let mut deframer = MessageDeframer::new();
+        if let Ok(size) = deframer.read(&mut buffer.as_slice()) {
+            info!("{}", size)
+        }
+        debug_binary_message_with_info("Received", &buffer);
+
+        let message = Message::read_bytes(&buffer);
+        if let Some(mut message) = message {
+            message.decode_payload();
+            return Some(message);
+        }
+        return message;
     }
 
     fn describe_state(&self) -> &'static str {

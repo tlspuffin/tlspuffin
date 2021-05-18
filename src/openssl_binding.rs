@@ -9,8 +9,9 @@ use openssl::version::version;
 use openssl::x509::{X509, X509NameBuilder, X509Ref};
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
 
-use crate::debug::debug_message;
+use crate::debug::debug_binary_message;
 use crate::io::{MemoryStream, Stream};
+use rustls::internal::msgs::message::Message;
 
 /*
    Change openssl version:
@@ -122,7 +123,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     return client_stream;
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
+pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Message> {
     if let Err(error) = stream.connect() {
         log_io_error(&error);
         log_ssl_error(&error);
@@ -133,7 +134,7 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
     stream.get_mut().peek_message_from_outbound()
 }
 
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Vec<u8>> {
+pub fn server_accept(stream: &mut SslStream<MemoryStream>) -> Option<Message> {
     if let Err(error) = stream.accept() {
         log_io_error(&error);
         log_ssl_error(&error);

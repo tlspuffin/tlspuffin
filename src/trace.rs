@@ -1,23 +1,27 @@
 use core::fmt;
 use std::any::Any;
 
-use rustls::{CipherSuite, ProtocolVersion};
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::deframer::MessageDeframer;
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
+use rustls::internal::msgs::enums::{Compression, HandshakeType};
 use rustls::internal::msgs::handshake::{
     ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload,
     ServerExtension, SessionID,
 };
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::{ChangeCipherSpec, Handshake};
+use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
-use crate::debug::{debug_message, debug_message_with_info};
+use crate::debug::{debug_binary_message, debug_binary_message_with_info, debug_message};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::{AgreedCipherSuiteData, AgreedCompressionData, AsAny, CipherSuiteData, ClientExtensionData, CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData, VersionData};
+use crate::variable_data::{
+    AgreedCipherSuiteData, AgreedCompressionData, AsAny, CipherSuiteData, ClientExtensionData,
+    CompressionData, Metadata, RandomData, ServerExtensionData, SessionIDData, VariableData,
+    VersionData,
+};
 
 pub struct TraceContext {
     variables: Vec<Box<dyn VariableData>>,
@@ -37,8 +41,8 @@ impl TraceContext {
     }
 
     pub fn add_variables<I>(&mut self, variables: I)
-        where
-            I: IntoIterator<Item=Box<dyn VariableData>>,
+    where
+        I: IntoIterator<Item = Box<dyn VariableData>>,
     {
         for variable in variables {
             self.add_variable(variable)
@@ -82,15 +86,15 @@ impl TraceContext {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        buf: &dyn AsRef<[u8]>,
+        message: &Message,
     ) -> Result<(), String> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.add_to_inbound(buf.as_ref()))
+            .map(|agent| agent.stream.add_to_inbound(message))
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
     /// See [`MemoryStream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
+    pub fn take_message_from_outbound(&mut self, agent_name: AgentName) -> Result<Message, String> {
         self.find_agent_mut(agent_name).and_then(|agent| {
             agent
                 .stream
@@ -102,14 +106,14 @@ impl TraceContext {
     fn add_to_outbound(
         &mut self,
         agent_name: AgentName,
-        buf: &dyn AsRef<[u8]>,
+        message: &Message,
         prepend: bool,
     ) -> Result<(), String> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.add_to_outbound(&buf.as_ref(), prepend))
+            .map(|agent| agent.stream.add_to_outbound(message, prepend))
     }
 
-    pub fn take_from_inbound(&mut self, agent_name: AgentName) -> Result<Vec<u8>, String> {
+    pub fn take_from_inbound(&mut self, agent_name: AgentName) -> Result<Message, String> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.stream.take_from_inbound().unwrap())
     }
@@ -249,7 +253,7 @@ pub trait Action: fmt::Display {
 }
 
 pub trait SendAction: Action {
-    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Vec<u8>, ()>;
+    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()>;
 }
 
 pub trait ExpectAction: Action {
@@ -269,28 +273,10 @@ pub fn receive_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<
     // // of a message also has access to the message in the inbound
     match ctx.take_from_inbound(step.agent) {
         // reads internally from inbound of agent
-        Ok(buffer) => {
-            let mut deframer = MessageDeframer::new();
-            if let Ok(size) = deframer.read(&mut buffer.as_slice()) {
-                info!("{}", size)
-            }
-
-            // TODO: We need to add data to the outbound channel here if the agent is not an openssl agent
-
-            debug_message_with_info("Received", &buffer);
-
-            if let Some(mut message) = Message::read_bytes(&buffer) {
-                message.decode_payload();
-
-                match message.payload {
-                    Handshake(payload) => Some(payload.payload),
-                    _ => None,
-                }
-            } else {
-                // decoding failed
-                None
-            }
-        }
+        Ok(message) => match message.payload {
+            Handshake(payload) => Some(payload.payload),
+            _ => None,
+        },
         Err(msg) => {
             panic!("{}", msg)
         }
@@ -383,9 +369,9 @@ impl Action for ClientHelloSendAction {
         let result = self.craft(ctx, step.agent);
 
         match result {
-            Ok(buffer) => {
-                debug_message(&buffer);
-                ctx.add_to_outbound(step.agent, &buffer, false);
+            Ok(message) => {
+                debug_message(&message);
+                ctx.add_to_outbound(step.agent, &message, false);
             }
             _ => {
                 error!(
@@ -404,7 +390,7 @@ impl ClientHelloSendAction {
 }
 
 impl SendAction for ClientHelloSendAction {
-    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Vec<u8>, ()> {
+    fn craft(&self, ctx: &TraceContext, agent: AgentName) -> Result<Message, ()> {
         return if let (
             Some(client_version),
             Some(random),
@@ -437,9 +423,7 @@ impl SendAction for ClientHelloSendAction {
                 payload,
             };
 
-            let mut buffer: Vec<u8> = Vec::new();
-            message.encode(&mut buffer);
-            Ok(buffer)
+            Ok(message)
         } else {
             Err(())
         };
@@ -574,26 +558,14 @@ impl ExpectAction for CCCExpectAction {
         match ctx.take_from_inbound(step.agent) {
             // TODO: Do not take internally from outbound and add it again here:  ctx.add_to_outbound(step.agent, &buffer, true); -> removes prepend
             // reads internally from inbound of agent
-            Ok(buffer) => {
-                let mut deframer = MessageDeframer::new();
-                if let Ok(size) = deframer.read(&mut buffer.as_slice()) {
-                    info!("{}", size)
-                }
-                debug_message_with_info("Received", &buffer);
-
-                if let Some(mut message) = Message::read_bytes(&buffer) {
-                    message.decode_payload();
-
-                    match message.payload {
-                        ChangeCipherSpec(payload) => {
-                            // Add no new variables
-                        }
-                        _ => {
-                            panic!("Expected CCC!")
-                        }
+            Ok(message) => {
+                match message.payload {
+                    ChangeCipherSpec(payload) => {
+                        // Add no new variables
                     }
-                } else {
-                    // decoding failed
+                    _ => {
+                        panic!("Expected CCC!")
+                    }
                 }
             }
             Err(msg) => {
