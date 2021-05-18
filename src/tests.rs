@@ -8,7 +8,7 @@ use crate::variable_data::{
 };
 
 pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
-    ctx.add_variable(Box::new(VersionData::random_value(agent)));
+    /*ctx.add_variable(Box::new(VersionData::random_value(agent)));
     ctx.add_variable(Box::new(SessionIDData::random_value(agent)));
     ctx.add_variable(Box::new(RandomData::random_value(agent)));
 
@@ -43,7 +43,7 @@ pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
     ctx.add_variable(Box::new(CompressionData::static_extension(
         agent,
         Compression::Null,
-    )));
+    )));*/
 }
 
 #[cfg(test)]

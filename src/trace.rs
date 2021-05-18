@@ -12,20 +12,21 @@ use crate::io::Channel;
 use crate::variable_data::VariableData;
 
 pub struct TraceContext {
-    variables: Vec<Box<dyn VariableData>>,
+    /// The knowledge of the attacker
+    knowledge: Vec<Box<dyn VariableData>>,
     agents: Vec<Agent>,
 }
 
 impl TraceContext {
     pub fn new() -> Self {
         Self {
-            variables: vec![],
+            knowledge: vec![],
             agents: vec![],
         }
     }
 
     pub fn add_variable(&mut self, variable: Box<dyn VariableData>) {
-        self.variables.push(variable)
+        self.knowledge.push(variable)
     }
 
     pub fn add_variables<I>(&mut self, variables: I)
@@ -44,11 +45,7 @@ impl TraceContext {
     }
 
     pub fn get_variable<T: Any>(&self, agent: AgentName) -> Option<&T> {
-        for variable in &self.variables {
-            if variable.get_metadata().owner != agent {
-                continue;
-            }
-
+        for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
                 return Some(derived);
             }
@@ -58,11 +55,7 @@ impl TraceContext {
 
     pub fn get_variable_set<T: Any>(&self, agent: AgentName) -> Vec<&T> {
         let mut variables: Vec<&T> = Vec::new();
-        for variable in &self.variables {
-            if variable.get_metadata().owner != agent {
-                continue;
-            }
-
+        for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
                 variables.push(derived);
             }

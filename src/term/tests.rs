@@ -4,11 +4,12 @@ mod term {
 
     use rustls::internal::msgs::handshake::SessionID;
 
-    use crate::agent::AgentName;
     use crate::term::{Signature, Term, Variable, VariableContext};
-    use crate::term::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key};
+    use crate::term::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id};
+    use crate::variable_data;
+    use crate::variable_data::AsAny;
     use crate::variable_data::{
-        AsAny, Metadata, SessionIDData, VariableData,
+        SessionIDData, VariableData,
     };
 
     fn example_op_c(a: &u8) -> u16 {
@@ -19,32 +20,7 @@ mod term {
         data: Vec<Box<dyn VariableData>>,
     }
 
-    #[derive(Clone)]
-    pub struct DataVariable {
-        pub metadata: Metadata,
-        pub data: Vec<u8>,
-    }
-
-    impl VariableData for DataVariable {
-        fn get_metadata(&self) -> &Metadata {
-            &self.metadata
-        }
-
-        fn get_data(&self) -> &dyn Any {
-            self.data.as_any()
-        }
-
-        fn random_value(owner: AgentName) -> Self
-            where
-                Self: Sized,
-        {
-            todo!()
-        }
-
-        fn clone_data(&self) -> Box<dyn Any> {
-            Box::new(self.data.clone())
-        }
-    }
+    variable_data!(Vec<u8> => DataVariable);
 
     impl<'a> VariableContext for MockVariableContext {
         fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData> {
@@ -83,9 +59,6 @@ mod term {
 
         println!("{}", generated_term.pretty());
         let x = Box::new(DataVariable {
-            metadata: Metadata {
-                owner: AgentName::none(),
-            },
             data: vec![5u8],
         });
 
@@ -103,7 +76,9 @@ mod term {
         let s = sig.new_op("example_op_c", &example_op_c);
         let k = sig.new_op("example_op_c", &example_op_c);
 
-        let var_data = SessionIDData::random_value(AgentName::random());
+        let var_data = SessionIDData {
+            data: op_random_session_id()
+        };
 
         let k = sig.new_var(var_data.type_id());
 

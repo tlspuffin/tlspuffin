@@ -1,3 +1,5 @@
+use rand::random;
+use rand::seq::SliceRandom;
 use ring::hkdf::{KeyType, Prk, HKDF_SHA256};
 use ring::hmac::Key;
 use ring::rand::SystemRandom;
@@ -5,14 +7,12 @@ use ring::{hkdf, hmac};
 use rustls::internal::msgs::alert::AlertMessagePayload;
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-use rustls::internal::msgs::enums::{AlertDescription, Compression, HandshakeType};
-use rustls::internal::msgs::handshake::{
-    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
-    SessionID,
-};
+use rustls::internal::msgs::enums::{AlertDescription, Compression, HandshakeType, ServerNameType, NamedGroup};
+use rustls::internal::msgs::handshake::{ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, ServerName, ServerNamePayload, SessionID, KeyShareEntry};
 use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::internal::msgs::message::{Message, MessagePayload};
-use rustls::{CipherSuite, ProtocolVersion};
+use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
+use rustls::internal::msgs::base::PayloadU16;
 
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
@@ -146,4 +146,100 @@ pub fn op_alert_payload(message: &Message) -> Option<AlertMessagePayload> {
     } else {
         None
     }
+}
+
+pub fn op_random_cipher_suite() -> CipherSuite {
+    *vec![
+        CipherSuite::TLS13_AES_128_CCM_SHA256,
+        CipherSuite::TLS13_AES_128_CCM_8_SHA256,
+        CipherSuite::TLS13_AES_128_GCM_SHA256,
+        CipherSuite::TLS13_AES_256_GCM_SHA384,
+        CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    ]
+    .choose(&mut rand::thread_rng())
+    .unwrap()
+}
+
+pub fn op_random_session_id() -> SessionID {
+    let random_data: [u8; 32] = random();
+    SessionID::new(&random_data)
+}
+
+pub fn op_random_protocol_version() -> ProtocolVersion {
+    ProtocolVersion::TLSv1_3
+}
+
+pub fn op_random_random_data() -> Random {
+    let random_data: [u8; 32] = random();
+    Random::from_slice(&random_data)
+}
+
+pub fn on_random_cipher_suite() -> CipherSuite {
+    *vec![
+        CipherSuite::TLS13_AES_128_CCM_SHA256,
+        CipherSuite::TLS13_AES_128_CCM_8_SHA256,
+        CipherSuite::TLS13_AES_128_GCM_SHA256,
+        CipherSuite::TLS13_AES_256_GCM_SHA384,
+        CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+    ]
+    .choose(&mut rand::thread_rng())
+    .unwrap()
+}
+
+pub fn on_compression() -> Compression {
+    *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
+        .choose(&mut rand::thread_rng())
+        .unwrap()
+}
+
+pub fn server_name_extension(dns_name: &str) -> ClientExtension {
+    ClientExtension::ServerName(vec![ServerName {
+        typ: ServerNameType::HostName,
+        payload: ServerNamePayload::HostName(
+            webpki::DNSNameRef::try_from_ascii_str(dns_name)
+                .unwrap()
+                .to_owned(),
+        ),
+    }])
+}
+
+pub fn support_group_extension() -> ClientExtension {
+    ClientExtension::NamedGroups(vec![NamedGroup::X25519])
+}
+
+pub fn signature_algorithm_extension() -> ClientExtension {
+    ClientExtension::SignatureAlgorithms(vec![
+        SignatureScheme::RSA_PKCS1_SHA256,
+        SignatureScheme::RSA_PSS_SHA256,
+    ])
+}
+
+pub fn random_key_share_extension() -> ClientExtension {
+    let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
+    ClientExtension::KeyShare(vec![KeyShareEntry {
+        group: NamedGroup::X25519,
+        payload: PayloadU16::new(key),
+    }])
+}
+
+pub fn supported_versions_extension() -> ClientExtension {
+    ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
+}
+
+pub fn random_extensions() -> Vec<ClientExtension> {
+    let server_name: ClientExtension = server_name_extension("maxammann.org");
+
+    let supported_groups: ClientExtension = support_group_extension();
+    let signature_algorithms: ClientExtension = signature_algorithm_extension();
+    let key_share: ClientExtension = random_key_share_extension();
+    let supported_versions: ClientExtension = supported_versions_extension();
+
+
+    vec![
+        server_name,
+        supported_groups,
+        signature_algorithms,
+        key_share,
+        supported_versions,
+    ]
 }
