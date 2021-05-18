@@ -7,9 +7,9 @@ mod term {
     use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::term::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id};
     use crate::variable_data;
-    use crate::variable_data::AsAny;
+    use crate::variable_data::{AsAny, VariableData, VariableData_deprecated};
     use crate::variable_data::{
-        SessionIDData, VariableData,
+        SessionIDData,
     };
 
     fn example_op_c(a: &u8) -> u16 {
@@ -17,16 +17,16 @@ mod term {
     }
 
     struct MockVariableContext {
-        data: Vec<Box<dyn VariableData>>,
+        knowledge: Vec<Box<dyn VariableData_deprecated>>,
     }
 
-    variable_data!(Vec<u8> => DataVariable);
+    variable_data!(Vec<u8> => Data);
 
     impl<'a> VariableContext for MockVariableContext {
         fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData> {
-            for d in &self.data {
-                if d.get_type_id() == variable.typ {
-                    return Some(d.as_ref());
+            for data in &self.knowledge {
+                if data.get_type_id() == variable.typ {
+                    return Some(data);
                 }
             }
 
@@ -58,12 +58,12 @@ mod term {
         };
 
         println!("{}", generated_term.pretty());
-        let x = Box::new(DataVariable {
+        let x = Box::new(Data {
             data: vec![5u8],
         });
 
         let context = MockVariableContext {
-            data: vec![x],
+            knowledge: vec![x],
         };
         println!("{:?}", generated_term.evaluate(&context).as_ref().downcast_ref::<Vec<u8>>());
     }
@@ -76,9 +76,7 @@ mod term {
         let s = sig.new_op("example_op_c", &example_op_c);
         let k = sig.new_op("example_op_c", &example_op_c);
 
-        let var_data = SessionIDData {
-            data: op_random_session_id()
-        };
+        let var_data = op_random_session_id();
 
         let k = sig.new_var(var_data.type_id());
 

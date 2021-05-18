@@ -4,7 +4,7 @@ use std::iter;
 use itertools::Itertools;
 
 use crate::term::pretty::Pretty;
-use crate::variable_data::VariableData;
+use crate::variable_data::{VariableData};
 
 use super::{Operator, Variable};
 
@@ -83,9 +83,9 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &dyn VariableContext) -> Box<dyn Any + '_> {
+    pub fn evaluate(&self, context: &dyn VariableContext) -> Box<dyn Any> {
         match self {
-            Term::Variable(v) => context.find_variable_data(&v).unwrap().clone_data(),
+            Term::Variable(v) => context.find_variable_data(&v).unwrap().clone_box(),
             Term::Application { op, args } => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

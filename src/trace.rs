@@ -9,7 +9,7 @@ use rustls::internal::msgs::message::MessagePayload::Handshake;
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::VariableData;
+use crate::variable_data::{VariableData};
 
 pub struct TraceContext {
     /// The knowledge of the attacker
