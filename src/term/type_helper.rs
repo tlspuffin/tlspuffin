@@ -42,7 +42,7 @@ pub fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-pub fn format_anys<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
+pub fn format_args<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
     format!(
         "({})",
         anys.iter()
@@ -61,6 +61,9 @@ pub fn format_anys<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
 ///
 /// [`Clone`] is implemented for `Box<dyn DynamicFunction>` using this trick:
 /// https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
+///
+/// We want to use Any here and not VariableData (which implements Clone). Else all returned types
+/// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
 pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
@@ -95,7 +98,7 @@ macro_rules! dynamic_fn {
     impl<F, $res: 'static, $($arg: 'static),*> // 'static missing
         DescribableFunction<($res, $($arg),*)> for F
     where
-        F: Fn($(&$arg),*) -> $res,
+        F: Fn($(&$arg),*) -> $res
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
@@ -123,7 +126,7 @@ macro_rules! dynamic_fn {
                                     "Passed argument #{} did not match the shape {}. Hashes of passed types are {}.",
                                     index + 1,
                                     Self::shape(),
-                                    format_anys(args)
+                                    format_args(args)
                                )
                            }
                        }

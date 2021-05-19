@@ -10,6 +10,7 @@ use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::variable_data::{VariableData};
+use crate::term::op_deconstruct_message;
 
 pub struct TraceContext {
     /// The knowledge of the attacker
@@ -44,7 +45,7 @@ impl TraceContext {
         variable.as_ref().as_any().downcast_ref::<T>()
     }
 
-    pub fn get_variable<T: Any>(&self, agent: AgentName) -> Option<&T> {
+    pub fn get_variable<T: Any>(&self) -> Option<&T> {
         for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
                 return Some(derived);
@@ -53,7 +54,7 @@ impl TraceContext {
         None
     }
 
-    pub fn get_variable_set<T: Any>(&self, agent: AgentName) -> Vec<&T> {
+    pub fn get_variable_set<T: Any>(&self) -> Vec<&T> {
         let mut variables: Vec<&T> = Vec::new();
         for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
@@ -218,9 +219,14 @@ pub struct InputAction;
 
 impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) {
-        ctx.next_state(step.agent).unwrap();
-        let message = ctx.take_message_from_outbound(step.agent);
-        message.unwrap();
+        if let Err(_) = ctx.next_state(step.agent) {
+            panic!("Failed to go to next state!")
+        }
+        while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
+            let vec = op_deconstruct_message(&message);
+
+
+        }
     }
 }
 

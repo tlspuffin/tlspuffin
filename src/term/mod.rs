@@ -27,6 +27,9 @@ pub use self::atoms::*;
 pub use self::signature::*;
 pub use self::term::*;
 
+// TODO remove later
+pub use self::op_impl::*;
+
 mod atoms;
 mod op_impl;
 mod pretty;

@@ -260,7 +260,7 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     ]
 }
 
-pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn Any>> {
+pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
     match &message.payload {
         MessagePayload::Alert(alert) => {
             vec![Box::new(alert.description.clone()), Box::new(alert.level.clone())]
@@ -271,7 +271,7 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn Any>> {
                     vec![Box::new(hs.typ.clone())]
                 }
                 HandshakePayload::ClientHello(ch) => {
-                    let vars: Vec<Box<dyn Any>> = vec![
+                    let vars: Vec<Box<dyn VariableData>> = vec![
                         Box::new(hs.typ.clone()),
                         Box::new(ch.random.clone()),
                         Box::new(ch.session_id.clone()),
@@ -281,23 +281,23 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn Any>> {
                     vars.into_iter()
                         .chain(
                             ch.extensions.iter().map(|extension: &ClientExtension| {
-                                Box::new(extension.clone()) as Box<dyn Any>
+                                Box::new(extension.clone()) as Box<dyn VariableData>
                             }),
                         )
                         .chain(
                             ch.compression_methods
                                 .iter()
                                 .map(|compression: &Compression| {
-                                    Box::new(compression.clone()) as Box<dyn Any>
+                                    Box::new(compression.clone()) as Box<dyn VariableData>
                                 }),
                         )
                         .chain(ch.cipher_suites.iter().map(|cipher_suite: &CipherSuite| {
-                            Box::new(cipher_suite.clone()) as Box<dyn Any>
+                            Box::new(cipher_suite.clone()) as Box<dyn VariableData>
                         }))
-                        .collect::<Vec<Box<dyn Any>>>()
+                        .collect::<Vec<Box<dyn VariableData>>>()
                 }
                 HandshakePayload::ServerHello(sh) => {
-                    let vars: Vec<Box<dyn Any>> = vec![
+                    let vars: Vec<Box<dyn VariableData>> = vec![
                         hs.typ.clone_box(),
                         Box::new(sh.random.clone()),
                         Box::new(sh.cipher_suite.clone()),
@@ -307,9 +307,9 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn Any>> {
 
                     vars.into_iter()
                         .chain(sh.extensions.iter().map(|extension: &ServerExtension| {
-                            Box::new(extension.clone()) as Box<dyn Any> // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                            Box::new(extension.clone()) as Box<dyn VariableData> // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
                         }))
-                        .collect::<Vec<Box<dyn Any>>>()
+                        .collect::<Vec<Box<dyn VariableData>>>()
                 }
                 HandshakePayload::HelloRetryRequest(hrr) => {
                     todo!()

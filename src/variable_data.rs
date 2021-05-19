@@ -26,7 +26,8 @@ impl<T: Any> AsAny for T {
 }
 
 pub trait VariableData: AsAny {
-    fn clone_box(&self) -> Box<dyn Any>;
+    fn clone_box(&self) -> Box<dyn VariableData>;
+    fn clone_any_box(&self) -> Box<dyn Any>;
     fn get_type_id(&self) -> TypeId;
 }
 
@@ -34,7 +35,11 @@ impl<T: 'static> VariableData for T
 where
     T: Clone,
 {
-    fn clone_box(&self) -> Box<dyn Any> {
+    fn clone_box(&self) -> Box<dyn VariableData> {
+        Box::new(self.clone())
+    }
+
+    fn clone_any_box(&self) -> Box<dyn Any> {
         Box::new(self.clone())
     }
 
