@@ -52,7 +52,7 @@ pub mod tlspuffin {
 
     use crate::agent::AgentName;
     use crate::trace;
-    use crate::trace::{Step, TraceContext, OutputAction, Action};
+    use crate::trace::{Action, OutputAction, Step, TraceContext, InputAction};
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -133,7 +133,7 @@ pub mod tlspuffin {
         let client_openssl = ctx.new_openssl_agent(false);
         let server_openssl = ctx.new_openssl_agent(true);
 
-/*        let client_hello_expect = ClientHelloExpectAction::new();
+        /*        let client_hello_expect = ClientHelloExpectAction::new();
         let server_hello_expect = ServerHelloExpectAction::new();
         let ccc_expect = CCCExpectAction::new();
         let mut trace = trace::Trace {
@@ -155,12 +155,18 @@ pub mod tlspuffin {
                 },
             ],
         };*/
-        let mut trace = trace::Trace { steps: vec![
-            Step {
-                agent: client_openssl,
-                action: Action::Output(OutputAction)
-            }
-        ] };
+        let mut trace = trace::Trace {
+            steps: vec![
+                Step {
+                    agent: client_openssl,
+                    action: Action::Output(OutputAction),
+                },
+                Step {
+                    agent: server_openssl,
+                    action: Action::Input(InputAction),
+                },
+            ],
+        };
 
         info!("{}", trace);
         trace.execute(&mut ctx);

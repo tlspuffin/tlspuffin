@@ -72,13 +72,18 @@ impl Signature {
     ///
     /// [`Variable`]: struct.Variable.html
     ///
-    pub fn new_var(&mut self, typ: TypeId) -> Variable {
+    pub fn new_var(&mut self, typ: TypeId, typ_name: &'static str) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
+            typ_name,
             typ,
         };
         self.variables.push(variable.clone());
         variable
+    }
+
+    pub fn new_var_by_type<T: 'static>(&mut self) -> Variable {
+        self.new_var(TypeId::of::<T>(), std::any::type_name::<T>())
     }
 }
 

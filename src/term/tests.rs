@@ -1,3 +1,4 @@
+
 #[cfg(test)]
 mod term {
     use std::any::{Any, TypeId};
@@ -29,7 +30,7 @@ mod term {
 
         println!("dd {:?}", data.type_id());
 
-        let variable = sig.new_var(data.type_id());
+        let variable = sig.new_var(data.type_id(), "Vec<u8>");
 
         let generated_term = Term::Application {
             op: hmac256,
@@ -66,7 +67,7 @@ mod term {
 
         let var_data = op_random_session_id();
 
-        let k = sig.new_var(var_data.type_id());
+        let k = sig.new_var(var_data.type_id(), "Random");
 
         println!("vec {:?}", TypeId::of::<Vec<u8>>());
         println!("vec {:?}", TypeId::of::<Vec<u16>>());

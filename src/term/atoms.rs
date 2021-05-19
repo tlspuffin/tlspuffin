@@ -1,6 +1,8 @@
 use std::any::TypeId;
 
 use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape, hash_type_id};
+use std::fmt;
+use std::fmt::Formatter;
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
@@ -11,13 +13,13 @@ use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape, hash_type_
 #[derive(Clone)]
 pub struct Variable {
     pub(crate) id: u32,
+    pub(crate) typ_name: &'static str,
     pub(crate) typ: TypeId,
 }
 
-impl Variable {
-    /// Serialize a `Variable`.
-    pub fn display(&self) -> String {
-        format!("var_{:?}", hash_type_id(&self.typ))
+impl fmt::Display for Variable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "var_{:x}_{}", hash_type_id(&self.typ), self.typ_name)
     }
 }
 

@@ -4,10 +4,11 @@ use std::iter;
 use itertools::Itertools;
 
 use crate::term::pretty::Pretty;
+use crate::trace::TraceContext;
 use crate::variable_data::VariableData;
 
 use super::{Operator, Variable};
-use crate::trace::TraceContext;
+use crate::term::type_helper::hash_type_id;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///
@@ -34,7 +35,7 @@ impl Term {
     /// Serialize a `Term`.
     pub fn display(&self) -> String {
         match self {
-            Term::Variable(ref v) => v.display(),
+            Term::Variable(ref v) => format!("{}", v),
             Term::Application { ref op, ref args } => {
                 let op_str = op.display();
                 if args.is_empty() {
@@ -86,10 +87,10 @@ impl Term {
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
-            Term::Variable(v) => {
-                let data: Option<&dyn VariableData> = context.get_variable_by_type_id(v.typ);
-                data.map(|data| data.clone_any_box()).ok_or("Could not find variable".to_string())
-            }
+            Term::Variable(v) => context
+                .get_variable_by_type_id(v.typ)
+                .map(|data| data.clone_any_box())
+                .ok_or(format!("Could not find variable {}", v)),
             Term::Application { op, args } => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

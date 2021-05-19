@@ -2,15 +2,17 @@ use core::fmt;
 use std::any::{Any, TypeId};
 use std::fmt::Formatter;
 
-use rustls::internal::msgs::handshake::HandshakePayload;
+use rustls::internal::msgs::enums::Compression;
+use rustls::internal::msgs::handshake::{ClientExtension, HandshakePayload, Random, SessionID};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
+use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::term::{op_client_hello, op_deconstruct_message, Signature};
-use crate::variable_data::VariableData;
+use crate::term::{op_client_hello, op_deconstruct_message, Signature, Term};
+use crate::variable_data::{AsAny, VariableData};
 
 pub struct TraceContext {
     /// The knowledge of the attacker
@@ -54,14 +56,13 @@ impl TraceContext {
         None
     }
 
-    pub fn get_variable_by_type_id(&self, type_id: TypeId) -> Option<&(dyn VariableData + 'static)> {
+    pub fn get_variable_by_type_id(
+        &self,
+        type_id: TypeId,
+    ) -> Option<&(dyn VariableData + 'static)> {
         for data in &self.knowledge {
-            println!("aa {:?}", type_id);
-            let x = data.as_ref();
-            println!("aa {:?}", x.as_any().type_id());
-            if type_id == x.as_any().type_id() {
-                //let b = data.clone_box();
-                return Some(x);
+            if type_id == data.as_ref().as_any().type_id() {
+                return Some(data.as_ref());
             }
         }
         None
@@ -246,11 +247,27 @@ impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) {
         let mut sig = Signature::default();
 
-        //let app = sig.new_op("client_hello", &op_client_hello);
-
+        let generated_term = Term::Application {
+            op: sig.new_op(&op_client_hello),
+            args: vec![
+                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
+                Term::Variable(sig.new_var_by_type::<Random>()),
+                Term::Variable(sig.new_var_by_type::<SessionID>()),
+                Term::Variable(sig.new_var_by_type::<Vec<CipherSuite>>()),
+                Term::Variable(sig.new_var_by_type::<Vec<Compression>>()),
+                Term::Variable(sig.new_var_by_type::<Vec<ClientExtension>>()),
+            ],
+        };
 
         // message controlled by the attacker
-        let attacker_message = Message::build_key_update_notify();
+        let x = generated_term
+            .evaluate(ctx)
+            .unwrap();
+        let attacker_message = x.as_ref()
+            .downcast_ref::<Message>()
+            .unwrap();
+
+        //let attacker_message = Message::build_key_update_notify();
 
         if let Err(_) = ctx.add_to_inbound(step.agent, &attacker_message) {
             panic!("Failed to insert term to agents inbound channel!")
