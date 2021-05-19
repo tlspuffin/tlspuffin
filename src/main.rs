@@ -9,7 +9,6 @@ use env_logger::{Builder, Env, fmt};
 use log::Level;
 
 use crate::agent::AgentName;
-use crate::tests::setup_client_hello_variables;
 use crate::trace::{Step, TraceContext};
 
 mod agent;
@@ -79,7 +78,6 @@ fn main() {
 
         info!("{}", trace);
 
-        setup_client_hello_variables(&mut ctx, honest_agent);
         trace.execute(&mut ctx);
 
         // Slow down the fuzzing

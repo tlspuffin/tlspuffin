@@ -2,49 +2,6 @@ use rustls::internal::msgs::enums::Compression;
 
 use crate::agent::AgentName;
 use crate::trace::TraceContext;
-use crate::variable_data::{
-    CipherSuiteData, ClientExtensionData, CompressionData, RandomData, SessionIDData, VariableData,
-    VersionData,
-};
-
-pub fn setup_client_hello_variables(ctx: &mut TraceContext, agent: AgentName) {
-    /*ctx.add_variable(Box::new(VersionData::random_value(agent)));
-    ctx.add_variable(Box::new(SessionIDData::random_value(agent)));
-    ctx.add_variable(Box::new(RandomData::random_value(agent)));
-
-    // A random extension
-    //ctx.add_variable(Box::new(ExtensionData::random_value(fuzz_agent)));
-
-    // Some static extensions
-    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-        agent,
-        ClientExtensionData::key_share(),
-    )));
-    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-        agent,
-        ClientExtensionData::supported_versions(),
-    )));
-    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-        agent,
-        ClientExtensionData::supported_groups(),
-    )));
-    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-        agent,
-        ClientExtensionData::server_name("maxammann.org"),
-    )));
-    ctx.add_variable(Box::new(ClientExtensionData::static_extension(
-        agent,
-        ClientExtensionData::signature_algorithms(),
-    )));
-
-    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-    ctx.add_variable(Box::new(CipherSuiteData::random_value(agent)));
-    ctx.add_variable(Box::new(CompressionData::static_extension(
-        agent,
-        Compression::Null,
-    )));*/
-}
 
 #[cfg(test)]
 pub mod tlspuffin {
