@@ -90,7 +90,7 @@ impl Term {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.typ)
                 .map(|data| data.clone_any_box())
-                .ok_or(format!("Could not find variable {}", v)),
+                .ok_or(format!("Unable to find variable {} in TraceContext!", v)),
             Term::Application { op, args } => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

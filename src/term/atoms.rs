@@ -19,7 +19,7 @@ pub struct Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "var_{:x}_{}", hash_type_id(&self.typ), self.typ_name)
+        write!(f, "var<{}>", self.typ_name)
     }
 }
 

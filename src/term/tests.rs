@@ -10,8 +10,7 @@ mod term {
     };
     use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::variable_data;
-    use crate::variable_data::SessionIDData;
-    use crate::variable_data::{AsAny, VariableData, VariableData_deprecated};
+    use crate::variable_data::{AsAny, VariableData};
     use crate::trace::TraceContext;
 
     fn example_op_c(a: &u8) -> u16 {

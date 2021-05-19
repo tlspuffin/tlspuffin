@@ -37,8 +37,6 @@ pub mod tlspuffin {
         let mut trace = trace::Trace { steps: vec![] };
 
         info!("{}", trace);
-
-        super::setup_client_hello_variables(&mut ctx, client);
         trace.execute(&mut ctx);
     }
 
@@ -120,6 +118,14 @@ pub mod tlspuffin {
                 },
                 Step {
                     agent: server_openssl,
+                    action: Action::Input(InputAction),
+                },
+                Step {
+                    agent: server_openssl,
+                    action: Action::Output(OutputAction),
+                },
+                Step {
+                    agent: client_openssl,
                     action: Action::Input(InputAction),
                 },
             ],

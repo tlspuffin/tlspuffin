@@ -229,7 +229,6 @@ impl fmt::Display for Action {
 }
 
 pub struct OutputAction;
-pub struct InputAction;
 
 impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) {
@@ -237,11 +236,13 @@ impl OutputAction {
             panic!("Failed to go to next state!")
         }
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
-            let vec = op_deconstruct_message(&message);
-            ctx.add_variables(vec);
+            let public_variables = op_deconstruct_message(&message);
+            ctx.add_variables(public_variables);
         }
     }
 }
+
+pub struct InputAction;
 
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) {
