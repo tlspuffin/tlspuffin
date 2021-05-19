@@ -5,14 +5,18 @@ use crate::trace::TraceContext;
 
 #[cfg(test)]
 pub mod tlspuffin {
-    use test_env_log::test;
-
-    use crate::agent::AgentName;
-    use crate::term::{op_client_hello, op_server_hello, op_change_cipher_spec, Term, Signature};
-    use crate::trace::{Action, OutputAction, Step, TraceContext, InputAction, Trace};
-    use rustls::{ProtocolVersion, CipherSuite};
-    use rustls::internal::msgs::handshake::{Random, SessionID, ClientExtension, ServerExtension};
+    use rustls::{CipherSuite, ProtocolVersion};
     use rustls::internal::msgs::enums::Compression;
+    use rustls::internal::msgs::handshake::{
+        CertificatePayload, ClientExtension, Random, ServerExtension, SessionID,
+    };
+    use test_env_log::test;
+    use crate::agent::AgentName;
+    use crate::term::{
+        op_application_data, op_certificate, op_change_cipher_spec, op_client_hello,
+        op_encrypted_certificate, op_server_hello, Signature, Term,
+    };
+    use crate::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -118,6 +122,9 @@ pub mod tlspuffin {
         let op_client_hello = sig.new_op(&op_client_hello);
         let op_server_hello = sig.new_op(&op_server_hello);
         let op_change_cipher_spec = sig.new_op(&op_change_cipher_spec);
+        //let op_encrypted_certificate = sig.new_op(&op_encrypted_certificate);
+        //let op_certificate = sig.new_op(&op_certificate);
+        let op_application_data = sig.new_op(&op_application_data);
 
         let mut trace = Trace {
             steps: vec![
@@ -138,7 +145,7 @@ pub mod tlspuffin {
                                 Term::Variable(sig.new_var_by_type::<Vec<Compression>>()),
                                 Term::Variable(sig.new_var_by_type::<Vec<ClientExtension>>()),
                             ],
-                        }
+                        },
                     }),
                 },
                 Step {
@@ -158,7 +165,7 @@ pub mod tlspuffin {
                                 Term::Variable(sig.new_var_by_type::<Compression>()),
                                 Term::Variable(sig.new_var_by_type::<Vec<ServerExtension>>()),
                             ],
-                        }
+                        },
                     }),
                 },
                 Step {
@@ -167,9 +174,31 @@ pub mod tlspuffin {
                         attacker_term: Term::Application {
                             op: op_change_cipher_spec.clone(),
                             args: vec![],
-                        }
+                        },
                     }),
                 },
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        attacker_term: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(
+                                sig.new_var_by_type::<Vec<u8>>(),
+                            )],
+                        },
+                    }),
+                },
+/*                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        attacker_term: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(
+                                sig.new_var_by_type::<Vec<u8>>(),
+                            )],
+                        },
+                    }),
+                },*/
             ],
         };
 
@@ -201,7 +230,7 @@ pub mod tlspuffin {
 
 #[cfg(test)]
 pub mod integration {
-    use std::io::{stdout, Read, Write};
+    use std::io::{Read, stdout, Write};
     use std::net::TcpStream;
     use std::sync::Arc;
 

@@ -9,19 +9,23 @@ use ring::hmac::Key;
 use ring::rand::SystemRandom;
 use ring::{hkdf, hmac};
 use rustls::internal::msgs::alert::AlertMessagePayload;
-use rustls::internal::msgs::base::PayloadU16;
+use rustls::internal::msgs::base::{PayloadU16, PayloadU8, Payload};
+use rustls::internal::msgs::ccs::ChangeCipherSpecPayload;
 use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::enums::ContentType::{Handshake, ChangeCipherSpec};
+use rustls::internal::msgs::enums::ContentType::{ChangeCipherSpec, Handshake, ApplicationData};
 use rustls::internal::msgs::enums::{
     AlertDescription, Compression, HandshakeType, NamedGroup, ServerNameType,
 };
+use rustls::internal::msgs::handshake::HandshakePayload::Certificate;
 use rustls::internal::msgs::handshake::{
-    ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, KeyShareEntry,
-    Random, ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
+    CertificateEntry, CertificatePayload, ClientExtension, ClientHelloPayload,
+    HandshakeMessagePayload, HandshakePayload, KeyShareEntry, Random, ServerExtension,
+    ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
 };
 use rustls::internal::msgs::message::{Message, MessagePayload};
+use rustls::internal::pemfile;
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
-use rustls::internal::msgs::ccs::ChangeCipherSpecPayload;
+use HandshakePayload::EncryptedExtensions;
 
 use crate::variable_data::VariableData;
 
@@ -140,7 +144,7 @@ pub fn op_client_hello(
         }),
     });
     Message {
-        typ: Handshake, // todo this is not controllable
+        typ: Handshake,                    // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -172,11 +176,43 @@ pub fn op_server_hello(
     }
 }
 
-pub fn op_change_cipher_spec(
-) -> Message {
+pub fn op_change_cipher_spec() -> Message {
     let payload = MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {});
     Message {
-        typ: ChangeCipherSpec, // todo this is not controllable
+        typ: ChangeCipherSpec,             // todo this is not controllable
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload,
+    }
+}
+
+pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Message {
+    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
+        typ: HandshakeType::EncryptedExtensions,
+        payload: EncryptedExtensions(server_extensions.clone()),
+    });
+    Message {
+        typ: Handshake,                    // todo this is not controllable
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload,
+    }
+}
+
+pub fn op_certificate(certificate: &CertificatePayload) -> Message {
+    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
+        typ: HandshakeType::Certificate,
+        payload: Certificate(certificate.clone()),
+    });
+    Message {
+        typ: Handshake,                    // todo this is not controllable
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload,
+    }
+}
+
+pub fn op_application_data(data: &Vec<u8>) -> Message {
+    let payload = MessagePayload::Opaque(Payload::new(data.clone()));
+    Message {
+        typ: ApplicationData,                    // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -362,14 +398,25 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                         .chain(server_extensions)
                         .collect::<Vec<Box<dyn VariableData>>>()
                 }
-                HandshakePayload::HelloRetryRequest(hrr) => {
+                HandshakePayload::HelloRetryRequest(_) => {
                     todo!()
                 }
-                HandshakePayload::Certificate(_) => {
-                    todo!()
+                HandshakePayload::Certificate(c) => {
+                    vec![Box::new(c.clone())]
                 }
-                HandshakePayload::CertificateTLS13(_) => {
-                    todo!()
+                HandshakePayload::CertificateTLS13(c) => {
+                    // todo ... this is the first message which is not cloneable...
+/*                    let entries = c.entries.iter().map(|entry: &CertificateEntry| {
+                        Box::new(CertificateEntry {
+                            cert: entry.cert.clone(),
+                            exts: entry.exts.clone()
+                        }) as Box<dyn VariableData>
+                    });
+
+                    let vars: Vec<Box<dyn VariableData>> =
+                        vec![Box::new(c.context.clone()), Box::new(entries)];*/
+
+                    vec![]
                 }
                 HandshakePayload::ServerKeyExchange(_) => {
                     todo!()
@@ -401,8 +448,8 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::NewSessionTicketTLS13(_) => {
                     todo!()
                 }
-                HandshakePayload::EncryptedExtensions(_) => {
-                    todo!()
+                EncryptedExtensions(ee) => {
+                    vec![Box::new(ee.clone())] // Vec<ServerExtension>
                 }
                 HandshakePayload::KeyUpdate(_) => {
                     todo!()
