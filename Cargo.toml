@@ -29,6 +29,13 @@ test-env-log = "0.2.7"
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
 [features]
 
 [profile.release]

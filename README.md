@@ -8,7 +8,8 @@ Install [rustup](https://rustup.rs/) and setup a toolchain:
 rustup install 1.51.0-x86_64-unknown-linux-gnu
 ```
 
-The toolchain `1.51.0-x86_64-unknown-linux-gnu` is tested and is used for development. You may also use `rustup install 1.51.0` to install the toolchain for your OS. 
+The toolchain `1.51.0-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
+use `rustup install 1.51.0` to install the toolchain for your OS.
 
 Now, build the project:
 
@@ -18,7 +19,8 @@ git submodule update --init --recursive
 cargo build
 ```
 
-This should build openssl as part of the Rust build. That means you need the usual tools for building it like `make`, `gcc` etc.
+This should build openssl as part of the Rust build. That means you need the usual tools for building it like `make`
+, `gcc` etc.
 
 ## Run
 
@@ -26,9 +28,28 @@ This should build openssl as part of the Rust build. That means you need the usu
 RUST_LOG=trace cargo run --package crotofuzz --bin crotofuzz
 ```
 
+### Tests
+
+```bash
+cargo test
+```
+
+### Benchmark
+
+There is a benchmark which compares the execution of the dynamic functions to directly executing them
+in [benchmark.rs](benches/benchmark.rs). You can run them using:
+
+```bash
+cargo bench
+```
+
+Results:
+
+![](docs/benchmark_dynamic.png)
+
 ## Documentation
 
-This generates the documentation for this crate and opens the browser. This also includes the documentation of every 
+This generates the documentation for this crate and opens the browser. This also includes the documentation of every
 dependency like LibAFL or rustls.
 
 ```bash
@@ -37,11 +58,10 @@ cargo doc --open
 
 You can also view the up-to-date documentation [here](https://mammann.gitlabpages.inria.fr/tlspuffin/tlspuffin/).
 
-
 ## Interesting Libraries:
 
 * Graph/Tree https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
-  * https://rosettacode.org/wiki/Visualize_a_tree#Rust
+    * https://rosettacode.org/wiki/Visualize_a_tree#Rust
 * Plot Tree Plotly
     * https://plotly.com/python/tree-plots/
     * https://docs.rs/plotly/0.6.0/plotly/scatter/struct.Scatter.html
