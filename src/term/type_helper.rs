@@ -8,6 +8,7 @@ use itertools::Itertools;
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Debug, Clone)]
 pub struct DynamicFunctionShape {
+    pub name: &'static str,
     argument_types: Vec<TypeId>,
     argument_type_names: Vec<&'static str>,
     return_type: TypeId,
@@ -102,6 +103,7 @@ macro_rules! dynamic_fn {
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
+                name: std::any::type_name::<F>(),
                 argument_types: vec![$(TypeId::of::<$arg>()),*],
                 argument_type_names: vec![$(type_name::<$arg>()),*],
                 return_type: TypeId::of::<$res>(),
@@ -122,10 +124,12 @@ macro_rules! dynamic_fn {
                                index = index + 1;
                                arg_
                            } else {
+                               let shape = Self::shape();
                                panic!(
-                                    "Passed argument #{} did not match the shape {}. Hashes of passed types are {}.",
+                                    "Passed argument #{} of {} did not match the shape {}. Hashes of passed types are {}.",
                                     index + 1,
-                                    Self::shape(),
+                                    shape.name,
+                                    shape,
                                     format_args(args)
                                )
                            }

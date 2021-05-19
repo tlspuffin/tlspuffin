@@ -30,7 +30,6 @@ impl Variable {
 #[derive(Clone)]
 pub struct Operator {
     pub(crate) id: u32,
-    pub(crate) name: &'static str,
     pub(crate) shape: DynamicFunctionShape,
     pub(crate) dynamic_fn: Box<dyn DynamicFunction>,
 }
@@ -42,10 +41,10 @@ impl Operator {
     }
     /// Returns an `Operator`'s name.
     pub fn name(&self) -> &'static str {
-        self.name
+        self.shape.name
     }
     /// Serialize an `Operator`.
     pub fn display(&self) -> String {
-        format!("{}", self.name)
+        format!("{}", self.name())
     }
 }

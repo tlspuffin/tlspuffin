@@ -1,5 +1,5 @@
 use std::any::TypeId;
-use std::fmt;
+use std::{fmt, any};
 use std::hash::{Hasher};
 
 use crate::term::type_helper::{DescribableFunction, make_dynamic};
@@ -54,16 +54,15 @@ impl Signature {
     ///
     /// [`Operator`]: struct.Operator.html
     ///
-    pub fn new_op<F: 'static, Types>(&mut self, name: &'static str, f: &'static F) -> Operator
+    pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
         where
             F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let operator = Operator {
             id: self.operators.len() as u32,
-            name,
             shape,
-            dynamic_fn,
+            dynamic_fn
         };
         self.operators.push(operator.clone());
         operator
@@ -98,6 +97,9 @@ impl Default for Signature {
     }
 }
 
+/*
+TODO
+
 impl PartialEq for Signature {
     fn eq(&self, other: &Signature) -> bool {
         self.variables.len() == other.variables.len()
@@ -106,8 +108,9 @@ impl PartialEq for Signature {
             .operators
             .iter()
             .zip(&other.operators)
-            .all(|(o1, o2)| o1.arity() == o2.arity() && o1.name.eq(o2.name))
+            .all(|(o1, o2)| o1.arity() == o2.arity() && o1.name().eq(o2.name()))
     }
 }
 
 impl Eq for Signature {}
+*/

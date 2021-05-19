@@ -4,47 +4,32 @@ mod term {
 
     use rustls::internal::msgs::handshake::SessionID;
 
-    use crate::term::{Signature, Term, Variable, VariableContext};
-    use crate::term::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id};
-    use crate::variable_data;
-    use crate::variable_data::{AsAny, VariableData, VariableData_deprecated};
-    use crate::variable_data::{
-        SessionIDData,
+    use crate::term::op_impl::{
+        op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id,
     };
+    use crate::term::{Signature, Term, Variable, VariableContext};
+    use crate::variable_data;
+    use crate::variable_data::SessionIDData;
+    use crate::variable_data::{AsAny, VariableData, VariableData_deprecated};
+    use crate::trace::TraceContext;
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
-    }
-
-    struct MockVariableContext {
-        knowledge: Vec<Box<dyn VariableData_deprecated>>,
-    }
-
-    variable_data!(Vec<u8> => Data);
-
-    impl<'a> VariableContext for MockVariableContext {
-        fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData> {
-            for data in &self.knowledge {
-                if data.get_type_id() == variable.typ {
-                    return Some(data);
-                }
-            }
-
-            return None;
-        }
     }
 
     #[test]
     fn example() {
         let mut sig = Signature::default();
 
-        let hmac256_new_key = sig.new_op("hmac256_new_key", &op_hmac256_new_key);
-        let hmac256 = sig.new_op("op_hmac256", &op_hmac256);
-        let client_hello = sig.new_op("op_client_hello", &op_client_hello);
+        let hmac256_new_key = sig.new_op(&op_hmac256_new_key);
+        let hmac256 = sig.new_op(&op_hmac256);
+        let client_hello = sig.new_op(&op_client_hello);
 
-        let variable_data = "hello".as_bytes().to_vec();
+        let data = "hello".as_bytes().to_vec();
 
-        let data = sig.new_var(variable_data.type_id());
+        println!("dd {:?}", data.type_id());
+
+        let variable = sig.new_var(data.type_id());
 
         let generated_term = Term::Application {
             op: hmac256,
@@ -53,28 +38,31 @@ mod term {
                     op: hmac256_new_key,
                     args: vec![],
                 },
-                Term::Variable(data),
+                Term::Variable(variable),
             ],
         };
 
         println!("{}", generated_term.pretty());
-        let x = Box::new(Data {
-            data: vec![5u8],
-        });
+        let mut context = TraceContext::new();
+        context.add_variable(Box::new(data));
 
-        let context = MockVariableContext {
-            knowledge: vec![x],
-        };
-        println!("{:?}", generated_term.evaluate(&context).as_ref().downcast_ref::<Vec<u8>>());
+        println!(
+            "{:?}",
+            generated_term
+                .evaluate(&context)
+                .as_ref()
+                .unwrap()
+                .downcast_ref::<Vec<u8>>()
+        );
     }
 
     #[test]
     fn playground() {
         let mut sig = Signature::default();
 
-        let app = sig.new_op("app", &example_op_c);
-        let s = sig.new_op("example_op_c", &example_op_c);
-        let k = sig.new_op("example_op_c", &example_op_c);
+        let app = sig.new_op(&example_op_c);
+        let s = sig.new_op(&example_op_c);
+        let k = sig.new_op(&example_op_c);
 
         let var_data = op_random_session_id();
 

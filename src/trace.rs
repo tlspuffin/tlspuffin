@@ -1,5 +1,5 @@
 use core::fmt;
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::fmt::Formatter;
 
 use rustls::internal::msgs::handshake::HandshakePayload;
@@ -9,8 +9,8 @@ use rustls::internal::msgs::message::MessagePayload::Handshake;
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::variable_data::{VariableData};
-use crate::term::op_deconstruct_message;
+use crate::term::{op_client_hello, op_deconstruct_message, Signature};
+use crate::variable_data::VariableData;
 
 pub struct TraceContext {
     /// The knowledge of the attacker
@@ -45,7 +45,7 @@ impl TraceContext {
         variable.as_ref().as_any().downcast_ref::<T>()
     }
 
-    pub fn get_variable<T: Any>(&self) -> Option<&T> {
+    pub fn get_variable<T: VariableData + 'static>(&self) -> Option<&T> {
         for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
                 return Some(derived);
@@ -54,7 +54,20 @@ impl TraceContext {
         None
     }
 
-    pub fn get_variable_set<T: Any>(&self) -> Vec<&T> {
+    pub fn get_variable_by_type_id(&self, type_id: TypeId) -> Option<&(dyn VariableData + 'static)> {
+        for data in &self.knowledge {
+            println!("aa {:?}", type_id);
+            let x = data.as_ref();
+            println!("aa {:?}", x.as_any().type_id());
+            if type_id == x.as_any().type_id() {
+                //let b = data.clone_box();
+                return Some(x);
+            }
+        }
+        None
+    }
+
+    pub fn get_variable_set<T: VariableData + 'static>(&self) -> Vec<&T> {
         let mut variables: Vec<&T> = Vec::new();
         for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
@@ -224,14 +237,29 @@ impl OutputAction {
         }
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
             let vec = op_deconstruct_message(&message);
-
-
+            ctx.add_variables(vec);
         }
     }
 }
 
 impl InputAction {
-    fn input(&self, step: &Step, ctx: &mut TraceContext) {}
+    fn input(&self, step: &Step, ctx: &mut TraceContext) {
+        let mut sig = Signature::default();
+
+        //let app = sig.new_op("client_hello", &op_client_hello);
+
+
+        // message controlled by the attacker
+        let attacker_message = Message::build_key_update_notify();
+
+        if let Err(_) = ctx.add_to_inbound(step.agent, &attacker_message) {
+            panic!("Failed to insert term to agents inbound channel!")
+        }
+
+        if let Err(_) = ctx.next_state(step.agent) {
+            panic!("Failed to go to next state!")
+        }
+    }
 }
 
 // parsing utils

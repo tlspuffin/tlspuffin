@@ -7,6 +7,7 @@ use crate::term::pretty::Pretty;
 use crate::variable_data::VariableData;
 
 use super::{Operator, Variable};
+use crate::trace::TraceContext;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///
@@ -83,22 +84,31 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &dyn VariableContext) -> Box<dyn Any> {
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
-            Term::Variable(v) => context.find_variable_data(&v).unwrap().clone_any_box(),
+            Term::Variable(v) => {
+                let data: Option<&dyn VariableData> = context.get_variable_by_type_id(v.typ);
+                data.map(|data| data.clone_any_box()).ok_or("Could not find variable".to_string())
+            }
             Term::Application { op, args } => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
-                    let eval = term.evaluate(context);
-                    dynamic_args.push(eval);
+                    match term.evaluate(context) {
+                        Ok(data) => {
+                            dynamic_args.push(data);
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
                 }
                 let dynamic_fn = &op.dynamic_fn;
-                dynamic_fn(&dynamic_args)
+                Ok(dynamic_fn(&dynamic_args))
             }
         }
     }
 }
 
 pub trait VariableContext {
-    fn find_variable_data(&self, variable: &Variable) -> Option<&dyn VariableData>;
+    fn find_variable_data<T: VariableData>(&self, variable: &Variable) -> Option<&T>;
 }

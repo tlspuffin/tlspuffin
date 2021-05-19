@@ -1,16 +1,16 @@
+use std::borrow::BorrowMut;
 use std::io;
 use std::io::{Read, Write};
 
 use openssl::ssl::SslStream;
 use rustls::internal::msgs::codec::Codec;
 use rustls::internal::msgs::deframer::MessageDeframer;
+use rustls::internal::msgs::message::Message;
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
-use crate::openssl_binding;
-use rustls::internal::msgs::message::Message;
 use crate::debug::debug_binary_message_with_info;
-use std::borrow::BorrowMut;
+use crate::openssl_binding;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &Message);
@@ -52,7 +52,6 @@ pub struct OpenSSLStream {
     openssl_stream: SslStream<MemoryStream>,
     server: bool,
 }
-
 
 impl Stream for OpenSSLStream {
     fn add_to_inbound(&mut self, data: &Message) {
@@ -160,7 +159,7 @@ impl Stream for MemoryStream {
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
             let mut rest_buffer: Vec<u8> = Vec::new();
 
-            let mut first_message = deframer.frames.pop_front().unwrap();
+            let first_message = deframer.frames.pop_front();
 
             for message in deframer.frames {
                 message.encode(&mut rest_buffer);
@@ -170,9 +169,10 @@ impl Stream for MemoryStream {
             self.outbound.get_mut().clear();
             self.outbound.write_all(&rest_buffer).unwrap();
 
-            first_message.decode_payload();
-
-            return Some(first_message);
+            return first_message.map(|mut message| {
+                message.decode_payload();
+                message
+            });
         } else {
             None
         }

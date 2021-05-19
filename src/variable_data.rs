@@ -53,7 +53,7 @@ where
 pub trait VariableData_deprecated: Any + AsAny + DynClone {
     fn get_data(&self) -> &dyn Any;
 
-    fn get_type_id(&self) -> TypeId {
+    fn get_type_id_dep(&self) -> TypeId {
         self.get_data().type_id()
     }
 
