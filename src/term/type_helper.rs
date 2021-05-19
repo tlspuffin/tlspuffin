@@ -87,63 +87,13 @@ impl Clone for Box<dyn DynamicFunction> {
 /// Adapted from https://jsdw.me/posts/rust-fn-traits/ but using type ids
 pub trait DescribableFunction<Types> {
     fn shape() -> DynamicFunctionShape;
-    fn wrap(&'static self) -> Box<dyn DynamicFunction>;
-}
-
-impl<F, R: 'static> DescribableFunction<(R, )> for F
-    where
-        F: Fn() -> R,
-{
-    fn shape() -> DynamicFunctionShape {
-        DynamicFunctionShape {
-            argument_types: vec![],
-            argument_type_names: vec![],
-            return_type: TypeId::of::<R>(),
-            return_type_name: type_name::<R>(),
-        }
-    }
-
-    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        Box::new(move |_: &Vec<Box<dyn Any>>| Box::new(self()))
-    }
-}
-
-impl<F, T1: 'static, R: 'static> DescribableFunction<(T1, R)> for F
-    where
-        F: Fn(&T1) -> R,
-{
-    fn shape() -> DynamicFunctionShape {
-        DynamicFunctionShape {
-            argument_types: vec![TypeId::of::<T1>()],
-            argument_type_names: vec![type_name::<T1>()],
-            return_type: TypeId::of::<R>(),
-            return_type_name: type_name::<R>(),
-        }
-    }
-
-    fn wrap(&'static self) -> Box<dyn DynamicFunction> {
-        let closure = move |args: &Vec<Box<dyn Any>>| {
-            if let Some(a1) = args[0].as_ref().downcast_ref::<T1>() {
-                Box::new(self(a1)) as Box<dyn Any>
-            } else {
-                panic!(
-                    "Passed arguments did not match the shape {}. Passed arguments are {:?}",
-                    Self::shape(),
-                    format_anys(args)
-                )
-            }
-        };
-
-        // The closure is cloneable and therefore compatible with DynamicFunction because:
-        // self is cloneable as it is a 'static reference
-        Box::new(closure)
-    }
+    fn make_dynamic(&'static self) -> Box<dyn DynamicFunction>;
 }
 
 macro_rules! dynamic_fn {
     ($($arg:ident)* => $res:ident) => (
-    impl<F, $($arg: 'static),*, $res: 'static> // 'static missing
-        DescribableFunction<($($arg),*, $res)> for F
+    impl<F, $res: 'static, $($arg: 'static),*> // 'static missing
+        DescribableFunction<($res, $($arg),*)> for F
     where
         F: Fn($(&$arg),*) -> $res,
     {
@@ -156,8 +106,10 @@ macro_rules! dynamic_fn {
             }
         }
 
-        fn wrap(&'static self) -> Box<dyn DynamicFunction> {
+        fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {
+            #[allow(unused_variables)]
             Box::new(move |args: &Vec<Box<dyn Any>>| {
+                #[allow(unused_mut)]
                 let mut index = 0;
 
                 Box::new(self($(
@@ -182,6 +134,8 @@ macro_rules! dynamic_fn {
     )
 }
 
+dynamic_fn!( => R);
+dynamic_fn!(T1 => R);
 dynamic_fn!(T1 T2 => R);
 dynamic_fn!(T1 T2 T3 => R);
 dynamic_fn!(T1 T2 T3 T4 => R);
@@ -194,5 +148,5 @@ pub fn make_dynamic<F: 'static, Types>(
     where
         F: DescribableFunction<Types>,
 {
-    (F::shape(), f.wrap())
+    (F::shape(), f.make_dynamic())
 }
