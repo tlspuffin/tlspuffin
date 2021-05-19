@@ -11,17 +11,17 @@ use ring::{hkdf, hmac};
 use rustls::internal::msgs::alert::AlertMessagePayload;
 use rustls::internal::msgs::base::PayloadU16;
 use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
+use rustls::internal::msgs::enums::ContentType::{Handshake, ChangeCipherSpec};
 use rustls::internal::msgs::enums::{
     AlertDescription, Compression, HandshakeType, NamedGroup, ServerNameType,
 };
 use rustls::internal::msgs::handshake::{
     ClientExtension, ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, KeyShareEntry,
-    Random, ServerExtension, ServerName, ServerNamePayload, SessionID,
+    Random, ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
 };
-use rustls::internal::msgs::message::MessagePayload::Handshake;
 use rustls::internal::msgs::message::{Message, MessagePayload};
 use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
+use rustls::internal::msgs::ccs::ChangeCipherSpecPayload;
 
 use crate::variable_data::VariableData;
 
@@ -128,7 +128,7 @@ pub fn op_client_hello(
     compression_methods: &Vec<Compression>,
     extensions: &Vec<ClientExtension>,
 ) -> Message {
-    let payload = Handshake(HandshakeMessagePayload {
+    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
         typ: HandshakeType::ClientHello,
         payload: HandshakePayload::ClientHello(ClientHelloPayload {
             client_version: client_version.clone(),
@@ -140,8 +140,44 @@ pub fn op_client_hello(
         }),
     });
     Message {
-        typ: RecordHandshake,
+        typ: Handshake, // todo this is not controllable
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload,
+    }
+}
+
+pub fn op_server_hello(
+    legacy_version: &ProtocolVersion,
+    random: &Random,
+    session_id: &SessionID,
+    cipher_suite: &CipherSuite,
+    compression_method: &Compression,
+    extensions: &Vec<ServerExtension>,
+) -> Message {
+    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
+        typ: HandshakeType::ServerHello,
+        payload: HandshakePayload::ServerHello(ServerHelloPayload {
+            legacy_version: legacy_version.clone(),
+            random: random.clone(),
+            session_id: session_id.clone(),
+            cipher_suite: cipher_suite.clone(),
+            compression_method: compression_method.clone(),
+            extensions: extensions.clone(),
+        }),
+    });
+    Message {
+        typ: Handshake,
         version: ProtocolVersion::TLSv1_2,
+        payload,
+    }
+}
+
+pub fn op_change_cipher_spec(
+) -> Message {
+    let payload = MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {});
+    Message {
+        typ: ChangeCipherSpec, // todo this is not controllable
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
 }
@@ -270,7 +306,7 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                 Box::new(alert.level.clone()),
             ]
         }
-        Handshake(hs) => {
+        MessagePayload::Handshake(hs) => {
             match &hs.payload {
                 HandshakePayload::HelloRequest => {
                     vec![Box::new(hs.typ.clone())]
@@ -281,34 +317,24 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                         Box::new(ch.random.clone()),
                         Box::new(ch.session_id.clone()),
                         Box::new(ch.client_version.clone()),
-
                         Box::new(ch.extensions.clone()),
                         Box::new(ch.compression_methods.clone()),
                         Box::new(ch.cipher_suites.clone()),
                     ];
 
-                    let extensions = ch
-                        .extensions
-                        .iter()
-                        .map(|extension: &ClientExtension| {
-                            Box::new(extension.clone()) as Box<dyn VariableData>
-                        })
-                        .collect_vec();
-                    let compression_methods = ch
-                        .compression_methods
-                        .iter()
-                        .map(|compression: &Compression| {
-                            Box::new(compression.clone()) as Box<dyn VariableData>
-                        })
-                        .collect_vec();
-                    let cipher_suites = ch
-                        .cipher_suites
-                        .iter()
-                        .map(|cipher_suite: &CipherSuite| {
+                    let extensions = ch.extensions.iter().map(|extension: &ClientExtension| {
+                        Box::new(extension.clone()) as Box<dyn VariableData>
+                    });
+                    let compression_methods =
+                        ch.compression_methods
+                            .iter()
+                            .map(|compression: &Compression| {
+                                Box::new(compression.clone()) as Box<dyn VariableData>
+                            });
+                    let cipher_suites =
+                        ch.cipher_suites.iter().map(|cipher_suite: &CipherSuite| {
                             Box::new(cipher_suite.clone()) as Box<dyn VariableData>
-                        })
-                        .collect_vec();
-
+                        });
 
                     vars.into_iter()
                         .chain(extensions) // also add all extensions individually
@@ -323,18 +349,17 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                         Box::new(sh.cipher_suite.clone()),
                         Box::new(sh.compression_method.clone()),
                         Box::new(sh.legacy_version.clone()),
+                        Box::new(sh.extensions.clone()),
                     ];
 
+                    let server_extensions =
+                        sh.extensions.iter().map(|extension: &ServerExtension| {
+                            Box::new(extension.clone()) as Box<dyn VariableData>
+                            // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                        });
+
                     vars.into_iter()
-                        .chain(
-                            sh.extensions
-                                .iter()
-                                .map(|extension: &ServerExtension| {
-                                    Box::new(extension.clone()) as Box<dyn VariableData>
-                                    // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
-                                })
-                                .collect_vec(),
-                        )
+                        .chain(server_extensions)
                         .collect::<Vec<Box<dyn VariableData>>>()
                 }
                 HandshakePayload::HelloRetryRequest(hrr) => {

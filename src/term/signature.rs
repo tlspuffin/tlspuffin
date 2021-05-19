@@ -1,8 +1,10 @@
 use std::any::TypeId;
-use std::{fmt, any};
-use std::hash::{Hasher};
+use std::hash::Hasher;
+use std::{any, fmt};
 
-use crate::term::type_helper::{DescribableFunction, make_dynamic};
+use rustls::internal::msgs::message::Message;
+
+use crate::term::type_helper::{make_dynamic, DescribableFunction};
 use crate::term::Variable;
 
 use super::Operator;
@@ -55,14 +57,14 @@ impl Signature {
     /// [`Operator`]: struct.Operator.html
     ///
     pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
-        where
-            F: DescribableFunction<Types>,
+    where
+        F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let operator = Operator {
             id: self.operators.len() as u32,
             shape,
-            dynamic_fn
+            dynamic_fn,
         };
         self.operators.push(operator.clone());
         operator
@@ -84,6 +86,31 @@ impl Signature {
 
     pub fn new_var_by_type<T: 'static>(&mut self) -> Variable {
         self.new_var(TypeId::of::<T>(), std::any::type_name::<T>())
+    }
+
+    pub fn generate_message(&self) {
+        for operator in &self.operators {
+            if operator.shape.return_type == TypeId::of::<Message>() {
+                // operation would build a Message -> lets try to build it
+                let args = &(operator.shape.argument_types);
+
+                if let Some(variable) = self
+                    .variables
+                    .iter()
+                    .find(|variable| args.iter().any(|type_id| variable.typ == *type_id))
+                {
+                    // we found an already existing `variable` which helps us to call `operator`
+                }
+
+                if let Some(f) = self
+                    .operators
+                    .iter()
+                    .find(|f| args.iter().any(|type_id| f.shape.return_type == *type_id))
+                {
+                    // we found an already existing function which helps us to call `operator`
+                }
+            }
+        }
     }
 }
 

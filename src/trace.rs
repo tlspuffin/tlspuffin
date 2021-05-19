@@ -48,6 +48,7 @@ impl TraceContext {
     }
 
     pub fn get_variable<T: VariableData + 'static>(&self) -> Option<&T> {
+        // todo handle if multiple variable are found
         for variable in &self.knowledge {
             if let Some(derived) = TraceContext::downcast(variable) {
                 return Some(derived);
@@ -60,6 +61,7 @@ impl TraceContext {
         &self,
         type_id: TypeId,
     ) -> Option<&(dyn VariableData + 'static)> {
+        // todo handle if multiple variable are found
         for data in &self.knowledge {
             if type_id == data.as_ref().as_any().type_id() {
                 return Some(data.as_ref());
@@ -242,31 +244,19 @@ impl OutputAction {
     }
 }
 
-pub struct InputAction;
+pub struct InputAction {
+    pub attacker_term: Term
+}
 
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) {
-        let mut sig = Signature::default();
-
-        let generated_term = Term::Application {
-            op: sig.new_op(&op_client_hello),
-            args: vec![
-                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
-                Term::Variable(sig.new_var_by_type::<Random>()),
-                Term::Variable(sig.new_var_by_type::<SessionID>()),
-                Term::Variable(sig.new_var_by_type::<Vec<CipherSuite>>()),
-                Term::Variable(sig.new_var_by_type::<Vec<Compression>>()),
-                Term::Variable(sig.new_var_by_type::<Vec<ClientExtension>>()),
-            ],
-        };
-
         // message controlled by the attacker
-        let x = generated_term
+        let x = self.attacker_term
             .evaluate(ctx)
             .unwrap();
         let attacker_message = x.as_ref()
             .downcast_ref::<Message>()
-            .unwrap();
+            .unwrap(); // todo return errors
 
         //let attacker_message = Message::build_key_update_notify();
 

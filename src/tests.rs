@@ -8,8 +8,11 @@ pub mod tlspuffin {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::trace;
-    use crate::trace::{Action, OutputAction, Step, TraceContext, InputAction};
+    use crate::term::{op_client_hello, op_server_hello, op_change_cipher_spec, Term, Signature};
+    use crate::trace::{Action, OutputAction, Step, TraceContext, InputAction, Trace};
+    use rustls::{ProtocolVersion, CipherSuite};
+    use rustls::internal::msgs::handshake::{Random, SessionID, ClientExtension, ServerExtension};
+    use rustls::internal::msgs::enums::Compression;
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -34,7 +37,7 @@ pub mod tlspuffin {
                 },
             ],
         };*/
-        let mut trace = trace::Trace { steps: vec![] };
+        let mut trace = Trace { steps: vec![] };
 
         info!("{}", trace);
         trace.execute(&mut ctx);
@@ -76,7 +79,7 @@ pub mod tlspuffin {
             ],
         };*/
 
-        let mut trace = trace::Trace { steps: vec![] };
+        let mut trace = Trace { steps: vec![] };
 
         info!("{}", trace);
         trace.execute(&mut ctx);
@@ -110,7 +113,13 @@ pub mod tlspuffin {
                 },
             ],
         };*/
-        let mut trace = trace::Trace {
+
+        let mut sig = Signature::default();
+        let op_client_hello = sig.new_op(&op_client_hello);
+        let op_server_hello = sig.new_op(&op_server_hello);
+        let op_change_cipher_spec = sig.new_op(&op_change_cipher_spec);
+
+        let mut trace = Trace {
             steps: vec![
                 Step {
                     agent: client_openssl,
@@ -118,7 +127,19 @@ pub mod tlspuffin {
                 },
                 Step {
                     agent: server_openssl,
-                    action: Action::Input(InputAction),
+                    action: Action::Input(InputAction {
+                        attacker_term: Term::Application {
+                            op: op_client_hello.clone(),
+                            args: vec![
+                                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
+                                Term::Variable(sig.new_var_by_type::<Random>()),
+                                Term::Variable(sig.new_var_by_type::<SessionID>()),
+                                Term::Variable(sig.new_var_by_type::<Vec<CipherSuite>>()),
+                                Term::Variable(sig.new_var_by_type::<Vec<Compression>>()),
+                                Term::Variable(sig.new_var_by_type::<Vec<ClientExtension>>()),
+                            ],
+                        }
+                    }),
                 },
                 Step {
                     agent: server_openssl,
@@ -126,10 +147,39 @@ pub mod tlspuffin {
                 },
                 Step {
                     agent: client_openssl,
-                    action: Action::Input(InputAction),
+                    action: Action::Input(InputAction {
+                        attacker_term: Term::Application {
+                            op: op_server_hello.clone(),
+                            args: vec![
+                                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
+                                Term::Variable(sig.new_var_by_type::<Random>()),
+                                Term::Variable(sig.new_var_by_type::<SessionID>()),
+                                Term::Variable(sig.new_var_by_type::<CipherSuite>()),
+                                Term::Variable(sig.new_var_by_type::<Compression>()),
+                                Term::Variable(sig.new_var_by_type::<Vec<ServerExtension>>()),
+                            ],
+                        }
+                    }),
+                },
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        attacker_term: Term::Application {
+                            op: op_change_cipher_spec.clone(),
+                            args: vec![],
+                        }
+                    }),
                 },
             ],
         };
+
+        // example mutation
+        /*match &mut trace.steps[3].action {
+            Action::Input(input) => {
+                input.attacker_term = Term::Variable(sig.new_var_by_type::<SessionID>());
+            }
+            Action::Output(_) => {}
+        }*/
 
         info!("{}", trace);
         trace.execute(&mut ctx);
@@ -144,7 +194,7 @@ pub mod tlspuffin {
             .unwrap()
             .stream
             .describe_state();
-        assert!(client_state.contains("SSLv3/TLS write client hello"));
+        assert!(client_state.contains("SSLv3/TLS read server hello"));
         assert!(server_state.contains("TLSv1.3 early data"));
     }
 }

@@ -9,10 +9,10 @@ use itertools::Itertools;
 #[derive(Debug, Clone)]
 pub struct DynamicFunctionShape {
     pub name: &'static str,
-    argument_types: Vec<TypeId>,
-    argument_type_names: Vec<&'static str>,
-    return_type: TypeId,
-    return_type_name: &'static str,
+    pub argument_types: Vec<TypeId>,
+    pub argument_type_names: Vec<&'static str>,
+    pub return_type: TypeId,
+    pub return_type_name: &'static str,
 }
 
 impl DynamicFunctionShape {
