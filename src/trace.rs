@@ -12,6 +12,8 @@ use crate::io::Channel;
 use crate::term::{Term};
 use crate::variable_data::{extract_variables, VariableData};
 
+use serde::{Serialize, Deserialize};
+
 pub type ObservedId = (u16, u16);
 
 struct ObservedVariable {
@@ -141,6 +143,7 @@ impl TraceContext {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Trace {
     pub steps: Vec<Step>,
 }
@@ -174,11 +177,13 @@ impl fmt::Display for Trace {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Step {
     pub agent: AgentName,
     pub action: Action,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Action {
     Input(InputAction),
     Output(OutputAction),
@@ -214,6 +219,7 @@ impl fmt::Display for Action {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct OutputAction {
     pub id: u16,
 }
@@ -232,6 +238,7 @@ impl OutputAction {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct InputAction {
     pub recipe: Term,
 }

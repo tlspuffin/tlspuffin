@@ -2,6 +2,7 @@ use std::any::Any;
 use std::iter;
 
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use crate::term::pretty::Pretty;
 use crate::trace::TraceContext;
@@ -13,7 +14,7 @@ use super::{Operator, Variable};
 ///
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.html
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
@@ -26,7 +27,6 @@ pub enum Term {
     /// A `Term` that is an application of an [`Operator`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
     /// [`Operator`]: struct.Operator.html
-    ///
     Application { op: Operator, args: Vec<Term> },
 }
 
@@ -87,7 +87,7 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
             Term::Variable(v) => context
-                .get_variable_by_type_id(v.typ, v.observed_id)
+                .get_variable_by_type_id(v.typ.type_id, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",

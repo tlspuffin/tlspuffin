@@ -1,17 +1,14 @@
-
 #[cfg(test)]
 pub mod tlspuffin {
-    use rustls::{CipherSuite, ProtocolVersion};
     use rustls::internal::msgs::base::Payload;
     use rustls::internal::msgs::enums::Compression;
-    use rustls::internal::msgs::handshake::{
-        ClientExtension, Random, ServerExtension, SessionID,
-    };
+    use rustls::internal::msgs::handshake::{ClientExtension, Random, ServerExtension, SessionID};
+    use rustls::{CipherSuite, ProtocolVersion};
     use test_env_log::test;
 
     use crate::term::{
-        op_application_data, op_change_cipher_spec, op_client_hello,
-        op_encrypted_certificate, op_server_hello, Signature, Term,
+        op_application_data, op_change_cipher_spec, op_client_hello, op_encrypted_certificate,
+        op_server_hello, Signature, Term,
     };
     use crate::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
 
@@ -232,7 +229,6 @@ pub mod tlspuffin {
                         },
                     }),
                 },*/
-
                 // todo missing:
                 //      CCS Client -> Server
                 // Finished Client -> Server
@@ -279,6 +275,9 @@ pub mod tlspuffin {
             Action::Output(_) => {}
         }*/
 
+        let serialized = serde_json::to_string_pretty(&trace).unwrap();
+        println!("serialized = {}", serialized);
+
         info!("{}", trace);
         trace.execute(&mut ctx);
 
@@ -301,7 +300,7 @@ pub mod tlspuffin {
 
 #[cfg(test)]
 pub mod integration {
-    use std::io::{Read, stdout, Write};
+    use std::io::{stdout, Read, Write};
     use std::net::TcpStream;
     use std::sync::Arc;
 
@@ -320,6 +319,13 @@ pub mod integration {
     use test_env_log::test;
     use webpki;
     use webpki_roots;
+
+    #[test]
+    fn test_serialisation() {
+        // todo
+        // let serialized = serde_json::to_string(&point).unwrap();
+        // println!("serialized = {}", serialized);
+    }
 
     #[test]
     fn test_rustls_message_stability() {
@@ -388,22 +394,22 @@ pub mod integration {
         let mut tls = rustls::Stream::new(&mut sess, &mut sock);
         tls.write_all(
             concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
+                "GET / HTTP/1.1\r\n",
+                "Host: google.com\r\n",
+                "Connection: close\r\n",
+                "Accept-Encoding: identity\r\n",
+                "\r\n"
             )
-                .as_bytes(),
+            .as_bytes(),
         )
-            .unwrap();
+        .unwrap();
         let ciphersuite = tls.sess.get_negotiated_ciphersuite().unwrap();
         writeln!(
             &mut std::io::stderr(),
             "Current ciphersuite: {:?}",
             ciphersuite.suite
         )
-            .unwrap();
+        .unwrap();
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
         stdout().write_all(&plaintext).unwrap();

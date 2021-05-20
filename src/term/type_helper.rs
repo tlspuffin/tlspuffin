@@ -1,18 +1,19 @@
-use std::any::{Any, type_name, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
 
 /// Describes the shape of a [`DynamicFunction`]
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DynamicFunctionShape {
-    pub name: &'static str,
-    pub argument_types: Vec<TypeId>,
-    pub argument_type_names: Vec<&'static str>,
-    pub return_type: TypeId,
-    pub return_type_name: &'static str,
+    pub name: String,
+    pub argument_types: Vec<SerializableTypeId>,
+    pub argument_type_names: Vec<String>,
+    pub return_type: SerializableTypeId,
+    pub return_type_name: String,
 }
 
 impl DynamicFunctionShape {
@@ -70,8 +71,8 @@ pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
 }
 
 impl<T> DynamicFunction for T
-    where
-        T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
+where
+    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -83,6 +84,27 @@ impl Clone for Box<dyn DynamicFunction> {
         (**self).clone_box()
     }
 }
+
+impl Serialize for Box<dyn DynamicFunction> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        // todo
+        serializer.serialize_u64(1)
+    }
+}
+
+impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
+    fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        // todo
+        Ok(Box::new(make_dynamic(&crate::term::op_server_hello).1))
+    }
+}
+
 
 /// This trait is implemented for function traits in order to:
 /// * describe their shape during runtime
@@ -103,11 +125,11 @@ macro_rules! dynamic_fn {
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
-                name: std::any::type_name::<F>(),
-                argument_types: vec![$(TypeId::of::<$arg>()),*],
-                argument_type_names: vec![$(type_name::<$arg>()),*],
-                return_type: TypeId::of::<$res>(),
-                return_type_name: type_name::<$res>(),
+                name: std::any::type_name::<F>().to_string(),
+                argument_types: vec![$(SerializableTypeId{ type_id: TypeId::of::<$arg>() }),*],
+                argument_type_names: vec![$(type_name::<$arg>().to_string()),*],
+                return_type: SerializableTypeId{ type_id: TypeId::of::<$res>() },
+                return_type_name: type_name::<$res>().to_string(),
             }
         }
 
@@ -157,8 +179,22 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 => R);
 pub fn make_dynamic<F: 'static, Types>(
     f: &'static F,
 ) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
-    where
-        F: DescribableFunction<Types>,
+where
+    F: DescribableFunction<Types>,
 {
     (F::shape(), f.make_dynamic())
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+pub struct SerializableTypeId {
+    #[serde(skip, default = "SerializableTypeId::default")]
+    pub type_id: TypeId,
+}
+
+struct UnknownType;
+
+impl SerializableTypeId {
+    fn default() -> TypeId {
+        TypeId::of::<UnknownType>()
+    }
 }
