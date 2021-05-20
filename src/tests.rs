@@ -17,6 +17,7 @@ pub mod tlspuffin {
         op_encrypted_certificate, op_server_hello, Signature, Term,
     };
     use crate::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
+    use rustls::internal::msgs::base::Payload;
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -135,8 +136,8 @@ pub mod tlspuffin {
                 Step {
                     agent: server_openssl,
                     action: Action::Input(InputAction {
-                        attacker_term: Term::Application {
-                            op: op_client_hello.clone(),
+                        recipe: Term::Application {
+                            op: op_client_hello,
                             args: vec![
                                 Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
                                 Term::Variable(sig.new_var_by_type::<Random>()),
@@ -155,11 +156,11 @@ pub mod tlspuffin {
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
-                        attacker_term: Term::Application {
-                            op: op_server_hello.clone(),
+                        recipe: Term::Application {
+                            op: op_server_hello,
                             args: vec![
                                 Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
-                                Term::Variable(sig.new_var_by_type::<Random>()),
+                                Term::Variable(sig.new_var_by_type::<(Random,)>()),
                                 Term::Variable(sig.new_var_by_type::<SessionID>()),
                                 Term::Variable(sig.new_var_by_type::<CipherSuite>()),
                                 Term::Variable(sig.new_var_by_type::<Compression>()),
@@ -171,8 +172,8 @@ pub mod tlspuffin {
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
-                        attacker_term: Term::Application {
-                            op: op_change_cipher_spec.clone(),
+                        recipe: Term::Application {
+                            op: op_change_cipher_spec,
                             args: vec![],
                         },
                     }),
@@ -180,10 +181,10 @@ pub mod tlspuffin {
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
-                        attacker_term: Term::Application {
-                            op: op_application_data.clone(),
+                        recipe: Term::Application {
+                            op: op_application_data,
                             args: vec![Term::Variable(
-                                sig.new_var_by_type::<Vec<u8>>(),
+                                sig.new_var_by_type::<Payload>(),
                             )],
                         },
                     }),
@@ -223,7 +224,7 @@ pub mod tlspuffin {
             .unwrap()
             .stream
             .describe_state();
-        assert!(client_state.contains("SSLv3/TLS read server hello"));
+        assert!(client_state.contains("TLSv1.3 read encrypted extensions"));
         assert!(server_state.contains("TLSv1.3 early data"));
     }
 }

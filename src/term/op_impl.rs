@@ -9,10 +9,10 @@ use ring::hmac::Key;
 use ring::rand::SystemRandom;
 use ring::{hkdf, hmac};
 use rustls::internal::msgs::alert::AlertMessagePayload;
-use rustls::internal::msgs::base::{PayloadU16, PayloadU8, Payload};
+use rustls::internal::msgs::base::{Payload, PayloadU16, PayloadU8};
 use rustls::internal::msgs::ccs::ChangeCipherSpecPayload;
 use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::enums::ContentType::{ChangeCipherSpec, Handshake, ApplicationData};
+use rustls::internal::msgs::enums::ContentType::{ApplicationData, ChangeCipherSpec, Handshake};
 use rustls::internal::msgs::enums::{
     AlertDescription, Compression, HandshakeType, NamedGroup, ServerNameType,
 };
@@ -152,7 +152,7 @@ pub fn op_client_hello(
 
 pub fn op_server_hello(
     legacy_version: &ProtocolVersion,
-    random: &Random,
+    random: &(Random,),
     session_id: &SessionID,
     cipher_suite: &CipherSuite,
     compression_method: &Compression,
@@ -162,7 +162,7 @@ pub fn op_server_hello(
         typ: HandshakeType::ServerHello,
         payload: HandshakePayload::ServerHello(ServerHelloPayload {
             legacy_version: legacy_version.clone(),
-            random: random.clone(),
+            random: random.0.clone(),
             session_id: session_id.clone(),
             cipher_suite: cipher_suite.clone(),
             compression_method: compression_method.clone(),
@@ -209,10 +209,10 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
     }
 }
 
-pub fn op_application_data(data: &Vec<u8>) -> Message {
-    let payload = MessagePayload::Opaque(Payload::new(data.clone()));
+pub fn op_application_data(data: &Payload) -> Message {
+    let payload = MessagePayload::Opaque(data.clone());
     Message {
-        typ: ApplicationData,                    // todo this is not controllable
+        typ: ApplicationData,              // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -381,7 +381,7 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::ServerHello(sh) => {
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         hs.typ.clone_box(),
-                        Box::new(sh.random.clone()),
+                        Box::new((sh.random.clone(),)),
                         Box::new(sh.cipher_suite.clone()),
                         Box::new(sh.compression_method.clone()),
                         Box::new(sh.legacy_version.clone()),
@@ -406,7 +406,7 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
                 }
                 HandshakePayload::CertificateTLS13(c) => {
                     // todo ... this is the first message which is not cloneable...
-/*                    let entries = c.entries.iter().map(|entry: &CertificateEntry| {
+                    /*                    let entries = c.entries.iter().map(|entry: &CertificateEntry| {
                         Box::new(CertificateEntry {
                             cert: entry.cert.clone(),
                             exts: entry.exts.clone()
@@ -472,7 +472,7 @@ pub fn op_deconstruct_message(message: &Message) -> Vec<Box<dyn VariableData>> {
             vec![]
         }
         MessagePayload::Opaque(opaque) => {
-            vec![Box::new(opaque.0.clone())]
+            vec![Box::new(opaque.clone())]
         }
     }
 }

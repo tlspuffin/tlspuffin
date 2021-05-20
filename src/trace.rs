@@ -238,20 +238,20 @@ impl OutputAction {
             panic!("Failed to go to next state!")
         }
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
-            let public_variables = op_deconstruct_message(&message);
-            ctx.add_variables(public_variables);
+            let knowledge = op_deconstruct_message(&message);
+            ctx.add_variables(knowledge);
         }
     }
 }
 
 pub struct InputAction {
-    pub attacker_term: Term
+    pub recipe: Term
 }
 
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) {
         // message controlled by the attacker
-        let x = self.attacker_term
+        let x = self.recipe
             .evaluate(ctx)
             .unwrap();
         let attacker_message = x.as_ref()

@@ -130,7 +130,6 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
     } else {
         info!("Handshake is done");
     }
-
 }
 
 pub fn server_accept(stream: &mut SslStream<MemoryStream>) {
