@@ -268,6 +268,7 @@ pub mod tlspuffin {
                     action: Action::Input(InputAction {
                         recipe: Term::Application {
                             op: op_application_data.clone(),
+                            // todo can we express this with projections?
                             args: vec![Term::Variable(sig.new_var::<Payload>((3, 1)))],
                         },
                     }),
