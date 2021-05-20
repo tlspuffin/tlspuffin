@@ -11,8 +11,8 @@ use rustls::{CipherSuite, ProtocolVersion};
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::term::{op_client_hello, op_deconstruct_message, Signature, Term};
-use crate::variable_data::{AsAny, VariableData};
+use crate::term::{op_client_hello, Signature, Term};
+use crate::variable_data::{AsAny, VariableData, extract_variables};
 
 pub struct TraceContext {
     /// The knowledge of the attacker
@@ -238,7 +238,7 @@ impl OutputAction {
             panic!("Failed to go to next state!")
         }
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
-            let knowledge = op_deconstruct_message(&message);
+            let knowledge = extract_variables(&message);
             ctx.add_variables(knowledge);
         }
     }

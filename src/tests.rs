@@ -160,7 +160,7 @@ pub mod tlspuffin {
                             op: op_server_hello,
                             args: vec![
                                 Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
-                                Term::Variable(sig.new_var_by_type::<(Random,)>()),
+                                Term::Variable(sig.new_var_by_type::<Random>()),
                                 Term::Variable(sig.new_var_by_type::<SessionID>()),
                                 Term::Variable(sig.new_var_by_type::<CipherSuite>()),
                                 Term::Variable(sig.new_var_by_type::<Compression>()),
