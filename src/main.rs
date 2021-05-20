@@ -8,8 +8,8 @@ use std::thread;
 use env_logger::{Builder, Env, fmt};
 use log::Level;
 
-use crate::agent::AgentName;
-use crate::trace::{Step, TraceContext};
+use crate::trace::{TraceContext};
+use crate::fuzz::start_fuzzing;
 
 mod agent;
 mod debug;
@@ -19,6 +19,7 @@ mod tests;
 mod trace;
 mod variable_data;
 mod term;
+mod fuzz;
 
 fn main() {
     fn init_logger() {
@@ -52,6 +53,8 @@ fn main() {
     //pretty_env_logger::formatted_builder().target(Target::Stdout).filter_level(LevelFilter::Trace).init();
 
     info!("{}", openssl_binding::openssl_version());
+
+    start_fuzzing();
 
     loop {
         let mut ctx = TraceContext::new();

@@ -20,7 +20,9 @@ webpki-roots = "0.21"
 ring = "0.16.11"
 openssl = { version = "0.10.33", features = ["vendored"] }
 
-libafl = { git = "ssh://git@gitlab.inria.fr/mammann/libafl.git", branch = "dev" }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7" }
+libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7" }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7", features = ["sancov_pcguard_hitcounts", "libfuzzer"] }
 
 log = "0.4.14"
 env_logger = "0.8.3"
