@@ -62,7 +62,6 @@ mod term {
 
         let app = sig.new_op(&example_op_c);
         let s = sig.new_op(&example_op_c);
-        let k = sig.new_op(&example_op_c);
 
         let var_data = op_random_session_id();
 
@@ -72,7 +71,7 @@ mod term {
         println!("vec {:?}", TypeId::of::<Vec<u16>>());
 
         println!("{:?}", TypeId::of::<SessionID>());
-        println!("{:?}", var_data.get_type_id());
+        println!("{:?}", var_data.type_id());
 
         let dynamic_fn = s.clone().dynamic_fn;
         println!(
