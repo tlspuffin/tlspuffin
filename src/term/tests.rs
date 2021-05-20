@@ -1,17 +1,17 @@
-
 #[cfg(test)]
 mod term {
     use std::any::{Any, TypeId};
 
     use rustls::internal::msgs::handshake::SessionID;
+    use rustls::Session;
 
     use crate::term::op_impl::{
         op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id,
     };
     use crate::term::{Signature, Term, Variable, VariableContext};
+    use crate::trace::TraceContext;
     use crate::variable_data;
     use crate::variable_data::{AsAny, VariableData};
-    use crate::trace::TraceContext;
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
@@ -29,7 +29,7 @@ mod term {
 
         println!("dd {:?}", data.type_id());
 
-        let variable = sig.new_var(data.type_id(), "Vec<u8>");
+        let variable = sig.new_var::<Vec<u8>>((0, 0));
 
         let generated_term = Term::Application {
             op: hmac256,
@@ -44,7 +44,7 @@ mod term {
 
         println!("{}", generated_term.pretty());
         let mut context = TraceContext::new();
-        context.add_variable(Box::new(data));
+        context.add_variable((0, 0), Box::new(data));
 
         println!(
             "{:?}",
@@ -66,7 +66,7 @@ mod term {
 
         let var_data = op_random_session_id();
 
-        let k = sig.new_var(var_data.type_id(), "Random");
+        let k = sig.new_var::<SessionID>((0, 0));
 
         println!("vec {:?}", TypeId::of::<Vec<u8>>());
         println!("vec {:?}", TypeId::of::<Vec<u16>>());

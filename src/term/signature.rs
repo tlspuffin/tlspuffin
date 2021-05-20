@@ -8,6 +8,7 @@ use crate::term::type_helper::{make_dynamic, DescribableFunction};
 use crate::term::Variable;
 
 use super::Operator;
+use crate::trace::ObservedId;
 
 /// Records a universe of symbols.
 ///
@@ -70,22 +71,19 @@ impl Signature {
         operator
     }
 
-    /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
-    ///
-    /// [`Variable`]: struct.Variable.html
-    ///
-    pub fn new_var(&mut self, typ: TypeId, typ_name: &'static str) -> Variable {
+    fn new_var_internal(&mut self, typ: TypeId, typ_name: &'static str, observed_id: ObservedId) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
             typ_name,
             typ,
+            observed_id
         };
         self.variables.push(variable.clone());
         variable
     }
 
-    pub fn new_var_by_type<T: 'static>(&mut self) -> Variable {
-        self.new_var(TypeId::of::<T>(), std::any::type_name::<T>())
+    pub fn new_var<T: 'static>(&mut self, observed_id: ObservedId) -> Variable {
+        self.new_var_internal(TypeId::of::<T>(), std::any::type_name::<T>(), observed_id)
     }
 
     pub fn generate_message(&self) {

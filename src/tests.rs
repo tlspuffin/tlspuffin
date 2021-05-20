@@ -5,19 +5,20 @@ use crate::trace::TraceContext;
 
 #[cfg(test)]
 pub mod tlspuffin {
-    use rustls::{CipherSuite, ProtocolVersion};
+    use rustls::internal::msgs::base::Payload;
     use rustls::internal::msgs::enums::Compression;
     use rustls::internal::msgs::handshake::{
         CertificatePayload, ClientExtension, Random, ServerExtension, SessionID,
     };
+    use rustls::{CipherSuite, ProtocolVersion};
     use test_env_log::test;
+
     use crate::agent::AgentName;
     use crate::term::{
         op_application_data, op_certificate, op_change_cipher_spec, op_client_hello,
         op_encrypted_certificate, op_server_hello, Signature, Term,
     };
     use crate::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
-    use rustls::internal::msgs::base::Payload;
 
     #[test]
     /// Test for having an OpenSSL server (honest) agent
@@ -131,75 +132,146 @@ pub mod tlspuffin {
             steps: vec![
                 Step {
                     agent: client_openssl,
-                    action: Action::Output(OutputAction),
+                    action: Action::Output(OutputAction { id: 0 }),
                 },
+                // Client Hello Client -> Server
                 Step {
                     agent: server_openssl,
                     action: Action::Input(InputAction {
                         recipe: Term::Application {
                             op: op_client_hello,
                             args: vec![
-                                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
-                                Term::Variable(sig.new_var_by_type::<Random>()),
-                                Term::Variable(sig.new_var_by_type::<SessionID>()),
-                                Term::Variable(sig.new_var_by_type::<Vec<CipherSuite>>()),
-                                Term::Variable(sig.new_var_by_type::<Vec<Compression>>()),
-                                Term::Variable(sig.new_var_by_type::<Vec<ClientExtension>>()),
+                                Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
+                                Term::Variable(sig.new_var::<Random>((0, 0))),
+                                Term::Variable(sig.new_var::<SessionID>((0, 0))),
+                                Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
+                                Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
+                                Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0))),
                             ],
                         },
                     }),
                 },
                 Step {
                     agent: server_openssl,
-                    action: Action::Output(OutputAction),
+                    action: Action::Output(OutputAction { id: 1 }),
                 },
+                // Server Hello Server -> Client
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
                         recipe: Term::Application {
                             op: op_server_hello,
                             args: vec![
-                                Term::Variable(sig.new_var_by_type::<ProtocolVersion>()),
-                                Term::Variable(sig.new_var_by_type::<Random>()),
-                                Term::Variable(sig.new_var_by_type::<SessionID>()),
-                                Term::Variable(sig.new_var_by_type::<CipherSuite>()),
-                                Term::Variable(sig.new_var_by_type::<Compression>()),
-                                Term::Variable(sig.new_var_by_type::<Vec<ServerExtension>>()),
+                                Term::Variable(sig.new_var::<ProtocolVersion>((1, 0))),
+                                Term::Variable(sig.new_var::<Random>((1, 0))),
+                                Term::Variable(sig.new_var::<SessionID>((1, 0))),
+                                Term::Variable(sig.new_var::<CipherSuite>((1, 0))),
+                                Term::Variable(sig.new_var::<Compression>((1, 0))),
+                                Term::Variable(sig.new_var::<Vec<ServerExtension>>((1, 0))),
                             ],
                         },
                     }),
                 },
+                // CCS Server -> Client
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
                         recipe: Term::Application {
-                            op: op_change_cipher_spec,
+                            op: op_change_cipher_spec.clone(),
                             args: vec![],
                         },
                     }),
                 },
+                // Encrypted Extensions Server -> Client
                 Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
                         recipe: Term::Application {
-                            op: op_application_data,
-                            args: vec![Term::Variable(
-                                sig.new_var_by_type::<Payload>(),
-                            )],
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((1, 2)))],
                         },
                     }),
                 },
-/*                Step {
+                // Certificate Server -> Client
+                Step {
                     agent: client_openssl,
                     action: Action::Input(InputAction {
-                        attacker_term: Term::Application {
+                        recipe: Term::Application {
                             op: op_application_data.clone(),
-                            args: vec![Term::Variable(
-                                sig.new_var_by_type::<Vec<u8>>(),
-                            )],
+                            args: vec![Term::Variable(sig.new_var::<Payload>((1, 3)))],
+                        },
+                    }),
+                },
+                // Certificate Verify Server -> Client
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((1, 4)))],
+                        },
+                    }),
+                },
+                // Finish Server -> Client
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((1, 5)))],
+                        },
+                    }),
+                },
+                Step {
+                    agent: client_openssl,
+                    action: Action::Output(OutputAction { id: 2 }),
+                },
+                /*
+                // CCS Client -> Server
+                Step {
+                    agent: server_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_change_cipher_spec.clone(),
+                            args: vec![],
                         },
                     }),
                 },*/
+
+                // todo missing:
+                //      CCS Client -> Server
+                // Finished Client -> Server
+                Step {
+                    agent: server_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((2, 0)))],
+                        },
+                    }),
+                },
+                Step {
+                    agent: server_openssl,
+                    action: Action::Output(OutputAction { id: 3 }),
+                },
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((3, 0)))],
+                        },
+                    }),
+                },
+                Step {
+                    agent: client_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_application_data.clone(),
+                            args: vec![Term::Variable(sig.new_var::<Payload>((3, 1)))],
+                        },
+                    }),
+                },
             ],
         };
 
@@ -224,14 +296,16 @@ pub mod tlspuffin {
             .unwrap()
             .stream
             .describe_state();
-        assert!(client_state.contains("TLSv1.3 read encrypted extensions"));
-        assert!(server_state.contains("TLSv1.3 early data"));
+        println!("{}", client_state);
+        println!("{}", server_state);
+        assert!(client_state.contains("SSL negotiation finished successfully"));
+        assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 }
 
 #[cfg(test)]
 pub mod integration {
-    use std::io::{Read, stdout, Write};
+    use std::io::{stdout, Read, Write};
     use std::net::TcpStream;
     use std::sync::Arc;
 

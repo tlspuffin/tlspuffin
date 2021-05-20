@@ -4,7 +4,7 @@ use std::iter;
 use itertools::Itertools;
 
 use crate::term::pretty::Pretty;
-use crate::trace::TraceContext;
+use crate::trace::{TraceContext, ObservedId};
 use crate::variable_data::VariableData;
 
 use super::{Operator, Variable};
@@ -88,9 +88,9 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
             Term::Variable(v) => context
-                .get_variable_by_type_id(v.typ)
+                .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_any_box())
-                .ok_or(format!("Unable to find variable {} in TraceContext!", v)),
+                .ok_or(format!("Unable to find variable {} with observed id {:?} in TraceContext!", v, v.observed_id)),
             Term::Application { op, args } => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

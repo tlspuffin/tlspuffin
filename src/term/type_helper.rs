@@ -1,4 +1,4 @@
-use std::any::{Any, type_name, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -70,8 +70,8 @@ pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
 }
 
 impl<T> DynamicFunction for T
-    where
-        T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
+where
+    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -120,7 +120,12 @@ macro_rules! dynamic_fn {
                 Box::new(self($(
                        #[allow(unused_assignments)]
                        {
-                           if let Some(arg_) = args[index].as_ref().downcast_ref::<$arg>() {
+                           if let Some(arg_) = args.get(index)
+                                    .unwrap_or_else(|| {
+                                        let shape = Self::shape();
+                                        panic!("Missing argument #{} while calling {}.", index + 1, shape.name)
+                                    })
+                                    .as_ref().downcast_ref::<$arg>() {
                                index = index + 1;
                                arg_
                            } else {
@@ -152,8 +157,8 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 => R);
 pub fn make_dynamic<F: 'static, Types>(
     f: &'static F,
 ) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
-    where
-        F: DescribableFunction<Types>,
+where
+    F: DescribableFunction<Types>,
 {
     (F::shape(), f.make_dynamic())
 }

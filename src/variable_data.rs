@@ -97,6 +97,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         hs.typ.clone_box(),
                         Box::new(sh.random.clone()),
+                        Box::new(sh.session_id.clone()),
                         Box::new(sh.cipher_suite.clone()),
                         Box::new(sh.compression_method.clone()),
                         Box::new(sh.legacy_version.clone()),

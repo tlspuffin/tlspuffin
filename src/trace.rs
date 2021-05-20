@@ -12,11 +12,18 @@ use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::term::{op_client_hello, Signature, Term};
-use crate::variable_data::{AsAny, VariableData, extract_variables};
+use crate::variable_data::{extract_variables, AsAny, VariableData};
+
+pub type ObservedId = (u16, u16);
+
+struct ObservedVariable {
+    observed_id: ObservedId,
+    data: Box<dyn VariableData>,
+}
 
 pub struct TraceContext {
     /// The knowledge of the attacker
-    knowledge: Vec<Box<dyn VariableData>>,
+    knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
 }
 
@@ -28,56 +35,35 @@ impl TraceContext {
         }
     }
 
-    pub fn add_variable(&mut self, variable: Box<dyn VariableData>) {
-        self.knowledge.push(variable)
+    pub fn add_variable(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
+        self.knowledge.push(ObservedVariable {
+            observed_id,
+            data
+        })
     }
 
-    pub fn add_variables<I>(&mut self, variables: I)
+    pub fn add_variables<I>(&mut self, observed_id: ObservedId, variables: I)
     where
         I: IntoIterator<Item = Box<dyn VariableData>>,
     {
         for variable in variables {
-            self.add_variable(variable)
+            self.add_variable(observed_id, variable)
         }
-    }
-
-    // Why do we need to extend Any here? do we need to make sure that the types T are known during
-    // compile time?
-    fn downcast<T: Any>(variable: &dyn AsRef<dyn VariableData>) -> Option<&T> {
-        variable.as_ref().as_any().downcast_ref::<T>()
-    }
-
-    pub fn get_variable<T: VariableData + 'static>(&self) -> Option<&T> {
-        // todo handle if multiple variable are found
-        for variable in &self.knowledge {
-            if let Some(derived) = TraceContext::downcast(variable) {
-                return Some(derived);
-            }
-        }
-        None
     }
 
     pub fn get_variable_by_type_id(
         &self,
         type_id: TypeId,
+        observed_id: ObservedId
     ) -> Option<&(dyn VariableData + 'static)> {
         // todo handle if multiple variable are found
-        for data in &self.knowledge {
-            if type_id == data.as_ref().as_any().type_id() {
-                return Some(data.as_ref());
+        for observed in &self.knowledge {
+            let data: &dyn VariableData = observed.data.as_ref();
+            if type_id == data.as_any().type_id() && observed_id == observed.observed_id {
+                return Some(data);
             }
         }
         None
-    }
-
-    pub fn get_variable_set<T: VariableData + 'static>(&self) -> Vec<&T> {
-        let mut variables: Vec<&T> = Vec::new();
-        for variable in &self.knowledge {
-            if let Some(derived) = TraceContext::downcast(variable) {
-                variables.push(derived);
-            }
-        }
-        variables
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -230,35 +216,33 @@ impl fmt::Display for Action {
     }
 }
 
-pub struct OutputAction;
+pub struct OutputAction {
+    pub id: u16
+}
 
 impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) {
         if let Err(_) = ctx.next_state(step.agent) {
             panic!("Failed to go to next state!")
         }
+        let mut sub_id = 0u16;
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
             let knowledge = extract_variables(&message);
-            ctx.add_variables(knowledge);
+            ctx.add_variables((self.id, sub_id), knowledge);
+            sub_id += 1;
         }
     }
 }
 
 pub struct InputAction {
-    pub recipe: Term
+    pub recipe: Term,
 }
 
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) {
         // message controlled by the attacker
-        let x = self.recipe
-            .evaluate(ctx)
-            .unwrap();
-        let attacker_message = x.as_ref()
-            .downcast_ref::<Message>()
-            .unwrap(); // todo return errors
-
-        //let attacker_message = Message::build_key_update_notify();
+        let x = self.recipe.evaluate(ctx).unwrap();
+        let attacker_message = x.as_ref().downcast_ref::<Message>().unwrap(); // todo return errors
 
         if let Err(_) = ctx.add_to_inbound(step.agent, &attacker_message) {
             panic!("Failed to insert term to agents inbound channel!")
