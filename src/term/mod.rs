@@ -24,12 +24,11 @@
 // SOFTWARE.
 
 pub use self::atoms::*;
+// TODO remove later
+pub use self::op_impl::*;
 pub use self::signature::*;
 pub use self::term::*;
 pub use self::type_helper::*;
-
-// TODO remove later
-pub use self::op_impl::*;
 
 mod atoms;
 mod op_impl;

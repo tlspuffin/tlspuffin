@@ -1,17 +1,9 @@
 use std::any::{Any, TypeId};
 
-use dyn_clone::DynClone;
-use rand;
-use rand::random;
-use rand::seq::SliceRandom;
-use rustls::internal::msgs::base::PayloadU16;
-use rustls::internal::msgs::enums::{Compression, NamedGroup, ServerNameType};
-use rustls::internal::msgs::handshake::{ClientExtension, KeyShareEntry, Random, ServerExtension, SessionID, HandshakePayload};
-use rustls::internal::msgs::handshake::{ServerName, ServerNamePayload};
-use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
 
-use crate::agent::AgentName;
-use crate::term::Variable;
+use rustls::{CipherSuite};
+use rustls::internal::msgs::enums::{Compression};
+use rustls::internal::msgs::handshake::{ClientExtension, HandshakePayload, ServerExtension};
 use rustls::internal::msgs::message::{Message, MessagePayload};
 
 pub trait AsAny {
@@ -31,8 +23,8 @@ pub trait VariableData: AsAny {
 }
 
 impl<T: 'static> VariableData for T
-where
-    T: Clone,
+    where
+        T: Clone,
 {
     fn clone_box(&self) -> Box<dyn VariableData> {
         Box::new(self.clone())

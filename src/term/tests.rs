@@ -5,10 +5,10 @@ mod term {
     use rustls::internal::msgs::handshake::SessionID;
     use rustls::Session;
 
+    use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::term::op_impl::{
         op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id,
     };
-    use crate::term::{Signature, Term, Variable, VariableContext};
     use crate::trace::TraceContext;
     use crate::variable_data;
     use crate::variable_data::{AsAny, VariableData};

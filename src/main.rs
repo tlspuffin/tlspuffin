@@ -58,7 +58,7 @@ fn main() {
         let openssl_server_agent = ctx.new_openssl_agent(true);
         let honest_agent = ctx.new_agent();
 
-/*        let client_hello = ClientHelloSendAction::new();
+        /*        let client_hello = ClientHelloSendAction::new();
         let server_hello = ServerHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![

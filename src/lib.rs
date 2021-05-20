@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate log;
 
+pub use term::*;
+
 mod agent;
 mod debug;
 mod io;
@@ -10,4 +12,3 @@ mod trace;
 mod variable_data;
 mod term;
 
-pub use term::*;

@@ -8,10 +8,10 @@ use openssl::ssl::{Error, Ssl, SslContext, SslMethod, SslOptions, SslStream};
 use openssl::version::version;
 use openssl::x509::{X509, X509NameBuilder, X509Ref};
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
+use rustls::internal::msgs::message::Message;
 
 use crate::debug::debug_binary_message;
 use crate::io::{MemoryStream, Stream};
-use rustls::internal::msgs::message::Message;
 
 /*
    Change openssl version:

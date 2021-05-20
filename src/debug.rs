@@ -18,26 +18,25 @@ pub fn debug_message(message: &Message) {
 }
 
 pub fn debug_message_with_info(info: &'static str, message: &Message) {
-        info!(
-            "{}{:?} Record ({:?}): ",
-            if info.is_empty() {
-                info.to_string()
-            } else {
-                info.to_string() + " "
-            },
-            message.typ,
-            message.version
-        );
-        match &message.payload {
-            MessagePayload::Alert(payload) => {
-                trace!("Level: {:?}", payload.level);
-            }
-            MessagePayload::Handshake(payload) => {
-                let output = format!("{:?}", payload.payload);
-                trace!("{}", output);
-            }
-            MessagePayload::ChangeCipherSpec(_) => {}
-            MessagePayload::Opaque(_) => {}
+    info!(
+        "{}{:?} Record ({:?}): ",
+        if info.is_empty() {
+            info.to_string()
+        } else {
+            info.to_string() + " "
+        },
+        message.typ,
+        message.version
+    );
+    match &message.payload {
+        MessagePayload::Alert(payload) => {
+            trace!("Level: {:?}", payload.level);
         }
-
+        MessagePayload::Handshake(payload) => {
+            let output = format!("{:?}", payload.payload);
+            trace!("{}", output);
+        }
+        MessagePayload::ChangeCipherSpec(_) => {}
+        MessagePayload::Opaque(_) => {}
+    }
 }

@@ -4,11 +4,10 @@ use std::iter;
 use itertools::Itertools;
 
 use crate::term::pretty::Pretty;
-use crate::trace::{TraceContext, ObservedId};
+use crate::trace::{TraceContext};
 use crate::variable_data::VariableData;
 
 use super::{Operator, Variable};
-use crate::term::type_helper::hash_type_id;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///

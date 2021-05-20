@@ -1,18 +1,16 @@
 use core::fmt;
-use std::any::{Any, TypeId};
+use std::any::{TypeId};
 use std::fmt::Formatter;
 
-use rustls::internal::msgs::enums::Compression;
-use rustls::internal::msgs::handshake::{ClientExtension, HandshakePayload, Random, SessionID};
+use rustls::internal::msgs::handshake::{HandshakePayload};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
-use rustls::{CipherSuite, ProtocolVersion};
 
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::term::{op_client_hello, Signature, Term};
-use crate::variable_data::{extract_variables, AsAny, VariableData};
+use crate::term::{Term};
+use crate::variable_data::{extract_variables, VariableData};
 
 pub type ObservedId = (u16, u16);
 
@@ -38,13 +36,13 @@ impl TraceContext {
     pub fn add_variable(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
         self.knowledge.push(ObservedVariable {
             observed_id,
-            data
+            data,
         })
     }
 
     pub fn add_variables<I>(&mut self, observed_id: ObservedId, variables: I)
-    where
-        I: IntoIterator<Item = Box<dyn VariableData>>,
+        where
+            I: IntoIterator<Item=Box<dyn VariableData>>,
     {
         for variable in variables {
             self.add_variable(observed_id, variable)
@@ -54,7 +52,7 @@ impl TraceContext {
     pub fn get_variable_by_type_id(
         &self,
         type_id: TypeId,
-        observed_id: ObservedId
+        observed_id: ObservedId,
     ) -> Option<&(dyn VariableData + 'static)> {
         // todo handle if multiple variable are found
         for observed in &self.knowledge {
@@ -217,7 +215,7 @@ impl fmt::Display for Action {
 }
 
 pub struct OutputAction {
-    pub id: u16
+    pub id: u16,
 }
 
 impl OutputAction {

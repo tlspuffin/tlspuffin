@@ -1,8 +1,8 @@
 use std::any::TypeId;
-
-use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape, hash_type_id};
 use std::fmt;
 use std::fmt::Formatter;
+
+use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape};
 use crate::trace::ObservedId;
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].

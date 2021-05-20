@@ -1,14 +1,13 @@
+use std::{fmt};
 use std::any::TypeId;
-use std::hash::Hasher;
-use std::{any, fmt};
 
 use rustls::internal::msgs::message::Message;
 
-use crate::term::type_helper::{make_dynamic, DescribableFunction};
+use crate::term::type_helper::{DescribableFunction, make_dynamic};
 use crate::term::Variable;
+use crate::trace::ObservedId;
 
 use super::Operator;
-use crate::trace::ObservedId;
 
 /// Records a universe of symbols.
 ///
@@ -58,8 +57,8 @@ impl Signature {
     /// [`Operator`]: struct.Operator.html
     ///
     pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
-    where
-        F: DescribableFunction<Types>,
+        where
+            F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let operator = Operator {
@@ -76,7 +75,7 @@ impl Signature {
             id: self.variables.len() as u32,
             typ_name,
             typ,
-            observed_id
+            observed_id,
         };
         self.variables.push(variable.clone());
         variable
