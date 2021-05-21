@@ -87,7 +87,7 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
             Term::Variable(v) => context
-                .get_variable_by_type_id(v.typ, v.observed_id)
+                .get_variable_by_type_id(v.type_shape, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",

@@ -53,9 +53,11 @@ impl TraceContext {
         type_shape: TypeShape,
         observed_id: ObservedId,
     ) -> Option<&(dyn VariableData + 'static)> {
+        let type_id: TypeId = type_shape.into();
+
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            if type_shape.inner_type_id == data.as_any().type_id()
+            if type_id == data.as_any().type_id()
                 && observed_id == observed.observed_id
             {
                 return Some(data);

@@ -17,7 +17,7 @@ use crate::term::TypeShape;
 pub struct Variable {
     pub(crate) id: u32,
     pub(crate) typ_name: String,
-    pub(crate) typ: TypeShape,
+    pub(crate) type_shape: TypeShape,
     pub(crate) observed_id: ObservedId,
 }
 

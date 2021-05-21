@@ -188,10 +188,8 @@ where
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct TypeShape {
     #[serde(skip, default = "TypeShape::default_type_id")]
-    pub inner_type_id: TypeId,
+    inner_type_id: TypeId,
 }
-
-
 
 struct UnknownType;
 
@@ -204,6 +202,12 @@ impl TypeShape {
 
     fn default_type_id() -> TypeId {
         TypeId::of::<UnknownType>()
+    }
+}
+
+impl Into<TypeId> for TypeShape {
+    fn into(self) -> TypeId {
+        self.inner_type_id
     }
 }
 
