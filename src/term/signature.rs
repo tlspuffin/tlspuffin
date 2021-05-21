@@ -8,7 +8,7 @@ use crate::term::Variable;
 use crate::trace::ObservedId;
 
 use super::Operator;
-use crate::term::SerializableTypeId;
+use crate::term::TypeShape;
 
 /// Records a universe of symbols.
 ///
@@ -75,7 +75,7 @@ impl Signature {
         let variable = Variable {
             id: self.variables.len() as u32,
             typ_name: typ_name.to_string(),
-            typ: SerializableTypeId { type_id },
+            typ: TypeShape { inner_type_id: type_id },
             observed_id,
         };
         self.variables.push(variable.clone());
@@ -88,14 +88,14 @@ impl Signature {
 
     pub fn generate_message(&self) {
         for operator in &self.operators {
-            if operator.shape.return_type.type_id == TypeId::of::<Message>() {
+            if operator.shape.return_type == TypeShape::of::<Message>() {
                 // operation would build a Message -> lets try to build it
                 let args = &(operator.shape.argument_types);
 
                 if let Some(variable) = self
                     .variables
                     .iter()
-                    .find(|variable| args.iter().any(|type_id| variable.typ.type_id == type_id.type_id))
+                    .find(|variable| args.iter().any(|type_id| variable.typ == *type_id))
                 {
                     // we found an already existing `variable` which helps us to call `operator`
                 }
@@ -103,7 +103,7 @@ impl Signature {
                 if let Some(f) = self
                     .operators
                     .iter()
-                    .find(|f| args.iter().any(|type_id| f.shape.return_type.type_id == type_id.type_id))
+                    .find(|f| args.iter().any(|type_id| f.shape.return_type == *type_id))
                 {
                     // we found an already existing function which helps us to call `operator`
                 }

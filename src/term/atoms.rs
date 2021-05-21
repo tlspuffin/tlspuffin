@@ -5,7 +5,7 @@ use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape};
 use crate::trace::ObservedId;
 
 use serde::{Serialize, Deserialize};
-use crate::term::SerializableTypeId;
+use crate::term::TypeShape;
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
@@ -17,7 +17,7 @@ use crate::term::SerializableTypeId;
 pub struct Variable {
     pub(crate) id: u32,
     pub(crate) typ_name: String,
-    pub(crate) typ: SerializableTypeId,
+    pub(crate) typ: TypeShape,
     pub(crate) observed_id: ObservedId,
 }
 

@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize, Serializer, Deserializer};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DynamicFunctionShape {
     pub name: String,
-    pub argument_types: Vec<SerializableTypeId>,
+    pub argument_types: Vec<TypeShape>,
     pub argument_type_names: Vec<String>,
-    pub return_type: SerializableTypeId,
+    pub return_type: TypeShape,
     pub return_type_name: String,
 }
 
@@ -126,9 +126,9 @@ macro_rules! dynamic_fn {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
                 name: std::any::type_name::<F>().to_string(),
-                argument_types: vec![$(SerializableTypeId{ type_id: TypeId::of::<$arg>() }),*],
+                argument_types: vec![$(TypeShape::of::<$arg>()),*],
                 argument_type_names: vec![$(type_name::<$arg>().to_string()),*],
-                return_type: SerializableTypeId{ type_id: TypeId::of::<$res>() },
+                return_type: TypeShape::of::<$res>(),
                 return_type_name: type_name::<$res>().to_string(),
             }
         }
@@ -186,15 +186,29 @@ where
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub struct SerializableTypeId {
-    #[serde(skip, default = "SerializableTypeId::default")]
-    pub type_id: TypeId,
+pub struct TypeShape {
+    #[serde(skip, default = "TypeShape::default_type_id")]
+    pub inner_type_id: TypeId,
 }
+
+
 
 struct UnknownType;
 
-impl SerializableTypeId {
-    fn default() -> TypeId {
+impl TypeShape {
+    pub fn of<T: 'static>() -> TypeShape {
+        Self {
+            inner_type_id: TypeId::of::<T>()
+        }
+    }
+
+    fn default_type_id() -> TypeId {
         TypeId::of::<UnknownType>()
+    }
+}
+
+impl PartialEq for TypeShape {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner_type_id == other.inner_type_id
     }
 }
