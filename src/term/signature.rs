@@ -1,9 +1,10 @@
-use std::{fmt};
 use std::any::TypeId;
+use std::fmt;
 
 use rustls::internal::msgs::message::Message;
 
-use crate::term::type_helper::{DescribableFunction, make_dynamic};
+use crate::term::type_helper::{make_dynamic, DescribableFunction};
+use crate::term::TypeShape;
 use crate::term::Variable;
 use crate::trace::ObservedId;
 
@@ -57,8 +58,8 @@ impl Signature {
     /// [`Operator`]: struct.Operator.html
     ///
     pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
-        where
-            F: DescribableFunction<Types>,
+    where
+        F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let operator = Operator {
@@ -70,11 +71,16 @@ impl Signature {
         operator
     }
 
-    fn new_var_internal(&mut self, typ: TypeId, typ_name: &'static str, observed_id: ObservedId) -> Variable {
+    fn new_var_internal(
+        &mut self,
+        type_shape: TypeShape,
+        typ_name: String,
+        observed_id: ObservedId,
+    ) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
             typ_name,
-            typ,
+            type_shape,
             observed_id,
         };
         self.variables.push(variable.clone());
@@ -82,19 +88,23 @@ impl Signature {
     }
 
     pub fn new_var<T: 'static>(&mut self, observed_id: ObservedId) -> Variable {
-        self.new_var_internal(TypeId::of::<T>(), std::any::type_name::<T>(), observed_id)
+        self.new_var_internal(
+            TypeShape::of::<T>(),
+            std::any::type_name::<T>().to_string(),
+            observed_id,
+        )
     }
 
     pub fn generate_message(&self) {
         for operator in &self.operators {
-            if operator.shape.return_type == TypeId::of::<Message>() {
+            if operator.shape.return_type == TypeShape::of::<Message>() {
                 // operation would build a Message -> lets try to build it
                 let args = &(operator.shape.argument_types);
 
                 if let Some(variable) = self
                     .variables
                     .iter()
-                    .find(|variable| args.iter().any(|type_id| variable.typ == *type_id))
+                    .find(|variable| args.iter().any(|type_id| variable.type_shape == *type_id))
                 {
                     // we found an already existing `variable` which helps us to call `operator`
                 }

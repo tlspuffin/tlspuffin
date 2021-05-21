@@ -1,16 +1,18 @@
 use core::fmt;
-use std::any::{TypeId};
+use std::any::TypeId;
 use std::fmt::Formatter;
 
-use rustls::internal::msgs::handshake::{HandshakePayload};
+use rustls::internal::msgs::handshake::HandshakePayload;
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
+use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::term::{Term};
+use crate::term::Term;
 use crate::variable_data::{extract_variables, VariableData};
+use crate::term::TypeShape;
 
 pub type ObservedId = (u16, u16);
 
@@ -34,15 +36,12 @@ impl TraceContext {
     }
 
     pub fn add_variable(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
-        self.knowledge.push(ObservedVariable {
-            observed_id,
-            data,
-        })
+        self.knowledge.push(ObservedVariable { observed_id, data })
     }
 
     pub fn add_variables<I>(&mut self, observed_id: ObservedId, variables: I)
-        where
-            I: IntoIterator<Item=Box<dyn VariableData>>,
+    where
+        I: IntoIterator<Item = Box<dyn VariableData>>,
     {
         for variable in variables {
             self.add_variable(observed_id, variable)
@@ -51,13 +50,16 @@ impl TraceContext {
 
     pub fn get_variable_by_type_id(
         &self,
-        type_id: TypeId,
+        type_shape: TypeShape,
         observed_id: ObservedId,
     ) -> Option<&(dyn VariableData + 'static)> {
-        // todo handle if multiple variable are found
+        let type_id: TypeId = type_shape.into();
+
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            if type_id == data.as_any().type_id() && observed_id == observed.observed_id {
+            if type_id == data.as_any().type_id()
+                && observed_id == observed.observed_id
+            {
                 return Some(data);
             }
         }
@@ -141,6 +143,7 @@ impl TraceContext {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Trace {
     pub steps: Vec<Step>,
 }
@@ -174,11 +177,13 @@ impl fmt::Display for Trace {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Step {
     pub agent: AgentName,
     pub action: Action,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Action {
     Input(InputAction),
     Output(OutputAction),
@@ -214,6 +219,7 @@ impl fmt::Display for Action {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct OutputAction {
     pub id: u16,
 }
@@ -232,6 +238,7 @@ impl OutputAction {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct InputAction {
     pub recipe: Term,
 }
