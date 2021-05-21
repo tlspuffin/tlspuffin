@@ -5,7 +5,7 @@ use rand::random;
 use crate::io::{MemoryStream, OpenSSLStream, Stream};
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct AgentName(u128); // TODO make u128 private again
 
 impl AgentName {

@@ -2,6 +2,7 @@
 extern crate log;
 
 pub use term::*;
+pub use trace::*;
 
 mod agent;
 mod debug;

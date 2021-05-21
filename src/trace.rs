@@ -13,6 +13,10 @@ use crate::io::Channel;
 use crate::term::Term;
 use crate::variable_data::{extract_variables, VariableData};
 use crate::term::TypeShape;
+use libafl::inputs::{Input, HasLen, HasBytesVec, HasTargetBytes};
+use libafl::bolts::ownedref::OwnedSlice;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub type ObservedId = (u16, u16);
 
@@ -143,10 +147,21 @@ impl TraceContext {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Trace {
     pub steps: Vec<Step>,
 }
+
+
+// LibAFL support
+impl Input for Trace {}
+
+impl HasLen for Trace {
+    fn len(&self) -> usize {
+        self.steps.len()
+    }
+}
+
 
 impl Trace {
     pub fn execute(&mut self, ctx: &mut TraceContext) {
@@ -177,13 +192,13 @@ impl fmt::Display for Trace {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Step {
     pub agent: AgentName,
     pub action: Action,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Action {
     Input(InputAction),
     Output(OutputAction),
@@ -219,7 +234,7 @@ impl fmt::Display for Action {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OutputAction {
     pub id: u16,
 }
@@ -238,7 +253,7 @@ impl OutputAction {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {
     pub recipe: Term,
 }

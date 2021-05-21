@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use std::fmt::Formatter;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -76,6 +77,13 @@ where
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
+    }
+}
+
+impl fmt::Debug for  Box<dyn DynamicFunction> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // todo
+        Ok(())
     }
 }
 

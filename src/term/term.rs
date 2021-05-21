@@ -14,7 +14,7 @@ use super::{Operator, Variable};
 ///
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.html
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.

@@ -13,7 +13,7 @@ use crate::term::TypeShape;
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Variable {
     pub(crate) id: u32,
     pub(crate) typ_name: String,
@@ -33,7 +33,7 @@ impl fmt::Display for Variable {
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Operator {
     pub(crate) id: u32,
     pub(crate) shape: DynamicFunctionShape,
