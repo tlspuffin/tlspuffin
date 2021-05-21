@@ -5,21 +5,21 @@ use core::time;
 use std::io::Write;
 use std::thread;
 
-use env_logger::{Builder, Env, fmt};
+use env_logger::{fmt, Builder, Env};
 use log::Level;
 
-use crate::trace::{TraceContext};
-use crate::fuzz::start_fuzzing;
+use crate::fuzzer::start_fuzzing;
+use crate::trace::TraceContext;
 
 mod agent;
 mod debug;
+mod fuzzer;
 mod io;
 mod openssl_binding;
+mod term;
 mod tests;
 mod trace;
 mod variable_data;
-mod term;
-mod fuzz;
 
 fn main() {
     fn init_logger() {

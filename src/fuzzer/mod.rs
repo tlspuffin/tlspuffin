@@ -23,6 +23,8 @@ use libafl::{
 };
 
 use libafl_targets::{libfuzzer_initialize, libfuzzer_test_one_input, EDGES_MAP, MAX_EDGES_NUM};
+use crate::trace::Trace;
+use libafl::inputs::{Input, BytesInput};
 
 #[no_mangle]
 fn LLVMFuzzerTestOneInput(data: *const u8, size: usize) -> i32 {
@@ -104,17 +106,6 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
 
     println!("We're a client, let's fuzz :)");
 
-    // Create a PNG dictionary if not existing
-    if state.metadata().get::<Tokens>().is_none() {
-        state.add_metadata(Tokens::new(vec![
-            vec![137, 80, 78, 71, 13, 10, 26, 10], // PNG header
-            "IHDR".as_bytes().to_vec(),
-            "IDAT".as_bytes().to_vec(),
-            "PLTE".as_bytes().to_vec(),
-            "IEND".as_bytes().to_vec(),
-        ]));
-    }
-
     // Setup a basic mutator with a mutational stage
     let mutator = StdScheduledMutator::new(havoc_mutations());
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
@@ -126,8 +117,8 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     // The wrapped harness function, calling out to the LLVM-style harness
-    let mut harness = |buf: &[u8]| {
-        libfuzzer_test_one_input(buf);
+    let mut harness = |buf: &BytesInput| {
+        // todo
         ExitKind::Ok
     };
 
@@ -143,13 +134,6 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
         // 10 seconds timeout
         Duration::new(10, 0),
     );
-
-    // The actual target run starts here.
-    // Call LLVMFUzzerInitialize() if present.
-    let args: Vec<String> = env::args().collect();
-    if libfuzzer_initialize(&args) == -1 {
-        println!("Warning: LLVMFuzzerInitialize failed with -1")
-    }
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {

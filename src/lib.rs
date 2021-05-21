@@ -11,5 +11,5 @@ mod tests;
 mod trace;
 mod variable_data;
 mod term;
-mod fuzz;
+mod fuzzer;
 

@@ -20,9 +20,10 @@ webpki-roots = "0.21"
 ring = "0.16.11"
 openssl = { version = "0.10.33", features = ["vendored"] }
 
-libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7" }
-libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7" }
-libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "921baf7", features = ["sancov_pcguard_hitcounts", "libfuzzer"] }
+libc = "0.2"
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "bfbaa7a" }
+libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "bfbaa7a" }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "bfbaa7a", features = ["sancov_pcguard_hitcounts", "libfuzzer"] }
 
 log = "0.4.14"
 env_logger = "0.8.3"

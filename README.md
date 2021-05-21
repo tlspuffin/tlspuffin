@@ -8,8 +8,8 @@ Install [rustup](https://rustup.rs/) and setup a toolchain:
 rustup install 1.51.0-x86_64-unknown-linux-gnu
 ```
 
-The toolchain `1.51.0-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
-use `rustup install 1.51.0` to install the toolchain for your OS.
+The toolchain `1.52.1-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
+use `rustup install 1.52.1` to install the toolchain for your OS.
 
 Now, build the project:
 
