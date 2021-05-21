@@ -1,7 +1,7 @@
 use core::time::Duration;
 use std::marker::PhantomData;
 use std::path::Path;
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, time, thread};
 
 use libafl::bolts::rands::{Rand, RomuTrioRand};
 use libafl::events::{Event, EventManager, LogSeverity};
@@ -22,7 +22,7 @@ use libafl::{
     feedback_or,
     feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
-    mutators::scheduled::{havoc_mutations, tokens_mutations, StdScheduledMutator},
+    mutators::scheduled::{tokens_mutations, StdScheduledMutator},
     mutators::token_mutations::Tokens,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
     stages::mutational::StdMutationalStage,
@@ -34,13 +34,10 @@ use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 
 use crate::fuzzer::mutations::{trace_mutations};
 use crate::trace::Trace;
+use rand::Rng;
+use libafl::corpus::RandCorpusScheduler;
 
 mod mutations;
-
-#[no_mangle]
-fn LLVMFuzzerTestOneInput(data: *const u8, size: usize) -> i32 {
-    return 0;
-}
 
 pub fn start_fuzzing() {
     // Registry the metadata types used in this fuzzer
@@ -60,17 +57,18 @@ pub fn start_fuzzing() {
 }
 
 fn harness(input: &Trace) -> ExitKind {
-    panic!();
-    ExitKind::Ok
-}
+    let mut rng = rand::thread_rng();
 
-type StdStateType = StdState<
-    InMemoryCorpus<Trace>,
-    (MapFeedbackState<u8>, ()),
-    Trace,
-    RomuTrioRand,
-    OnDiskCorpus<Trace>,
->;
+    let n1 = rng.gen_range(0..10);
+    println!("Run {}", n1);
+    if n1 <= 3 {
+        panic!()
+    }
+    let ten_millis = time::Duration::from_millis(1000);
+
+    thread::sleep(ten_millis);
+    ExitKind::Timeout
+}
 
 /// The actual fuzzer
 fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Result<(), Error> {
@@ -90,31 +88,23 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
         },
     };
 
-    // Create an observation channel using the coverage map
-    let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
-    let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", edges));
 
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
 
-    // The state of the edges feedback.
-    //let feedback_state = MapFeedbackState::with_observer(&edges_observer);
-    let feedback_state = MapFeedbackState::new("", 4);
-
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let feedback = feedback_or!(
-        // New maximization map feedback linked to the edges observer and the feedback state
-        MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
-        TimeFeedback::new_with_observer(&time_observer)
+        TimeFeedback::new_with_observer(&time_observer),
+        TimeoutFeedback::new()
     );
 
     // A feedback to choose if an input is a solution or not
     let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
     // If not restarting, create a State from scratch
-    let mut state: StdStateType = state.unwrap_or_else(|| {
+    let mut state = state.unwrap_or_else(|| {
         StdState::new(
             // RNG
             StdRand::with_seed(current_nanos()),
@@ -125,7 +115,7 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
             OnDiskCorpus::new(objective_dir).unwrap(),
             // States of the feedbacks.
             // They are the data related to the feedbacks that you want to persist in the State.
-            tuple_list!(feedback_state),
+            tuple_list!(),
         )
     });
 
@@ -140,7 +130,8 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
     // A minimization+queue policy to get testcasess from the corpus
-    let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+    // let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+    let scheduler = RandCorpusScheduler::new();
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -150,7 +141,7 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
             harness_fn,
-            tuple_list!(edges_observer, time_observer),
+            tuple_list!(time_observer),
             &mut fuzzer,
             &mut state,
             &mut restarting_mgr,
@@ -172,7 +163,7 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
             },
             &corpus_dirs,
         )
-        .unwrap_or_else(|_| panic!("Failed to load initial corpus at {:?}", &corpus_dirs));
+        .unwrap_or_else(|err| panic!("Failed to load initial corpus at {:?}: {}", &corpus_dirs, err));
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 

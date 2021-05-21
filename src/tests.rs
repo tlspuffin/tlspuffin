@@ -16,10 +16,11 @@ pub mod tlspuffin {
     /// Test for having an OpenSSL server (honest) agent
     pub fn openssl_server() {
         let mut ctx = TraceContext::new();
+        /*
         let client = ctx.new_agent();
         let openssl_server = ctx.new_openssl_agent(true);
 
-        /*        let client_hello = ClientHelloSendAction::new();
+        let client_hello = ClientHelloSendAction::new();
         let server_hello = ServerHelloExpectAction::new();
         let mut trace = trace::Trace {
             steps: vec![
@@ -45,10 +46,11 @@ pub mod tlspuffin {
     /// Test for having an OpenSSL client (honest) agent
     fn openssl_client() {
         let mut ctx = TraceContext::new();
+        /*
         let honest_agent = ctx.new_agent();
         let openssl_client_agent = ctx.new_openssl_agent(false);
 
-        /*        let client_hello_initial = ClientHelloExpectAction::new();
+        let client_hello_initial = ClientHelloExpectAction::new();
         let client_hello_expect = ClientHelloExpectAction::new();
         let client_hello = ClientHelloSendAction::new();
         let server_hello_expect = ServerHelloExpectAction::new();

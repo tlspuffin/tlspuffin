@@ -1,7 +1,11 @@
 use core::fmt;
 use std::any::TypeId;
+use std::cell::RefCell;
 use std::fmt::Formatter;
+use std::rc::Rc;
 
+use libafl::bolts::ownedref::OwnedSlice;
+use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
 use rustls::internal::msgs::handshake::HandshakePayload;
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
@@ -11,12 +15,8 @@ use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::term::Term;
-use crate::variable_data::{extract_variables, VariableData};
 use crate::term::TypeShape;
-use libafl::inputs::{Input, HasLen, HasBytesVec, HasTargetBytes};
-use libafl::bolts::ownedref::OwnedSlice;
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::variable_data::{extract_variables, VariableData};
 
 pub type ObservedId = (u16, u16);
 
@@ -29,6 +29,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
+    last_agent_added: AgentName,
 }
 
 impl TraceContext {
@@ -36,6 +37,7 @@ impl TraceContext {
         Self {
             knowledge: vec![],
             agents: vec![],
+            last_agent_added: AgentName::none(),
         }
     }
 
@@ -61,9 +63,7 @@ impl TraceContext {
 
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            if type_id == data.as_any().type_id()
-                && observed_id == observed.observed_id
-            {
+            if type_id == data.as_any().type_id() && observed_id == observed.observed_id {
                 return Some(data);
             }
         }
@@ -113,16 +113,13 @@ impl TraceContext {
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
         let name = agent.name;
+        self.last_agent_added = agent.name;
         self.agents.push(agent);
         return name;
     }
 
-    pub fn new_agent(&mut self) -> AgentName {
-        return self.add_agent(Agent::new());
-    }
-
     pub fn new_openssl_agent(&mut self, server: bool) -> AgentName {
-        return self.add_agent(Agent::new_openssl(server));
+        return self.add_agent(Agent::new_openssl(&self.last_agent_added, server));
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
@@ -152,7 +149,6 @@ pub struct Trace {
     pub steps: Vec<Step>,
 }
 
-
 // LibAFL support
 impl Input for Trace {}
 
@@ -161,7 +157,6 @@ impl HasLen for Trace {
         self.steps.len()
     }
 }
-
 
 impl Trace {
     pub fn execute(&mut self, ctx: &mut TraceContext) {

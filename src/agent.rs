@@ -1,16 +1,15 @@
 use core::fmt;
 
-use rand::random;
+use serde::{Deserialize, Serialize};
 
-use crate::io::{MemoryStream, OpenSSLStream, Stream};
-use serde::{Serialize, Deserialize};
+use crate::io::{OpenSSLStream, Stream};
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub struct AgentName(u128); // TODO make u128 private again
+pub struct AgentName(u8);
 
 impl AgentName {
-    pub fn random() -> AgentName {
-        AgentName(random())
+    pub fn new(last_name: &AgentName) -> AgentName {
+        AgentName(last_name.0 + 1)
     }
 
     pub fn none() -> AgentName {
@@ -18,13 +17,11 @@ impl AgentName {
     }
 }
 
-const NONE_AGENT: AgentName = AgentName(0u128);
+const NONE_AGENT: AgentName = AgentName(0u8);
 
 impl fmt::Display for AgentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut encoded = hex::encode(self.0.to_ne_bytes());
-        encoded.truncate(8); // only display first 4 byte
-        write!(f, "{}", encoded)
+        write!(f, "{}", self.0)
     }
 }
 
@@ -37,24 +34,17 @@ impl PartialEq for AgentName {
 pub struct Agent {
     pub name: AgentName,
     pub stream: Box<dyn Stream>,
-    // Whether this agent automatically forwards data form the inbound channel to the outbound channel
-    pub is_producing: bool,
 }
 
 impl Agent {
-    pub fn new() -> Self {
-        Self::from_stream(Box::new(MemoryStream::new()), false)
+    pub fn new_openssl(last_name: &AgentName, server: bool) -> Self {
+        Self::from_stream(last_name, Box::new(OpenSSLStream::new(server)))
     }
 
-    pub fn new_openssl(server: bool) -> Self {
-        Self::from_stream(Box::new(OpenSSLStream::new(server)), true)
-    }
-
-    pub fn from_stream(stream: Box<dyn Stream>, is_producing: bool) -> Agent {
+    pub fn from_stream(last_name: &AgentName, stream: Box<dyn Stream>) -> Agent {
         Agent {
-            name: AgentName::random(),
+            name: AgentName::new(&last_name),
             stream,
-            is_producing,
         }
     }
 }

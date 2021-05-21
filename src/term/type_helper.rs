@@ -4,8 +4,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{Deserialize, Serialize, Serializer, Deserializer, de};
 use std::fmt::Formatter;
+use serde::de::value::I32Deserializer;
+use serde::de::Visitor;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -218,12 +220,24 @@ impl Serialize for Box<dyn DynamicFunction> {
     }
 }
 
+struct StringVisitor;
+
+impl<'de> Visitor<'de> for StringVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("an integer between -2^31 and 2^31")
+    }
+}
+
+
 impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
     fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
         where
             D: Deserializer<'de>,
     {
         // todo
+        deserializer.deserialize_str(StringVisitor);
         Ok(Box::new(make_dynamic(&crate::term::op_server_hello).1))
     }
 }
@@ -238,12 +252,23 @@ impl Serialize for TypeShape {
     }
 }
 
+struct Visitor1;
+
+impl<'de> Visitor<'de> for Visitor1 {
+    type Value = u64;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("an integer between -2^31 and 2^31")
+    }
+}
+
 impl<'de> Deserialize<'de> for TypeShape {
     fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
         where
             D: Deserializer<'de>,
     {
         // todo
+        deserializer.deserialize_i64(Visitor1);
         Ok(TypeShape::of::<UnknownType>())
     }
 }
