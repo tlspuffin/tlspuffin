@@ -85,27 +85,6 @@ impl Clone for Box<dyn DynamicFunction> {
     }
 }
 
-impl Serialize for Box<dyn DynamicFunction> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-    {
-        // todo
-        serializer.serialize_u64(1)
-    }
-}
-
-impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
-    fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
-        where
-            D: Deserializer<'de>,
-    {
-        // todo
-        Ok(Box::new(make_dynamic(&crate::term::op_server_hello).1))
-    }
-}
-
-
 /// This trait is implemented for function traits in order to:
 /// * describe their shape during runtime
 /// * wrap them into a [`DynamicFunction`] which is callable with arbitrary data
@@ -185,9 +164,10 @@ where
     (F::shape(), f.make_dynamic())
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+
+
+#[derive(Copy, Clone, Debug)]
 pub struct TypeShape {
-    #[serde(skip, default = "TypeShape::default_type_id")]
     inner_type_id: TypeId,
 }
 
@@ -214,5 +194,48 @@ impl Into<TypeId> for TypeShape {
 impl PartialEq for TypeShape {
     fn eq(&self, other: &Self) -> bool {
         self.inner_type_id == other.inner_type_id
+    }
+}
+
+
+// todo serialization
+
+impl Serialize for Box<dyn DynamicFunction> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        // todo
+        serializer.serialize_str(type_name::<Box<dyn DynamicFunction>>())
+    }
+}
+
+impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
+    fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        // todo
+        Ok(Box::new(make_dynamic(&crate::term::op_server_hello).1))
+    }
+}
+
+impl Serialize for TypeShape {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        // todo
+        serializer.serialize_u64(1)
+    }
+}
+
+impl<'de> Deserialize<'de> for TypeShape {
+    fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        // todo
+        Ok(TypeShape::of::<UnknownType>())
     }
 }

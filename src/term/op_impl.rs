@@ -327,3 +327,5 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     ]
 }
 
+// todo it would be possible generate dynamic functions like in criterion_group! macro
+// https://gitlab.inria.fr/mammann/tlspuffin/-/issues/28
