@@ -43,7 +43,7 @@ pub mod integration {
     use webpki_roots;
 
     use crate::fuzzer::seeds::seed_successful;
-    use crate::trace::TraceContext;
+    use crate::trace::{TraceContext, Trace};
 
     #[test]
     fn test_serialisation() {
@@ -51,6 +51,7 @@ pub mod integration {
         let (_, _, trace) = seed_successful(&mut ctx);
         let serialized = serde_json::to_string_pretty(&trace).unwrap();
         println!("serialized = {}", serialized);
+        serde_json::from_str::<Trace>(serialized.as_str()).unwrap();
     }
 
     #[test]

@@ -1,13 +1,13 @@
 use std::any::{type_name, Any, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
+use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
-use serde::{Deserialize, Serialize, Serializer, Deserializer, de};
-use std::fmt::Formatter;
 use serde::de::value::I32Deserializer;
 use serde::de::Visitor;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl fmt::Debug for  Box<dyn DynamicFunction> {
+impl fmt::Debug for Box<dyn DynamicFunction> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         // todo
         Ok(())
@@ -174,8 +174,6 @@ where
     (F::shape(), f.make_dynamic())
 }
 
-
-
 #[derive(Copy, Clone, Debug)]
 pub struct TypeShape {
     inner_type_id: TypeId,
@@ -186,7 +184,7 @@ struct UnknownType;
 impl TypeShape {
     pub fn of<T: 'static>() -> TypeShape {
         Self {
-            inner_type_id: TypeId::of::<T>()
+            inner_type_id: TypeId::of::<T>(),
         }
     }
 
@@ -207,68 +205,89 @@ impl PartialEq for TypeShape {
     }
 }
 
-
 // todo serialization
 
 impl Serialize for Box<dyn DynamicFunction> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         // todo
-        serializer.serialize_str(type_name::<Box<dyn DynamicFunction>>())
+        serializer.serialize_str(type_name::<dyn DynamicFunction>())
     }
 }
 
 struct StringVisitor;
 
 impl<'de> Visitor<'de> for StringVisitor {
-    type Value = String;
+    type Value = &'de str;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an integer between -2^31 and 2^31")
+        formatter.write_str("a string xxx")
+    }
+
+    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+    {
+        return Ok(v);
     }
 }
 
-
 impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
     fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         // todo
-        deserializer.deserialize_str(StringVisitor);
-        Ok(Box::new(make_dynamic(&crate::term::op_impl::op_server_hello).1))
+        deserializer
+            .deserialize_str(StringVisitor)
+            .map(|str| make_dynamic(&crate::term::op_impl::op_server_hello).1)
     }
 }
 
 impl Serialize for TypeShape {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         // todo
         serializer.serialize_u64(1)
     }
 }
 
-struct Visitor1;
+struct VisitorU64;
 
-impl<'de> Visitor<'de> for Visitor1 {
+impl<'de> Visitor<'de> for VisitorU64 {
     type Value = u64;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("an integer between -2^31 and 2^31")
+        formatter.write_str("a 'de")
+    }
+
+    fn visit_i64<E>(self, value: i64) -> Result<u64, E>
+        where
+            E: serde::de::Error,
+    {
+        Ok(value as u64)
+    }
+
+    fn visit_u64<E>(self, value: u64) -> Result<u64, E>
+    where
+        E: serde::de::Error,
+    {
+        self.visit_i64(value as i64)
     }
 }
 
 impl<'de> Deserialize<'de> for TypeShape {
     fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         // todo
-        deserializer.deserialize_i64(Visitor1);
-        Ok(TypeShape::of::<UnknownType>())
+        deserializer
+            .deserialize_u64(VisitorU64)
+            .map(|i| TypeShape::of::<UnknownType>())
     }
 }

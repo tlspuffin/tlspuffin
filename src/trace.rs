@@ -149,14 +149,16 @@ pub struct Trace {
     pub steps: Vec<Step>,
 }
 
+/*impl Clone for Trace {
+    fn clone(&self) -> Trace {
+        Trace {
+            steps: vec![]
+        }
+    }
+}*/
+
 // LibAFL support
 impl Input for Trace {}
-
-impl HasLen for Trace {
-    fn len(&self) -> usize {
-        self.steps.len()
-    }
-}
 
 impl Trace {
     pub fn execute(&mut self, ctx: &mut TraceContext) {

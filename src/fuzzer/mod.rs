@@ -31,6 +31,7 @@ use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::seeds::seed_successful;
 use crate::trace::TraceContext;
+use libafl::stats::MultiStats;
 
 mod harness;
 mod mutations;
@@ -42,7 +43,7 @@ pub fn fuzz(
     broker_port: u16,
 ) -> Result<(), Error> {
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted
-    let stats = SimpleStats::new(|s| println!("{}", s));
+    let stats = MultiStats::new(|s| println!("{}", s));
 
     // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
     let (state, mut restarting_mgr) = match setup_restarting_mgr_std(stats, broker_port) {
@@ -124,7 +125,10 @@ pub fn fuzz(
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
-        /*state
+
+/* todo save postcard file in corpus, not json
+
+  state
         .load_initial_inputs(
             &mut fuzzer,
             &mut executor,

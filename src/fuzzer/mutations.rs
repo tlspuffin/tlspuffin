@@ -45,13 +45,13 @@ where
         input: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        match &mut input.steps[3].action {
+       /* match &mut input.steps[3].action {
             Action::Input(input) => {
                 //input.recipe = Term::Variable(sig.new_var_by_type::<SessionID>());
             }
             Action::Output(_) => {}
-        }
-        Ok(MutationResult::Skipped)
+        }*/
+        Ok(MutationResult::Mutated)
     }
 }
 
