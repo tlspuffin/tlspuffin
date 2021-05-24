@@ -4,14 +4,64 @@ use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Error, Ssl, SslContext, SslMethod, SslOptions, SslStream};
+use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream};
 use openssl::version::version;
 use openssl::x509::{X509, X509NameBuilder, X509Ref};
 use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
-use rustls::internal::msgs::message::Message;
 
-use crate::debug::debug_binary_message;
-use crate::io::{MemoryStream, Stream};
+use crate::io::MemoryStream;
+
+const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
+WrcuAuKDcZNQW/0txKHBR7R8wqCtkBiiQ0WWslV6NHWiaaG/mba8oGQhVRcDMoxf
+BEOA0Eppq+PDJ5giB+9CxvD+cTlaHTZIMsj1qQL/6o6IUE6WBysth8vP6pIjYRPe
+5fVsLv4XFYWXYV4LkmF+kuUqIznvqHkO0BUp7U6pyNEvO74uHbqvNbF2Y3Kgkg+s
+pbaCWPHyCdTGeiPbVzWWgEqBSv7QBRKGNnTZgd400NEG5sF7H1vNZkuZEEEiBLH3
+Ob2BSLtQ/ny0q9jkh2tYjfygJDDoqQOSd8ZjU/9gej2zhzHY2OpDyfR1XkmvrAPC
+9Fu1ts4PAgMBAAECggEAK4SSuMpw+6UyEFE5dwOHeAzNAV/IX/pk0lRXBUFQ0YvB
+7+CqrXkzcBNmKXtwjdiJWSZQkqNzyQCOt2EMGvGuw1Xqmf2i2BPLV1M0kox+Dy+X
+6z9ZQzXWs0618W9E3DNoHIjNJRaVGiV+IVU8HwMsdGXGmMrm0QtI3813bwEZY43Q
+mlDJXF1r5UugHIo2Hh6HRzsaUnC3pG1HNuKL8PcdTFNslVMeGQmO8IpYKxHN5Ldz
+loW6lkkSuBrRsbojvyDUveFLoEX/RhJoxg/Oic6JV7eBWewS/0Ps3gryBmBX3jBV
+6RZQlL8l4z2tDi+0t7flnqbQkqHof3wQCArkIsgOiQKBgQDTruiU3xRZ2WXvu3PN
+dLx9G+Q2I/0TmYw1viEyjhZOTWoinM614Gkn30GMGQU1+Lcq5BTujVdRaSQy0DWv
+1GkzwJye3q0xNBIj2qP7GFZa446UjShOu1NU7HvT2meGtEDmQHA26T55Fd+E1I9K
+te0sk71GNhI8nOLEsgcLf34hJQKBgQDJ7U4BQb0H5bDHdiyWABiEAUKe9CxmDesS
+/IElWI4kUYH+BJC3OKsPaGwKRHP9xM3/Z1xNuEaICru2nrTxjySGlHQLRm9b0x/w
+d4zF4Lmd+hx8Y3EuavwAsN2v9DzGCxksoZgmJPmA64u3HpfwnfkqJLR9yUdrAjOe
+iMwokzNOIwKBgDcvKOjugwKtXxqxNo5AOYcwBz1qAmbip5+3EjZ4vi3plpqxYF4f
+w6omVJMuTqJ0VWP0E9Tgufu6OjqY9vYAnPBl7S6phGMIXRZFwGwMOy70lc36QqDL
+yvyfreRb0pNWWHjuIZLfGW89mYiqVTS32r29QiGUpQpyJ9f5RUblFL+VAoGBAMPf
+YY9uiUMj13tkcpN+vEkwP8OY74h/b8wXC9+CKz+noQUawJY6bhSgIk1DYZCEW56o
+UK1DV4eXgcb/5F19kNzLHFXjmRnljlHgZbl86BEKEJ/Ihn2UYab56dFIhbtGAMF+
+buxxaWVZF0ombxSE6LGssThjCtgOZqwd3oxtXZMpAoGBALGK0dV3CSG0cS5Sya4P
+twtC36V0ynuef3YrRaOMYnj9zgXZD+Db/vpTZSYwSSBAvqVLGTt3EgzW/zwD5+62
+UbQ/245wgNlgATlVVRUcgnHz9bnNAW0dBG4YeLnQTkVl1I0TR8VDjJCi3F6l1nnr
+XIZqdO/MQ75qBeUM/r9tsdpu
+-----END PRIVATE KEY-----";
+
+const CERT: &str = "-----BEGIN CERTIFICATE-----
+MIIDajCCAlKgAwIBAgITdvXibPwwAIa0Bv65gaVuVie5VjANBgkqhkiG9w0BAQsF
+ADBFMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwY
+SW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMB4XDTIxMDUyNDE1MzAwMFoXDTIxMDYy
+MzE1MzAwMFowRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAf
+BgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDCCASIwDQYJKoZIhvcNAQEB
+BQADggEPADCCAQoCggEBAKb4jgqJ4XynKk1aty4C4oNxk1Bb/S3EocFHtHzCoK2Q
+GKJDRZayVXo0daJpob+ZtrygZCFVFwMyjF8EQ4DQSmmr48MnmCIH70LG8P5xOVod
+NkgyyPWpAv/qjohQTpYHKy2Hy8/qkiNhE97l9Wwu/hcVhZdhXguSYX6S5SojOe+o
+eQ7QFSntTqnI0S87vi4duq81sXZjcqCSD6yltoJY8fIJ1MZ6I9tXNZaASoFK/tAF
+EoY2dNmB3jTQ0QbmwXsfW81mS5kQQSIEsfc5vYFIu1D+fLSr2OSHa1iN/KAkMOip
+A5J3xmNT/2B6PbOHMdjY6kPJ9HVeSa+sA8L0W7W2zg8CAwEAAaNTMFEwHQYDVR0O
+BBYEFI4uUtLX7czsxVP8axN/jfVKjKOPMB8GA1UdIwQYMBaAFI4uUtLX7czsxVP8
+axN/jfVKjKOPMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBACfO
+f4Q93i5Ra3qt+a+MLbY1/EExNVxahePeI4ImmIP7i2ZaHP/sSSHO3L0m02X4hygI
+IMAg0PwN3kiV2elA39TqY0YZv3q0yc5gtssN1nsKwjm36O11RN1HlK1D07SMm00R
+zkMfeXUKErSFDB3PPHwwc+G6FUKMPW4g4rg49aVSizIdbCLmMPECNyXHsD4bo2fF
+WAccqe3TAwAq6m2BWaH8YchExVPAnJ5AvO2pBbE8j8v6dF470vBs6szvBKvgV9pu
++ullb9HQDft8lcQCI7Ib5reI/0YaYN02Mlhy3hLbxHKJaB1FlYMtqiiYL55GIEtZ
+i7RrmCDnL/ue3MkPP+8=
+-----END CERTIFICATE-----";
+
 
 /*
    Change openssl version:
@@ -19,6 +69,13 @@ use crate::io::{MemoryStream, Stream};
    cd openssl-src/openssl
    git checkout OpenSSL_1_1_1j
 */
+pub fn rsa_cert() -> (X509, PKey<Private>) {
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes()).unwrap();
+    let pkey = PKey::from_rsa(rsa).unwrap();
+
+    let cert = X509::from_pem(CERT.as_bytes()).unwrap();
+    (cert, pkey)
+}
 
 pub fn generate_cert() -> (X509, PKey<Private>) {
     let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
@@ -39,7 +96,7 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
         serial.rand(159, MsbOption::MAYBE_ZERO, false).unwrap();
         serial.to_asn1_integer()
     }
-        .unwrap();
+    .unwrap();
     cert_builder.set_serial_number(&serial_number).unwrap();
     cert_builder.set_subject_name(&x509_name).unwrap();
     cert_builder.set_issuer_name(&x509_name).unwrap();

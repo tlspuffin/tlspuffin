@@ -1,15 +1,10 @@
 use core::time::Duration;
-use std::marker::PhantomData;
-use std::path::Path;
-use std::{env, fs, path::PathBuf, time, thread};
+use std::{fs, path::PathBuf, thread, time};
 
 use libafl::bolts::rands::{Rand, RomuTrioRand};
+use libafl::corpus::RandCorpusScheduler;
 use libafl::events::{Event, EventManager, LogSeverity};
-use libafl::executors::Executor;
-use libafl::feedbacks::{
-    FeedbackStatesTuple, MapIndexesMetadata, MaxReducer, OrFeedback,
-};
-use libafl::inputs::{Input};
+use libafl::feedbacks::{FeedbackStatesTuple, MapIndexesMetadata, MaxReducer, OrFeedback};
 use libafl::{
     bolts::tuples::{tuple_list, Merge},
     bolts::{current_nanos, rands::StdRand},
@@ -33,15 +28,19 @@ use libafl::{
 // Leave this import such that -fsanitize-coverage=trace-pc-guard generated code can link
 use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 
-use crate::fuzzer::mutations::{trace_mutations};
-use libafl::corpus::RandCorpusScheduler;
-use crate::trace::Trace;
+use crate::fuzzer::mutations::trace_mutations;
+use crate::fuzzer::seeds::seed_successful;
+use crate::trace::TraceContext;
 
-mod mutations;
 mod harness;
+mod mutations;
 pub mod seeds;
 
-pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Result<(), Error> {
+pub fn fuzz(
+    corpus_dirs: &[PathBuf],
+    objective_dir: PathBuf,
+    broker_port: u16,
+) -> Result<(), Error> {
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted
     let stats = SimpleStats::new(|s| println!("{}", s));
 
@@ -58,20 +57,27 @@ pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -
         },
     };
 
-
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
+
+    // Create an observation channel using the coverage map
+    let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
+    let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", edges));
+
+    // The state of the edges feedback.
+    let feedback_state = MapFeedbackState::with_observer(&edges_observer);
+
+    // A feedback to choose if an input is a solution or not
+    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let feedback = feedback_or!(
+        MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
-        TimeFeedback::new_with_observer(&time_observer),
-        TimeoutFeedback::new()
+        TimeFeedback::new_with_observer(&time_observer)
+        //TimeoutFeedback::new()
     );
-
-    // A feedback to choose if an input is a solution or not
-    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
     // If not restarting, create a State from scratch
     let mut state = state.unwrap_or_else(|| {
@@ -85,13 +91,9 @@ pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -
             OnDiskCorpus::new(objective_dir).unwrap(),
             // States of the feedbacks.
             // They are the data related to the feedbacks that you want to persist in the State.
-            tuple_list!(),
+            tuple_list!(feedback_state),
         )
     });
-
-    //let mut rand: Box<dyn HasRand<_>> = Box::new(state);
-    //let mut rand: Box<dyn HasRand<RomuTrioRand>> = Box::new(state);
-    //rand.rand();
 
     println!("We're a client, let's fuzz :)");
 
@@ -111,7 +113,7 @@ pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
             harness_fn,
-            tuple_list!(time_observer),
+            tuple_list!(edges_observer, time_observer),
             &mut fuzzer,
             &mut state,
             &mut restarting_mgr,
@@ -122,18 +124,25 @@ pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
-        load_initial_inputs(
-            &mut state,
+        /*state
+        .load_initial_inputs(
             &mut fuzzer,
             &mut executor,
             &mut restarting_mgr,
-            &|path: &Path| {
-                let bytes = fs::read(path).unwrap();
-                serde_json::from_slice::<Trace>(bytes.as_slice()).unwrap()
-            },
             &corpus_dirs,
         )
-        .unwrap_or_else(|err| panic!("Failed to load initial corpus at {:?}: {}", &corpus_dirs, err));
+        .unwrap_or_else(|err| {
+            panic!(
+                "Failed to load initial corpus at {:?}: {}",
+                &corpus_dirs, err
+            )
+        });*/
+        let mut ctx = TraceContext::new();
+        let seed = seed_successful(&mut ctx);
+        fuzzer
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2)
+            .unwrap();
+        //restarting_mgr.process(&mut fuzzer, &mut state, &mut executor).unwrap();
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 
@@ -150,89 +159,9 @@ pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -
         iters,
     )?;
 
-
     // It's important, that we store the state before restarting!
     // Else, the parent will not respawn a new child and quit.
     restarting_mgr.on_restart(&mut state)?;
-
-    Ok(())
-}
-
-// todo Needs upstreaming:
-
-pub fn load_initial_inputs<E, EM, Z, C, FT, I, R, SC>(
-    state: &mut StdState<C, FT, I, R, SC>,
-    fuzzer: &mut Z,
-    executor: &mut E,
-    manager: &mut EM,
-    reader: &dyn Fn(&Path) -> I,
-    in_dirs: &[PathBuf],
-) -> Result<(), Error>
-where
-    Z: Evaluator<E, EM, I, StdState<C, FT, I, R, SC>>,
-    EM: EventManager<E, I, StdState<C, FT, I, R, SC>, Z>,
-    I: Input,
-    C: Corpus<I>,
-    R: Rand,
-    FT: FeedbackStatesTuple,
-    SC: Corpus<I>,
-    E: Executor<I>,
-{
-    for in_dir in in_dirs {
-        load_from_directory(state, fuzzer, executor, manager, reader, in_dir)?;
-    }
-    manager.fire(
-        state,
-        Event::Log {
-            severity_level: LogSeverity::Debug,
-            message: format!("Loaded {} initial testcases.", state.corpus().count()), // get corpus count
-            phantom: PhantomData,
-        },
-    )?;
-    manager.process(fuzzer, state, executor)?;
-    Ok(())
-}
-
-/// loads inputs from a directory
-fn load_from_directory<E, EM, Z, C, FT, I, R, SC>(
-    state: &mut StdState<C, FT, I, R, SC>,
-    fuzzer: &mut Z,
-    executor: &mut E,
-    manager: &mut EM,
-    reader: &dyn Fn(&Path) -> I,
-    in_dir: &Path,
-) -> Result<(), Error>
-where
-    Z: Evaluator<E, EM, I, StdState<C, FT, I, R, SC>>,
-    I: Input,
-    C: Corpus<I>,
-    R: Rand,
-    FT: FeedbackStatesTuple,
-    SC: Corpus<I>,
-    E: Executor<I>,
-{
-    for entry in fs::read_dir(in_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let attributes = fs::metadata(&path);
-
-        if attributes.is_err() {
-            continue;
-        }
-
-        let attr = attributes?;
-
-        if attr.is_file() && attr.len() > 0 {
-            println!("Loading file {:?} ...", &path);
-            let input = reader(&path);
-            let (is_interesting, _) = fuzzer.evaluate_input(state, executor, manager, input)?;
-            if !is_interesting {
-                println!("File {:?} was not interesting, skipped.", &path);
-            }
-        } else if attr.is_dir() {
-            load_from_directory(state, fuzzer, executor, manager, reader, &path)?;
-        }
-    }
 
     Ok(())
 }
