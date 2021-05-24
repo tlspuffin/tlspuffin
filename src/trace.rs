@@ -9,7 +9,8 @@ use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
 use rustls::internal::msgs::handshake::HandshakePayload;
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::MessagePayload::Handshake;
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
@@ -144,21 +145,43 @@ impl TraceContext {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug)]
 pub struct Trace {
     pub steps: Vec<Step>,
 }
 
-/*impl Clone for Trace {
+impl Clone for Trace {
     fn clone(&self) -> Trace {
-        Trace {
-            steps: vec![]
-        }
+        Trace { steps: vec![] }
     }
-}*/
+}
+
+impl<'de> Deserialize<'de> for Trace {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Trace { steps: vec![] })
+    }
+}
+impl Serialize for Trace {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Trace", 0)?;
+        s.end()
+    }
+}
 
 // LibAFL support
 impl Input for Trace {}
+
+impl HasLen for Trace {
+    fn len(&self) -> usize {
+        self.steps.len()
+    }
+}
 
 impl Trace {
     pub fn execute(&mut self, ctx: &mut TraceContext) {

@@ -51,7 +51,7 @@ where
             }
             Action::Output(_) => {}
         }*/
-        Ok(MutationResult::Mutated)
+        Ok(MutationResult::Skipped)
     }
 }
 

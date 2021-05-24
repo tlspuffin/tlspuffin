@@ -5,6 +5,9 @@ use libafl::bolts::rands::{Rand, RomuTrioRand};
 use libafl::corpus::RandCorpusScheduler;
 use libafl::events::{Event, EventManager, LogSeverity};
 use libafl::feedbacks::{FeedbackStatesTuple, MapIndexesMetadata, MaxReducer, OrFeedback};
+use libafl::inputs::BytesInput;
+use libafl::mutators::havoc_mutations;
+use libafl::stats::MultiStats;
 use libafl::{
     bolts::tuples::{tuple_list, Merge},
     bolts::{current_nanos, rands::StdRand},
@@ -27,11 +30,11 @@ use libafl::{
 };
 // Leave this import such that -fsanitize-coverage=trace-pc-guard generated code can link
 use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+use rand::Rng;
 
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::seeds::seed_successful;
-use crate::trace::TraceContext;
-use libafl::stats::MultiStats;
+use crate::trace::{Trace, TraceContext};
 
 mod harness;
 mod mutations;
@@ -58,27 +61,28 @@ pub fn fuzz(
         },
     };
 
-    // Create an observation channel to keep track of the execution time
-    let time_observer = TimeObserver::new("time");
-
     // Create an observation channel using the coverage map
     let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
     let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", edges));
 
+    // Create an observation channel to keep track of the execution time
+    let time_observer = TimeObserver::new("time");
+
     // The state of the edges feedback.
     let feedback_state = MapFeedbackState::with_observer(&edges_observer);
-
-    // A feedback to choose if an input is a solution or not
-    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
     let feedback = feedback_or!(
+        // New maximization map feedback linked to the edges observer and the feedback state
         MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
-        TimeFeedback::new_with_observer(&time_observer)
-        //TimeoutFeedback::new()
+        TimeFeedback::new_with_observer(&time_observer),
+        TimeoutFeedback::new()
     );
+
+    // A feedback to choose if an input is a solution or not
+    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
     // If not restarting, create a State from scratch
     let mut state = state.unwrap_or_else(|| {
@@ -99,21 +103,32 @@ pub fn fuzz(
     println!("We're a client, let's fuzz :)");
 
     // Setup a basic mutator with a mutational stage
-    let mutator = StdScheduledMutator::new(trace_mutations());
+    let mutator = StdScheduledMutator::new(havoc_mutations());
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
     // A minimization+queue policy to get testcasess from the corpus
-    // let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-    let scheduler = RandCorpusScheduler::new();
+    let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+    //let scheduler = RandCorpusScheduler::new();
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    let harness_fn = &mut harness::harness;
+    //let harness_fn = &mut harness::harness;
+    let mut harness_fn = |input: &BytesInput| {
+        let mut rng = rand::thread_rng();
+
+        let n1 = rng.gen_range(0..10);
+        println!("Run {}", n1);
+        if n1 <= 5 {
+            return ExitKind::Timeout;
+        }
+        ExitKind::Ok
+    };
+
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
-            harness_fn,
+            &mut harness_fn,
             tuple_list!(edges_observer, time_observer),
             &mut fuzzer,
             &mut state,
@@ -125,27 +140,52 @@ pub fn fuzz(
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
+        /* todo save postcard file in corpus, not json
 
-/* todo save postcard file in corpus, not json
-
-  state
-        .load_initial_inputs(
-            &mut fuzzer,
-            &mut executor,
-            &mut restarting_mgr,
-            &corpus_dirs,
-        )
-        .unwrap_or_else(|err| {
-            panic!(
-                "Failed to load initial corpus at {:?}: {}",
-                &corpus_dirs, err
-            )
-        });*/
-        let mut ctx = TraceContext::new();
-        let seed = seed_successful(&mut ctx);
+        state
+              .load_initial_inputs(
+                  &mut fuzzer,
+                  &mut executor,
+                  &mut restarting_mgr,
+                  &corpus_dirs,
+              )
+              .unwrap_or_else(|err| {
+                  panic!(
+                      "Failed to load initial corpus at {:?}: {}",
+                      &corpus_dirs, err
+                  )
+              });*/
+        /*        let mut ctx = TraceContext::new();
+        let seed = seed_successful(&mut ctx);*/
         fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2)
+            .evaluate_input(
+                &mut state,
+                &mut executor,
+                &mut restarting_mgr,
+                BytesInput::new("hello".as_bytes().to_vec()),
+            )
             .unwrap();
+
+        fuzzer
+            .evaluate_input(
+                &mut state,
+                &mut executor,
+                &mut restarting_mgr,
+                BytesInput::new("hello".as_bytes().to_vec()),
+            )
+            .unwrap();
+        /*        fuzzer
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .unwrap();
+        fuzzer
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .unwrap();
+        fuzzer
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .unwrap();
+        fuzzer
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .unwrap();*/
         //restarting_mgr.process(&mut fuzzer, &mut state, &mut executor).unwrap();
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
