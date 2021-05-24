@@ -23,7 +23,7 @@ openssl = { version = "0.10.33", features = ["vendored"] }
 libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
 libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
 # Comment when using tools/coverage.sh ASAN_OPTIONS=coverage=1
-libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93", features = ["sancov_pcguard_hitcounts"] }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93", features = ["sancov_pcguard_hitcounts", "libfuzzer"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

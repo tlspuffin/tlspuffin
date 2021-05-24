@@ -30,16 +30,16 @@ use libafl::{
     stats::SimpleStats,
     Error, Evaluator,
 };
-/*use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};*/
+// Leave this import such that -fsanitize-coverage=trace-pc-guard generated code can link
+use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 
 use crate::fuzzer::mutations::{trace_mutations};
 use libafl::corpus::RandCorpusScheduler;
 use crate::trace::Trace;
 
 mod mutations;
-pub mod seeds;
 mod harness;
-
+pub mod seeds;
 
 pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Result<(), Error> {
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted

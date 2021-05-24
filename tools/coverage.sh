@@ -7,7 +7,8 @@ cargo +nightly rustc --bin tlspuffin -- \
     -Z sanitizer=address
 
 WORK_DIR=$(mktemp -d)
-ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR" target/debug/tlspuffin
+# Run test successful_trace
+ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR" cargo test --package tlspuffin --bin tlspuffin tests::tlspuffin::successful_trace -- --exact
 sancov -symbolize "$WORK_DIR/"*.sancov target/debug/tlspuffin > "$WORK_DIR"/symbolized.symcov
 
 sancov --print-coverage-stats "$WORK_DIR/"*.sancov target/debug/tlspuffin

@@ -2,7 +2,7 @@
   <configuration default="false" name="Build Release" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Build">
     <option name="command" value="build --release" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <option name="channel" value="DEFAULT" />
+    <option name="channel" value="STABLE" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="false" />

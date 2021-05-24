@@ -9,7 +9,7 @@ pub fn harness(input: &Trace) -> ExitKind {
     let n1 = rng.gen_range(0..10);
     println!("Run {}", n1);
     if n1 <= 3 {
-        panic!()
+        //panic!()
     }
     ExitKind::Timeout
 }

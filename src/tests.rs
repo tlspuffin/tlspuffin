@@ -1,6 +1,5 @@
 #[cfg(test)]
 pub mod tlspuffin {
-    use crate::fuzzer::seed_successful;
     use crate::trace::TraceContext;
     use crate::fuzzer::seeds::seed_successful;
 
@@ -43,7 +42,7 @@ pub mod integration {
     use webpki;
     use webpki_roots;
 
-    use crate::fuzzer::seed_successful;
+    use crate::fuzzer::seeds::seed_successful;
     use crate::trace::TraceContext;
 
     #[test]

@@ -16,29 +16,6 @@ pub fn seed_successful(ctx: &mut TraceContext) -> (AgentName, AgentName, Trace) 
     let client_openssl = ctx.new_openssl_agent(false);
     let server_openssl = ctx.new_openssl_agent(true);
 
-    /*        let client_hello_expect = ClientHelloExpectAction::new();
-    let server_hello_expect = ServerHelloExpectAction::new();
-    let ccc_expect = CCCExpectAction::new();
-    let mut trace = trace::Trace {
-        steps: vec![
-            Step {
-                agent: client_openssl,
-                action: &client_hello_expect,
-                send_to: server_openssl,
-            },
-            Step {
-                agent: server_openssl,
-                action: &server_hello_expect,
-                send_to: client_openssl,
-            },
-            Step {
-                agent: server_openssl,
-                action: &ccc_expect,
-                send_to: client_openssl,
-            },
-        ],
-    };*/
-
     let mut sig = Signature::default();
     let op_client_hello = sig.new_op(&op_client_hello);
     let op_server_hello = sig.new_op(&op_server_hello);
