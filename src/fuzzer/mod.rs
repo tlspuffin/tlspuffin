@@ -30,7 +30,7 @@ use libafl::{
     stats::SimpleStats,
     Error, Evaluator,
 };
-use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+/*use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};*/
 
 use crate::fuzzer::mutations::{trace_mutations};
 use crate::trace::Trace;
