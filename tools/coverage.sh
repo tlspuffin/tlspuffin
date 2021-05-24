@@ -8,6 +8,8 @@ cargo +nightly rustc --bin tlspuffin -- \
 
 WORK_DIR=$(mktemp -d)
 ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR" target/debug/tlspuffin
-sancov -symbolize "$WORK_DIR"/*.sancov target/debug/tlspuffin > "$WORK_DIR"/symbolized.json
-python tools/coverage-report-server.py --symcov "$WORK_DIR"/symbolized.json --srcpath dummy
+sancov -symbolize "$WORK_DIR/"*.sancov target/debug/tlspuffin > "$WORK_DIR"/symbolized.symcov
+
+sancov --print-coverage-stats "$WORK_DIR/"*.sancov target/debug/tlspuffin
+python tools/coverage-report-server.py --symcov "$WORK_DIR"/symbolized.symcov --srcpath dummy
 
