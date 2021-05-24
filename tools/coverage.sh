@@ -3,7 +3,8 @@
 # https://github.com/rust-fuzz/libfuzzer
 
 # We also need asan in linker: https://stackoverflow.com/questions/42482494/undefined-reference-to-asan-init-v4-when-compiling
-cargo +nightly rustc --bin tlspuffin -- -C passes='sancov' -C llvm-args='-sanitizer-coverage-level=3' -C llvm-args='-sanitizer-coverage-inline-8bit-counters' -Z sanitizer=address
+cargo +nightly rustc --bin tlspuffin -- \
+    -Z sanitizer=address
 
 WORK_DIR=$(mktemp -d)
 ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR" target/debug/tlspuffin
