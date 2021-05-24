@@ -11,7 +11,8 @@ use libafl::{
     Error,
 };
 
-use super::Trace;
+use crate::trace::Trace;
+use crate::trace::Action;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        DummyMutator<R, S>,
@@ -44,6 +45,12 @@ where
         input: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        match &mut input.steps[3].action {
+            Action::Input(input) => {
+                //input.recipe = Term::Variable(sig.new_var_by_type::<SessionID>());
+            }
+            Action::Output(_) => {}
+        }
         Ok(MutationResult::Skipped)
     }
 }

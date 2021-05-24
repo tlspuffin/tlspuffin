@@ -33,45 +33,15 @@ use libafl::{
 /*use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};*/
 
 use crate::fuzzer::mutations::{trace_mutations};
-use crate::trace::Trace;
-use rand::Rng;
 use libafl::corpus::RandCorpusScheduler;
+use crate::trace::Trace;
 
 mod mutations;
+pub mod seeds;
+mod harness;
 
-pub fn start_fuzzing() {
-    // Registry the metadata types used in this fuzzer
-    // Needed only on no_std
-    //RegistryBuilder::register::<Tokens>();
 
-    println!(
-        "Workdir: {:?}",
-        env::current_dir().unwrap().to_string_lossy().to_string()
-    );
-    fuzz(
-        &[PathBuf::from("./corpus")],
-        PathBuf::from("./crashes"),
-        1337,
-    )
-    .expect("An error occurred while fuzzing");
-}
-
-fn harness(input: &Trace) -> ExitKind {
-    let mut rng = rand::thread_rng();
-
-    let n1 = rng.gen_range(0..10);
-    println!("Run {}", n1);
-    if n1 <= 3 {
-        panic!()
-    }
-    let ten_millis = time::Duration::from_millis(1000);
-
-    thread::sleep(ten_millis);
-    ExitKind::Timeout
-}
-
-/// The actual fuzzer
-fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Result<(), Error> {
+pub fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Result<(), Error> {
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted
     let stats = SimpleStats::new(|s| println!("{}", s));
 
@@ -137,7 +107,7 @@ fn fuzz(corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) -> Re
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    let harness_fn = &mut harness;
+    let harness_fn = &mut harness::harness;
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
             harness_fn,

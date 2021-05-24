@@ -24,14 +24,13 @@
 // SOFTWARE.
 
 pub use self::atoms::*;
-// TODO remove later
-pub use self::op_impl::*;
 pub use self::signature::*;
 pub use self::term::*;
 pub use self::type_helper::*;
 
 mod atoms;
-mod op_impl;
+// todo Can we make op_impl private?
+pub mod op_impl;
 mod pretty;
 mod signature;
 mod term;

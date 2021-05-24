@@ -238,7 +238,7 @@ impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
     {
         // todo
         deserializer.deserialize_str(StringVisitor);
-        Ok(Box::new(make_dynamic(&crate::term::op_server_hello).1))
+        Ok(Box::new(make_dynamic(&crate::term::op_impl::op_server_hello).1))
     }
 }
 

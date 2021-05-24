@@ -103,6 +103,9 @@ name = "cc"
 version = "1.0.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3c69b077ad434294d3ce9f1f6143a2a4b89a8a2d54ef813d85003a4fd1137fd"
+dependencies = [
+ "jobserver",
+]
 
 [[package]]
 name = "cfg-if"
@@ -501,6 +504,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
 
 [[package]]
+name = "jobserver"
+version = "0.1.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "972f5ae5d1cb9c6ae417789196c803205313edde988685da5e3aae0827b9e7fd"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -528,7 +540,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "libafl"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=bfbaa7a#bfbaa7ae83cfab6d94853b6be4081a54f772d921"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
 dependencies = [
  "compression",
  "core_affinity",
@@ -559,10 +571,22 @@ dependencies = [
 [[package]]
 name = "libafl_derive"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=bfbaa7a#bfbaa7ae83cfab6d94853b6be4081a54f772d921"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
 dependencies = [
  "quote",
  "syn",
+]
+
+[[package]]
+name = "libafl_targets"
+version = "0.3.2"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
+dependencies = [
+ "cc",
+ "libafl",
+ "rangemap",
+ "serde",
+ "serde-big-array",
 ]
 
 [[package]]
@@ -917,6 +941,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rangemap"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90531bef860f96441c4cb74a1e43c281cd1366143928f944546ef0b1c60392b0"
+
+[[package]]
 name = "rayon"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1063,6 +1093,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18b20e7752957bbe9661cff4e0bb04d183d0948cdab2ea58cdb9df36a61dfe62"
+dependencies = [
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
 name = "serde_cbor"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1189,6 +1229,7 @@ dependencies = [
  "itertools 0.10.0",
  "libafl",
  "libafl_derive",
+ "libafl_targets",
  "log",
  "openssl",
  "rand",
