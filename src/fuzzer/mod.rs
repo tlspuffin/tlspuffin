@@ -1,6 +1,26 @@
 use core::time::Duration;
 use std::{fs, path::PathBuf, thread, time};
 
+use libafl::{
+    bolts::{current_nanos, rands::StdRand},
+    bolts::tuples::{Merge, tuple_list},
+    corpus::{
+        Corpus, IndexesLenTimeMinimizerCorpusScheduler, InMemoryCorpus, OnDiskCorpus,
+        QueueCorpusScheduler,
+    },
+    Error,
+    Evaluator,
+    events::{EventRestarter, setup_restarting_mgr_std},
+    executors::{ExitKind, inprocess::InProcessExecutor, TimeoutExecutor},
+    feedback_or,
+    feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    fuzzer::{Fuzzer, StdFuzzer},
+    mutators::scheduled::{StdScheduledMutator, tokens_mutations},
+    mutators::token_mutations::Tokens,
+    observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
+    stages::mutational::StdMutationalStage,
+    state::{HasCorpus, HasMetadata, StdState}, stats::SimpleStats,
+};
 use libafl::bolts::rands::{Rand, RomuTrioRand};
 use libafl::corpus::RandCorpusScheduler;
 use libafl::events::{Event, EventManager, LogSeverity};
@@ -8,27 +28,9 @@ use libafl::feedbacks::{FeedbackStatesTuple, MapIndexesMetadata, MaxReducer, OrF
 use libafl::inputs::BytesInput;
 use libafl::mutators::havoc_mutations;
 use libafl::stats::MultiStats;
-use libafl::{
-    bolts::tuples::{tuple_list, Merge},
-    bolts::{current_nanos, rands::StdRand},
-    corpus::{
-        Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
-        QueueCorpusScheduler,
-    },
-    events::{setup_restarting_mgr_std, EventRestarter},
-    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
-    feedback_or,
-    feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
-    fuzzer::{Fuzzer, StdFuzzer},
-    mutators::scheduled::{tokens_mutations, StdScheduledMutator},
-    mutators::token_mutations::Tokens,
-    observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    stages::mutational::StdMutationalStage,
-    state::{HasCorpus, HasMetadata, StdState},
-    stats::SimpleStats,
-    Error, Evaluator,
-};
-
+#[cfg(all(not(test), feature = "sancov_pcguard_libafl"))]
+// This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
+use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
 use rand::Rng;
 
 use crate::fuzzer::mutations::trace_mutations;
@@ -46,14 +48,11 @@ mod sancov_pcguard_dummy;
 #[cfg(all(not(test), feature = "sancov_pcguard_log"))]
 mod sancov_pcguard_log;
 
-#[cfg(all(not(test), feature = "sancov_pcguard_libafl"))]
-// This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
-use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
 #[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub const EDGES_MAP_SIZE: usize = 65536;
-#[cfg(any(test,not(feature = "sancov_pcguard_libafl")))]
+#[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
-#[cfg(any(test,not(feature = "sancov_pcguard_libafl")))]
+#[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub static mut MAX_EDGES_NUM: usize = 0;
 
 pub fn fuzz(
@@ -133,58 +132,46 @@ pub fn fuzz(
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    let mut harness_fn = &mut harness::dummy_harness;
+    let mut harness_fn = &mut harness::harness;
     /*let mut harness_fn = &mut harness::harness;*/
 
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
             &mut harness_fn,
-            tuple_list!(time_observer),
+            //tuple_list!(time_observer),
             // hint: edges_observer is expensive to serialize
-            //tuple_list!(edges_observer, time_observer),
+            tuple_list!(edges_observer, time_observer),
             &mut fuzzer,
             &mut state,
             &mut restarting_mgr,
         )?,
         // 10 seconds timeout
-        Duration::new(10, 0),
+        Duration::new(100000, 0),
     );
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
-        /* todo save postcard file in corpus, not json
+/*        state
+            .load_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut restarting_mgr,
+                &corpus_dirs,
+            )
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to load initial corpus at {:?}: {}",
+                    &corpus_dirs, err
+                )
+            });*/
 
-        state
-              .load_initial_inputs(
-                  &mut fuzzer,
-                  &mut executor,
-                  &mut restarting_mgr,
-                  &corpus_dirs,
-              )
-              .unwrap_or_else(|err| {
-                  panic!(
-                      "Failed to load initial corpus at {:?}: {}",
-                      &corpus_dirs, err
-                  )
-              });*/
         let mut ctx = TraceContext::new();
-        let client_openssl = ctx.new_openssl_agent(false);
-        let server_openssl = ctx.new_openssl_agent(true);
-        let seed = Trace { steps: vec![] };
-        /* let seed = seed_successful(&mut ctx).2;*/
+        let seed = seed_successful(&mut ctx).2;
         fuzzer
             .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
             .unwrap();
-        fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-            .unwrap();
-        fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-            .unwrap();
-        fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-            .unwrap();
-        //restarting_mgr.process(&mut fuzzer, &mut state, &mut executor).unwrap();
+
+
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 

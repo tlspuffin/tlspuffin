@@ -16,10 +16,10 @@ sancov_pcguard_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 
 [dependencies]
 # TLS helpers
-rustls = "0.19.1"
-webpki = "0.21.4"
+rustls = "0.19"
+webpki = "0.21"
 webpki-roots = "0.21"
-ring = "0.16.11"
+ring = "0.16"
 
 # LibAFL
 libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
@@ -27,18 +27,19 @@ libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089
 libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
 
 # Logging
-log = "0.4.14"
-env_logger = "0.8.3"
-test-env-log = "0.2.7"
+log = "0.4"
+env_logger = "0.8"
+test-env-log = "0.2"
 
 # Utils
-hexdump = "0.1.1"
-hex = "0.4.3"
-rand = "0.8.3"
-itertools = "0.10.0"
-dyn-clone = "1.0.4"
+hexdump = "0.1"
+hex = "0.4"
+rand = "0.8"
+itertools = "0.10"
+dyn-clone = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+postcard = { version = "0.7", features = ["alloc"] }
 
 # OpenSSL
 openssl = { version = "0.10.33", features = ["vendored"] }

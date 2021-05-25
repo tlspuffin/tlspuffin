@@ -237,8 +237,8 @@ pub struct OutputAction {
 
 impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) {
-        if let Err(_) = ctx.next_state(step.agent) {
-            panic!("Failed to go to next state!")
+        if let Err(err) = ctx.next_state(step.agent) {
+            panic!("Failed to go to next state! {}", err)
         }
         let mut sub_id = 0u16;
         while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
