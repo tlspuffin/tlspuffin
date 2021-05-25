@@ -149,30 +149,6 @@ impl TraceContext {
 pub struct Trace {
     pub steps: Vec<Step>,
 }
-/* Dummy implementations for testing cloning and serialization:
-impl Clone for Trace {
-    fn clone(&self) -> Trace {
-        Trace { steps: vec![] }
-    }
-}
-
-impl<'de> Deserialize<'de> for Trace {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(Trace { steps: vec![] })
-    }
-}
-impl Serialize for Trace {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Trace", 0)?;
-        s.end()
-    }
-}*/
 
 // LibAFL support
 impl Input for Trace {}
