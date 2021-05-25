@@ -9,7 +9,7 @@ resolver = "2"
 default = ["sancov_pcguard_libafl"]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
-# Uses libafl for the instrumentation
+# Uses libafl for the instrumentation. sancov_pcguard_log and sancov_pcguard_libafl are mutally exclusive
 sancov_pcguard_libafl = ["libafl_targets"]
 
 [dependencies]
@@ -42,7 +42,7 @@ serde_json = "1.0"
 # OpenSSL
 openssl = { version = "0.10.33", features = ["vendored"] }
 [patch.crates-io]
-openssl-src = { path = './openssl-src' }
+openssl-src = { path = './openssl-src', features = ["trace-pc-guard", "norand"] }
 
 [dev-dependencies]
 criterion = "0.3"

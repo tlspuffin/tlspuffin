@@ -1,3 +1,5 @@
+use std::os::raw::c_int;
+
 #[cfg(test)]
 pub mod tlspuffin {
     use crate::trace::TraceContext;
@@ -18,6 +20,12 @@ pub mod tlspuffin {
         assert!(client_state.contains("SSL negotiation finished successfully"));
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
+}
+
+extern "C" {
+    pub fn RAND_seed(buffer: *mut u8, written: c_int) -> c_int;
+    pub fn RAND_bytes(buffer: *mut u8, written: c_int) -> c_int;
+    pub fn make_openssl_deterministic();
 }
 
 #[cfg(test)]
@@ -43,7 +51,27 @@ pub mod integration {
     use webpki_roots;
 
     use crate::fuzzer::seeds::seed_successful;
+    use openssl::rand::rand_bytes;
     use crate::trace::{TraceContext, Trace};
+    use crate::tests::{RAND_seed, RAND_bytes, make_openssl_deterministic};
+
+    #[test]
+    fn test_openssl_no_randomness() {
+        unsafe {
+            let mut seed = [0; 256];
+            println!("{:?}", seed);
+            RAND_seed(seed.as_mut_ptr(), 256);
+            RAND_seed(seed.as_mut_ptr(), 256);
+            make_openssl_deterministic();
+        }
+
+        unsafe {
+            let mut buf1 = [0; 256];
+            RAND_bytes(buf1.as_mut_ptr(), 256);
+            println!("{:?}", buf1);
+        }
+        //rand_bytes(&mut buf1).unwrap();
+    }
 
     #[test]
     fn test_serialisation() {
