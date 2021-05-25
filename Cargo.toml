@@ -7,13 +7,11 @@ resolver = "2"
 
 
 [features]
-default = ["sancov_pcguard_libafl", "openssl-fuzzing"]
+default = ["sancov_pcguard_libafl"]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_pcguard_libafl are mutally exclusive
 sancov_pcguard_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
-# Enables features which are neccassary to make openssl ready for fuzzing
-openssl-fuzzing = ["openssl-src/trace-pc-guard", "openssl-src/no-rand"]
 
 
 [dependencies]
@@ -44,7 +42,7 @@ serde_json = "1.0"
 
 # OpenSSL
 openssl = { version = "0.10.33", features = ["vendored"] }
-openssl-src = "*"
+
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 

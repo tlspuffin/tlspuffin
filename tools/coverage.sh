@@ -10,7 +10,6 @@ TARGET_DIR="$WORK_DIR"
 cargo +nightly rustc --example seed_successful \
     --target-dir "$TARGET_DIR" \
     --no-default-features \
-    --features "openssl-fuzzing" \
     -- \
     -Z sanitizer=address
 
