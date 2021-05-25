@@ -40,17 +40,20 @@ mod mutations;
 pub mod seeds;
 
 
-#[cfg(feature = "sancov_pcguard_log")]
+#[cfg(test)]
+mod sancov_pcguard_dummy;
+
+#[cfg(all(not(test), feature = "sancov_pcguard_log"))]
 mod sancov_pcguard_log;
 
-#[cfg(feature = "sancov_pcguard_libafl")]
+#[cfg(all(not(test), feature = "sancov_pcguard_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
-#[cfg(not(feature = "sancov_pcguard_libafl"))]
+#[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub const EDGES_MAP_SIZE: usize = 65536;
-#[cfg(not(feature = "sancov_pcguard_libafl"))]
+#[cfg(any(test,not(feature = "sancov_pcguard_libafl")))]
 pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
-#[cfg(not(feature = "sancov_pcguard_libafl"))]
+#[cfg(any(test,not(feature = "sancov_pcguard_libafl")))]
 pub static mut MAX_EDGES_NUM: usize = 0;
 
 pub fn fuzz(
