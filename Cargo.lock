@@ -1232,6 +1232,7 @@ dependencies = [
  "libafl_targets",
  "log",
  "openssl",
+ "openssl-src",
  "rand",
  "ring",
  "rustls",

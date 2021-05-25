@@ -7,10 +7,12 @@ TARGET_DIR="$WORK_DIR"
 # Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented.
 # Adapted from https://github.com/rust-fuzz/libfuzzer
 cargo +nightly rustc --example seed_successful \
-    --target-dir "$TARGET_DIR"\
-    --no-default-features\
+    --target-dir "$TARGET_DIR" \
+    --no-default-features \
+    --features "openssl-fuzzing" \
     -- \
     -Z sanitizer=address
+
 # Or define this variable:
 #export RUSTFLAGS="-Z sanitizer=address"
 
@@ -20,6 +22,8 @@ export ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR"
 
 BIN="$TARGET_DIR/debug/examples/seed_successful"
 SERVER="$(pwd)/tools/coverage-report-server.py"
+
+rm "$WORK_DIR/"*.sancov
 
 $BIN
 
