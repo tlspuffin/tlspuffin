@@ -1,26 +1,32 @@
+use rand::{random, seq::SliceRandom};
+use ring::{
+    hkdf,
+    hkdf::{KeyType, Prk, HKDF_SHA256},
+    hmac,
+    hmac::Key,
+    rand::SystemRandom,
+};
+use rustls::{
+    internal::msgs::{
+        alert::AlertMessagePayload,
+        base::{Payload, PayloadU16},
+        ccs::ChangeCipherSpecPayload,
+        codec::Codec,
+        enums::{
+            AlertDescription, Compression,
+            ContentType::{ApplicationData, ChangeCipherSpec, Handshake},
+            HandshakeType, NamedGroup, ServerNameType,
+        },
+        handshake::{
+            CertificatePayload, ClientExtension, ClientHelloPayload, HandshakeMessagePayload,
+            HandshakePayload, HandshakePayload::Certificate, KeyShareEntry, Random,
+            ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
+        },
+        message::{Message, MessagePayload},
+    },
+    CipherSuite, ProtocolVersion, SignatureScheme,
+};
 use HandshakePayload::EncryptedExtensions;
-use rand::random;
-use rand::seq::SliceRandom;
-use ring::{hkdf, hmac};
-use ring::hkdf::{HKDF_SHA256, KeyType, Prk};
-use ring::hmac::Key;
-use ring::rand::SystemRandom;
-use rustls::{CipherSuite, ProtocolVersion, SignatureScheme};
-use rustls::internal::msgs::alert::AlertMessagePayload;
-use rustls::internal::msgs::base::{Payload, PayloadU16};
-use rustls::internal::msgs::ccs::ChangeCipherSpecPayload;
-use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::enums::{
-    AlertDescription, Compression, HandshakeType, NamedGroup, ServerNameType,
-};
-use rustls::internal::msgs::enums::ContentType::{ApplicationData, ChangeCipherSpec, Handshake};
-use rustls::internal::msgs::handshake::{
-    CertificatePayload, ClientExtension, ClientHelloPayload,
-    HandshakeMessagePayload, HandshakePayload, KeyShareEntry, Random, ServerExtension,
-    ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
-};
-use rustls::internal::msgs::handshake::HandshakePayload::Certificate;
-use rustls::internal::msgs::message::{Message, MessagePayload};
 
 // -----
 // utils
@@ -61,9 +67,9 @@ fn derive_secret<L, F, T>(
     context: &Vec<u8>,
     into: F,
 ) -> T
-    where
-        L: KeyType,
-        F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
+where
+    L: KeyType,
+    F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
 {
     const LABEL_PREFIX: &[u8] = b"tls13 ";
 
@@ -240,8 +246,8 @@ pub fn op_random_cipher_suite() -> CipherSuite {
         CipherSuite::TLS13_AES_256_GCM_SHA384,
         CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
     ]
-        .choose(&mut rand::thread_rng())
-        .unwrap()
+    .choose(&mut rand::thread_rng())
+    .unwrap()
 }
 
 pub fn op_random_session_id() -> SessionID {
@@ -266,8 +272,8 @@ pub fn on_random_cipher_suite() -> CipherSuite {
         CipherSuite::TLS13_AES_256_GCM_SHA384,
         CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
     ]
-        .choose(&mut rand::thread_rng())
-        .unwrap()
+    .choose(&mut rand::thread_rng())
+    .unwrap()
 }
 
 pub fn on_compression() -> Compression {

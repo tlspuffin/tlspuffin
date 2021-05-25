@@ -1,8 +1,8 @@
-use tlspuffin::fuzzer::seeds::seed_successful;
-use tlspuffin::trace::TraceContext;
-use std::fs::File;
-use std::io::Write;
+use std::{fs::File, io::Write};
+
 use postcard;
+
+use tlspuffin::{fuzzer::seeds::seed_successful, trace::TraceContext};
 
 fn main() {
     let mut ctx = TraceContext::new();

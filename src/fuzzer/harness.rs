@@ -6,8 +6,8 @@ use crate::trace::{Trace, TraceContext};
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
     // todo gurantee that the agents have the correct name
-    let client_openssl = ctx.new_openssl_agent(false);
-    let server_openssl = ctx.new_openssl_agent(true);
+    ctx.new_openssl_agent(false);
+    ctx.new_openssl_agent(true);
     input.execute(&mut ctx);
     ExitKind::Ok
 }

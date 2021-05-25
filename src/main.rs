@@ -1,12 +1,10 @@
 #[macro_use]
 extern crate log;
 
-use std::env;
-use std::io::Write;
+use std::{env, io::Write, path::PathBuf};
 
 use env_logger::{fmt, Builder, Env};
 use log::Level;
-use std::path::PathBuf;
 
 use crate::fuzzer::fuzz;
 

@@ -1,18 +1,17 @@
 use std::marker::PhantomData;
 
-use libafl::bolts::rands::Rand;
-use libafl::bolts::tuples::Named;
-use libafl::mutators::{MutationResult, Mutator};
-use libafl::state::{HasMaxSize, HasRand};
 use libafl::{
-    bolts::tuples::{tuple_list, tuple_list_type},
+    bolts::{
+        rands::Rand,
+        tuples::{tuple_list, tuple_list_type, Named},
+    },
     corpus::Corpus,
-    state::{HasCorpus, HasMetadata},
+    mutators::{MutationResult, Mutator},
+    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
     Error,
 };
 
-use crate::trace::Trace;
-use crate::trace::Action;
+use crate::trace::{Action, Trace};
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        DummyMutator<R, S>,
@@ -45,7 +44,7 @@ where
         input: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-       /* match &mut input.steps[3].action {
+        /* match &mut input.steps[3].action {
             Action::Input(input) => {
                 //input.recipe = Term::Variable(sig.new_var_by_type::<SessionID>());
             }

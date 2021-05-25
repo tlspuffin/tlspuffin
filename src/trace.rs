@@ -1,23 +1,23 @@
 use core::fmt;
-use std::any::TypeId;
-use std::cell::RefCell;
-use std::fmt::Formatter;
-use std::rc::Rc;
+use std::{any::TypeId, cell::RefCell, fmt::Formatter, rc::Rc};
 
-use libafl::bolts::ownedref::OwnedSlice;
-use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
-use rustls::internal::msgs::handshake::HandshakePayload;
-use rustls::internal::msgs::message::Message;
-use rustls::internal::msgs::message::MessagePayload::Handshake;
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use libafl::{
+    bolts::ownedref::OwnedSlice,
+    inputs::{HasBytesVec, HasLen, HasTargetBytes, Input},
+};
+use rustls::internal::msgs::{
+    handshake::HandshakePayload,
+    message::{Message, MessagePayload::Handshake},
+};
+use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::agent::{Agent, AgentName};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::term::Term;
-use crate::term::TypeShape;
-use crate::variable_data::{extract_variables, VariableData};
+use crate::{
+    agent::{Agent, AgentName},
+    term::{Term, TypeShape},
+    variable_data::{extract_variables, VariableData},
+};
 
 pub type ObservedId = (u16, u16);
 

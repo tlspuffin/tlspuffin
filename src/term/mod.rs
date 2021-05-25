@@ -23,10 +23,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pub use self::atoms::*;
-pub use self::signature::*;
-pub use self::term::*;
-pub use self::type_helper::*;
+pub use self::{atoms::*, signature::*, term::*, type_helper::*};
 
 mod atoms;
 // todo Can we make op_impl private?
@@ -34,5 +31,5 @@ pub mod op_impl;
 mod pretty;
 mod signature;
 mod term;
-mod type_helper;
 mod tests;
+mod type_helper;

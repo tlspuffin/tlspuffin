@@ -1,12 +1,9 @@
-use std::any::Any;
-use std::iter;
+use std::{any::Any, iter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::term::pretty::Pretty;
-use crate::trace::TraceContext;
-use crate::variable_data::VariableData;
+use crate::{term::pretty::Pretty, trace::TraceContext, variable_data::VariableData};
 
 use super::{Operator, Variable};
 

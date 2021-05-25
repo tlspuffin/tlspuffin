@@ -1,9 +1,6 @@
-use std::os::raw::c_int;
-
 #[cfg(test)]
 pub mod tlspuffin {
-    use crate::trace::TraceContext;
-    use crate::fuzzer::seeds::seed_successful;
+    use crate::{fuzzer::seeds::seed_successful, trace::TraceContext};
 
     #[test]
     fn successful_trace() {
@@ -28,34 +25,44 @@ extern "C" {
 
 #[cfg(test)]
 pub mod integration {
-    use std::io::{stdout, Read, Write};
-    use std::net::TcpStream;
-    use std::sync::Arc;
-
-    use rustls;
-    use rustls::internal::msgs::codec::Codec;
-    use rustls::internal::msgs::enums::ContentType::Handshake as RecordHandshake;
-    use rustls::internal::msgs::enums::HandshakeType;
-    use rustls::internal::msgs::enums::ProtocolVersion::{TLSv1_2, TLSv1_3};
-    use rustls::internal::msgs::handshake::{
-        ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+    use std::{
+        io::{stdout, Read, Write},
+        net::TcpStream,
+        sync::Arc,
     };
-    use rustls::internal::msgs::message::Message;
-    use rustls::internal::msgs::message::MessagePayload::Handshake;
-    use rustls::ProtocolVersion;
-    use rustls::Session;
+
+    use openssl::rand::rand_bytes;
+    use rustls::{
+        self,
+        internal::msgs::{
+            codec::Codec,
+            enums::{
+                ContentType::Handshake as RecordHandshake,
+                HandshakeType,
+                ProtocolVersion::{TLSv1_2, TLSv1_3},
+            },
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+            },
+            message::{Message, MessagePayload::Handshake},
+        },
+        ProtocolVersion, Session,
+    };
     use test_env_log::test;
     use webpki;
     use webpki_roots;
 
-    use crate::fuzzer::seeds::seed_successful;
-    use openssl::rand::rand_bytes;
-    use crate::trace::{TraceContext, Trace};
-    use crate::tests::{make_openssl_deterministic};
+    use crate::{
+        fuzzer::seeds::seed_successful,
+        tests::make_openssl_deterministic,
+        trace::{Trace, TraceContext},
+    };
 
     #[test]
     fn test_openssl_no_randomness() {
-        unsafe { make_openssl_deterministic(); }
+        unsafe {
+            make_openssl_deterministic();
+        }
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1);
         println!("{:?}", buf1);

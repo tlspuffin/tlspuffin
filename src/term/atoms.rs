@@ -1,11 +1,14 @@
-use std::fmt;
-use std::fmt::Formatter;
+use std::{fmt, fmt::Formatter};
 
-use crate::term::type_helper::{DynamicFunction, DynamicFunctionShape};
-use crate::trace::ObservedId;
+use serde::{Deserialize, Serialize};
 
-use serde::{Serialize, Deserialize};
-use crate::term::TypeShape;
+use crate::{
+    term::{
+        type_helper::{DynamicFunction, DynamicFunctionShape},
+        TypeShape,
+    },
+    trace::ObservedId,
+};
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
@@ -46,7 +49,7 @@ impl Operator {
         self.shape.arity()
     }
     /// Returns an `Operator`'s name.
-    pub fn name(&self) -> & str {
+    pub fn name(&self) -> &str {
         self.shape.name.as_str()
     }
     /// Serialize an `Operator`.

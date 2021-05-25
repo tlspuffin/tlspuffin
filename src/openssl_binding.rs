@@ -1,13 +1,17 @@
 use std::io::ErrorKind;
 
-use openssl::asn1::Asn1Time;
-use openssl::bn::{BigNum, MsbOption};
-use openssl::hash::MessageDigest;
-use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream};
-use openssl::version::version;
-use openssl::x509::{X509, X509NameBuilder, X509Ref};
-use openssl::x509::extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier};
+use openssl::{
+    asn1::Asn1Time,
+    bn::{BigNum, MsbOption},
+    hash::MessageDigest,
+    pkey::{PKey, PKeyRef, Private},
+    ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream},
+    version::version,
+    x509::{
+        extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
+        X509NameBuilder, X509Ref, X509,
+    },
+};
 
 use crate::io::MemoryStream;
 
@@ -61,7 +65,6 @@ WAccqe3TAwAq6m2BWaH8YchExVPAnJ5AvO2pBbE8j8v6dF470vBs6szvBKvgV9pu
 +ullb9HQDft8lcQCI7Ib5reI/0YaYN02Mlhy3hLbxHKJaB1FlYMtqiiYL55GIEtZ
 i7RrmCDnL/ue3MkPP+8=
 -----END CERTIFICATE-----";
-
 
 /*
    Change openssl version:

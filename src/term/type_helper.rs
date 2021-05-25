@@ -1,13 +1,17 @@
-use std::any::{type_name, Any, TypeId};
-use std::collections::hash_map::DefaultHasher;
-use std::fmt;
-use std::fmt::Formatter;
-use std::hash::{Hash, Hasher};
+use std::{
+    any::{type_name, Any, TypeId},
+    collections::hash_map::DefaultHasher,
+    fmt,
+    fmt::Formatter,
+    hash::{Hash, Hasher},
+};
 
 use itertools::Itertools;
-use serde::de::value::I32Deserializer;
-use serde::de::Visitor;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de,
+    de::{value::I32Deserializer, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -227,8 +231,8 @@ impl<'de> Visitor<'de> for StringVisitor {
     }
 
     fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
+    where
+        E: serde::de::Error,
     {
         return Ok(v);
     }
@@ -266,8 +270,8 @@ impl<'de> Visitor<'de> for VisitorU64 {
     }
 
     fn visit_i64<E>(self, value: i64) -> Result<u64, E>
-        where
-            E: serde::de::Error,
+    where
+        E: serde::de::Error,
     {
         Ok(value as u64)
     }

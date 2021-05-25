@@ -1,12 +1,14 @@
-use std::any::TypeId;
-use std::fmt;
+use std::{any::TypeId, fmt};
 
 use rustls::internal::msgs::message::Message;
 
-use crate::term::type_helper::{make_dynamic, DescribableFunction};
-use crate::term::TypeShape;
-use crate::term::Variable;
-use crate::trace::ObservedId;
+use crate::{
+    term::{
+        type_helper::{make_dynamic, DescribableFunction},
+        TypeShape, Variable,
+    },
+    trace::ObservedId,
+};
 
 use super::Operator;
 

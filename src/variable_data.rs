@@ -1,10 +1,13 @@
 use std::any::{Any, TypeId};
 
-
-use rustls::{CipherSuite};
-use rustls::internal::msgs::enums::{Compression};
-use rustls::internal::msgs::handshake::{ClientExtension, HandshakePayload, ServerExtension};
-use rustls::internal::msgs::message::{Message, MessagePayload};
+use rustls::{
+    internal::msgs::{
+        enums::Compression,
+        handshake::{ClientExtension, HandshakePayload, ServerExtension},
+        message::{Message, MessagePayload},
+    },
+    CipherSuite,
+};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -22,8 +25,8 @@ pub trait VariableData: AsAny {
 }
 
 impl<T: 'static> VariableData for T
-    where
-        T: Clone,
+where
+    T: Clone,
 {
     fn clone_box(&self) -> Box<dyn VariableData> {
         Box::new(self.clone())
@@ -33,7 +36,6 @@ impl<T: 'static> VariableData for T
         Box::new(self.clone())
     }
 }
-
 
 pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
     match &message.payload {

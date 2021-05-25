@@ -2,15 +2,16 @@
 mod term {
     use std::any::{Any, TypeId};
 
-    use rustls::internal::msgs::handshake::SessionID;
-    use rustls::Session;
+    use rustls::{internal::msgs::handshake::SessionID, Session};
 
-    use crate::term::op_impl::{
-        op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id,
+    use crate::{
+        term::{
+            op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id},
+            Signature, Term, Variable, VariableContext,
+        },
+        trace::TraceContext,
+        variable_data::{AsAny, VariableData},
     };
-    use crate::term::{Signature, Term, Variable, VariableContext};
-    use crate::trace::TraceContext;
-    use crate::variable_data::{AsAny, VariableData};
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16

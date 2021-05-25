@@ -1,16 +1,15 @@
-use std::borrow::BorrowMut;
-use std::io;
-use std::io::{Read, Write};
+use std::{
+    borrow::BorrowMut,
+    io,
+    io::{Read, Write},
+};
 
 use openssl::ssl::SslStream;
-use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::deframer::MessageDeframer;
-use rustls::internal::msgs::message::Message;
+use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
-use crate::debug::debug_binary_message_with_info;
-use crate::openssl_binding;
+use crate::{debug::debug_binary_message_with_info, openssl_binding};
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, data: &Message);

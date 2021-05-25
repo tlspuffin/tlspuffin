@@ -1,5 +1,7 @@
-use rustls::internal::msgs::codec::Codec;
-use rustls::internal::msgs::message::{Message, MessagePayload};
+use rustls::internal::msgs::{
+    codec::Codec,
+    message::{Message, MessagePayload},
+};
 
 pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
     debug_binary_message_with_info("", buffer);

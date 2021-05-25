@@ -2,45 +2,48 @@ use core::time::Duration;
 use std::{fs, path::PathBuf, thread, time};
 
 use libafl::{
-    bolts::{current_nanos, rands::StdRand},
-    bolts::tuples::{Merge, tuple_list},
-    corpus::{
-        Corpus, IndexesLenTimeMinimizerCorpusScheduler, InMemoryCorpus, OnDiskCorpus,
-        QueueCorpusScheduler,
+    bolts::{
+        current_nanos,
+        rands::{Rand, RomuTrioRand, StdRand},
+        tuples::{tuple_list, Merge},
     },
-    Error,
-    Evaluator,
-    events::{EventRestarter, setup_restarting_mgr_std},
-    executors::{ExitKind, inprocess::InProcessExecutor, TimeoutExecutor},
+    corpus::{
+        Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
+        QueueCorpusScheduler, RandCorpusScheduler,
+    },
+    events::{setup_restarting_mgr_std, Event, EventManager, EventRestarter, LogSeverity},
+    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
-    feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    feedbacks::{
+        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MapIndexesMetadata, MaxMapFeedback,
+        MaxReducer, OrFeedback, TimeFeedback, TimeoutFeedback,
+    },
     fuzzer::{Fuzzer, StdFuzzer},
-    mutators::scheduled::{StdScheduledMutator, tokens_mutations},
-    mutators::token_mutations::Tokens,
+    inputs::BytesInput,
+    mutators::{
+        havoc_mutations,
+        scheduled::{tokens_mutations, StdScheduledMutator},
+        token_mutations::Tokens,
+    },
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
     stages::mutational::StdMutationalStage,
-    state::{HasCorpus, HasMetadata, StdState}, stats::SimpleStats,
+    state::{HasCorpus, HasMetadata, StdState},
+    stats::{MultiStats, SimpleStats},
+    Error, Evaluator,
 };
-use libafl::bolts::rands::{Rand, RomuTrioRand};
-use libafl::corpus::RandCorpusScheduler;
-use libafl::events::{Event, EventManager, LogSeverity};
-use libafl::feedbacks::{FeedbackStatesTuple, MapIndexesMetadata, MaxReducer, OrFeedback};
-use libafl::inputs::BytesInput;
-use libafl::mutators::havoc_mutations;
-use libafl::stats::MultiStats;
 #[cfg(all(not(test), feature = "sancov_pcguard_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
 use rand::Rng;
 
-use crate::fuzzer::mutations::trace_mutations;
-use crate::fuzzer::seeds::seed_successful;
-use crate::trace::{Trace, TraceContext};
+use crate::{
+    fuzzer::{mutations::trace_mutations, seeds::seed_successful},
+    trace::{Trace, TraceContext},
+};
 
 mod harness;
 mod mutations;
 pub mod seeds;
-
 
 #[cfg(test)]
 mod sancov_pcguard_dummy;
@@ -151,26 +154,25 @@ pub fn fuzz(
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
-/*        state
-            .load_initial_inputs(
-                &mut fuzzer,
-                &mut executor,
-                &mut restarting_mgr,
-                &corpus_dirs,
+        /*        state
+        .load_initial_inputs(
+            &mut fuzzer,
+            &mut executor,
+            &mut restarting_mgr,
+            &corpus_dirs,
+        )
+        .unwrap_or_else(|err| {
+            panic!(
+                "Failed to load initial corpus at {:?}: {}",
+                &corpus_dirs, err
             )
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Failed to load initial corpus at {:?}: {}",
-                    &corpus_dirs, err
-                )
-            });*/
+        });*/
 
         let mut ctx = TraceContext::new();
         let seed = seed_successful(&mut ctx).2;
         fuzzer
             .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
             .unwrap();
-
 
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
