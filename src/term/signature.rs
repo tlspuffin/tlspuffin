@@ -1,4 +1,4 @@
-use std::{any::TypeId, fmt};
+use std::{fmt};
 
 use rustls::internal::msgs::message::Message;
 
@@ -103,7 +103,7 @@ impl Signature {
                 // operation would build a Message -> lets try to build it
                 let args = &(operator.shape.argument_types);
 
-                if let Some(variable) = self
+                if let Some(_variable) = self
                     .variables
                     .iter()
                     .find(|variable| args.iter().any(|type_id| variable.type_shape == *type_id))
@@ -111,7 +111,7 @@ impl Signature {
                     // we found an already existing `variable` which helps us to call `operator`
                 }
 
-                if let Some(f) = self
+                if let Some(_f) = self
                     .operators
                     .iter()
                     .find(|f| args.iter().any(|type_id| f.shape.return_type == *type_id))

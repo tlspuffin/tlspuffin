@@ -33,12 +33,12 @@ use libafl::{
 };
 #[cfg(all(not(test), feature = "sancov_pcguard_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
-use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
-use rand::Rng;
+use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+
 
 use crate::{
     fuzzer::{mutations::trace_mutations, seeds::seed_successful},
-    trace::{Trace, TraceContext},
+    trace::{TraceContext},
 };
 
 mod harness;
@@ -59,8 +59,8 @@ pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
 pub static mut MAX_EDGES_NUM: usize = 0;
 
 pub fn fuzz(
-    corpus_dirs: &[PathBuf],
-    objective_dir: PathBuf,
+    _corpus_dirs: &[PathBuf],
+    _objective_dir: PathBuf,
     broker_port: u16,
 ) -> Result<(), Error> {
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted

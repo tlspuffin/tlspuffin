@@ -12,7 +12,7 @@ pub fn harness(input: &Trace) -> ExitKind {
     ExitKind::Ok
 }
 
-pub fn dummy_harness(input: &Trace) -> ExitKind {
+pub fn dummy_harness(_input: &Trace) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);

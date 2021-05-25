@@ -2,7 +2,7 @@
 mod term {
     use std::any::{Any, TypeId};
 
-    use rustls::{internal::msgs::handshake::SessionID, Session};
+    use rustls::{internal::msgs::handshake::SessionID};
 
     use crate::{
         term::{
@@ -23,7 +23,7 @@ mod term {
 
         let hmac256_new_key = sig.new_op(&op_hmac256_new_key);
         let hmac256 = sig.new_op(&op_hmac256);
-        let client_hello = sig.new_op(&op_client_hello);
+        let _client_hello = sig.new_op(&op_client_hello);
 
         let data = "hello".as_bytes().to_vec();
 

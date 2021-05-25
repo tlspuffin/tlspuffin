@@ -87,7 +87,7 @@ where
 }
 
 impl fmt::Debug for Box<dyn DynamicFunction> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
         // todo
         Ok(())
     }
@@ -246,7 +246,7 @@ impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
         // todo
         deserializer
             .deserialize_str(StringVisitor)
-            .map(|str| make_dynamic(&crate::term::op_impl::op_server_hello).1)
+            .map(|_str| make_dynamic(&crate::term::op_impl::op_server_hello).1)
     }
 }
 
@@ -292,6 +292,6 @@ impl<'de> Deserialize<'de> for TypeShape {
         // todo
         deserializer
             .deserialize_u64(VisitorU64)
-            .map(|i| TypeShape::of::<UnknownType>())
+            .map(|_i| TypeShape::of::<UnknownType>())
     }
 }

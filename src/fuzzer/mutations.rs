@@ -11,7 +11,7 @@ use libafl::{
     Error,
 };
 
-use crate::trace::{Action, Trace};
+use crate::trace::{Trace};
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        DummyMutator<R, S>,
@@ -40,8 +40,8 @@ where
 {
     fn mutate(
         &mut self,
-        state: &mut S,
-        input: &mut Trace,
+        _state: &mut S,
+        _input: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         /* match &mut input.steps[3].action {

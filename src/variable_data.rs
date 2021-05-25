@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::{Any};
 
 use rustls::{
     internal::msgs::{
@@ -108,7 +108,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::Certificate(c) => {
                     vec![Box::new(c.clone())]
                 }
-                HandshakePayload::CertificateTLS13(c) => {
+                HandshakePayload::CertificateTLS13(_c) => {
                     // todo ... this is the first message which is not cloneable...
                     /*                    let entries = c.entries.iter().map(|entry: &CertificateEntry| {
                         Box::new(CertificateEntry {
@@ -152,13 +152,13 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::NewSessionTicketTLS13(_) => {
                     todo!()
                 }
-                HandshakePayload::EncryptedExtensions(ee) => {
+                HandshakePayload::EncryptedExtensions(_ee) => {
                     todo!()
                 }
                 HandshakePayload::KeyUpdate(_) => {
                     todo!()
                 }
-                HandshakePayload::Finished(fin) => {
+                HandshakePayload::Finished(_fin) => {
                     todo!()
                 }
                 HandshakePayload::CertificateStatus(_) => {
@@ -172,7 +172,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 }
             }
         }
-        MessagePayload::ChangeCipherSpec(ccs) => {
+        MessagePayload::ChangeCipherSpec(_ccs) => {
             vec![]
         }
         MessagePayload::Opaque(opaque) => {

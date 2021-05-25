@@ -7,7 +7,7 @@ pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
     debug_binary_message_with_info("", buffer);
 }
 
-pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8]>) {
+pub fn debug_binary_message_with_info(_info: &'static str, buffer: &dyn AsRef<[u8]>) {
     if let Some(mut message) = Message::read_bytes(buffer.as_ref()) {
         message.decode_payload();
     } else {

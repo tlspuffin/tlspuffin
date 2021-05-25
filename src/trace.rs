@@ -161,7 +161,7 @@ impl HasLen for Trace {
 
 impl Trace {
     pub fn execute(&self, ctx: &mut TraceContext) {
-        self.execute_with_listener(ctx, |step| {})
+        self.execute_with_listener(ctx, |_step| {})
     }
 
     pub fn execute_with_listener(

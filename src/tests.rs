@@ -5,7 +5,7 @@ pub mod tlspuffin {
     #[test]
     fn successful_trace() {
         let mut ctx = TraceContext::new();
-        let (client, server, mut trace) = seed_successful(&mut ctx);
+        let (client, server, trace) = seed_successful(&mut ctx);
 
         info!("{}", trace);
         trace.execute(&mut ctx);
