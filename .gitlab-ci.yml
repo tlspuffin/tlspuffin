@@ -1,4 +1,4 @@
-image: "rust:1.51.0"
+image: "rust:1.52.1"
 
 before_script:
   - echo "Preparing run..."
@@ -14,10 +14,21 @@ before_script:
   - git submodule update --init --recursive
 
 
+build:
+  script:
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo build --verbose
+
 test:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
-    - cargo test --workspace --verbose
+    - cargo test --verbose
+
+# Test that gathering coverage works
+# todo, as this requires a rust nightly
+#test-trace-pc-guard:
+#  script:
+#    - tools/coverage.sh
 
 pages:
   script:

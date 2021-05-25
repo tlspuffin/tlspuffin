@@ -4,7 +4,8 @@ WORK_DIR="./target-nightly"
 TARGET_DIR="$WORK_DIR"
 
 # We also need asan in linker: https://stackoverflow.com/questions/42482494/undefined-reference-to-asan-init-v4-when-compiling
-# Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented.
+# Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented. It gets implemented by the address
+# sanitizer.s
 # Adapted from https://github.com/rust-fuzz/libfuzzer
 cargo +nightly rustc --example seed_successful \
     --target-dir "$TARGET_DIR" \
