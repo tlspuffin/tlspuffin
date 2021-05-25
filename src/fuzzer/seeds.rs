@@ -20,8 +20,6 @@ pub fn seed_successful(ctx: &mut TraceContext) -> (AgentName, AgentName, Trace) 
     let op_client_hello = sig.new_op(&op_client_hello);
     let op_server_hello = sig.new_op(&op_server_hello);
     let op_change_cipher_spec = sig.new_op(&op_change_cipher_spec);
-    //let op_encrypted_certificate = sig.new_op(&op_encrypted_certificate);
-    //let op_certificate = sig.new_op(&op_certificate);
     let op_application_data = sig.new_op(&op_application_data);
 
     (client_openssl, server_openssl, Trace {

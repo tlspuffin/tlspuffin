@@ -3,45 +3,49 @@ name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2018"
+resolver = "2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["sancov_pcguard_libafl"]
+# Logs each execution of __sanitizer_cov_trace_pc_guard*
+sancov_pcguard_log = []
+# Uses libafl for the instrumentation
+sancov_pcguard_libafl = ["libafl_targets"]
 
 [dependencies]
-hexdump = "0.1.1"
-hex = "0.4.3"
-rand = "0.8.3"
-itertools = "0.10.0"
 
-dyn-clone = "1.0.4"
-
+# TLS helpers
 rustls = "0.19.1"
 webpki = "0.21.4"
 webpki-roots = "0.21"
 ring = "0.16.11"
-openssl = { version = "0.10.33", features = ["vendored"] }
 
+# LibAFL
 libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
 libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
-# Comment when using tools/coverage.sh ASAN_OPTIONS=coverage=1
-libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93", features = ["sancov_pcguard_hitcounts", "libfuzzer"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93", features = ["sancov_pcguard_hitcounts"], optional = true }
 
+# Logging
 log = "0.4.14"
 env_logger = "0.8.3"
 test-env-log = "0.2.7"
 
+# Utils
+hexdump = "0.1.1"
+hex = "0.4.3"
+rand = "0.8.3"
+itertools = "0.10.0"
+dyn-clone = "1.0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# OpenSSL
+openssl = { version = "0.10.33", features = ["vendored"] }
 [patch.crates-io]
 openssl-src = { path = './openssl-src' }
 
 [dev-dependencies]
 criterion = "0.3"
-
-[[bench]]
-name = "benchmark"
-harness = false
-
-[features]
 
 [profile.release]
 panic = "abort"
@@ -53,6 +57,18 @@ debug = true
 [profile.dev]
 panic = "abort"
 
+[[bench]]
+name = "benchmark"
+harness = false
+
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
+
+[[bin]]
+name = "tlspuffin_corpus"
+path = "src/generate_corpus.rs"
+
+# Used in tools/coverage.sh to generate coverage
+[[example]]
+name = "seed_successful"

@@ -20,3 +20,10 @@ panic = "abort"
 
 Either your corpus directory is empty or no testcase from `corpus` is interesting. You can try to add a TimeoutFeedback
 and return `ExitKind::Timeout` from the harness to make the testcase `is_interresting`.
+
+
+## Fuzzing is very slow
+
+* Watch the size of your corpus. Is it exploding very fast? If yes, then maybe too many runs are "interesting".
+  This means that a lot of inputs will be added to the corpus, which increases for example the serialization overhead.
+  

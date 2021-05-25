@@ -28,8 +28,7 @@ use libafl::{
     stats::SimpleStats,
     Error, Evaluator,
 };
-// Leave this import such that -fsanitize-coverage=trace-pc-guard generated code can link
-use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+
 use rand::Rng;
 
 use crate::fuzzer::mutations::trace_mutations;
@@ -39,6 +38,20 @@ use crate::trace::{Trace, TraceContext};
 mod harness;
 mod mutations;
 pub mod seeds;
+
+
+#[cfg(feature = "sancov_pcguard_log")]
+mod sancov_pcguard_log;
+
+#[cfg(feature = "sancov_pcguard_libafl")]
+// This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
+use libafl_targets::{EDGES_MAP, EDGES_MAP_SIZE, MAX_EDGES_NUM};
+#[cfg(not(feature = "sancov_pcguard_libafl"))]
+pub const EDGES_MAP_SIZE: usize = 65536;
+#[cfg(not(feature = "sancov_pcguard_libafl"))]
+pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
+#[cfg(not(feature = "sancov_pcguard_libafl"))]
+pub static mut MAX_EDGES_NUM: usize = 0;
 
 pub fn fuzz(
     corpus_dirs: &[PathBuf],
@@ -63,7 +76,8 @@ pub fn fuzz(
 
     // Create an observation channel using the coverage map
     let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
-    let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", edges));
+    let map_observer = StdMapObserver::new("edges", edges);
+    let edges_observer = HitcountsMapObserver::new(map_observer);
 
     // Create an observation channel to keep track of the execution time
     let time_observer = TimeObserver::new("time");
@@ -78,7 +92,7 @@ pub fn fuzz(
         MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
         TimeFeedback::new_with_observer(&time_observer),
-        TimeoutFeedback::new()
+        TimeoutFeedback::new() // todo allow trailing comma
     );
 
     // A feedback to choose if an input is a solution or not
@@ -93,9 +107,11 @@ pub fn fuzz(
             InMemoryCorpus::new(),
             // Corpus in which we store solutions (crashes in this example),
             // on disk so the user can get them after stopping the fuzzer
-            OnDiskCorpus::new(objective_dir).unwrap(),
+            // OnDiskCorpus::new(objective_dir).unwrap(),
+            InMemoryCorpus::new(),
             // States of the feedbacks.
             // They are the data related to the feedbacks that you want to persist in the State.
+            //tuple_list!(),
             tuple_list!(feedback_state),
         )
     });
@@ -103,33 +119,26 @@ pub fn fuzz(
     println!("We're a client, let's fuzz :)");
 
     // Setup a basic mutator with a mutational stage
-    let mutator = StdScheduledMutator::new(havoc_mutations());
+    let mutator = StdScheduledMutator::new(trace_mutations());
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
     // A minimization+queue policy to get testcasess from the corpus
-    let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-    //let scheduler = RandCorpusScheduler::new();
+    //let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+    let scheduler = RandCorpusScheduler::new();
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    //let harness_fn = &mut harness::harness;
-    let mut harness_fn = |input: &BytesInput| {
-        let mut rng = rand::thread_rng();
-
-        let n1 = rng.gen_range(0..10);
-        println!("Run {}", n1);
-        if n1 <= 5 {
-            return ExitKind::Timeout;
-        }
-        ExitKind::Ok
-    };
+    let mut harness_fn = &mut harness::dummy_harness;
+    /*let mut harness_fn = &mut harness::harness;*/
 
     let mut executor = TimeoutExecutor::new(
         InProcessExecutor::new(
             &mut harness_fn,
-            tuple_list!(edges_observer, time_observer),
+            tuple_list!(time_observer),
+            // hint: edges_observer is expensive to serialize
+            //tuple_list!(edges_observer, time_observer),
             &mut fuzzer,
             &mut state,
             &mut restarting_mgr,
@@ -155,37 +164,23 @@ pub fn fuzz(
                       &corpus_dirs, err
                   )
               });*/
-        /*        let mut ctx = TraceContext::new();
-        let seed = seed_successful(&mut ctx);*/
+        let mut ctx = TraceContext::new();
+        let client_openssl = ctx.new_openssl_agent(false);
+        let server_openssl = ctx.new_openssl_agent(true);
+        let seed = Trace { steps: vec![] };
+        /* let seed = seed_successful(&mut ctx).2;*/
         fuzzer
-            .evaluate_input(
-                &mut state,
-                &mut executor,
-                &mut restarting_mgr,
-                BytesInput::new("hello".as_bytes().to_vec()),
-            )
-            .unwrap();
-
-        fuzzer
-            .evaluate_input(
-                &mut state,
-                &mut executor,
-                &mut restarting_mgr,
-                BytesInput::new("hello".as_bytes().to_vec()),
-            )
-            .unwrap();
-        /*        fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
             .unwrap();
         fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
             .unwrap();
         fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
             .unwrap();
         fuzzer
-            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.2.clone())
-            .unwrap();*/
+            .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
+            .unwrap();
         //restarting_mgr.process(&mut fuzzer, &mut state, &mut executor).unwrap();
         println!("We imported {} inputs from disk.", state.corpus().count());
     }

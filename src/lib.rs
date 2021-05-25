@@ -6,8 +6,8 @@ mod debug;
 mod io;
 mod openssl_binding;
 mod tests;
-mod trace;
+pub mod trace;
 mod variable_data;
 mod term;
-mod fuzzer;
+pub mod fuzzer;
 

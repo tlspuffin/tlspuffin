@@ -1,16 +1,31 @@
+#!/bin/bash
 
-
-# https://github.com/rust-fuzz/libfuzzer
+WORK_DIR="./target-nightly"
+TARGET_DIR="$WORK_DIR"
 
 # We also need asan in linker: https://stackoverflow.com/questions/42482494/undefined-reference-to-asan-init-v4-when-compiling
-cargo +nightly rustc --bin tlspuffin -- \
+# Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented.
+# Adapted from https://github.com/rust-fuzz/libfuzzer
+cargo +nightly rustc --example seed_successful \
+    --target-dir "$TARGET_DIR"\
+    --no-default-features\
+    -- \
     -Z sanitizer=address
+# Or define this variable:
+#export RUSTFLAGS="-Z sanitizer=address"
 
-WORK_DIR=$(mktemp -d)
-# Run test successful_trace
-ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR" cargo test --package tlspuffin --bin tlspuffin tests::tlspuffin::successful_trace -- --exact
-sancov -symbolize "$WORK_DIR/"*.sancov target/debug/tlspuffin > "$WORK_DIR"/symbolized.symcov
+export ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR"
+# Run seed_successful as an example
+#cargo +nightly run --example seed_successful --no-default-features --target-dir "$TARGET_DIR"
 
-sancov --print-coverage-stats "$WORK_DIR/"*.sancov target/debug/tlspuffin
-python tools/coverage-report-server.py --symcov "$WORK_DIR"/symbolized.symcov --srcpath dummy
+BIN="$TARGET_DIR/debug/examples/seed_successful"
+SERVER="$(pwd)/tools/coverage-report-server.py"
 
+$BIN
+
+# Print stats
+sancov --print-coverage-stats "$WORK_DIR/"*.sancov "$BIN"
+
+# Serve HTML
+sancov -symbolize "$WORK_DIR/"*.sancov "$BIN" > "$WORK_DIR/symbolized.symcov"
+python "$SERVER" --symcov "$WORK_DIR/symbolized.symcov" --srcpath dummy
