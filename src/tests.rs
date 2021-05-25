@@ -19,10 +19,6 @@ pub mod tlspuffin {
     }
 }
 
-extern "C" {
-    pub fn make_openssl_deterministic();
-}
-
 #[cfg(test)]
 pub mod integration {
     use std::{
@@ -31,7 +27,6 @@ pub mod integration {
         sync::Arc,
     };
 
-    use openssl::rand::rand_bytes;
     use rustls::{
         self,
         internal::msgs::{
@@ -54,19 +49,8 @@ pub mod integration {
 
     use crate::{
         fuzzer::seeds::seed_successful,
-        tests::make_openssl_deterministic,
         trace::{Trace, TraceContext},
     };
-
-    #[test]
-    fn test_openssl_no_randomness() {
-        unsafe {
-            make_openssl_deterministic();
-        }
-        let mut buf1 = [0; 2];
-        rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [103, 198]);
-    }
 
     #[test]
     fn test_serialisation() {

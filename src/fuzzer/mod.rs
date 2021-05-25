@@ -40,6 +40,7 @@ use crate::{
     fuzzer::{mutations::trace_mutations, seeds::seed_successful},
     trace::{TraceContext},
 };
+use crate::fuzzer::openssl_unsafe::make_openssl_deterministic_safe;
 
 mod harness;
 mod mutations;
@@ -50,6 +51,8 @@ mod sancov_pcguard_dummy;
 
 #[cfg(all(not(test), feature = "sancov_pcguard_log"))]
 mod sancov_pcguard_log;
+mod openssl_unsafe;
+mod tests;
 
 #[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub const EDGES_MAP_SIZE: usize = 65536;
@@ -63,6 +66,8 @@ pub fn fuzz(
     _objective_dir: PathBuf,
     broker_port: u16,
 ) -> Result<(), Error> {
+    make_openssl_deterministic_safe();
+
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted
     let stats = MultiStats::new(|s| println!("{}", s));
 
