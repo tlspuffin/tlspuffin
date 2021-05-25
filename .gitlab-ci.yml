@@ -12,7 +12,7 @@ before_script:
   - echo "$GITHUB_OPENSSL_RS" | tr -d '\r' | ssh-add - > /dev/null
   - git submodule sync --recursive
   - git submodule update --init --recursive
-
+  - apt install clang
 
 build:
   script:
