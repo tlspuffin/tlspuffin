@@ -64,9 +64,8 @@ pub mod integration {
             make_openssl_deterministic();
         }
         let mut buf1 = [0; 2];
-        rand_bytes(&mut buf1);
-        println!("{:?}", buf1);
-        assert_eq!(buf1, buf1);
+        rand_bytes(&mut buf1).unwrap();
+        assert_eq!(buf1, [103, 198]);
     }
 
     #[test]
