@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run tlspuffin (Debug)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" singleton="false">
-    <option name="command" value="run --package tlspuffin --bin tlspuffin" />
+    <option name="command" value="run --bin tlspuffin" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="STABLE" />
     <option name="requiredFeatures" value="true" />

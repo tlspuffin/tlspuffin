@@ -138,6 +138,18 @@ pub fn openssl_version() -> &'static str {
     version()
 }
 
+extern "C" {
+    pub fn make_openssl_deterministic();
+}
+
+pub fn make_deterministic() {
+    warn!("OpenSSL is no longer random!");
+    unsafe {
+        make_openssl_deterministic();
+    }
+}
+
+
 pub fn create_openssl_server(
     stream: MemoryStream,
     cert: &X509Ref,

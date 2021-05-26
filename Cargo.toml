@@ -32,7 +32,7 @@ env_logger = "0.8"
 test-env-log = "0.2"
 
 # Utils
-hexdump = "0.1"
+hexdump = "*"
 hex = "0.4"
 rand = "0.8"
 itertools = "0.10"

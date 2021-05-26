@@ -1,10 +1,10 @@
 use core::time::Duration;
-use std::{fs, path::PathBuf, thread, time};
+use std::{path::PathBuf, thread, time};
 
 use libafl::{
     bolts::{
         current_nanos,
-        rands::{Rand, RomuTrioRand, StdRand},
+        rands::{RomuTrioRand, StdRand},
         tuples::{tuple_list, Merge},
     },
     corpus::{
@@ -40,18 +40,30 @@ use crate::{
     fuzzer::{mutations::trace_mutations, seeds::seed_successful},
     trace::{TraceContext},
 };
-use crate::fuzzer::openssl_unsafe::make_openssl_deterministic_safe;
+use crate::openssl_binding::make_deterministic;
 
 mod harness;
 mod mutations;
 pub mod seeds;
 
+// Use dummy in tests
 #[cfg(test)]
 mod sancov_pcguard_dummy;
 
+#[cfg(all(any(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"), test))]
+compile_error!(
+    "you can not enable `sancov_pcguard_log` or `sancov_pcguard_libafl` in tests"
+);
+
+
+#[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"))]
+compile_error!(
+    "`sancov_pcguard_log` and `sancov_pcguard_libafl` features are mutually exclusive."
+);
+
+// Use log if explicitely enabled
 #[cfg(all(not(test), feature = "sancov_pcguard_log"))]
 mod sancov_pcguard_log;
-mod openssl_unsafe;
 mod tests;
 
 #[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
@@ -66,7 +78,7 @@ pub fn fuzz(
     _objective_dir: PathBuf,
     broker_port: u16,
 ) -> Result<(), Error> {
-    make_openssl_deterministic_safe();
+    make_deterministic();
 
     // 'While the stats are state, they are usually used in the broker - which is likely never restarted
     let stats = MultiStats::new(|s| println!("{}", s));
