@@ -1348,6 +1348,7 @@ dependencies = [
  "libafl_derive",
  "libafl_targets",
  "log",
+ "once_cell",
  "openssl",
  "postcard 0.7.0",
  "rand",

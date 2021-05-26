@@ -1,3 +1,8 @@
+use std::any::TypeId;
+use std::collections::HashMap;
+
+use itertools::Itertools;
+use once_cell::sync::Lazy;
 use rand::{random, seq::SliceRandom};
 use ring::{
     hkdf,
@@ -27,6 +32,9 @@ use rustls::{
     CipherSuite, ProtocolVersion, SignatureScheme,
 };
 use HandshakePayload::EncryptedExtensions;
+
+use crate::term::{make_dynamic, DynamicFunction, TypeShape};
+use std::sync::Mutex;
 
 // -----
 // utils
@@ -332,6 +340,36 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
         supported_versions,
     ]
 }
+
+pub static OP_FUNCTIONS: Lazy<Mutex<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>>> =
+    Lazy::new(|| {
+        let tuples = vec![
+            make_dynamic(&op_client_hello),
+            make_dynamic(&op_server_hello),
+            make_dynamic(&op_change_cipher_spec),
+            make_dynamic(&op_application_data),
+        ];
+
+        Mutex::new(tuples
+            .into_iter()
+            .map(|(shape, dynamic_fn)| {
+                let types: Vec<TypeShape> = shape
+                    .argument_types
+                    .iter()
+                    .copied()
+                    .chain(vec![shape.return_type])
+                    .collect_vec();
+                (shape.to_string(), (types, dynamic_fn))
+            })
+            .collect())
+    });
+
+static OP_TYPES: Lazy<Mutex<HashMap<String, TypeId>>> = Lazy::new(|| {
+    let mut types = HashMap::new();
+
+    &OP_FUNCTIONS;
+    Mutex::new(types)
+});
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro
 // https://gitlab.inria.fr/mammann/tlspuffin/-/issues/28

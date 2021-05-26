@@ -50,10 +50,10 @@ pub mod seeds;
 #[cfg(test)]
 mod sancov_pcguard_dummy;
 
-#[cfg(all(any(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"), test))]
+/*#[cfg(all(any(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"), test))]
 compile_error!(
     "you can not enable `sancov_pcguard_log` or `sancov_pcguard_libafl` in tests"
-);
+);*/
 
 
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"))]

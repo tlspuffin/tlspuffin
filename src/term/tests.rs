@@ -2,7 +2,7 @@
 mod term {
     use std::any::{Any, TypeId};
 
-    use rustls::{internal::msgs::handshake::SessionID};
+    use rustls::internal::msgs::handshake::SessionID;
 
     use crate::{
         term::{
@@ -12,6 +12,7 @@ mod term {
         trace::TraceContext,
         variable_data::{AsAny, VariableData},
     };
+    use crate::term::op_impl::OP_FUNCTIONS;
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
@@ -121,5 +122,10 @@ mod term {
         };
 
         println!("{}", constructed_term.pretty());
+    }
+
+    #[test]
+    fn test_static_functions() {
+        println!("{:?}", &OP_FUNCTIONS.lock())
     }
 }

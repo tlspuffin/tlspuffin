@@ -18,9 +18,7 @@ use serde::{
 pub struct DynamicFunctionShape {
     pub name: String,
     pub argument_types: Vec<TypeShape>,
-    pub argument_type_names: Vec<String>,
     pub return_type: TypeShape,
-    pub return_type_name: String,
 }
 
 impl DynamicFunctionShape {
@@ -33,12 +31,13 @@ impl fmt::Display for DynamicFunctionShape {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "({}) -> {}",
-            self.argument_type_names
+            "{}({}) -> {}",
+            self.name,
+            self.argument_types
                 .iter()
-                .map(|name| format!("{}", name))
+                .map(|typ| format!("{}", typ.name))
                 .join(","),
-            self.return_type_name
+            self.return_type.name
         )
     }
 }
@@ -51,7 +50,7 @@ pub fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-pub fn format_args<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
+pub fn format_args<P: 'static + AsRef<dyn Any + Send + Sync>>(anys: &Vec<P>) -> String {
     format!(
         "({})",
         anys.iter()
@@ -73,13 +72,13 @@ pub fn format_args<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any + Send + Sync>>) -> Box<dyn Any + Send + Sync> + Send + Sync {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone,
+    T: 'static + Fn(&Vec<Box<dyn Any + Send + Sync>>) -> Box<dyn Any + Send + Sync> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -114,21 +113,21 @@ macro_rules! dynamic_fn {
     impl<F, $res: 'static, $($arg: 'static),*> // 'static missing
         DescribableFunction<($res, $($arg),*)> for F
     where
-        F: Fn($(&$arg),*) -> $res
+        F: Fn($(&$arg),*)  -> $res + Send + Sync,
+        $res: Send + Sync,
+        $($arg: Send + Sync),*
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
                 name: std::any::type_name::<F>().to_string(),
                 argument_types: vec![$(TypeShape::of::<$arg>()),*],
-                argument_type_names: vec![$(type_name::<$arg>().to_string()),*],
                 return_type: TypeShape::of::<$res>(),
-                return_type_name: type_name::<$res>().to_string(),
             }
         }
 
         fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {
             #[allow(unused_variables)]
-            Box::new(move |args: &Vec<Box<dyn Any>>| {
+            Box::new(move |args: &Vec<Box<dyn Any + Send + Sync>>| {
                 #[allow(unused_mut)]
                 let mut index = 0;
 
@@ -181,6 +180,7 @@ where
 #[derive(Copy, Clone, Debug)]
 pub struct TypeShape {
     inner_type_id: TypeId,
+    pub name: &'static str
 }
 
 struct UnknownType;
@@ -189,6 +189,7 @@ impl TypeShape {
     pub fn of<T: 'static>() -> TypeShape {
         Self {
             inner_type_id: TypeId::of::<T>(),
+            name: type_name::<T>()
         }
     }
 
@@ -216,6 +217,7 @@ impl Serialize for Box<dyn DynamicFunction> {
     where
         S: Serializer,
     {
+
         // todo
         serializer.serialize_str(type_name::<dyn DynamicFunction>())
     }
