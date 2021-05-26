@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::{
     any::{type_name, Any, TypeId},
     collections::hash_map::DefaultHasher,
@@ -50,12 +51,12 @@ pub fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-pub fn format_args<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
+pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
     format!(
         "({})",
         anys.iter()
             .map(|any| {
-                let id = any.type_id();
+                let id = any.as_ref().type_id().clone();
                 format!("{:x}", hash_type_id(&id))
             })
             .join(",")
@@ -86,9 +87,14 @@ where
 }
 
 impl fmt::Debug for Box<dyn DynamicFunction> {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result {
-        // todo
-        Ok(())
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "DynamicFunction")
+    }
+}
+
+impl fmt::Display for Box<dyn DynamicFunction> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "DynamicFunction")
     }
 }
 
@@ -180,7 +186,7 @@ where
 #[derive(Copy, Clone, Debug)]
 pub struct TypeShape {
     inner_type_id: TypeId,
-    pub name: &'static str
+    pub name: &'static str,
 }
 
 struct UnknownType;
@@ -189,7 +195,7 @@ impl TypeShape {
     pub fn of<T: 'static>() -> TypeShape {
         Self {
             inner_type_id: TypeId::of::<T>(),
-            name: type_name::<T>()
+            name: type_name::<T>(),
         }
     }
 
@@ -204,9 +210,23 @@ impl Into<TypeId> for TypeShape {
     }
 }
 
+impl Eq for TypeShape {}
+
 impl PartialEq for TypeShape {
     fn eq(&self, other: &Self) -> bool {
         self.inner_type_id == other.inner_type_id
+    }
+}
+
+impl Hash for TypeShape {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner_type_id.hash(state);
+    }
+}
+
+impl fmt::Display for TypeShape {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
 
@@ -217,7 +237,6 @@ impl Serialize for Box<dyn DynamicFunction> {
     where
         S: Serializer,
     {
-
         // todo
         serializer.serialize_str(type_name::<dyn DynamicFunction>())
     }

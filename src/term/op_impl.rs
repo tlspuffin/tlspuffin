@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -34,7 +35,6 @@ use rustls::{
 use HandshakePayload::EncryptedExtensions;
 
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
-use std::sync::Mutex;
 
 // -----
 // utils
@@ -290,11 +290,11 @@ pub fn on_compression() -> Compression {
         .unwrap()
 }
 
-pub fn op_server_name_extension(dns_name: &str) -> ClientExtension {
+pub fn op_server_name_extension(dns_name: &String) -> ClientExtension {
     ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName(
-            webpki::DNSNameRef::try_from_ascii_str(dns_name)
+            webpki::DNSNameRef::try_from_ascii_str(dns_name.as_str())
                 .unwrap()
                 .to_owned(),
         ),
@@ -325,7 +325,7 @@ pub fn op_supported_versions_extension() -> ClientExtension {
 }
 
 pub fn op_random_extensions() -> Vec<ClientExtension> {
-    let server_name: ClientExtension = op_server_name_extension("maxammann.org");
+    let server_name: ClientExtension = op_server_name_extension(&"maxammann.org".to_string());
 
     let supported_groups: ClientExtension = op_support_group_extension();
     let signature_algorithms: ClientExtension = op_signature_algorithm_extension();
@@ -341,16 +341,36 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     ]
 }
 
-pub static OP_FUNCTIONS: Lazy<Mutex<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>>> =
+pub static OP_FUNCTIONS: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>> =
     Lazy::new(|| {
         let tuples = vec![
+            make_dynamic(&op_hmac256_new_key),
+            make_dynamic(&op_arbitrary_to_key),
+            make_dynamic(&op_hmac256),
+            make_dynamic(&op_client_handshake_traffic_secret),
             make_dynamic(&op_client_hello),
             make_dynamic(&op_server_hello),
             make_dynamic(&op_change_cipher_spec),
+            make_dynamic(&op_encrypted_certificate),
+            make_dynamic(&op_certificate),
             make_dynamic(&op_application_data),
+            make_dynamic(&op_alert_description),
+            make_dynamic(&op_alert_payload),
+            make_dynamic(&op_random_cipher_suite),
+            make_dynamic(&op_random_session_id),
+            make_dynamic(&op_random_protocol_version),
+            make_dynamic(&op_random_random_data),
+            make_dynamic(&on_random_cipher_suite),
+            make_dynamic(&on_compression),
+            make_dynamic(&op_server_name_extension),
+            make_dynamic(&op_support_group_extension),
+            make_dynamic(&op_signature_algorithm_extension),
+            make_dynamic(&op_random_key_share_extension),
+            make_dynamic(&op_supported_versions_extension),
+            make_dynamic(&op_random_extensions),
         ];
 
-        Mutex::new(tuples
+        tuples
             .into_iter()
             .map(|(shape, dynamic_fn)| {
                 let types: Vec<TypeShape> = shape
@@ -361,14 +381,18 @@ pub static OP_FUNCTIONS: Lazy<Mutex<HashMap<String, (Vec<TypeShape>, Box<dyn Dyn
                     .collect_vec();
                 (shape.to_string(), (types, dynamic_fn))
             })
-            .collect())
+            .collect()
     });
 
-static OP_TYPES: Lazy<Mutex<HashMap<String, TypeId>>> = Lazy::new(|| {
-    let mut types = HashMap::new();
-
-    &OP_FUNCTIONS;
-    Mutex::new(types)
+pub static OP_TYPES: Lazy<Vec<TypeShape>> = Lazy::new(|| {
+    let functions = &OP_FUNCTIONS;
+    let types = functions
+        .iter()
+        .map(|(_, (types, _))| types.clone())
+        .unique()
+        .flatten()
+        .collect_vec();
+    types
 });
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro

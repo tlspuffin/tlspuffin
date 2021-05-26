@@ -12,7 +12,9 @@ mod term {
         trace::TraceContext,
         variable_data::{AsAny, VariableData},
     };
-    use crate::term::op_impl::OP_FUNCTIONS;
+    use crate::term::op_impl::{OP_FUNCTIONS, OP_TYPES};
+    use std::ops::Deref;
+    use itertools::Itertools;
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
@@ -126,6 +128,7 @@ mod term {
 
     #[test]
     fn test_static_functions() {
-        println!("{:?}", &OP_FUNCTIONS.lock())
+        println!("{}", OP_FUNCTIONS.iter().map(|tuple| tuple.0).join("\n"));
+        println!("{}", OP_TYPES.iter().map(|typ| typ.to_string()).join("\n"));
     }
 }
