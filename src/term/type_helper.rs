@@ -50,7 +50,7 @@ pub fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-pub fn format_args<P: 'static + AsRef<dyn Any + Send + Sync>>(anys: &Vec<P>) -> String {
+pub fn format_args<P: 'static + AsRef<dyn Any>>(anys: &Vec<P>) -> String {
     format!(
         "({})",
         anys.iter()
@@ -72,13 +72,13 @@ pub fn format_args<P: 'static + AsRef<dyn Any + Send + Sync>>(anys: &Vec<P>) -> 
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any + Send + Sync>>) -> Box<dyn Any + Send + Sync> + Send + Sync {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Send + Sync {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any + Send + Sync>>) -> Box<dyn Any + Send + Sync> + Clone + Send + Sync,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -113,7 +113,7 @@ macro_rules! dynamic_fn {
     impl<F, $res: 'static, $($arg: 'static),*> // 'static missing
         DescribableFunction<($res, $($arg),*)> for F
     where
-        F: Fn($(&$arg),*)  -> $res + Send + Sync,
+        F: (Fn($(&$arg),*)  -> $res) + Send + Sync,
         $res: Send + Sync,
         $($arg: Send + Sync),*
     {
@@ -127,7 +127,7 @@ macro_rules! dynamic_fn {
 
         fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {
             #[allow(unused_variables)]
-            Box::new(move |args: &Vec<Box<dyn Any + Send + Sync>>| {
+            Box::new(move |args: &Vec<Box<dyn Any>>| {
                 #[allow(unused_mut)]
                 let mut index = 0;
 

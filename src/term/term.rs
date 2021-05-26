@@ -81,7 +81,7 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any + Send + Sync>, String> {
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
         match self {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.type_shape, v.observed_id)
@@ -91,7 +91,7 @@ impl Term {
                     v, v.observed_id
                 )),
             Term::Application { op, args } => {
-                let mut dynamic_args: Vec<Box<dyn Any + Send + Sync>> = Vec::new();
+                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
                     match term.evaluate(context) {
                         Ok(data) => {

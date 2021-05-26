@@ -19,20 +19,20 @@ impl<T: Any> AsAny for T {
     }
 }
 
-pub trait VariableData: AsAny + Send + Sync {
+pub trait VariableData: AsAny {
     fn clone_box(&self) -> Box<dyn VariableData>;
-    fn clone_box_any(&self) -> Box<dyn Any + Send + Sync>;
+    fn clone_box_any(&self) -> Box<dyn Any>;
 }
 
 impl<T: 'static> VariableData for T
 where
-    T: Clone + Send + Sync,
+    T: Clone,
 {
     fn clone_box(&self) -> Box<dyn VariableData> {
         Box::new(self.clone())
     }
 
-    fn clone_box_any(&self) -> Box<dyn Any + Send + Sync> {
+    fn clone_box_any(&self) -> Box<dyn Any> {
         Box::new(self.clone())
     }
 }
