@@ -11,6 +11,8 @@ rustup install 1.51.0-x86_64-unknown-linux-gnu
 The toolchain `1.52.1-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
 use `rustup install 1.52.1` to install the toolchain for your OS.
 
+Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optinally, also install `llvm` to have additional tools like `sancov` available.
+
 Now, build the project:
 
 ```bash
