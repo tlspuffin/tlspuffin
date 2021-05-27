@@ -42,6 +42,7 @@ use crate::{
 };
 use crate::openssl_binding::make_deterministic;
 use libafl::bolts::shmem::{StdShMemProvider, ShMemProvider};
+use itertools::Itertools;
 
 mod harness;
 mod mutations;
@@ -192,7 +193,7 @@ pub fn start(
         .shmem_provider(shmem_provider)
         .stats(stats)
         .run_client(&mut run_client)
-        .cores(&[num_cores])
+        .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
         .stdout_file(Some("/dev/null"))
         .build()
