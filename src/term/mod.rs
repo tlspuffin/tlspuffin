@@ -25,9 +25,9 @@
 
 pub use self::{atoms::*, signature::*, term::*, type_helper::*};
 
-mod atoms;
-// todo Can we make op_impl private?
 pub mod op_impl;
+
+mod atoms;
 mod pretty;
 mod signature;
 mod term;

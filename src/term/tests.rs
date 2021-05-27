@@ -7,13 +7,11 @@ mod term {
     use crate::{
         term::{
             op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id},
-            Signature, Term, Variable, VariableContext,
+            Signature, Term,
         },
         trace::TraceContext,
-        variable_data::{AsAny, VariableData},
     };
     use crate::term::op_impl::{OP_FUNCTIONS, OP_TYPES};
-    use std::ops::Deref;
     use itertools::Itertools;
 
     fn example_op_c(a: &u8) -> u16 {

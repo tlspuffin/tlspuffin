@@ -108,7 +108,3 @@ impl Term {
         }
     }
 }
-
-pub trait VariableContext {
-    fn find_variable_data<T: VariableData>(&self, variable: &Variable) -> Option<&T>;
-}
