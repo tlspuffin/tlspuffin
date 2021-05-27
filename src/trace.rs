@@ -1,15 +1,14 @@
 use core::fmt;
-use std::{any::TypeId, cell::RefCell, fmt::Formatter, rc::Rc};
+use std::{any::TypeId, fmt::Formatter, rc::Rc};
 
 use libafl::{
-    bolts::ownedref::OwnedSlice,
     inputs::{HasBytesVec, HasLen, HasTargetBytes, Input},
 };
 use rustls::internal::msgs::{
     handshake::HandshakePayload,
     message::{Message, MessagePayload::Handshake},
 };
-use serde::{ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[allow(unused)] // used in docs
 use crate::io::Channel;
@@ -95,21 +94,6 @@ impl TraceContext {
                 .take_message_from_outbound()
                 .ok_or::<String>("Failed to take data from inbound channel".to_string())
         })
-    }
-
-    fn add_to_outbound(
-        &mut self,
-        agent_name: AgentName,
-        message: &Message,
-        prepend: bool,
-    ) -> Result<(), String> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.add_to_outbound(message, prepend))
-    }
-
-    pub fn take_from_inbound(&mut self, agent_name: AgentName) -> Result<Message, String> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.take_from_inbound().unwrap())
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -266,23 +250,6 @@ impl InputAction {
 
         if let Err(_) = ctx.next_state(step.agent) {
             panic!("Failed to go to next state!")
-        }
-    }
-}
-
-// parsing utils
-
-pub fn take_handshake_payload(step: &Step, ctx: &mut TraceContext) -> Option<HandshakePayload> {
-    // todo, we are creating variables only from the message in the oubound buffer, but the reeiver
-    // // of a message also has access to the message in the inbound
-    match ctx.take_from_inbound(step.agent) {
-        // reads internally from inbound of agent
-        Ok(message) => match message.payload {
-            Handshake(payload) => Some(payload.payload),
-            _ => None,
-        },
-        Err(msg) => {
-            panic!("{}", msg)
         }
     }
 }
