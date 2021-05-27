@@ -5,8 +5,9 @@ use std::{env, io::Write, path::PathBuf};
 
 use env_logger::{fmt, Builder, Env};
 use log::Level;
+use clap::{Arg, App, value_t, crate_version, crate_authors, crate_name};
 
-use crate::fuzzer::fuzz;
+use crate::fuzzer::start;
 
 mod agent;
 mod debug;
@@ -47,7 +48,17 @@ fn main() {
     }
 
     init_logger();
-    //pretty_env_logger::formatted_builder().target(Target::Stdout).filter_level(LevelFilter::Trace).init();
+
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about("Fuzzes OpenSSL on a symbolic level")
+        .args_from_usage(
+            "-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'",
+        )
+        .get_matches();
+
+    let num_cores = value_t!(matches, "n", usize).unwrap_or(1);
 
     info!("{}", openssl_binding::openssl_version());
 
@@ -55,17 +66,10 @@ fn main() {
         "Workdir: {:?}",
         env::current_dir().unwrap().to_string_lossy().to_string()
     );
-    fuzz(
+    start(
+        num_cores,
         &[PathBuf::from("./corpus")],
         PathBuf::from("./crashes"),
         1337,
-    )
-    .expect("An error occurred while fuzzing");
-
-    /*
-    use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
-    unsafe {
-        println!("{:?}", EDGES_MAP);
-        println!("{}", MAX_EDGES_NUM);
-    }*/
+    );
 }

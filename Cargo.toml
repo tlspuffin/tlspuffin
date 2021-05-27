@@ -22,9 +22,9 @@ webpki-roots = "0.21"
 ring = "0.16"
 
 # LibAFL
-libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
-libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
-libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "1089c93" }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "83bef6e" }
+libafl_derive = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "83bef6e" }
+libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "83bef6e" }
 
 # Logging
 log = "0.4"
@@ -32,6 +32,7 @@ env_logger = "0.8"
 test-env-log = "0.2"
 
 # Utils
+clap = "2"
 hexdump = "*"
 hex = "0.4"
 rand = "0.8"

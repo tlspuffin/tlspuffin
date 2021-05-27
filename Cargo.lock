@@ -19,6 +19,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ansi_term"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee49baf6cb617b853aa8d93bf420db2383fab46d314482ca2803b40d5fde979b"
+dependencies = [
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -143,9 +152,13 @@ version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37e58ac78573c40708d45522f0d80fa2f01cc4f9b4e2bf749807255454312002"
 dependencies = [
+ "ansi_term",
+ "atty",
  "bitflags",
+ "strsim",
  "textwrap",
  "unicode-width",
+ "vec_map",
 ]
 
 [[package]]
@@ -607,7 +620,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "libafl"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=83bef6e#83bef6e85ae5f0a6340392ebfabcc6b4ca7933b8"
 dependencies = [
  "compression",
  "core_affinity",
@@ -638,7 +651,7 @@ dependencies = [
 [[package]]
 name = "libafl_derive"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=83bef6e#83bef6e85ae5f0a6340392ebfabcc6b4ca7933b8"
 dependencies = [
  "quote",
  "syn",
@@ -647,7 +660,7 @@ dependencies = [
 [[package]]
 name = "libafl_targets"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=1089c93#1089c935771c9cb22f6bac0535b85ae3d5823bb6"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=83bef6e#83bef6e85ae5f0a6340392ebfabcc6b4ca7933b8"
 dependencies = [
  "cc",
  "libafl",
@@ -1276,6 +1289,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "strsim"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
+
+[[package]]
 name = "syn"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1338,6 +1357,7 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "criterion",
  "dyn-clone",
  "env_logger",
@@ -1446,6 +1466,12 @@ name = "vcpkg"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbdbff6266a24120518560b5dc983096efb98462e51d0d68169895b237be3e5d"
+
+[[package]]
+name = "vec_map"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "version_check"
