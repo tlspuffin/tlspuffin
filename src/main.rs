@@ -71,8 +71,9 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("seed") {
         let mut ctx = trace::TraceContext::new();
-
-        let (_client, _server, trace) = fuzzer::seeds::seed_successful(&mut ctx);
+        let client = agent::AgentName::first();
+        let server = client.next();
+        let trace = fuzzer::seeds::seed_successful(client, server);
 
         let mut file = File::create("corpus/1.dat").unwrap();
         let serialized = postcard::to_allocvec(&trace).unwrap();

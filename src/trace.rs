@@ -1,9 +1,7 @@
 use core::fmt;
 use std::{any::TypeId, fmt::Formatter, rc::Rc};
 
-use libafl::{
-    inputs::{HasBytesVec, HasLen, HasTargetBytes, Input},
-};
+use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
 use rustls::internal::msgs::{
     handshake::HandshakePayload,
     message::{Message, MessagePayload::Handshake},
@@ -37,7 +35,7 @@ impl TraceContext {
         Self {
             knowledge: vec![],
             agents: vec![],
-            last_agent_added: AgentName::none(),
+            last_agent_added: AgentName::first(),
         }
     }
 
@@ -103,34 +101,37 @@ impl TraceContext {
         return name;
     }
 
-    pub fn new_openssl_agent(&mut self, server: bool) -> AgentName {
-        return self.add_agent(Agent::new_openssl(&self.last_agent_added, server));
+    pub fn new_openssl_agent(&mut self, name: AgentName, server: bool) -> AgentName {
+        return self.add_agent(Agent::new_openssl(name, server));
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
-        if name == AgentName::none() {
-            panic!("None Agent does not exist")
-        }
-
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.name == name)
-            .ok_or(format!("Could not find agent {}", name))
+        iter.find(|agent| agent.name == name).ok_or(format!(
+            "Could not find agent {}. Did you forget to call spawn_agents?",
+            name
+        ))
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
-        if name == AgentName::none() {
-            panic!("None Agent does not exist")
-        }
-
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.name == name)
-            .ok_or(format!("Could not find agent {}", name))
+        iter.find(|agent| agent.name == name).ok_or(format!(
+            "Could not find agent {}. Did you forget to call spawn_agents?",
+            name
+        ))
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AgentDescriptor {
+    pub name: AgentName,
+    pub server: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Trace {
+    pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
 }
 
@@ -144,6 +145,12 @@ impl HasLen for Trace {
 }
 
 impl Trace {
+    pub fn spawn_agents(&self, ctx: &mut TraceContext) {
+        for descriptor in &self.descriptors {
+            ctx.new_openssl_agent(descriptor.name, descriptor.server);
+        }
+    }
+
     pub fn execute(&self, ctx: &mut TraceContext) {
         self.execute_with_listener(ctx, |_step| {})
     }

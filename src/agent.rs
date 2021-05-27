@@ -8,11 +8,11 @@ use crate::io::{OpenSSLStream, Stream};
 pub struct AgentName(u8);
 
 impl AgentName {
-    pub fn new(last_name: &AgentName) -> AgentName {
-        AgentName(last_name.0 + 1)
+    pub fn next(&self) -> AgentName {
+        AgentName(self.0 + 1)
     }
 
-    pub fn none() -> AgentName {
+    pub fn first() -> AgentName {
         NONE_AGENT
     }
 }
@@ -37,13 +37,13 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new_openssl(last_name: &AgentName, server: bool) -> Self {
-        Self::from_stream(last_name, Box::new(OpenSSLStream::new(server)))
+    pub fn new_openssl(name: AgentName, server: bool) -> Self {
+        Self::from_stream(name, Box::new(OpenSSLStream::new(server)))
     }
 
-    pub fn from_stream(last_name: &AgentName, stream: Box<dyn Stream>) -> Agent {
+    pub fn from_stream(name: AgentName, stream: Box<dyn Stream>) -> Agent {
         Agent {
-            name: AgentName::new(&last_name),
+            name,
             stream,
         }
     }

@@ -1,13 +1,17 @@
 #[cfg(test)]
 pub mod tlspuffin {
     use crate::{fuzzer::seeds::seed_successful, trace::TraceContext};
+    use crate::agent::AgentName;
 
     #[test]
     fn successful_trace() {
         let mut ctx = TraceContext::new();
-        let (client, server, trace) = seed_successful(&mut ctx);
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful(client, server);
 
         info!("{}", trace);
+        trace.spawn_agents(&mut ctx);
         trace.execute(&mut ctx);
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -51,11 +55,15 @@ pub mod integration {
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
+    use crate::agent::AgentName;
 
     #[test]
     fn test_serialisation_json() {
         let mut ctx = TraceContext::new();
-        let (_, _, trace) = seed_successful(&mut ctx);
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful(client, server);
+
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
         println!("serialized = {}", serialized1);
 
@@ -68,7 +76,10 @@ pub mod integration {
     #[test]
     fn test_serialisation_postcard() {
         let mut ctx = TraceContext::new();
-        let (_, _, trace) = seed_successful(&mut ctx);
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful(client, server);
+
         let serialized1 = postcard::to_allocvec(&trace).unwrap();
 
         let deserialized_trace = postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap();
