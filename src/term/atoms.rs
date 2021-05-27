@@ -1,11 +1,8 @@
 use std::{fmt, fmt::Formatter};
 
-use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::ser::SerializeStruct;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
-use crate::term::make_dynamic;
-use crate::term::op_impl::{op_certificate, OP_FUNCTIONS};
+use crate::term::atoms::fn_container::FnContainer;
 use crate::{
     term::{
         type_helper::{DynamicFunction, DynamicFunctionShape},
@@ -14,18 +11,30 @@ use crate::{
     trace::ObservedId,
 };
 
-/// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
+/// A symbol for an unspecified term.
 ///
-/// To construct a `Variable`, use [`Signature::new_var`]
-///
-/// [`Signature`]: struct.Signature.html
-/// [`Signature::new_var`]: struct.Signature.html#method.new_var
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Variable {
-    pub(crate) id: u32,
-    pub(crate) typ_name: String,
-    pub(crate) type_shape: TypeShape,
-    pub(crate) observed_id: ObservedId,
+    pub id: u32,
+    pub typ_name: String,
+    pub type_shape: TypeShape,
+    pub observed_id: ObservedId,
+}
+
+impl Variable {
+    pub fn new(
+        id: u32,
+        typ_name: String,
+        type_shape: TypeShape,
+        observed_id: ObservedId,
+    ) -> Self {
+        Self {
+            id,
+            typ_name,
+            type_shape,
+            observed_id,
+        }
+    }
 }
 
 impl fmt::Display for Variable {
@@ -34,150 +43,25 @@ impl fmt::Display for Variable {
     }
 }
 
-/// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
-///
-/// To construct an `Operator`, use [`Signature::new_op`].
-///
-/// [`Signature`]: struct.Signature.html
-/// [`Signature::new_op`]: struct.Signature.html#method.new_op
+/// A symbol with fixed arity.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Operator {
-    id: u32,
+    pub id: u32,
     fn_container: FnContainer,
 }
 
 impl Operator {
-    pub(crate) fn new(
+    pub fn new(
         id: u32,
         shape: DynamicFunctionShape,
         dynamic_fn: Box<dyn DynamicFunction>,
-    ) -> Operator {
+    ) -> Self {
         Self {
             id,
             fn_container: FnContainer { shape, dynamic_fn },
         }
     }
-}
 
-#[derive(Clone, Debug)]
-struct FnContainer {
-    shape: DynamicFunctionShape,
-    dynamic_fn: Box<dyn DynamicFunction>,
-}
-
-const FN_CONTAINER_FIELDS: &[&str] = &["name", "arguments", "return"];
-
-impl Serialize for FnContainer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("FnContainer", FN_CONTAINER_FIELDS.len())?;
-        state.serialize_field("name", &self.shape.name)?;
-        state.serialize_field("arguments", &self.shape.argument_types)?;
-        state.serialize_field("return", &self.shape.return_type)?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for FnContainer {
-    fn deserialize<D>(deserializer: D) -> Result<FnContainer, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct FnContainerVisitor;
-
-        impl<'de> Visitor<'de> for FnContainerVisitor {
-            type Value = FnContainer;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct FnContainer")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let name: &str = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let argument_types = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let return_type = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-
-                let (shape, dynamic_fn) = OP_FUNCTIONS
-                    .get(name)
-                    .ok_or(de::Error::missing_field("could not find function"))?;
-                // todo check if shape matches
-                Ok(FnContainer {
-                    shape: DynamicFunctionShape {
-                        name: name.to_string(),
-                        argument_types,
-                        return_type,
-                    },
-                    dynamic_fn: dynamic_fn.clone(),
-                })
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut name: Option<&'de str> = None;
-                let mut arguments: Option<Vec<TypeShape>> = None;
-                let mut ret: Option<TypeShape> = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        "name" => {
-                            if name.is_some() {
-                                return Err(de::Error::duplicate_field("name"));
-                            }
-                            name = Some(map.next_value()?);
-                        }
-                        "arguments" => {
-                            if arguments.is_some() {
-                                return Err(de::Error::duplicate_field("arguments"));
-                            }
-                            arguments = Some(map.next_value()?);
-                        }
-                        "return" => {
-                            if ret.is_some() {
-                                return Err(de::Error::duplicate_field("return"));
-                            }
-                            ret = Some(map.next_value()?);
-                        }
-                        _ => {
-                            return Err(de::Error::unknown_field(key, FN_CONTAINER_FIELDS));
-                        }
-                    }
-                }
-
-                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
-                let (shape, dynamic_fn) = OP_FUNCTIONS
-                    .get(name)
-                    .ok_or(de::Error::missing_field("could not find function"))?;
-                // todo check if shape matches
-                let argument_types =
-                    arguments.ok_or_else(|| de::Error::missing_field("arguments"))?;
-                let return_type = ret.ok_or_else(|| de::Error::missing_field("return"))?;
-                Ok(FnContainer {
-                    shape: DynamicFunctionShape {
-                        name: name.to_string(),
-                        argument_types,
-                        return_type,
-                    },
-                    dynamic_fn: dynamic_fn.clone(),
-                })
-            }
-        }
-        deserializer.deserialize_struct("FnContainer", FN_CONTAINER_FIELDS, FnContainerVisitor)
-    }
-}
-
-impl Operator {
     pub fn arity(&self) -> u16 {
         self.fn_container.shape.arity()
     }
@@ -197,5 +81,137 @@ impl Operator {
     /// Serialize an `Operator`.
     pub fn display(&self) -> String {
         format!("{}", self.name())
+    }
+}
+
+mod fn_container {
+    use std::fmt;
+
+    use serde::de::{MapAccess, SeqAccess, Visitor};
+    use serde::ser::SerializeStruct;
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+    use crate::term::op_impl::OP_FUNCTIONS;
+    use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
+
+    const NAME: &str = "name";
+    const ARGUMENTS: &str = "arguments";
+    const RETURN: &str = "return";
+    const FIELDS: &[&str] = &["name", "arguments", "return"];
+
+    #[derive(Clone, Debug)]
+    pub struct FnContainer {
+        pub shape: DynamicFunctionShape,
+        pub dynamic_fn: Box<dyn DynamicFunction>,
+    }
+
+    impl Serialize for FnContainer {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut state = serializer.serialize_struct("FnContainer", FIELDS.len())?;
+            state.serialize_field(NAME, &self.shape.name)?;
+            state.serialize_field(ARGUMENTS, &self.shape.argument_types)?;
+            state.serialize_field(RETURN, &self.shape.return_type)?;
+            state.end()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for FnContainer {
+        fn deserialize<D>(deserializer: D) -> Result<FnContainer, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct FnContainerVisitor;
+
+            impl<'de> Visitor<'de> for FnContainerVisitor {
+                type Value = FnContainer;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("struct FnContainer")
+                }
+
+                fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
+                where
+                    V: SeqAccess<'de>,
+                {
+                    let name: &str = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                    let argument_types = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                    let return_type = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+
+                    let (shape, dynamic_fn) = OP_FUNCTIONS
+                        .get(name)
+                        .ok_or(de::Error::missing_field("could not find function"))?;
+                    // todo check if shape matches
+                    Ok(FnContainer {
+                        shape: DynamicFunctionShape {
+                            name: name.to_string(),
+                            argument_types,
+                            return_type,
+                        },
+                        dynamic_fn: dynamic_fn.clone(),
+                    })
+                }
+
+                fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
+                where
+                    V: MapAccess<'de>,
+                {
+                    let mut name: Option<&'de str> = None;
+                    let mut arguments: Option<Vec<TypeShape>> = None;
+                    let mut ret: Option<TypeShape> = None;
+                    while let Some(key) = map.next_key()? {
+                        match key {
+                            NAME => {
+                                if name.is_some() {
+                                    return Err(de::Error::duplicate_field(NAME));
+                                }
+                                name = Some(map.next_value()?);
+                            }
+                            ARGUMENTS => {
+                                if arguments.is_some() {
+                                    return Err(de::Error::duplicate_field(ARGUMENTS));
+                                }
+                                arguments = Some(map.next_value()?);
+                            }
+                            RETURN => {
+                                if ret.is_some() {
+                                    return Err(de::Error::duplicate_field(RETURN));
+                                }
+                                ret = Some(map.next_value()?);
+                            }
+                            _ => {
+                                return Err(de::Error::unknown_field(key, FIELDS));
+                            }
+                        }
+                    }
+
+                    let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
+                    let (shape, dynamic_fn) = OP_FUNCTIONS
+                        .get(name)
+                        .ok_or(de::Error::missing_field("could not find function"))?;
+                    // todo check if shape matches
+                    let argument_types =
+                        arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
+                    let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
+                    Ok(FnContainer {
+                        shape: DynamicFunctionShape {
+                            name: name.to_string(),
+                            argument_types,
+                            return_type,
+                        },
+                        dynamic_fn: dynamic_fn.clone(),
+                    })
+                }
+            }
+            deserializer.deserialize_struct("FnContainer", FIELDS, FnContainerVisitor)
+        }
     }
 }

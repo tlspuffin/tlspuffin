@@ -5,12 +5,11 @@ use std::{
     fmt::Formatter,
     hash::{Hash, Hasher},
 };
-use std::borrow::Borrow;
 
 use itertools::Itertools;
 use serde::{
     de,
-    de::{value::I32Deserializer, Visitor},
+    de::{Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
@@ -47,7 +46,7 @@ impl fmt::Display for DynamicFunctionShape {
 
 /// Hashes [`TypeId`]s to be more readable
 ///
-pub fn hash_type_id(type_id: &TypeId) -> u64 {
+fn hash_type_id(type_id: &TypeId) -> u64 {
     let mut hasher = DefaultHasher::new();
     type_id.hash(&mut hasher);
     hasher.finish()
