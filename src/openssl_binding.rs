@@ -14,6 +14,7 @@ use openssl::{
 };
 
 use crate::io::MemoryStream;
+use std::os::raw::c_int;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -140,12 +141,15 @@ pub fn openssl_version() -> &'static str {
 
 extern "C" {
     pub fn make_openssl_deterministic();
+    pub fn RAND_seed(buf: *mut u8, num: c_int);
 }
 
 pub fn make_deterministic() {
     warn!("OpenSSL is no longer random!");
     unsafe {
         make_openssl_deterministic();
+        let mut seed = [42];
+        RAND_seed(seed.as_mut_ptr(), 1);
     }
 }
 

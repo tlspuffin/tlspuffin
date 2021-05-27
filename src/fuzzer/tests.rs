@@ -8,6 +8,6 @@ pub mod tests {
         make_deterministic();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [103, 198]);
+        assert_eq!(buf1, [70, 100]);
     }
 }
