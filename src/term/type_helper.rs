@@ -1,11 +1,11 @@
-use std::borrow::Borrow;
 use std::{
-    any::{type_name, Any, TypeId},
+    any::{Any, type_name, TypeId},
     collections::hash_map::DefaultHasher,
     fmt,
     fmt::Formatter,
     hash::{Hash, Hasher},
 };
+use std::borrow::Borrow;
 
 use itertools::Itertools;
 use serde::{
@@ -13,6 +13,8 @@ use serde::{
     de::{value::I32Deserializer, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
+
+use crate::term::op_impl::OP_TYPES;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -232,87 +234,40 @@ impl fmt::Display for TypeShape {
 
 // todo serialization
 
-impl Serialize for Box<dyn DynamicFunction> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // todo
-        serializer.serialize_str(type_name::<dyn DynamicFunction>())
-    }
-}
-
-struct StringVisitor;
-
-impl<'de> Visitor<'de> for StringVisitor {
-    type Value = &'de str;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string xxx")
-    }
-
-    fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        return Ok(v);
-    }
-}
-
-impl<'de> Deserialize<'de> for Box<dyn DynamicFunction> {
-    fn deserialize<D>(deserializer: D) -> Result<Box<dyn DynamicFunction>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        // todo
-        deserializer
-            .deserialize_str(StringVisitor)
-            .map(|_str| make_dynamic(&crate::term::op_impl::op_server_hello).1)
-    }
-}
-
 impl Serialize for TypeShape {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        // todo
-        serializer.serialize_u64(1)
+        serializer.serialize_str(self.name)
     }
 }
 
-struct VisitorU64;
 
-impl<'de> Visitor<'de> for VisitorU64 {
-    type Value = u64;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a 'de")
-    }
-
-    fn visit_i64<E>(self, value: i64) -> Result<u64, E>
-    where
-        E: serde::de::Error,
-    {
-        Ok(value as u64)
-    }
-
-    fn visit_u64<E>(self, value: u64) -> Result<u64, E>
-    where
-        E: serde::de::Error,
-    {
-        self.visit_i64(value as i64)
-    }
-}
 
 impl<'de> Deserialize<'de> for TypeShape {
     fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
     where
         D: Deserializer<'de>,
     {
-        // todo
-        deserializer
-            .deserialize_u64(VisitorU64)
-            .map(|_i| TypeShape::of::<UnknownType>())
+        struct TypeShapeVisitor;
+
+        impl<'de> Visitor<'de> for TypeShapeVisitor {
+            type Value = TypeShape;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a TypeShape")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+            {
+                let typ = OP_TYPES.get(v).ok_or(de::Error::missing_field("could not find type"))?;
+                Ok(typ.clone())
+            }
+        }
+
+        deserializer.deserialize_str(TypeShapeVisitor)
     }
 }

@@ -1,18 +1,18 @@
-use std::any::TypeId;
 use std::collections::HashMap;
-use std::sync::Mutex;
 
+use HandshakePayload::EncryptedExtensions;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rand::{random, seq::SliceRandom};
 use ring::{
     hkdf,
-    hkdf::{KeyType, Prk, HKDF_SHA256},
+    hkdf::{HKDF_SHA256, KeyType, Prk},
     hmac,
     hmac::Key,
     rand::SystemRandom,
 };
 use rustls::{
+    CipherSuite,
     internal::msgs::{
         alert::AlertMessagePayload,
         base::{Payload, PayloadU16},
@@ -29,12 +29,10 @@ use rustls::{
             ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
         },
         message::{Message, MessagePayload},
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
+    }, ProtocolVersion, SignatureScheme,
 };
-use HandshakePayload::EncryptedExtensions;
 
-use crate::term::{make_dynamic, DynamicFunction, TypeShape};
+use crate::term::{DynamicFunction, make_dynamic, TypeShape};
 
 // -----
 // utils
@@ -379,19 +377,20 @@ pub static OP_FUNCTIONS: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFu
                     .copied()
                     .chain(vec![shape.return_type])
                     .collect_vec();
-                (shape.to_string(), (types, dynamic_fn))
+                (shape.name, (types, dynamic_fn))
             })
             .collect()
     });
 
-pub static OP_TYPES: Lazy<Vec<TypeShape>> = Lazy::new(|| {
+pub static OP_TYPES: Lazy<HashMap<&str, TypeShape>> = Lazy::new(|| {
     let functions = &OP_FUNCTIONS;
     let types = functions
         .iter()
         .map(|(_, (types, _))| types.clone())
         .unique()
         .flatten()
-        .collect_vec();
+        .map(|typ| (typ.name, typ.clone()))
+        .collect::<HashMap<&str, TypeShape>>();
     types
 });
 

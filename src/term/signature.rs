@@ -64,11 +64,7 @@ impl Signature {
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        let operator = Operator {
-            id: self.operators.len() as u32,
-            shape,
-            dynamic_fn,
-        };
+        let operator = Operator::new(self.operators.len() as u32, shape, dynamic_fn);
         self.operators.push(operator.clone());
         operator
     }
@@ -99,9 +95,9 @@ impl Signature {
 
     pub fn generate_message(&self) {
         for operator in &self.operators {
-            if operator.shape.return_type == TypeShape::of::<Message>() {
+            if operator.shape().return_type == TypeShape::of::<Message>() {
                 // operation would build a Message -> lets try to build it
-                let args = &(operator.shape.argument_types);
+                let args = &(operator.shape().argument_types);
 
                 if let Some(_variable) = self
                     .variables
@@ -114,7 +110,7 @@ impl Signature {
                 if let Some(_f) = self
                     .operators
                     .iter()
-                    .find(|f| args.iter().any(|type_id| f.shape.return_type == *type_id))
+                    .find(|f| args.iter().any(|type_id| f.shape().return_type == *type_id))
                 {
                     // we found an already existing function which helps us to call `operator`
                 }

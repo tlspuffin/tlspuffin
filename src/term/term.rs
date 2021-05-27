@@ -102,7 +102,7 @@ impl Term {
                         }
                     }
                 }
-                let dynamic_fn = &op.dynamic_fn;
+                let dynamic_fn = &op.dynamic_fn();
                 Ok(dynamic_fn(&dynamic_args))
             }
         }

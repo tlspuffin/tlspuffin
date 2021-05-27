@@ -53,12 +53,28 @@ pub mod integration {
     };
 
     #[test]
-    fn test_serialisation() {
+    fn test_serialisation_json() {
         let mut ctx = TraceContext::new();
         let (_, _, trace) = seed_successful(&mut ctx);
-        let serialized = serde_json::to_string_pretty(&trace).unwrap();
-        println!("serialized = {}", serialized);
-        serde_json::from_str::<Trace>(serialized.as_str()).unwrap();
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+        println!("serialized = {}", serialized1);
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_serialisation_postcard() {
+        let mut ctx = TraceContext::new();
+        let (_, _, trace) = seed_successful(&mut ctx);
+        let serialized1 = postcard::to_allocvec(&trace).unwrap();
+
+        let deserialized_trace = postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap();
+        let serialized2 = postcard::to_allocvec(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
     }
 
     #[test]

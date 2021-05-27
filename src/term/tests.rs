@@ -76,14 +76,15 @@ mod term {
         println!("{:?}", TypeId::of::<SessionID>());
         println!("{:?}", var_data.type_id());
 
-        let dynamic_fn = s.clone().dynamic_fn;
+        let operator = s.clone();
+        let dynamic_fn = operator.dynamic_fn();
         println!(
             "{:?}",
             dynamic_fn(&vec![Box::new(1u8)])
                 .downcast_ref::<u16>()
                 .unwrap()
         );
-        println!("{}", s.shape);
+        println!("{}", s.shape());
 
         let constructed_term = Term::Application {
             op: app.clone(),
@@ -129,6 +130,6 @@ mod term {
     #[test]
     fn test_static_functions() {
         println!("{}", OP_FUNCTIONS.iter().map(|tuple| tuple.0).join("\n"));
-        println!("{}", OP_TYPES.iter().map(|typ| typ.to_string()).join("\n"));
+        println!("{}", OP_TYPES.iter().map(|tuple| tuple.0.to_string()).join("\n"));
     }
 }

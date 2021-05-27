@@ -74,8 +74,8 @@ pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
 pub static mut MAX_EDGES_NUM: usize = 0;
 
 pub fn fuzz(
-    _corpus_dirs: &[PathBuf],
-    _objective_dir: PathBuf,
+    corpus_dirs: &[PathBuf],
+    objective_dir: PathBuf,
     broker_port: u16,
 ) -> Result<(), Error> {
     make_deterministic();
@@ -171,7 +171,7 @@ pub fn fuzz(
 
     // In case the corpus is empty (on first run), reset
     if state.corpus().count() < 1 {
-        /*        state
+                state
         .load_initial_inputs(
             &mut fuzzer,
             &mut executor,
@@ -183,13 +183,13 @@ pub fn fuzz(
                 "Failed to load initial corpus at {:?}: {}",
                 &corpus_dirs, err
             )
-        });*/
+        });
 
-        let mut ctx = TraceContext::new();
+/*        let mut ctx = TraceContext::new();
         let seed = seed_successful(&mut ctx).2;
         fuzzer
             .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-            .unwrap();
+            .unwrap();*/
 
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
