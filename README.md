@@ -5,13 +5,14 @@
 Install [rustup](https://rustup.rs/) and setup a toolchain:
 
 ```bash
-rustup install 1.51.0-x86_64-unknown-linux-gnu
+rustup install 1.52.1-x86_64-unknown-linux-gnu
 ```
 
 The toolchain `1.52.1-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
 use `rustup install 1.52.1` to install the toolchain for your OS.
 
-Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optinally, also install `llvm` to have additional tools like `sancov` available.
+Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optionally, also install `llvm` to have additional tools like `sancov` available.
+Also make sure that you have the usual tools for building it like `make`, `gcc` etc. installed. They are needed to build OpenSSL.
 
 Now, build the project:
 
@@ -21,9 +22,6 @@ git submodule update --init --recursive
 cargo build
 ```
 
-This should build openssl as part of the Rust build. That means you need the usual tools for building it like `make`
-, `gcc` etc.
-
 ## Run
 
 Fuzz using three clients:
@@ -32,7 +30,7 @@ Fuzz using three clients:
 RUST_LOG=trace cargo run --bin tlspuffin -- -n 3
 ```
 
-## Generate Seeds
+## Generate Corpus Seeds
 
 ```bash
 RUST_LOG=trace cargo run --bin tlspuffin -- seed
