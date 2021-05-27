@@ -70,10 +70,6 @@ harness = false
 name = "tlspuffin"
 path = "src/main.rs"
 
-[[bin]]
-name = "tlspuffin_corpus"
-path = "src/generate_corpus.rs"
-
 # Used in tools/coverage.sh to generate coverage
 [[example]]
 name = "seed_successful"

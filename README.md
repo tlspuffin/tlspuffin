@@ -26,8 +26,16 @@ This should build openssl as part of the Rust build. That means you need the usu
 
 ## Run
 
+Fuzz using three clients:
+
 ```bash
-RUST_LOG=trace cargo run --package crotofuzz --bin crotofuzz
+RUST_LOG=trace cargo run --bin tlspuffin -- -n 3
+```
+
+## Generate Seeds
+
+```bash
+RUST_LOG=trace cargo run --bin tlspuffin -- seed
 ```
 
 ### Tests

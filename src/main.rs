@@ -5,9 +5,10 @@ use std::{env, io::Write, path::PathBuf};
 
 use env_logger::{fmt, Builder, Env};
 use log::Level;
-use clap::{Arg, App, value_t, crate_version, crate_authors, crate_name};
+use clap::{Arg, App, value_t, crate_version, crate_authors, crate_name, SubCommand};
 
 use crate::fuzzer::start;
+use std::fs::File;
 
 mod agent;
 mod debug;
@@ -55,10 +56,11 @@ fn main() {
         .about("Fuzzes OpenSSL on a symbolic level")
         .args_from_usage(
             "-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'",
-        )
+        ).subcommand(
+        SubCommand::with_name("seed")
+            .about("Generates seeds to ./corpus"))
         .get_matches();
 
-    let num_cores = value_t!(matches, "n", usize).unwrap_or(1);
 
     info!("{}", openssl_binding::openssl_version());
 
@@ -66,10 +68,25 @@ fn main() {
         "Workdir: {:?}",
         env::current_dir().unwrap().to_string_lossy().to_string()
     );
-    start(
-        num_cores,
-        &[PathBuf::from("./corpus")],
-        PathBuf::from("./crashes"),
-        1337,
-    );
+
+    if let Some(matches) = matches.subcommand_matches("seed") {
+        let mut ctx = trace::TraceContext::new();
+
+        let (_client, _server, trace) = fuzzer::seeds::seed_successful(&mut ctx);
+
+        let mut file = File::create("corpus/1.dat").unwrap();
+        let serialized = postcard::to_allocvec(&trace).unwrap();
+        file.write_all(&serialized).unwrap();
+        info!("Generated seeds to ./corpus")
+    } else {
+        let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
+
+        info!("Running on {} cores", num_cores);
+        start(
+            num_cores,
+            &[PathBuf::from("./corpus")],
+            PathBuf::from("./crashes"),
+            1337,
+        );
+    }
 }
