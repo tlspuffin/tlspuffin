@@ -49,10 +49,11 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
         MessagePayload::Handshake(hs) => {
             match &hs.payload {
                 HandshakePayload::HelloRequest => {
-                    vec![Box::new(hs.typ.clone())]
+                    vec![Box::new(message.clone()), Box::new(hs.typ.clone())]
                 }
                 HandshakePayload::ClientHello(ch) => {
                     let vars: Vec<Box<dyn VariableData>> = vec![
+                        Box::new(message.clone()),
                         Box::new(hs.typ.clone()),
                         Box::new(ch.random.clone()),
                         Box::new(ch.session_id.clone()),
@@ -84,6 +85,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 }
                 HandshakePayload::ServerHello(sh) => {
                     let vars: Vec<Box<dyn VariableData>> = vec![
+                        Box::new(message.clone()),
                         hs.typ.clone_box(),
                         Box::new(sh.random.clone()),
                         Box::new(sh.session_id.clone()),
@@ -107,24 +109,13 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                     todo!()
                 }
                 HandshakePayload::Certificate(c) => {
-                    vec![Box::new(c.clone())]
+                    vec![Box::new(message.clone()), Box::new(c.clone())]
                 }
                 HandshakePayload::CertificateTLS13(_c) => {
-                    // todo ... this is the first message which is not cloneable...
-                    /*                    let entries = c.entries.iter().map(|entry: &CertificateEntry| {
-                        Box::new(CertificateEntry {
-                            cert: entry.cert.clone(),
-                            exts: entry.exts.clone()
-                        }) as Box<dyn VariableData>
-                    });
-
-                    let vars: Vec<Box<dyn VariableData>> =
-                        vec![Box::new(c.context.clone()), Box::new(entries)];*/
-
                     todo!()
                 }
-                HandshakePayload::ServerKeyExchange(_) => {
-                    todo!()
+                HandshakePayload::ServerKeyExchange(ske) => {
+                    vec![Box::new(message.clone()), Box::new(ske.clone())]
                 }
                 HandshakePayload::CertificateRequest(_) => {
                     todo!()
@@ -136,7 +127,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                     todo!()
                 }
                 HandshakePayload::ServerHelloDone => {
-                    todo!()
+                    vec![Box::new(message.clone())]
                 }
                 HandshakePayload::EarlyData => {
                     todo!()
@@ -144,11 +135,15 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::EndOfEarlyData => {
                     todo!()
                 }
-                HandshakePayload::ClientKeyExchange(_) => {
-                    todo!()
+                HandshakePayload::ClientKeyExchange(cke) => {
+                    vec![Box::new(message.clone()), Box::new(cke.clone())]
                 }
-                HandshakePayload::NewSessionTicket(_) => {
-                    todo!()
+                HandshakePayload::NewSessionTicket(ticket) => {
+                    vec![
+                        Box::new(message.clone()),
+                        Box::new(ticket.lifetime_hint),
+                        Box::new(ticket.ticket.clone()),
+                    ]
                 }
                 HandshakePayload::NewSessionTicketTLS13(_) => {
                     todo!()

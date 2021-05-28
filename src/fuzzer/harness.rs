@@ -6,7 +6,7 @@ use crate::trace::{Trace, TraceContext};
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
     input.spawn_agents(&mut ctx);
-    input.execute(&mut ctx);
+    input.execute(&mut ctx).unwrap();
     ExitKind::Ok
 }
 

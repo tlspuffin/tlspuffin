@@ -15,6 +15,7 @@ use openssl::{
 
 use crate::io::MemoryStream;
 use std::os::raw::c_int;
+use openssl::ssl::SslVersion;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -162,6 +163,7 @@ pub fn create_openssl_server(
     let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
     server_ctx.set_certificate(cert).unwrap();
     server_ctx.set_private_key(key).unwrap();
+    server_ctx.set_options(SslOptions::NO_TICKET); // todo remove, its here for seed_successful12
     let server_stream = SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), stream).unwrap();
 
     return server_stream;
@@ -193,6 +195,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
     let mut ctx_builder = SslContext::builder(SslMethod::tls()).unwrap();
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)); // todo remove, its here for seed_successful12
 
     let client_stream = SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), stream).unwrap();
 
@@ -200,6 +203,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
 }
 
 pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
+    // todo: return these errors
     if let Err(error) = stream.connect() {
         log_io_error(&error);
         log_ssl_error(&error);

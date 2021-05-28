@@ -2,14 +2,18 @@ use core::fmt;
 use std::{any::TypeId, fmt::Formatter, rc::Rc};
 
 use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
+use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{
     handshake::HandshakePayload,
     message::{Message, MessagePayload::Handshake},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::debug::{debug_message, debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
+use crate::io::MessageResult;
+use crate::term::op_impl::MultiMessage;
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
@@ -72,7 +76,7 @@ impl TraceContext {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &Message,
+        message: &MessageResult,
     ) -> Result<(), String> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.stream.add_to_inbound(message))
@@ -85,7 +89,10 @@ impl TraceContext {
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
     /// See [`MemoryStream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(&mut self, agent_name: AgentName) -> Result<Message, String> {
+    pub fn take_message_from_outbound(
+        &mut self,
+        agent_name: AgentName,
+    ) -> Result<MessageResult, String> {
         self.find_agent_mut(agent_name).and_then(|agent| {
             agent
                 .stream
@@ -151,7 +158,7 @@ impl Trace {
         }
     }
 
-    pub fn execute(&self, ctx: &mut TraceContext) {
+    pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), String> {
         self.execute_with_listener(ctx, |_step| {})
     }
 
@@ -159,13 +166,18 @@ impl Trace {
         &self,
         ctx: &mut TraceContext,
         execution_listener: fn(step: &Step) -> (),
-    ) {
+    ) -> Result<(), String> {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
-            step.action.execute(step, ctx);
+            if let Err(err) = step.action.execute(step, ctx) {
+                return Err(err);
+            }
+
             execution_listener(step);
         }
+
+        Ok(())
     }
 }
 
@@ -191,19 +203,15 @@ pub enum Action {
     Output(OutputAction),
 }
 
-pub trait Execute: fmt::Display {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext);
+pub trait Execute {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String>;
 }
 
 impl Execute for Action {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         match self {
-            Action::Input(input) => {
-                input.input(step, ctx);
-            }
-            Action::Output(output) => {
-                output.output(step, ctx);
-            }
+            Action::Input(input) => input.input(step, ctx),
+            Action::Output(output) => output.output(step, ctx),
         }
     }
 }
@@ -227,16 +235,38 @@ pub struct OutputAction {
 }
 
 impl OutputAction {
-    fn output(&self, step: &Step, ctx: &mut TraceContext) {
-        if let Err(err) = ctx.next_state(step.agent) {
-            panic!("Failed to go to next state! {}", err)
-        }
+    fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
+        ctx.next_state(step.agent)?;
+
         let mut sub_id = 0u16;
-        while let Ok(message) = ctx.take_message_from_outbound(step.agent) {
-            let knowledge = extract_variables(&message);
-            ctx.add_variables((self.id, sub_id), knowledge);
+        while let Ok(result) = ctx.take_message_from_outbound(step.agent) {
+            match result {
+                MessageResult::Message(message) => {
+                    debug_message_with_info(
+                        format!("Output message with observed id {:?}", (self.id, sub_id)).as_str(),
+                        &message,
+                    );
+                    let knowledge = extract_variables(&message);
+                    ctx.add_variables((self.id, sub_id), knowledge);
+                }
+                MessageResult::OpaqueMessage(opaque_message) => {
+                    // The finish Message in TLS1.2 can not be parsed to a rustls Message as it is
+                    // encrypted. We need tow ork with the opaque type in this case
+                    debug_opaque_message_with_info(
+                        format!(
+                            "Output opaque message with observed id {:?}",
+                            (self.id, sub_id)
+                        )
+                        .as_str(),
+                        &opaque_message,
+                    );
+                    ctx.add_variable((self.id, sub_id), Box::new(opaque_message.payload));
+                }
+            }
+
             sub_id += 1;
         }
+        Ok(())
     }
 }
 
@@ -245,18 +275,36 @@ pub struct InputAction {
     pub recipe: Term,
 }
 
+/// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
+/// or a MultiMessage.
 impl InputAction {
-    fn input(&self, step: &Step, ctx: &mut TraceContext) {
+    fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         // message controlled by the attacker
-        let x = self.recipe.evaluate(ctx).unwrap();
-        let attacker_message = x.as_ref().downcast_ref::<Message>().unwrap(); // todo return errors
+        let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Err(_) = ctx.add_to_inbound(step.agent, &attacker_message) {
-            panic!("Failed to insert term to agents inbound channel!")
+        if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
+            ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
+
+            debug_message_with_info(format!("Input message").as_str(), msg);
+        } else if let Some(multi) = evaluated.as_ref().downcast_ref::<MultiMessage>() {
+            for msg in &multi.messages {
+                ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
+                debug_message_with_info(format!("Input message").as_str(), msg);
+            }
+        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
+            ctx.add_to_inbound(
+                step.agent,
+                &MessageResult::OpaqueMessage(opaque_message.clone()),
+            )?;
+
+            debug_opaque_message_with_info(
+                format!("Input opaque message").as_str(),
+                opaque_message,
+            );
+        } else {
+            return Err(String::from("Recipe is not a `Message` or `MultiMessage`!"));
         }
 
-        if let Err(_) = ctx.next_state(step.agent) {
-            panic!("Failed to go to next state!")
-        }
+        ctx.next_state(step.agent)
     }
 }

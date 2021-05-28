@@ -166,7 +166,7 @@ macro_rules! dynamic_fn {
 
 #[macro_export]
 macro_rules! register_fn {
-    ($name_fn:ident, $name_types:ident, $($f:path),+) => {
+    ($name_fn:ident, $name_types:ident, $($f:path),+ $(,)?) => {
         pub static $name_fn: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>> =
             Lazy::new(|| {
                 let tuples = vec![

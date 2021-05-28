@@ -6,18 +6,19 @@ use std::{
 
 use itertools::Itertools;
 use openssl::ssl::SslStream;
+use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::{debug::debug_binary_message_with_info, openssl_binding};
-use rustls::internal::msgs::message::OpaqueMessage;
 
 pub trait Stream: std::io::Read + std::io::Write {
-    fn add_to_inbound(&mut self, data: &Message);
+    fn add_to_inbound(&mut self, result: &MessageResult);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Option<Message>;
+    fn take_message_from_outbound(&mut self) -> Option<MessageResult>;
 
     fn describe_state(&self) -> &'static str;
 
@@ -50,11 +51,11 @@ pub struct OpenSSLStream {
 }
 
 impl Stream for OpenSSLStream {
-    fn add_to_inbound(&mut self, data: &Message) {
-        self.openssl_stream.get_mut().add_to_inbound(data)
+    fn add_to_inbound(&mut self, result: &MessageResult) {
+        self.openssl_stream.get_mut().add_to_inbound(result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<Message> {
+    fn take_message_from_outbound(&mut self) -> Option<MessageResult> {
         self.openssl_stream.get_mut().take_message_from_outbound()
     }
 
@@ -118,14 +119,29 @@ impl MemoryStream {
     }
 }
 
+pub enum MessageResult {
+    Message(Message),
+    OpaqueMessage(OpaqueMessage),
+}
+
 impl Stream for MemoryStream {
-    fn add_to_inbound(&mut self, message: &Message) {
-        let mut out: Vec<u8> = Vec::new();
-        out.append(&mut OpaqueMessage::from(message.clone()).encode());
+    fn add_to_inbound(&mut self, result: &MessageResult) {
+        let out: Vec<u8> = match result {
+            MessageResult::Message(message) => {
+                let mut out: Vec<u8> = Vec::new();
+                out.append(&mut OpaqueMessage::from(message.clone()).encode());
+                out
+            }
+            MessageResult::OpaqueMessage(opaque_message) => {
+                let mut out: Vec<u8> = Vec::new();
+                out.append(&mut opaque_message.clone().encode());
+                out
+            }
+        };
         self.inbound.get_mut().extend_from_slice(&out);
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<Message> {
+    fn take_message_from_outbound(&mut self) -> Option<MessageResult> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
             let mut rest_buffer: Vec<u8> = Vec::new();
@@ -141,13 +157,26 @@ impl Stream for MemoryStream {
             self.outbound.get_mut().clear();
             self.outbound.write_all(&rest_buffer).unwrap();
 
-
             if let Some(opaque_message) = first_message {
-                Some(Message::try_from(opaque_message).unwrap())
+                debug_opaque_message_with_info(
+                    format!("Processing message").as_str(),
+                    &opaque_message,
+                );
+
+                Some(match Message::try_from(opaque_message.clone()) {
+                    Ok(message) => MessageResult::Message(message),
+                    Err(err) => {
+                        // todo keep statistics about this as it may mean we need to remove logical checks
+                        warn!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                        MessageResult::OpaqueMessage(opaque_message)
+                    }
+                })
             } else {
+                // no message to return
                 None
             }
         } else {
+            // Unable to deframe
             None
         }
     }

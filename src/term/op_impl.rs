@@ -10,6 +10,7 @@ use ring::{
     hmac::Key,
     rand::SystemRandom,
 };
+use rustls::internal::msgs::handshake::ECDHEServerKeyExchange;
 use rustls::{
     internal::msgs::{
         alert::AlertMessagePayload,
@@ -24,7 +25,8 @@ use rustls::{
         handshake::{
             CertificatePayload, ClientExtension, ClientHelloPayload, HandshakeMessagePayload,
             HandshakePayload, HandshakePayload::Certificate, KeyShareEntry, Random,
-            ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
+            ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, ServerName,
+            ServerNamePayload, SessionID,
         },
         message::{Message, MessagePayload},
     },
@@ -34,6 +36,7 @@ use HandshakePayload::EncryptedExtensions;
 
 use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
+use rustls::internal::msgs::message::OpaqueMessage;
 
 // -----
 // utils
@@ -95,6 +98,17 @@ where
     ];
     let okm = secret.expand(info, algorithm).unwrap();
     into(okm)
+}
+
+// ----
+// Types
+// ----
+
+/// Special type which is used in [`crate::trace::InputAction`]. This is used if an recipe outputs
+/// more or less than exactly one message.
+#[derive(Clone)]
+pub struct MultiMessage {
+    pub messages: Vec<Message>,
 }
 
 // ----
@@ -329,6 +343,77 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     ]
 }
 
+pub fn op_concat_messages_2(msg1: &Message, msg2: &Message) -> MultiMessage {
+    MultiMessage {
+        messages: vec![msg1.clone(), msg2.clone()],
+    }
+}
+
+pub fn op_concat_messages_3(msg1: &Message, msg2: &Message, msg3: &Message) -> MultiMessage {
+    MultiMessage {
+        messages: vec![msg1.clone(), msg2.clone(), msg3.clone()],
+    }
+}
+
+// ----
+// TLS 1.2
+// ----
+
+pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::Certificate,
+            payload: HandshakePayload::Certificate(certs.clone()),
+        }),
+    }
+}
+
+pub fn op_server_key_exchange(ske_payload: &ServerKeyExchangePayload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::ServerKeyExchange,
+            payload: HandshakePayload::ServerKeyExchange(ske_payload.clone()),
+        }),
+    }
+}
+
+pub fn op_server_hello_done() -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::ServerHelloDone,
+            payload: HandshakePayload::ServerHelloDone,
+        }),
+    }
+}
+
+pub fn op_client_key_exchange(data: &Payload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::ClientKeyExchange,
+            payload: HandshakePayload::ClientKeyExchange(data.clone()),
+        }),
+    }
+}
+
+pub fn op_change_cipher_spec12() -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload),
+    }
+}
+
+pub fn op_handshake_finished12(data: &Payload) -> OpaqueMessage {
+    OpaqueMessage {
+        typ: Handshake,
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: data.clone(),
+    }
+}
+
 // ----
 // Registry
 // ----
@@ -359,7 +444,9 @@ register_fn!(
     op_signature_algorithm_extension,
     op_random_key_share_extension,
     op_supported_versions_extension,
-    op_random_extensions
+    op_random_extensions,
+    op_concat_messages_2,
+    op_concat_messages_3,
 );
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro

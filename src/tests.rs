@@ -1,10 +1,13 @@
 #[cfg(test)]
 pub mod tlspuffin {
     use crate::agent::AgentName;
-    use crate::{fuzzer::seeds::seed_successful, trace::TraceContext};
+    use crate::{
+        fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
+    };
+    use test_env_log::test;
 
     #[test]
-    fn successful_trace() {
+    fn test_seed_successful() {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -12,7 +15,26 @@ pub mod tlspuffin {
 
         info!("{}", trace);
         trace.spawn_agents(&mut ctx);
-        trace.execute(&mut ctx);
+        trace.execute(&mut ctx).unwrap();
+
+        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", client_state);
+        println!("{}", server_state);
+        assert!(client_state.contains("SSL negotiation finished successfully"));
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+    #[test]
+    fn test_seed_successful12() {
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful12(client, server);
+
+        info!("{}", trace);
+        trace.spawn_agents(&mut ctx);
+        trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
         let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
@@ -34,18 +56,20 @@ pub mod integration {
 
     use rustls::internal::msgs::codec::Reader;
     use rustls::internal::msgs::message::OpaqueMessage;
-    use rustls::{self, internal::msgs::{
-        codec::Codec,
-        enums::{
-            ContentType::Handshake as RecordHandshake,
-            HandshakeType,
-            ProtocolVersion::{TLSv1_2, TLSv1_3},
+    use rustls::{
+        self,
+        internal::msgs::{
+            enums::{
+                HandshakeType,
+                ProtocolVersion::{TLSv1_2, TLSv1_3},
+            },
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+            },
+            message::{Message, MessagePayload::Handshake},
         },
-        handshake::{
-            ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-        },
-        message::{Message, MessagePayload::Handshake},
-    }, ProtocolVersion, Connection, RootCertStore};
+        Connection, ProtocolVersion, RootCertStore,
+    };
     use test_env_log::test;
     use webpki;
     use webpki_roots;
@@ -88,33 +112,7 @@ pub mod integration {
     }
 
     #[test]
-    fn test_rustls_message_stability() {
-        let random = [0u8; 32];
-        let message = Message {
-            version: TLSv1_2,
-            payload: Handshake(HandshakeMessagePayload {
-                typ: HandshakeType::ClientHello,
-                payload: HandshakePayload::ClientHello(ClientHelloPayload {
-                    client_version: ProtocolVersion::TLSv1_3,
-                    random: Random::from(random),
-                    session_id: SessionID::empty(),
-                    cipher_suites: vec![],
-                    compression_methods: vec![],
-                    extensions: vec![],
-                }),
-            }),
-        };
-
-        let mut out: Vec<u8> = Vec::new();
-        out.append(&mut OpaqueMessage::from(message.clone())
-            .encode());
-        hexdump::hexdump(&out);
-
-        let mut decoded_message =
-            Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap()).unwrap();
-
-        println!("{:?}", decoded_message);
-
+    fn test_rustls_message_stability_ch() {
         // Hex from wireshark
         let hello_client_hex = "1603010136010001320303aa1795f64f48fcfcd0121368f88f176fe2570b07\
         68bbc85e9f2c80c557553d7d20e1e15d0028932f4f7479cf256302b7847d81a68e708525f9d38d94fc6ef742a30\
@@ -125,6 +123,11 @@ pub mod integration {
         80304030303020301002d00020101003300260024001d00209b8a24e29770f7ed95bf330e7e3929b21090350a41\
         5ab4cdf01b04e9ffc0fc50";
 
+        let hello_client = hex::decode(hello_client_hex).unwrap();
+        hexdump::hexdump(&hello_client);
+    }
+    #[test]
+    fn test_rustls_message_stability_cert() {
         let cert_hex = "16030309b50b0009b1000009ad00053a308205363082041ea00302010202120400ca59\
         61d39c1622093596f2132488f93e300d06092a864886f70d01010b05003032310b3009060355040613025553311\
         63014060355040a130d4c6574277320456e6372797074310b3009060355040313025233301e170d323130333238\
@@ -181,16 +184,42 @@ pub mod integration {
         7d2d66b525a39658c8ea80eecf693b96fce68dc033f389f8292d14142d7ef06170955df70be5c0fb24faec8ecb6\
         1c8ee637128a82c053b77ef9b5e0364f051d1e485535cb00297d47ec634d2ce1000e4b1df3ac2ea17be0000";
 
-        let hello_client = hex::decode(hello_client_hex).unwrap();
-        hexdump::hexdump(&hello_client);
-
         let cert = hex::decode(cert_hex).unwrap();
         hexdump::hexdump(&cert);
 
         let mut opaque_message = OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
-        // Required for parsing
+        // Required for choosing the correct parsing function
         opaque_message.version = TLSv1_3;
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
+    }
+
+    #[test]
+    fn test_rustls_message_stability() {
+        let random = [0u8; 32];
+        let message = Message {
+            version: TLSv1_2,
+            payload: Handshake(HandshakeMessagePayload {
+                typ: HandshakeType::ClientHello,
+                payload: HandshakePayload::ClientHello(ClientHelloPayload {
+                    client_version: ProtocolVersion::TLSv1_3,
+                    random: Random::from(random),
+                    session_id: SessionID::empty(),
+                    cipher_suites: vec![],
+                    compression_methods: vec![],
+                    extensions: vec![],
+                }),
+            }),
+        };
+
+        let mut out: Vec<u8> = Vec::new();
+        out.append(&mut OpaqueMessage::from(message.clone()).encode());
+        hexdump::hexdump(&out);
+
+        let mut decoded_message =
+            Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap())
+                .unwrap();
+
+        println!("{:?}", decoded_message);
     }
 
     /// This is the simplest possible client using rustls that does something useful:
@@ -218,25 +247,22 @@ pub mod integration {
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
         tls.write(
             concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
+                "GET / HTTP/1.1\r\n",
+                "Host: google.com\r\n",
+                "Connection: close\r\n",
+                "Accept-Encoding: identity\r\n",
+                "\r\n"
             )
-                .as_bytes(),
+            .as_bytes(),
         )
-            .unwrap();
-        let ciphersuite = tls
-            .conn
-            .negotiated_cipher_suite()
-            .unwrap();
+        .unwrap();
+        let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
         writeln!(
             &mut std::io::stderr(),
             "Current ciphersuite: {:?}",
             ciphersuite.suite
         )
-            .unwrap();
+        .unwrap();
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
         stdout().write_all(&plaintext).unwrap();
