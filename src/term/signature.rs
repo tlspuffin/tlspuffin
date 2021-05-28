@@ -1,6 +1,7 @@
-use std::{fmt};
+use std::fmt;
 
 use rustls::internal::msgs::message::Message;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     term::{
@@ -14,14 +15,8 @@ use super::Operator;
 
 /// Records a universe of symbols.
 ///
-/// Use [`Signature::default`] for a blank `Signature`, or [`Signature::new`] to initialize a
-/// `Signature` with given [`Operator`]s.
 ///
-/// [`Signature::default`]: #method.default
-/// [`Signature::new`]: #method.new
-/// [`Operator`]: struct.Operator.html
-///
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Signature {
     pub(crate) operators: Vec<Operator>,
     pub(crate) variables: Vec<Variable>,
@@ -29,10 +24,6 @@ pub struct Signature {
 
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
-    ///
-    /// [`Operator`]: struct.Operator.html
-    /// [`Term`]: struct.Term.html
-    ///
     pub fn new(operators: Vec<Operator>) -> Signature {
         Signature {
             operators,
@@ -41,23 +32,16 @@ impl Signature {
     }
     /// Returns every [`Operator`] known to the `Signature`, in the order they were created.
     ///
-    /// [`Operator`]: struct.Operator.html
-    ///
     pub fn operators(&self) -> Vec<Operator> {
         self.operators.clone()
     }
     /// Returns every [`Variable`] known to the `Signature`, in the order they were created.
-    ///
-    /// [`Variable`]: struct.Variable.html
-    ///
     ///
     pub fn variables(&self) -> Vec<Variable> {
         self.variables.clone()
     }
 
     /// Create a new [`Operator`] distinct from all existing [`Operator`]s.
-    ///
-    /// [`Operator`]: struct.Operator.html
     ///
     pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
     where
@@ -133,21 +117,3 @@ impl Default for Signature {
         }
     }
 }
-
-/*
-TODO
-
-impl PartialEq for Signature {
-    fn eq(&self, other: &Signature) -> bool {
-        self.variables.len() == other.variables.len()
-            && self.operators.len() == other.operators.len()
-            && self
-            .operators
-            .iter()
-            .zip(&other.operators)
-            .all(|(o1, o2)| o1.arity() == o2.arity() && o1.name().eq(o2.name()))
-    }
-}
-
-impl Eq for Signature {}
-*/

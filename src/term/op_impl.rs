@@ -1,18 +1,16 @@
 use std::collections::HashMap;
 
-use HandshakePayload::EncryptedExtensions;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rand::{random, seq::SliceRandom};
 use ring::{
     hkdf,
-    hkdf::{HKDF_SHA256, KeyType, Prk},
+    hkdf::{KeyType, Prk, HKDF_SHA256},
     hmac,
     hmac::Key,
     rand::SystemRandom,
 };
 use rustls::{
-    CipherSuite,
     internal::msgs::{
         alert::AlertMessagePayload,
         base::{Payload, PayloadU16},
@@ -29,10 +27,13 @@ use rustls::{
             ServerExtension, ServerHelloPayload, ServerName, ServerNamePayload, SessionID,
         },
         message::{Message, MessagePayload},
-    }, ProtocolVersion, SignatureScheme,
+    },
+    CipherSuite, ProtocolVersion, SignatureScheme,
 };
+use HandshakePayload::EncryptedExtensions;
 
-use crate::term::{DynamicFunction, make_dynamic, TypeShape};
+use crate::register_fn;
+use crate::term::{make_dynamic, DynamicFunction, TypeShape};
 
 // -----
 // utils
@@ -339,60 +340,39 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
     ]
 }
 
-pub static OP_FUNCTIONS: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>> =
-    Lazy::new(|| {
-        let tuples = vec![
-            make_dynamic(&op_hmac256_new_key),
-            make_dynamic(&op_arbitrary_to_key),
-            make_dynamic(&op_hmac256),
-            make_dynamic(&op_client_handshake_traffic_secret),
-            make_dynamic(&op_client_hello),
-            make_dynamic(&op_server_hello),
-            make_dynamic(&op_change_cipher_spec),
-            make_dynamic(&op_encrypted_certificate),
-            make_dynamic(&op_certificate),
-            make_dynamic(&op_application_data),
-            make_dynamic(&op_alert_description),
-            make_dynamic(&op_alert_payload),
-            make_dynamic(&op_random_cipher_suite),
-            make_dynamic(&op_random_session_id),
-            make_dynamic(&op_random_protocol_version),
-            make_dynamic(&op_random_random_data),
-            make_dynamic(&on_random_cipher_suite),
-            make_dynamic(&on_compression),
-            make_dynamic(&op_server_name_extension),
-            make_dynamic(&op_support_group_extension),
-            make_dynamic(&op_signature_algorithm_extension),
-            make_dynamic(&op_random_key_share_extension),
-            make_dynamic(&op_supported_versions_extension),
-            make_dynamic(&op_random_extensions),
-        ];
+// ----
+// Registry
+// ----
 
-        tuples
-            .into_iter()
-            .map(|(shape, dynamic_fn)| {
-                let types: Vec<TypeShape> = shape
-                    .argument_types
-                    .iter()
-                    .copied()
-                    .chain(vec![shape.return_type])
-                    .collect_vec();
-                (shape.name, (types, dynamic_fn))
-            })
-            .collect()
-    });
-
-pub static OP_TYPES: Lazy<HashMap<&str, TypeShape>> = Lazy::new(|| {
-    let functions = &OP_FUNCTIONS;
-    let types = functions
-        .iter()
-        .map(|(_, (types, _))| types.clone())
-        .unique()
-        .flatten()
-        .map(|typ| (typ.name, typ.clone()))
-        .collect::<HashMap<&str, TypeShape>>();
-    types
-});
+register_fn!(
+    REGISTERED_FN,
+    REGISTERED_TYPES,
+    op_hmac256_new_key,
+    op_arbitrary_to_key,
+    op_hmac256,
+    op_client_handshake_traffic_secret,
+    op_client_hello,
+    op_server_hello,
+    op_change_cipher_spec,
+    op_encrypted_certificate,
+    op_certificate,
+    op_application_data,
+    op_alert_description,
+    op_alert_payload,
+    op_random_cipher_suite,
+    op_random_session_id,
+    op_random_protocol_version,
+    op_random_random_data,
+    on_random_cipher_suite,
+    on_compression,
+    op_server_name_extension,
+    op_support_group_extension,
+    op_signature_algorithm_extension,
+    op_random_key_share_extension,
+    op_supported_versions_extension,
+    op_random_extensions
+);
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro
+// or via a procedural macro.
 // https://gitlab.inria.fr/mammann/tlspuffin/-/issues/28

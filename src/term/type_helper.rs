@@ -1,3 +1,4 @@
+#[macro_use]
 use std::{
     any::{Any, type_name, TypeId},
     collections::hash_map::DefaultHasher,
@@ -7,13 +8,9 @@ use std::{
 };
 
 use itertools::Itertools;
-use serde::{
-    de,
-    de::{Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::term::op_impl::OP_TYPES;
+use crate::term::op_impl::REGISTERED_TYPES;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -167,6 +164,43 @@ macro_rules! dynamic_fn {
     )
 }
 
+#[macro_export]
+macro_rules! register_fn {
+    ($name_fn:ident, $name_types:ident, $($f:path),+) => {
+        pub static $name_fn: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>> =
+            Lazy::new(|| {
+                let tuples = vec![
+                    $(make_dynamic(&$f)),*
+                ];
+
+                tuples
+                    .into_iter()
+                    .map(|(shape, dynamic_fn)| {
+                        let types: Vec<TypeShape> = shape
+                            .argument_types
+                            .iter()
+                            .copied()
+                            .chain(vec![shape.return_type])
+                            .collect_vec();
+                        (shape.name, (types, dynamic_fn))
+                    })
+                    .collect()
+            });
+
+        pub static $name_types: Lazy<HashMap<&str, TypeShape>> = Lazy::new(|| {
+            let functions = &$name_fn;
+            let types = functions
+                .iter()
+                .map(|(_, (types, _))| types.clone())
+                .unique()
+                .flatten()
+                .map(|typ| (typ.name, typ.clone()))
+                .collect::<HashMap<&str, TypeShape>>();
+            types
+        });
+    };
+}
+
 dynamic_fn!( => R);
 dynamic_fn!(T1 => R);
 dynamic_fn!(T1 T2 => R);
@@ -242,8 +276,6 @@ impl Serialize for TypeShape {
     }
 }
 
-
-
 impl<'de> Deserialize<'de> for TypeShape {
     fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
     where
@@ -259,10 +291,12 @@ impl<'de> Deserialize<'de> for TypeShape {
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-                where
-                    E: de::Error,
+            where
+                E: de::Error,
             {
-                let typ = OP_TYPES.get(v).ok_or(de::Error::missing_field("could not find type"))?;
+                let typ = REGISTERED_TYPES
+                    .get(v)
+                    .ok_or(de::Error::missing_field("could not find type"))?;
                 Ok(typ.clone())
             }
         }

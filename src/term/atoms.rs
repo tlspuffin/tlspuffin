@@ -91,7 +91,7 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::term::op_impl::OP_FUNCTIONS;
+    use crate::term::op_impl::REGISTERED_FN;
     use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
 
     const NAME: &str = "name";
@@ -146,7 +146,7 @@ mod fn_container {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                    let (shape, dynamic_fn) = OP_FUNCTIONS
+                    let (shape, dynamic_fn) = REGISTERED_FN
                         .get(name)
                         .ok_or(de::Error::missing_field("could not find function"))?;
                     // todo check if shape matches
@@ -194,7 +194,7 @@ mod fn_container {
                     }
 
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-                    let (shape, dynamic_fn) = OP_FUNCTIONS
+                    let (shape, dynamic_fn) = REGISTERED_FN
                         .get(name)
                         .ok_or(de::Error::missing_field("could not find function"))?;
                     // todo check if shape matches

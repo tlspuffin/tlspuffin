@@ -5,7 +5,7 @@ pub mod tests {
 
     #[test]
     fn test_openssl_no_randomness() {
-        make_deterministic();
+        make_deterministic(); // fixme: this affects also other tests
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
         assert_eq!(buf1, [70, 100]);
