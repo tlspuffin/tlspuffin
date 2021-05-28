@@ -16,9 +16,9 @@ sancov_pcguard_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 
 [dependencies]
 # TLS helpers
-rustls = "0.19"
-webpki = "0.21"
-webpki-roots = "0.21"
+rustls = { git = "https://github.com/maxammann/rustls.git", branch = "remove-checks" }
+webpki = { version = "0.22.0", features = ["alloc", "std"] }
+webpki-roots = "0.22.0"
 ring = "0.16"
 
 # LibAFL

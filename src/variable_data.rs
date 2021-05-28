@@ -1,4 +1,4 @@
-use std::any::{Any};
+use std::any::Any;
 
 use rustls::{
     internal::msgs::{
@@ -41,6 +41,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
     match &message.payload {
         MessagePayload::Alert(alert) => {
             vec![
+                Box::new(message.clone()),
                 Box::new(alert.description.clone()),
                 Box::new(alert.level.clone()),
             ]
@@ -175,7 +176,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
         MessagePayload::ChangeCipherSpec(_ccs) => {
             vec![]
         }
-        MessagePayload::Opaque(opaque) => {
+        MessagePayload::ApplicationData(opaque) => {
             vec![Box::new(opaque.clone())]
         }
     }

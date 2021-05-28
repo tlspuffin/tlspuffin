@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub mod tlspuffin {
-    use crate::{fuzzer::seeds::seed_successful, trace::TraceContext};
     use crate::agent::AgentName;
+    use crate::{fuzzer::seeds::seed_successful, trace::TraceContext};
 
     #[test]
     fn successful_trace() {
@@ -25,37 +25,36 @@ pub mod tlspuffin {
 
 #[cfg(test)]
 pub mod integration {
+    use std::convert::TryFrom;
     use std::{
         io::{stdout, Read, Write},
         net::TcpStream,
         sync::Arc,
     };
 
-    use rustls::{
-        self,
-        internal::msgs::{
-            codec::Codec,
-            enums::{
-                ContentType::Handshake as RecordHandshake,
-                HandshakeType,
-                ProtocolVersion::{TLSv1_2, TLSv1_3},
-            },
-            handshake::{
-                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-            },
-            message::{Message, MessagePayload::Handshake},
+    use rustls::internal::msgs::codec::Reader;
+    use rustls::internal::msgs::message::OpaqueMessage;
+    use rustls::{self, internal::msgs::{
+        codec::Codec,
+        enums::{
+            ContentType::Handshake as RecordHandshake,
+            HandshakeType,
+            ProtocolVersion::{TLSv1_2, TLSv1_3},
         },
-        ProtocolVersion, Session,
-    };
+        handshake::{
+            ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+        },
+        message::{Message, MessagePayload::Handshake},
+    }, ProtocolVersion, Connection, RootCertStore};
     use test_env_log::test;
     use webpki;
     use webpki_roots;
 
+    use crate::agent::AgentName;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
-    use crate::agent::AgentName;
 
     #[test]
     fn test_serialisation_json() {
@@ -90,17 +89,15 @@ pub mod integration {
 
     #[test]
     fn test_rustls_message_stability() {
-        let bytes: [u8; 1] = [5];
         let random = [0u8; 32];
         let message = Message {
-            typ: RecordHandshake,
             version: TLSv1_2,
             payload: Handshake(HandshakeMessagePayload {
                 typ: HandshakeType::ClientHello,
                 payload: HandshakePayload::ClientHello(ClientHelloPayload {
                     client_version: ProtocolVersion::TLSv1_3,
-                    random: Random::from_slice(&random),
-                    session_id: SessionID::new(&bytes),
+                    random: Random::from(random),
+                    session_id: SessionID::empty(),
                     cipher_suites: vec![],
                     compression_methods: vec![],
                     extensions: vec![],
@@ -109,12 +106,13 @@ pub mod integration {
         };
 
         let mut out: Vec<u8> = Vec::new();
-        message.encode(&mut out);
+        out.append(&mut OpaqueMessage::from(message.clone())
+            .encode());
         hexdump::hexdump(&out);
 
-        let mut decoded_message = Message::read_bytes(out.as_slice()).unwrap();
+        let mut decoded_message =
+            Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap()).unwrap();
 
-        decoded_message.decode_payload();
         println!("{:?}", decoded_message);
 
         // Hex from wireshark
@@ -189,10 +187,10 @@ pub mod integration {
         let cert = hex::decode(cert_hex).unwrap();
         hexdump::hexdump(&cert);
 
-        let mut wireshark = Message::read_bytes(cert.as_slice()).unwrap();
-        wireshark.version = TLSv1_3;
-        wireshark.decode_payload();
-        println!("{:#?}", wireshark);
+        let mut opaque_message = OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
+        // Required for parsing
+        opaque_message.version = TLSv1_3;
+        println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
 
     /// This is the simplest possible client using rustls that does something useful:
@@ -206,33 +204,39 @@ pub mod integration {
     /// that is sensible outside of example code.
     #[test]
     fn execute_rustls() {
-        let mut config = rustls::ClientConfig::new();
-        config
-            .root_store
-            .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+        let config = rustls::ConfigBuilder::with_safe_defaults()
+            .for_client()
+            .unwrap()
+            .with_root_certificates(root_store, &[])
+            .with_no_client_auth();
 
-        let dns_name = webpki::DNSNameRef::try_from_ascii_str("google.com").unwrap();
-        let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
+        let dns_name = webpki::DnsNameRef::try_from_ascii_str("google.com").unwrap();
+        let mut conn = rustls::ClientConnection::new(Arc::new(config), dns_name).unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
-        let mut tls = rustls::Stream::new(&mut sess, &mut sock);
-        tls.write_all(
+        let mut tls = rustls::Stream::new(&mut conn, &mut sock);
+        tls.write(
             concat!(
-                "GET / HTTP/1.1\r\n",
-                "Host: google.com\r\n",
-                "Connection: close\r\n",
-                "Accept-Encoding: identity\r\n",
-                "\r\n"
+            "GET / HTTP/1.1\r\n",
+            "Host: google.com\r\n",
+            "Connection: close\r\n",
+            "Accept-Encoding: identity\r\n",
+            "\r\n"
             )
-            .as_bytes(),
+                .as_bytes(),
         )
-        .unwrap();
-        let ciphersuite = tls.sess.get_negotiated_ciphersuite().unwrap();
+            .unwrap();
+        let ciphersuite = tls
+            .conn
+            .negotiated_cipher_suite()
+            .unwrap();
         writeln!(
             &mut std::io::stderr(),
             "Current ciphersuite: {:?}",
             ciphersuite.suite
         )
-        .unwrap();
+            .unwrap();
         let mut plaintext = Vec::new();
         tls.read_to_end(&mut plaintext).unwrap();
         stdout().write_all(&plaintext).unwrap();

@@ -150,7 +150,6 @@ pub fn op_client_hello(
         }),
     });
     Message {
-        typ: Handshake,                    // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -176,7 +175,6 @@ pub fn op_server_hello(
         }),
     });
     Message {
-        typ: Handshake,
         version: ProtocolVersion::TLSv1_2,
         payload,
     }
@@ -185,7 +183,6 @@ pub fn op_server_hello(
 pub fn op_change_cipher_spec() -> Message {
     let payload = MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {});
     Message {
-        typ: ChangeCipherSpec,             // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -197,7 +194,6 @@ pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Mes
         payload: EncryptedExtensions(server_extensions.clone()),
     });
     Message {
-        typ: Handshake,                    // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -209,16 +205,14 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
         payload: Certificate(certificate.clone()),
     });
     Message {
-        typ: Handshake,                    // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
 }
 
 pub fn op_application_data(data: &Payload) -> Message {
-    let payload = MessagePayload::Opaque(data.clone());
+    let payload = MessagePayload::ApplicationData(data.clone());
     Message {
-        typ: ApplicationData,              // todo this is not controllable
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload,
     }
@@ -233,12 +227,7 @@ pub fn op_alert_description(message: &Message) -> Option<AlertDescription> {
 }
 
 pub fn op_alert_payload(message: &Message) -> Option<AlertMessagePayload> {
-    // todo expensive clone action here
-    let mut out: Vec<u8> = Vec::new();
-    message.encode(&mut out);
-    let cloned = Message::read_bytes(out.as_slice()).unwrap();
-
-    if let MessagePayload::Alert(payload) = cloned.payload {
+    if let MessagePayload::Alert(payload) = message.clone().payload {
         Some(payload)
     } else {
         None
@@ -258,8 +247,7 @@ pub fn op_random_cipher_suite() -> CipherSuite {
 }
 
 pub fn op_random_session_id() -> SessionID {
-    let random_data: [u8; 32] = random();
-    SessionID::new(&random_data)
+    SessionID::random().unwrap()
 }
 
 pub fn op_random_protocol_version() -> ProtocolVersion {
@@ -268,7 +256,7 @@ pub fn op_random_protocol_version() -> ProtocolVersion {
 
 pub fn op_random_random_data() -> Random {
     let random_data: [u8; 32] = random();
-    Random::from_slice(&random_data)
+    Random::from(random_data)
 }
 
 pub fn on_random_cipher_suite() -> CipherSuite {
@@ -292,11 +280,12 @@ pub fn on_compression() -> Compression {
 pub fn op_server_name_extension(dns_name: &String) -> ClientExtension {
     ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
-        payload: ServerNamePayload::HostName(
-            webpki::DNSNameRef::try_from_ascii_str(dns_name.as_str())
+        payload: ServerNamePayload::HostName((
+            PayloadU16(dns_name.clone().into_bytes()),
+            webpki::DnsNameRef::try_from_ascii_str(dns_name.as_str())
                 .unwrap()
                 .to_owned(),
-        ),
+        )),
     }])
 }
 
