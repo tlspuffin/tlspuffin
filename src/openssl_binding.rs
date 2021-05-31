@@ -161,6 +161,19 @@ pub fn make_deterministic() {
     }
 }
 
+// todo does not work, remove?
+pub fn make_log_errors() {
+    warn!("Printing OpenSSL errors!");
+    unsafe {
+        extern "C" fn callback(str: *const c_char, len: c_int, u: *const c_void) {
+            warn!("ERR_print_errors_cb {:?}", str);
+        }
+        ERR_print_errors_cb(
+            Some(callback),
+            std::ptr::null(),
+        );
+    }
+}
 
 pub fn create_openssl_server(
     stream: MemoryStream,
@@ -196,6 +209,7 @@ pub fn log_ssl_error(error: &openssl::ssl::Error) {
         // OpenSSL threw an error, that means that there should be an Alert message in the
         // outbound channel
         error!("SSL Error: {}", ssl_error);
+        make_log_errors();
     }
 }
 
@@ -203,7 +217,7 @@ pub fn create_openssl_client(stream: MemoryStream) -> Result<SslStream<MemoryStr
     let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-    ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?; // todo remove, its here for seed_successful12
+    //ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?; // todo remove, its here for seed_successful12
     let mut ssl = Ssl::new(&ctx_builder.build())?;
     ssl.set_connect_state();
 
