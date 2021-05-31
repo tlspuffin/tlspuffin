@@ -23,6 +23,7 @@ use crate::term::op_impl::{
     op_handshake_finished12, op_server_certificate, op_server_hello_done, op_server_key_exchange,
 };
 use crate::trace::AgentDescriptor;
+use crate::agent::TLSVersion;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();
@@ -35,10 +36,12 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
         descriptors: vec![
             AgentDescriptor {
                 name: client,
+                tls_version: TLSVersion::V1_3,
                 server: false,
             },
             AgentDescriptor {
                 name: server,
+                tls_version: TLSVersion::V1_3,
                 server: true,
             },
         ],
@@ -338,10 +341,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
         descriptors: vec![
             AgentDescriptor {
                 name: client,
+                tls_version: TLSVersion::V1_2,
                 server: false,
             },
             AgentDescriptor {
                 name: server,
+                tls_version: TLSVersion::V1_2,
                 server: true,
             },
         ],

@@ -19,6 +19,7 @@ use crate::{
     term::{Term, TypeShape},
     variable_data::{extract_variables, VariableData},
 };
+use crate::agent::TLSVersion;
 
 pub type ObservedId = (u16, u16);
 
@@ -108,8 +109,8 @@ impl TraceContext {
         return name;
     }
 
-    pub fn new_openssl_agent(&mut self, name: AgentName, server: bool) -> AgentName {
-        return self.add_agent(Agent::new_openssl(name, server));
+    pub fn new_openssl_agent(&mut self, name: AgentName, server: bool, tls_version: TLSVersion) -> AgentName {
+        return self.add_agent(Agent::new_openssl(name, server, tls_version));
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
@@ -133,6 +134,7 @@ impl TraceContext {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentDescriptor {
     pub name: AgentName,
+    pub tls_version: TLSVersion,
     pub server: bool,
 }
 
@@ -154,7 +156,7 @@ impl HasLen for Trace {
 impl Trace {
     pub fn spawn_agents(&self, ctx: &mut TraceContext) {
         for descriptor in &self.descriptors {
-            ctx.new_openssl_agent(descriptor.name, descriptor.server);
+            ctx.new_openssl_agent(descriptor.name, descriptor.server, descriptor.tls_version);
         }
     }
 

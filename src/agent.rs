@@ -13,11 +13,11 @@ impl AgentName {
     }
 
     pub fn first() -> AgentName {
-        NONE_AGENT
+        FIRST
     }
 }
 
-const NONE_AGENT: AgentName = AgentName(0u8);
+const FIRST: AgentName = AgentName(0u8);
 
 impl fmt::Display for AgentName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -31,14 +31,20 @@ impl PartialEq for AgentName {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum TLSVersion {
+    V1_3,
+    V1_2,
+}
+
 pub struct Agent {
     pub name: AgentName,
     pub stream: Box<dyn Stream>,
 }
 
 impl Agent {
-    pub fn new_openssl(name: AgentName, server: bool) -> Self {
-        Self::from_stream(name, Box::new(OpenSSLStream::new(server)))
+    pub fn new_openssl(name: AgentName, server: bool, tls_version: TLSVersion) -> Self {
+        Self::from_stream(name, Box::new(OpenSSLStream::new(server, &tls_version)))
     }
 
     pub fn from_stream(name: AgentName, stream: Box<dyn Stream>) -> Agent {
