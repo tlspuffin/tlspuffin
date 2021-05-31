@@ -5,6 +5,7 @@ pub mod tlspuffin {
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
     use test_env_log::test;
+    use crate::openssl_binding::{openssl_version, print_errors};
 
     #[test]
     fn test_seed_successful() {
@@ -27,6 +28,9 @@ pub mod tlspuffin {
 
     #[test]
     fn test_seed_successful12() {
+        println!("{}", openssl_version());
+        print_errors();
+
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -113,7 +117,6 @@ pub mod integration {
 
     #[test]
     fn test_rustls_message_stability_ch() {
-        // Hex from wireshark
         let hello_client_hex = "1603010136010001320303aa1795f64f48fcfcd0121368f88f176fe2570b07\
         68bbc85e9f2c80c557553d7d20e1e15d0028932f4f7479cf256302b7847d81a68e708525f9d38d94fc6ef742a30\
         03e130213031301c02cc030009fcca9cca8ccaac02bc02f009ec024c028006bc023c0270067c00ac0140039c009\
@@ -125,6 +128,26 @@ pub mod integration {
 
         let hello_client = hex::decode(hello_client_hex).unwrap();
         hexdump::hexdump(&hello_client);
+
+        let mut opaque_message = OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
+        println!("{:#?}", Message::try_from(opaque_message).unwrap());
+    }
+
+    #[test]
+    fn test_rustls_message_stability_ch_renegotiation() {
+        // Derived from "openssl s_client -msg -connect localhost:44330" and then pressing R
+        let hello_client_hex = "16030300cc\
+        010000c8030368254f1b232142c49512b09ac3929df07b6d461dc15473c064\
+        e1ffdfbfd5cc9d000036c02cc030009fcca9cca8ccaac02bc02f009ec024c028006bc023c0270067c00ac014003\
+        9c009c0130033009d009c003d003c0035002f01000069ff01000d0cdcf098f907352157bc31b073000b00040300\
+        0102000a000c000a001d0017001e00190018002300000016000000170000000d0030002e0403050306030807080\
+        80809080a080b080408050806040105010601030302030301020103020202040205020602";
+
+        let hello_client = hex::decode(hello_client_hex).unwrap();
+        hexdump::hexdump(&hello_client);
+
+        let mut opaque_message = OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
+        println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
     #[test]
     fn test_rustls_message_stability_cert() {
