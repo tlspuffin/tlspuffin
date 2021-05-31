@@ -1,15 +1,21 @@
+use rustls::internal::msgs::handshake::{
+    CertificatePayload, ECDHEServerKeyExchange, ServerKeyExchangePayload,
+};
 use rustls::{
-    CipherSuite,
     internal::msgs::{
         base::Payload,
         enums::Compression,
         handshake::{ClientExtension, Random, ServerExtension, SessionID},
-    }, ProtocolVersion,
-};
-use rustls::internal::msgs::handshake::{
-    CertificatePayload, ECDHEServerKeyExchange, ServerKeyExchangePayload,
+    },
+    CipherSuite, ProtocolVersion,
 };
 
+use crate::agent::TLSVersion;
+use crate::term::op_impl::{
+    op_attack_cve_2021_3449, op_change_cipher_spec12, op_client_key_exchange,
+    op_handshake_finished12, op_server_certificate, op_server_hello_done, op_server_key_exchange,
+};
+use crate::trace::AgentDescriptor;
 use crate::{
     agent::AgentName,
     term::{
@@ -18,12 +24,6 @@ use crate::{
     },
     trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
 };
-use crate::term::op_impl::{
-    op_attack_cve_2021_3449, op_change_cipher_spec12, op_client_key_exchange,
-    op_handshake_finished12, op_server_certificate, op_server_hello_done, op_server_key_exchange,
-};
-use crate::trace::AgentDescriptor;
-use crate::agent::TLSVersion;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();
@@ -362,8 +362,52 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
 
     let mut trace = seed_successful12(client, server);
 
-    trace.steps.push(
-        Step {
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: Term::Application {
+                op: op_client_hello,
+                args: vec![
+                    Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
+                    Term::Variable(sig.new_var::<Random>((0, 0))),
+                    Term::Variable(sig.new_var::<SessionID>((0, 0))),
+                    Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
+                    Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
+                    Term::Application {
+                        op: op_attack_cve_2021_3449,
+                        args: vec![Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0)))],
+                    },
+                ],
+            },
+        }),
+    });
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Output(OutputAction { id: 4 }),
+    });
+
+    trace
+}
+
+pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
+    let mut sig = Signature::default();
+    let op_client_hello = sig.new_op(&op_client_hello);
+
+    let trace = Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_3,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_3,
+                server: true,
+            },
+        ],
+        steps: vec![Step {
             agent: server,
             action: Action::Input(InputAction {
                 recipe: Term::Application {
@@ -374,24 +418,12 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                         Term::Variable(sig.new_var::<SessionID>((0, 0))),
                         Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
                         Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
-                        Term::Application {
-                            op: op_attack_cve_2021_3449,
-                            args: vec![Term::Variable(
-                                sig.new_var::<Vec<ClientExtension>>((0, 0)),
-                            )],
-                        },
+                        Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0))),
                     ],
                 },
             }),
-        }
-    );
-
-    trace.steps.push(
-        Step {
-            agent: server,
-            action: Action::Output(OutputAction { id: 4 }),
-        },
-    );
+        }],
+    };
 
     trace
 }
