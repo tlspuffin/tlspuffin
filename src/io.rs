@@ -99,11 +99,11 @@ impl OpenSSLStream {
         let memory_stream = MemoryStream::new();
         OpenSSLStream {
             openssl_stream: if server {
-                //let (cert, pkey) = openssl_binding::generate_cert();
-                let (cert, pkey) = openssl_binding::rsa_cert();
-                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey)
+                //let (cert, pkey) = openssl_binding::generate_cert().unwrap();
+                let (cert, pkey) = openssl_binding::rsa_cert().unwrap();
+                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey).unwrap()
             } else {
-                openssl_binding::create_openssl_client(memory_stream)
+                openssl_binding::create_openssl_client(memory_stream).unwrap()
             },
             server,
         }

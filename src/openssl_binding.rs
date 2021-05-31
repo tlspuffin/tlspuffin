@@ -1,5 +1,8 @@
-use std::io::ErrorKind;
+use std::ffi::c_void;
+use std::io::{ErrorKind, Read};
+use std::os::raw::{c_char, c_int};
 
+use openssl::ssl::SslVersion;
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -14,8 +17,7 @@ use openssl::{
 };
 
 use crate::io::MemoryStream;
-use std::os::raw::c_int;
-use openssl::ssl::SslVersion;
+use openssl::error::ErrorStack;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -74,45 +76,45 @@ i7RrmCDnL/ue3MkPP+8=
    cd openssl-src/openssl
    git checkout OpenSSL_1_1_1j
 */
-pub fn rsa_cert() -> (X509, PKey<Private>) {
-    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes()).unwrap();
-    let pkey = PKey::from_rsa(rsa).unwrap();
+pub fn rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+    let pkey = PKey::from_rsa(rsa)?;
 
-    let cert = X509::from_pem(CERT.as_bytes()).unwrap();
-    (cert, pkey)
+    let cert = X509::from_pem(CERT.as_bytes())?;
+    Ok((cert, pkey))
 }
 
-pub fn generate_cert() -> (X509, PKey<Private>) {
-    let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
-    let pkey = PKey::from_rsa(rsa).unwrap();
+pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
+    let rsa = openssl::rsa::Rsa::generate(2048)?;
+    let pkey = PKey::from_rsa(rsa)?;
 
-    let mut x509_name = X509NameBuilder::new().unwrap();
-    x509_name.append_entry_by_text("C", "US").unwrap();
-    x509_name.append_entry_by_text("ST", "TX").unwrap();
+    let mut x509_name = X509NameBuilder::new()?;
+    x509_name.append_entry_by_text("C", "US")?;
+    x509_name.append_entry_by_text("ST", "TX")?;
     x509_name
         .append_entry_by_text("O", "Some CA organization")
-        .unwrap();
-    x509_name.append_entry_by_text("CN", "ca test").unwrap();
+        ?;
+    x509_name.append_entry_by_text("CN", "ca test")?;
     let x509_name = x509_name.build();
-    let mut cert_builder = X509::builder().unwrap();
-    cert_builder.set_version(2).unwrap();
+    let mut cert_builder = X509::builder()?;
+    cert_builder.set_version(2)?;
     let serial_number = {
-        let mut serial = BigNum::new().unwrap();
-        serial.rand(159, MsbOption::MAYBE_ZERO, false).unwrap();
+        let mut serial = BigNum::new()?;
+        serial.rand(159, MsbOption::MAYBE_ZERO, false)?;
         serial.to_asn1_integer()
     }
-    .unwrap();
-    cert_builder.set_serial_number(&serial_number).unwrap();
-    cert_builder.set_subject_name(&x509_name).unwrap();
-    cert_builder.set_issuer_name(&x509_name).unwrap();
-    cert_builder.set_pubkey(&pkey).unwrap();
-    let not_before = Asn1Time::days_from_now(0).unwrap();
-    cert_builder.set_not_before(&not_before).unwrap();
-    let not_after = Asn1Time::days_from_now(365).unwrap();
-    cert_builder.set_not_after(&not_after).unwrap();
+    ?;
+    cert_builder.set_serial_number(&serial_number)?;
+    cert_builder.set_subject_name(&x509_name)?;
+    cert_builder.set_issuer_name(&x509_name)?;
+    cert_builder.set_pubkey(&pkey)?;
+    let not_before = Asn1Time::days_from_now(0)?;
+    cert_builder.set_not_before(&not_before)?;
+    let not_after = Asn1Time::days_from_now(365)?;
+    cert_builder.set_not_after(&not_after)?;
 
-    let extension = BasicConstraints::new().critical().ca().build().unwrap();
-    cert_builder.append_extension(extension).unwrap();
+    let extension = BasicConstraints::new().critical().ca().build()?;
+    cert_builder.append_extension(extension)?;
     cert_builder
         .append_extension(
             KeyUsage::new()
@@ -120,20 +122,20 @@ pub fn generate_cert() -> (X509, PKey<Private>) {
                 .key_cert_sign()
                 .crl_sign()
                 .build()
-                .unwrap(),
+                ?,
         )
-        .unwrap();
+        ?;
 
     let subject_key_identifier = SubjectKeyIdentifier::new()
         .build(&cert_builder.x509v3_context(None, None))
-        .unwrap();
+        ?;
     cert_builder
         .append_extension(subject_key_identifier)
-        .unwrap();
+        ?;
 
-    cert_builder.sign(&pkey, MessageDigest::sha256()).unwrap();
+    cert_builder.sign(&pkey, MessageDigest::sha256())?;
     let cert = cert_builder.build();
-    return (cert, pkey);
+    Ok((cert, pkey))
 }
 
 pub fn openssl_version() -> &'static str {
@@ -143,6 +145,11 @@ pub fn openssl_version() -> &'static str {
 extern "C" {
     pub fn make_openssl_deterministic();
     pub fn RAND_seed(buf: *mut u8, num: c_int);
+
+    pub fn ERR_print_errors_cb(
+        callback: Option<extern "C" fn(str: *const c_char, len: c_int, u: *const c_void)>,
+        u: *const c_void,
+    );
 }
 
 pub fn make_deterministic() {
@@ -159,14 +166,15 @@ pub fn create_openssl_server(
     stream: MemoryStream,
     cert: &X509Ref,
     key: &PKeyRef<Private>,
-) -> SslStream<MemoryStream> {
-    let mut server_ctx = SslContext::builder(SslMethod::tls()).unwrap();
-    server_ctx.set_certificate(cert).unwrap();
-    server_ctx.set_private_key(key).unwrap();
+) -> Result<SslStream<MemoryStream>, ErrorStack> {
+    let mut server_ctx = SslContext::builder(SslMethod::tls())?;
+    server_ctx.set_certificate(cert)?;
+    server_ctx.set_private_key(key)?;
     server_ctx.set_options(SslOptions::NO_TICKET); // todo remove, its here for seed_successful12
-    let server_stream = SslStream::new(Ssl::new(&server_ctx.build()).unwrap(), stream).unwrap();
 
-    return server_stream;
+    let mut ssl = Ssl::new(&server_ctx.build())?;
+    ssl.set_accept_state();
+    SslStream::new(ssl, stream)
 }
 
 pub fn log_io_error(error: &openssl::ssl::Error) {
@@ -191,20 +199,20 @@ pub fn log_ssl_error(error: &openssl::ssl::Error) {
     }
 }
 
-pub fn create_openssl_client(stream: MemoryStream) -> SslStream<MemoryStream> {
-    let mut ctx_builder = SslContext::builder(SslMethod::tls()).unwrap();
+pub fn create_openssl_client(stream: MemoryStream) -> Result<SslStream<MemoryStream>, ErrorStack> {
+    let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-    ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)); // todo remove, its here for seed_successful12
+    ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?; // todo remove, its here for seed_successful12
+    let mut ssl = Ssl::new(&ctx_builder.build())?;
+    ssl.set_connect_state();
 
-    let client_stream = SslStream::new(Ssl::new(&ctx_builder.build()).unwrap(), stream).unwrap();
-
-    return client_stream;
+    SslStream::new(ssl, stream)
 }
 
 pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
     // todo: return these errors
-    if let Err(error) = stream.connect() {
+    if let Err(error) = stream.do_handshake() {
         log_io_error(&error);
         log_ssl_error(&error);
     } else {
@@ -213,10 +221,22 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
 }
 
 pub fn server_accept(stream: &mut SslStream<MemoryStream>) {
-    if let Err(error) = stream.accept() {
-        log_io_error(&error);
-        log_ssl_error(&error);
+    if stream.ssl().state_string_long() == "SSL negotiation finished successfully" {
+        let mut vec: Vec<u8> = Vec::new();
+
+        if let Err(error) = stream.ssl_read(&mut vec) {
+            log_io_error(&error);
+            log_ssl_error(&error);
+        } else {
+            info!("read succeeded");
+        }
+
     } else {
-        info!("Handshake is done");
+        if let Err(error) = stream.do_handshake() {
+            log_io_error(&error);
+            log_ssl_error(&error);
+        } else {
+            info!("Handshake is done");
+        }
     }
 }
