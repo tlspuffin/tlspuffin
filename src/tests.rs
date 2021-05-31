@@ -5,7 +5,7 @@ pub mod tlspuffin {
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
     use test_env_log::test;
-    use crate::openssl_binding::{openssl_version, make_log_errors, make_deterministic};
+    use crate::openssl_binding::{openssl_version, make_deterministic};
 
     #[test]
     fn test_seed_successful() {
@@ -30,7 +30,6 @@ pub mod tlspuffin {
     #[test]
     fn test_seed_successful12() {
         println!("{}", openssl_version());
-        make_log_errors();
 
         let mut ctx = TraceContext::new();
         let client = AgentName::first();

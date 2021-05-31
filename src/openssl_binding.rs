@@ -145,11 +145,6 @@ pub fn openssl_version() -> &'static str {
 extern "C" {
     pub fn make_openssl_deterministic();
     pub fn RAND_seed(buf: *mut u8, num: c_int);
-
-    pub fn ERR_print_errors_cb(
-        callback: Option<extern "C" fn(str: *const c_char, len: c_int, u: *const c_void)>,
-        u: *const c_void,
-    );
 }
 
 pub fn make_deterministic() {
@@ -158,20 +153,6 @@ pub fn make_deterministic() {
         make_openssl_deterministic();
         let mut seed = [42];
         RAND_seed(seed.as_mut_ptr(), 1);
-    }
-}
-
-// todo does not work, remove?
-pub fn make_log_errors() {
-    warn!("Printing OpenSSL errors!");
-    unsafe {
-        extern "C" fn callback(str: *const c_char, len: c_int, u: *const c_void) {
-            warn!("ERR_print_errors_cb {:?}", str);
-        }
-        ERR_print_errors_cb(
-            Some(callback),
-            std::ptr::null(),
-        );
     }
 }
 
@@ -209,7 +190,6 @@ pub fn log_ssl_error(error: &openssl::ssl::Error) {
         // OpenSSL threw an error, that means that there should be an Alert message in the
         // outbound channel
         error!("SSL Error: {}", ssl_error);
-        make_log_errors();
     }
 }
 
