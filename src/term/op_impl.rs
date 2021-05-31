@@ -10,7 +10,9 @@ use ring::{
     hmac::Key,
     rand::SystemRandom,
 };
+use rustls::internal::msgs::enums::ExtensionType;
 use rustls::internal::msgs::handshake::ECDHEServerKeyExchange;
+use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::{
     internal::msgs::{
         alert::AlertMessagePayload,
@@ -36,7 +38,6 @@ use HandshakePayload::EncryptedExtensions;
 
 use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
-use rustls::internal::msgs::message::OpaqueMessage;
 
 // -----
 // utils
@@ -115,6 +116,102 @@ pub struct MultiMessage {
 // Concrete implementations
 // ----
 
+// ----
+// TLS 1.3 Message constructors (Return type is message)
+// ----
+
+pub fn op_client_hello(
+    client_version: &ProtocolVersion,
+    random: &Random,
+    session_id: &SessionID,
+    cipher_suites: &Vec<CipherSuite>,
+    compression_methods: &Vec<Compression>,
+    extensions: &Vec<ClientExtension>,
+) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::ClientHello,
+            payload: HandshakePayload::ClientHello(ClientHelloPayload {
+                client_version: client_version.clone(),
+                random: random.clone(),
+                session_id: session_id.clone(),
+                cipher_suites: cipher_suites.clone(),
+                compression_methods: compression_methods.clone(),
+                extensions: extensions.clone(),
+            }),
+        }),
+    }
+}
+
+pub fn op_server_hello(
+    legacy_version: &ProtocolVersion,
+    random: &Random,
+    session_id: &SessionID,
+    cipher_suite: &CipherSuite,
+    compression_method: &Compression,
+    extensions: &Vec<ServerExtension>,
+) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2,
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::ServerHello,
+            payload: HandshakePayload::ServerHello(ServerHelloPayload {
+                legacy_version: legacy_version.clone(),
+                random: random.clone(),
+                session_id: session_id.clone(),
+                cipher_suite: cipher_suite.clone(),
+                compression_method: compression_method.clone(),
+                extensions: extensions.clone(),
+            }),
+        }),
+    }
+}
+
+pub fn op_change_cipher_spec() -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
+    }
+}
+
+pub fn op_application_data(data: &Payload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::ApplicationData(data.clone()),
+    }
+}
+
+
+// ----
+// TLS 1.3 Unused
+// ----
+
+pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::EncryptedExtensions,
+            payload: EncryptedExtensions(server_extensions.clone()),
+        }),
+    }
+}
+
+pub fn op_certificate(certificate: &CertificatePayload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::Certificate,
+            payload: Certificate(certificate.clone()),
+        }),
+    }
+}
+
+// ----
+// Unused
+// ----
+
+
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
     let random = SystemRandom::new();
@@ -144,110 +241,6 @@ pub fn op_client_handshake_traffic_secret(secret: &hkdf::Prk, hs_hash: &Vec<u8>)
     secret
 }
 
-pub fn op_client_hello(
-    client_version: &ProtocolVersion,
-    random: &Random,
-    session_id: &SessionID,
-    cipher_suites: &Vec<CipherSuite>,
-    compression_methods: &Vec<Compression>,
-    extensions: &Vec<ClientExtension>,
-) -> Message {
-    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
-        typ: HandshakeType::ClientHello,
-        payload: HandshakePayload::ClientHello(ClientHelloPayload {
-            client_version: client_version.clone(),
-            random: random.clone(),
-            session_id: session_id.clone(),
-            cipher_suites: cipher_suites.clone(),
-            compression_methods: compression_methods.clone(),
-            extensions: extensions.clone(),
-        }),
-    });
-    Message {
-        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload,
-    }
-}
-
-pub fn op_server_hello(
-    legacy_version: &ProtocolVersion,
-    random: &Random,
-    session_id: &SessionID,
-    cipher_suite: &CipherSuite,
-    compression_method: &Compression,
-    extensions: &Vec<ServerExtension>,
-) -> Message {
-    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
-        typ: HandshakeType::ServerHello,
-        payload: HandshakePayload::ServerHello(ServerHelloPayload {
-            legacy_version: legacy_version.clone(),
-            random: random.clone(),
-            session_id: session_id.clone(),
-            cipher_suite: cipher_suite.clone(),
-            compression_method: compression_method.clone(),
-            extensions: extensions.clone(),
-        }),
-    });
-    Message {
-        version: ProtocolVersion::TLSv1_2,
-        payload,
-    }
-}
-
-pub fn op_change_cipher_spec() -> Message {
-    let payload = MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {});
-    Message {
-        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload,
-    }
-}
-
-pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Message {
-    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
-        typ: HandshakeType::EncryptedExtensions,
-        payload: EncryptedExtensions(server_extensions.clone()),
-    });
-    Message {
-        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload,
-    }
-}
-
-pub fn op_certificate(certificate: &CertificatePayload) -> Message {
-    let payload = MessagePayload::Handshake(HandshakeMessagePayload {
-        typ: HandshakeType::Certificate,
-        payload: Certificate(certificate.clone()),
-    });
-    Message {
-        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload,
-    }
-}
-
-pub fn op_application_data(data: &Payload) -> Message {
-    let payload = MessagePayload::ApplicationData(data.clone());
-    Message {
-        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload,
-    }
-}
-
-pub fn op_alert_description(message: &Message) -> Option<AlertDescription> {
-    if let MessagePayload::Alert(payload) = &message.payload {
-        Some(payload.description)
-    } else {
-        None
-    }
-}
-
-pub fn op_alert_payload(message: &Message) -> Option<AlertMessagePayload> {
-    if let MessagePayload::Alert(payload) = message.clone().payload {
-        Some(payload)
-    } else {
-        None
-    }
-}
-
 pub fn op_random_cipher_suite() -> CipherSuite {
     *vec![
         CipherSuite::TLS13_AES_128_CCM_SHA256,
@@ -273,19 +266,7 @@ pub fn op_random_random_data() -> Random {
     Random::from(random_data)
 }
 
-pub fn on_random_cipher_suite() -> CipherSuite {
-    *vec![
-        CipherSuite::TLS13_AES_128_CCM_SHA256,
-        CipherSuite::TLS13_AES_128_CCM_8_SHA256,
-        CipherSuite::TLS13_AES_128_GCM_SHA256,
-        CipherSuite::TLS13_AES_256_GCM_SHA384,
-        CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-    ]
-    .choose(&mut rand::thread_rng())
-    .unwrap()
-}
-
-pub fn on_compression() -> Compression {
+pub fn op_compression() -> Compression {
     *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
         .choose(&mut rand::thread_rng())
         .unwrap()
@@ -303,7 +284,7 @@ pub fn op_server_name_extension(dns_name: &String) -> ClientExtension {
     }])
 }
 
-pub fn op_support_group_extension() -> ClientExtension {
+pub fn op_x25519_support_group_extension() -> ClientExtension {
     ClientExtension::NamedGroups(vec![NamedGroup::X25519])
 }
 
@@ -329,7 +310,7 @@ pub fn op_supported_versions_extension() -> ClientExtension {
 pub fn op_random_extensions() -> Vec<ClientExtension> {
     let server_name: ClientExtension = op_server_name_extension(&"maxammann.org".to_string());
 
-    let supported_groups: ClientExtension = op_support_group_extension();
+    let supported_groups: ClientExtension = op_x25519_support_group_extension();
     let signature_algorithms: ClientExtension = op_signature_algorithm_extension();
     let key_share: ClientExtension = op_random_key_share_extension();
     let supported_versions: ClientExtension = op_supported_versions_extension();
@@ -342,6 +323,10 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
         supported_versions,
     ]
 }
+
+// ----
+// Utils
+// ----
 
 pub fn op_concat_messages_2(msg1: &Message, msg2: &Message) -> MultiMessage {
     MultiMessage {
@@ -356,7 +341,7 @@ pub fn op_concat_messages_3(msg1: &Message, msg2: &Message, msg3: &Message) -> M
 }
 
 // ----
-// TLS 1.2
+// TLS 1.2, all used in seed_successful12
 // ----
 
 pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
@@ -415,6 +400,20 @@ pub fn op_handshake_finished12(data: &Payload) -> OpaqueMessage {
 }
 
 // ----
+// Attack operations
+// ----
+
+// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3449
+
+pub fn op_attack_cve_2021_3449(extensions: &Vec<ClientExtension>) -> Vec<ClientExtension> {
+    extensions
+        .clone()
+        .into_iter()
+        .filter(|extension| extension.get_type() != ExtensionType::SignatureAlgorithms)
+        .collect_vec()
+}
+
+// ----
 // Registry
 // ----
 
@@ -431,19 +430,16 @@ register_fn!(
     op_encrypted_certificate,
     op_certificate,
     op_application_data,
-    op_alert_description,
-    op_alert_payload,
     op_random_cipher_suite,
     op_random_session_id,
     op_random_protocol_version,
     op_random_random_data,
-    on_random_cipher_suite,
-    on_compression,
+    op_compression,
     op_server_name_extension,
-    op_support_group_extension,
     op_signature_algorithm_extension,
     op_random_key_share_extension,
     op_supported_versions_extension,
+    op_x25519_support_group_extension,
     op_random_extensions,
     op_concat_messages_2,
     op_concat_messages_3,
