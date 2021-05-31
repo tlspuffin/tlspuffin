@@ -3,7 +3,6 @@ use std::convert::TryFrom;
 use rustls::internal::msgs::codec::Reader;
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{
-    codec::Codec,
     message::{Message, MessagePayload},
 };
 
@@ -30,37 +29,37 @@ pub fn debug_message(message: &Message) {
 
 pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
     info!(
-        "{}Record ({:?}): {:?}/{:?}",
+        "{}Opaque Message ({:?}): {:?}",
         if info.is_empty() {
             info.to_string()
         } else {
-            info.to_string() + " "
+            info.to_string() + " | "
         },
         message.version,
         message.typ,
-        message.payload
     );
+    //info!("{:?}", hexdump::hexdump(message.payload.0.as_slice()))
 }
 
 
 pub fn debug_message_with_info(info: &str, message: &Message) {
     let msg = match &message.payload {
         MessagePayload::Alert(payload) => {
-            format!("Level: {:?}", payload.level)
+            format!("Alert with Level: {:?}", payload.level)
         }
         MessagePayload::Handshake(payload) => {
             format!("{:?}", payload.payload)
         }
-        MessagePayload::ChangeCipherSpec(_) => "CCS".to_string(),
-        MessagePayload::ApplicationData(_) => "Data".to_string(),
+        MessagePayload::ChangeCipherSpec(_) => "ChangeCipherSpec".to_string(),
+        MessagePayload::ApplicationData(_) => "ApplicationData".to_string(),
     };
 
     info!(
-        "{}Record ({:?}): {}",
+        "{}Message ({:?}): {}",
         if info.is_empty() {
             info.to_string()
         } else {
-            info.to_string() + " "
+            info.to_string() + " | "
         },
         message.version,
         msg
