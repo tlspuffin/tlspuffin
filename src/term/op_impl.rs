@@ -182,7 +182,6 @@ pub fn op_application_data(data: &Payload) -> Message {
     }
 }
 
-
 // ----
 // TLS 1.3 Unused
 // ----
@@ -208,9 +207,80 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
 }
 
 // ----
-// Unused
+// seed_client_attacker()
 // ----
 
+pub fn op_protocol_version12() -> ProtocolVersion {
+    ProtocolVersion::TLSv1_2
+}
+
+pub fn op_session_id() -> SessionID {
+    SessionID::empty()
+}
+
+pub fn op_random() -> Random {
+    let random_data: [u8; 32] = [1; 32];
+    Random::from(random_data)
+}
+
+pub fn op_cipher_suites() -> Vec<CipherSuite> {
+    vec![CipherSuite::TLS13_AES_128_GCM_SHA256]
+}
+
+pub fn op_compressions() -> Vec<Compression> {
+    vec![Compression::Null]
+}
+
+pub fn op_server_name_extension() -> ClientExtension {
+    let dns_name = "maxammann.org";
+    ClientExtension::ServerName(vec![ServerName {
+        typ: ServerNameType::HostName,
+        payload: ServerNamePayload::HostName((
+            PayloadU16(dns_name.to_string().into_bytes()),
+            webpki::DnsNameRef::try_from_ascii_str(dns_name)
+                .unwrap()
+                .to_owned(),
+        )),
+    }])
+}
+
+pub fn op_x25519_support_group_extension() -> ClientExtension {
+    ClientExtension::NamedGroups(vec![NamedGroup::X25519])
+}
+
+pub fn op_signature_algorithm_extension() -> ClientExtension {
+    ClientExtension::SignatureAlgorithms(vec![
+        SignatureScheme::RSA_PKCS1_SHA256,
+        SignatureScheme::RSA_PSS_SHA256,
+    ])
+}
+
+pub fn op_key_share_extension() -> ClientExtension {
+    //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
+    let key = Vec::from([42; 32]); // 32 byte public key
+    ClientExtension::KeyShare(vec![KeyShareEntry {
+        group: NamedGroup::X25519,
+        payload: PayloadU16::new(key),
+    }])
+}
+
+pub fn op_supported_versions_extension() -> ClientExtension {
+    ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
+}
+
+pub fn op_extensions_new() -> Vec<ClientExtension> {
+    vec![]
+}
+
+pub fn op_extensions_append(extensions: &Vec<ClientExtension>, extension: &ClientExtension) -> Vec<ClientExtension> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+    new_extensions
+}
+
+// ----
+// Unused
+// ----
 
 pub fn op_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
@@ -253,66 +323,18 @@ pub fn op_random_cipher_suite() -> CipherSuite {
     .unwrap()
 }
 
-pub fn op_random_session_id() -> SessionID {
-    SessionID::random().unwrap()
-}
-
-pub fn op_random_protocol_version() -> ProtocolVersion {
-    ProtocolVersion::TLSv1_3
-}
-
-pub fn op_random_random_data() -> Random {
-    let random_data: [u8; 32] = random();
-    Random::from(random_data)
-}
-
-pub fn op_compression() -> Compression {
+pub fn op_random_compression() -> Compression {
     *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
         .choose(&mut rand::thread_rng())
         .unwrap()
 }
 
-pub fn op_server_name_extension(dns_name: &String) -> ClientExtension {
-    ClientExtension::ServerName(vec![ServerName {
-        typ: ServerNameType::HostName,
-        payload: ServerNamePayload::HostName((
-            PayloadU16(dns_name.clone().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name.as_str())
-                .unwrap()
-                .to_owned(),
-        )),
-    }])
-}
-
-pub fn op_x25519_support_group_extension() -> ClientExtension {
-    ClientExtension::NamedGroups(vec![NamedGroup::X25519])
-}
-
-pub fn op_signature_algorithm_extension() -> ClientExtension {
-    ClientExtension::SignatureAlgorithms(vec![
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::RSA_PSS_SHA256,
-    ])
-}
-
-pub fn op_random_key_share_extension() -> ClientExtension {
-    let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
-    ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: NamedGroup::X25519,
-        payload: PayloadU16::new(key),
-    }])
-}
-
-pub fn op_supported_versions_extension() -> ClientExtension {
-    ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
-}
-
 pub fn op_random_extensions() -> Vec<ClientExtension> {
-    let server_name: ClientExtension = op_server_name_extension(&"maxammann.org".to_string());
+    let server_name: ClientExtension = op_server_name_extension();
 
     let supported_groups: ClientExtension = op_x25519_support_group_extension();
     let signature_algorithms: ClientExtension = op_signature_algorithm_extension();
-    let key_share: ClientExtension = op_random_key_share_extension();
+    let key_share: ClientExtension = op_key_share_extension();
     let supported_versions: ClientExtension = op_supported_versions_extension();
 
     vec![
@@ -431,13 +453,13 @@ register_fn!(
     op_certificate,
     op_application_data,
     op_random_cipher_suite,
-    op_random_session_id,
-    op_random_protocol_version,
-    op_random_random_data,
-    op_compression,
+    op_session_id,
+    op_protocol_version12,
+    op_random,
+    op_random_compression,
     op_server_name_extension,
     op_signature_algorithm_extension,
-    op_random_key_share_extension,
+    op_key_share_extension,
     op_supported_versions_extension,
     op_x25519_support_group_extension,
     op_random_extensions,

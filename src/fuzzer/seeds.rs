@@ -12,8 +12,12 @@ use rustls::{
 
 use crate::agent::TLSVersion;
 use crate::term::op_impl::{
-    op_attack_cve_2021_3449, op_change_cipher_spec12, op_client_key_exchange,
-    op_handshake_finished12, op_server_certificate, op_server_hello_done, op_server_key_exchange,
+    op_attack_cve_2021_3449, op_change_cipher_spec12, op_cipher_suites, op_client_key_exchange,
+    op_compressions, op_extensions_append, op_extensions_new, op_handshake_finished12,
+    op_key_share_extension, op_protocol_version12, op_random, op_server_certificate,
+    op_server_hello_done, op_server_key_exchange, op_server_name_extension, op_session_id,
+    op_signature_algorithm_extension, op_supported_versions_extension,
+    op_x25519_support_group_extension,
 };
 use crate::trace::AgentDescriptor;
 use crate::{
@@ -413,12 +417,69 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 recipe: Term::Application {
                     op: op_client_hello,
                     args: vec![
-                        Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
-                        Term::Variable(sig.new_var::<Random>((0, 0))),
-                        Term::Variable(sig.new_var::<SessionID>((0, 0))),
-                        Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
-                        Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
-                        Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0))),
+                        Term::Application {
+                            op: sig.new_op(&op_protocol_version12),
+                            args: vec![],
+                        },
+                        Term::Application {
+                            op: sig.new_op(&op_random),
+                            args: vec![],
+                        },
+                        Term::Application {
+                            op: sig.new_op(&op_session_id),
+                            args: vec![],
+                        },
+                        Term::Application {
+                            op: sig.new_op(&op_cipher_suites),
+                            args: vec![],
+                        },
+                        Term::Application {
+                            op: sig.new_op(&op_compressions),
+                            args: vec![],
+                        },
+                        Term::Application {
+                            op: sig.new_op(&op_extensions_append),
+                            args: vec![
+                                Term::Application {
+                                    op: sig.new_op(&op_extensions_append),
+                                    args: vec![
+                                        Term::Application {
+                                            op: sig.new_op(&op_extensions_append),
+                                            args: vec![
+                                                Term::Application {
+                                                    op: sig.new_op(&op_extensions_append),
+                                                    args: vec![
+                                                        Term::Application {
+                                                            op: sig.new_op(&op_extensions_new),
+                                                            args: vec![],
+                                                        },
+                                                        Term::Application {
+                                                            op: sig.new_op(
+                                                                &op_x25519_support_group_extension,
+                                                            ),
+                                                            args: vec![],
+                                                        },
+                                                    ],
+                                                },
+                                                Term::Application {
+                                                    op: sig
+                                                        .new_op(&op_signature_algorithm_extension),
+                                                    args: vec![],
+                                                },
+                                            ],
+                                        },
+                                        Term::Application {
+                                            op: sig.new_op(&op_key_share_extension),
+                                            args: vec![],
+                                        },
+                                    ],
+                                },
+                                Term::Application {
+                                    op: sig.new_op(&op_supported_versions_extension),
+                                    args: vec![],
+                                },
+                            ],
+                        },
                     ],
                 },
             }),

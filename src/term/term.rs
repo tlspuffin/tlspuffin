@@ -28,6 +28,7 @@ pub enum Term {
 }
 
 impl Term {
+
     /// Serialize a `Term`.
     pub fn display(&self) -> String {
         match self {

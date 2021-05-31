@@ -6,7 +6,7 @@ mod term {
 
     use crate::{
         term::{
-            op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_random_session_id},
+            op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id},
             Signature, Term,
         },
         trace::TraceContext,
@@ -64,7 +64,7 @@ mod term {
         let app = sig.new_op(&example_op_c);
         let s = sig.new_op(&example_op_c);
 
-        let var_data = op_random_session_id();
+        let var_data = op_session_id();
 
         let k = sig.new_var::<SessionID>((0, 0));
 

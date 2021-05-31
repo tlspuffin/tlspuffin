@@ -1,10 +1,9 @@
 use core::fmt;
-use std::{any::TypeId, fmt::Formatter, rc::Rc};
+use std::{any::TypeId, fmt::Formatter};
 
-use libafl::inputs::{HasBytesVec, HasLen, HasTargetBytes, Input};
+use libafl::inputs::{HasLen, HasTargetBytes, Input};
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{
-    handshake::HandshakePayload,
     message::{Message, MessagePayload::Handshake},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -220,14 +219,10 @@ impl Execute for Action {
 
 impl fmt::Display for Action {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Action::Input(_) => "Input",
-                Action::Output(_) => "Output",
-            }
-        )
+        match self {
+            Action::Input(input) => write!(f, "{}", input),
+            Action::Output(output)=> write!(f, "{}", output)
+        }
     }
 }
 
@@ -272,6 +267,12 @@ impl OutputAction {
     }
 }
 
+impl fmt::Display for OutputAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "OutputAction")
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {
     pub recipe: Term,
@@ -308,5 +309,11 @@ impl InputAction {
         }
 
         ctx.next_state(step.agent)
+    }
+}
+
+impl fmt::Display for InputAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "recipe: {}", self.recipe.display())
     }
 }
