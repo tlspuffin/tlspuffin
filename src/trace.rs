@@ -244,6 +244,7 @@ impl OutputAction {
                         &message,
                     );
                     let knowledge = extract_variables(&message);
+                    info!("New knowledge: {:?}", knowledge.len());
                     ctx.add_variables((self.id, sub_id), knowledge);
                 }
                 MessageResult::OpaqueMessage(opaque_message) => {

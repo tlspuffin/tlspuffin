@@ -1133,7 +1133,7 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.19.0"
-source = "git+https://github.com/maxammann/rustls.git?branch=remove-checks#cfb6c208256b0732e0c9a5f6571e38fcd3c2ec86"
+source = "git+https://github.com/maxammann/rustls.git?branch=remove-checks#86d2f40e3bd33e5d08996a81fccbabbceeeb5402"
 dependencies = [
  "log",
  "ring",

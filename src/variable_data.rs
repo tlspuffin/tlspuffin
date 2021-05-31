@@ -172,7 +172,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
             vec![]
         }
         MessagePayload::ApplicationData(opaque) => {
-            vec![Box::new(opaque.clone())]
+            vec![Box::new(message.clone()), Box::new(opaque.clone())]
         }
     }
 }

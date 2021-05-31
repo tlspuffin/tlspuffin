@@ -1,6 +1,7 @@
 use rustls::internal::msgs::handshake::{
     CertificatePayload, ECDHEServerKeyExchange, ServerKeyExchangePayload,
 };
+use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{
         base::Payload,
@@ -13,10 +14,10 @@ use rustls::{
 use crate::agent::TLSVersion;
 use crate::term::op_impl::{
     op_attack_cve_2021_3449, op_change_cipher_spec12, op_cipher_suites, op_client_key_exchange,
-    op_compressions, op_extensions_append, op_extensions_new, op_handshake_finished12,
-    op_key_share_extension, op_protocol_version12, op_random, op_server_certificate,
-    op_server_hello_done, op_server_key_exchange, op_server_name_extension, op_session_id,
-    op_signature_algorithm_extension, op_supported_versions_extension,
+    op_compressions, op_decrypt_after_server_hello, op_extensions_append, op_extensions_new,
+    op_handshake_finished12, op_key_share_extension, op_protocol_version12, op_random,
+    op_server_certificate, op_server_hello_done, op_server_key_exchange, op_server_name_extension,
+    op_session_id, op_signature_algorithm_extension, op_supported_versions_extension,
     op_x25519_support_group_extension,
 };
 use crate::trace::AgentDescriptor;
@@ -147,18 +148,19 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Output(OutputAction { id: 2 }),
             },
             /*
-            // CCS Client -> Server
-            Step {
-                agent: server_openssl,
-                action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_change_cipher_spec.clone(),
-                        args: vec![],
-                    },
-                }),
-            },*/
-            // todo missing:
-            //      CCS Client -> Server
+            todo
+             missing:
+                // CCS Client -> Server
+                Step {
+                    agent: server_openssl,
+                    action: Action::Input(InputAction {
+                        recipe: Term::Application {
+                            op: op_change_cipher_spec.clone(),
+                            args: vec![],
+                        },
+                    }),
+                },
+            */
             // Finished Client -> Server
             Step {
                 agent: server,
@@ -397,7 +399,75 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();
     let op_client_hello = sig.new_op(&op_client_hello);
+    let op_application_data = sig.new_op(&op_application_data);
+    let op_extensions_append = sig.new_op(&op_extensions_append);
 
+    let client_hello = Term::Application {
+        op: op_client_hello,
+        args: vec![
+            Term::Application {
+                op: sig.new_op(&op_protocol_version12),
+                args: vec![],
+            },
+            Term::Application {
+                op: sig.new_op(&op_random),
+                args: vec![],
+            },
+            Term::Application {
+                op: sig.new_op(&op_session_id),
+                args: vec![],
+            },
+            // TLS13_AES_128_GCM_SHA256
+            Term::Application {
+                op: sig.new_op(&op_cipher_suites),
+                args: vec![],
+            },
+            Term::Application {
+                op: sig.new_op(&op_compressions),
+                args: vec![],
+            },
+            Term::Application {
+                op: op_extensions_append.clone(),
+                args: vec![
+                    Term::Application {
+                        op: op_extensions_append.clone(),
+                        args: vec![
+                            Term::Application {
+                                op: op_extensions_append.clone(),
+                                args: vec![
+                                    Term::Application {
+                                        op: op_extensions_append.clone(),
+                                        args: vec![
+                                            Term::Application {
+                                                op: sig.new_op(&op_extensions_new),
+                                                args: vec![],
+                                            },
+                                            Term::Application {
+                                                op: sig.new_op(&op_x25519_support_group_extension),
+                                                args: vec![],
+                                            },
+                                        ],
+                                    },
+                                    Term::Application {
+                                        op: sig.new_op(&op_signature_algorithm_extension),
+                                        args: vec![],
+                                    },
+                                ],
+                            },
+                            Term::Application {
+                                op: sig.new_op(&op_key_share_extension),
+                                args: vec![],
+                            },
+                        ],
+                    },
+                    Term::Application {
+                        op: sig.new_op(&op_supported_versions_extension),
+                        args: vec![],
+                    },
+                ],
+            },
+        ],
+    };
     let trace = Trace {
         descriptors: vec![
             AgentDescriptor {
@@ -411,79 +481,39 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 server: true,
             },
         ],
-        steps: vec![Step {
-            agent: server,
-            action: Action::Input(InputAction {
-                recipe: Term::Application {
-                    op: op_client_hello,
-                    args: vec![
-                        Term::Application {
-                            op: sig.new_op(&op_protocol_version12),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: sig.new_op(&op_random),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: sig.new_op(&op_session_id),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: sig.new_op(&op_cipher_suites),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: sig.new_op(&op_compressions),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: sig.new_op(&op_extensions_append),
-                            args: vec![
-                                Term::Application {
-                                    op: sig.new_op(&op_extensions_append),
-                                    args: vec![
-                                        Term::Application {
-                                            op: sig.new_op(&op_extensions_append),
-                                            args: vec![
-                                                Term::Application {
-                                                    op: sig.new_op(&op_extensions_append),
-                                                    args: vec![
-                                                        Term::Application {
-                                                            op: sig.new_op(&op_extensions_new),
-                                                            args: vec![],
-                                                        },
-                                                        Term::Application {
-                                                            op: sig.new_op(
-                                                                &op_x25519_support_group_extension,
-                                                            ),
-                                                            args: vec![],
-                                                        },
-                                                    ],
-                                                },
-                                                Term::Application {
-                                                    op: sig
-                                                        .new_op(&op_signature_algorithm_extension),
-                                                    args: vec![],
-                                                },
-                                            ],
-                                        },
-                                        Term::Application {
-                                            op: sig.new_op(&op_key_share_extension),
-                                            args: vec![],
-                                        },
-                                    ],
-                                },
-                                Term::Application {
-                                    op: sig.new_op(&op_supported_versions_extension),
-                                    args: vec![],
-                                },
-                            ],
-                        },
-                    ],
-                },
-            }),
-        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: client_hello.clone(),
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction { id: 0 }),
+            },
+            /* todo data:
+               master_secret: &[u8],                   # ?
+               hmac_algorithm: ring::hmac::Algorithm,  # from cipersuite
+               handshake_hash: &Digest,                # from transcript
+
+            */
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: Term::Application {
+                        op: sig.new_op(&op_decrypt_after_server_hello),
+                        args: vec![
+                            Term::Variable(sig.new_var::<Message>((0, 2))), // Encrypted Extensions
+                            Term::Variable(sig.new_var::<Vec<ServerExtension>>((0, 0))),
+                            client_hello, // for transcript
+                            Term::Variable(sig.new_var::<Message>((0, 0))), // for transcript
+                        ],
+                    },
+                }),
+            },
+            // todo input step for server to send the Finish message
+        ],
     };
 
     trace

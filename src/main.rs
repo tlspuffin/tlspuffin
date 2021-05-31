@@ -19,6 +19,7 @@ mod term;
 mod tests;
 mod trace;
 mod variable_data;
+mod tls;
 
 fn main() {
     fn init_logger() {

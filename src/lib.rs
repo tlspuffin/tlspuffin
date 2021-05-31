@@ -11,3 +11,4 @@ pub mod variable_data;
 mod openssl_binding;
 mod tests;
 mod debug;
+mod tls;

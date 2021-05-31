@@ -2,25 +2,30 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use rand::{random, seq::SliceRandom};
+use rand::seq::SliceRandom;
 use ring::{
     hkdf,
-    hkdf::{KeyType, Prk, HKDF_SHA256},
+    hkdf::{Prk, HKDF_SHA256},
     hmac,
     hmac::Key,
     rand::SystemRandom,
 };
+use rustls::cipher::{new_tls13_read, new_tls13_write, GcmMessageEncrypter};
+use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::ExtensionType;
-use rustls::internal::msgs::handshake::ECDHEServerKeyExchange;
+use rustls::internal::msgs::handshake::HasServerExtensions;
 use rustls::internal::msgs::message::OpaqueMessage;
+use rustls::key_schedule::{
+    KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
+};
+use rustls::kx_group::X25519;
+use rustls::suites::TLS13_AES_128_GCM_SHA256;
 use rustls::{
     internal::msgs::{
-        alert::AlertMessagePayload,
         base::{Payload, PayloadU16},
         ccs::ChangeCipherSpecPayload,
-        codec::Codec,
         enums::{
-            AlertDescription, Compression,
+            Compression,
             ContentType::{ApplicationData, ChangeCipherSpec, Handshake},
             HandshakeType, NamedGroup, ServerNameType,
         },
@@ -32,74 +37,16 @@ use rustls::{
         },
         message::{Message, MessagePayload},
     },
-    CipherSuite, ProtocolVersion, SignatureScheme,
+    kx, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
+    ALL_KX_GROUPS,
 };
 use HandshakePayload::EncryptedExtensions;
 
 use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
-
-// -----
-// utils
-// -----
-
-enum SecretKind {
-    ResumptionPSKBinderKey,
-    ClientEarlyTrafficSecret,
-    ClientHandshakeTrafficSecret,
-    ServerHandshakeTrafficSecret,
-    ClientApplicationTrafficSecret,
-    ServerApplicationTrafficSecret,
-    ExporterMasterSecret,
-    ResumptionMasterSecret,
-    DerivedSecret,
-}
-
-impl SecretKind {
-    fn to_bytes(&self) -> &'static [u8] {
-        match self {
-            SecretKind::ResumptionPSKBinderKey => b"res binder",
-            SecretKind::ClientEarlyTrafficSecret => b"c e traffic",
-            SecretKind::ClientHandshakeTrafficSecret => b"c hs traffic",
-            SecretKind::ServerHandshakeTrafficSecret => b"s hs traffic",
-            SecretKind::ClientApplicationTrafficSecret => b"c ap traffic",
-            SecretKind::ServerApplicationTrafficSecret => b"s ap traffic",
-            SecretKind::ExporterMasterSecret => b"exp master",
-            SecretKind::ResumptionMasterSecret => b"res master",
-            SecretKind::DerivedSecret => b"derived",
-        }
-    }
-}
-
-fn derive_secret<L, F, T>(
-    secret: &hkdf::Prk,
-    kind: SecretKind,
-    algorithm: L,
-    context: &Vec<u8>,
-    into: F,
-) -> T
-where
-    L: KeyType,
-    F: for<'b> FnOnce(hkdf::Okm<'b, L>) -> T,
-{
-    const LABEL_PREFIX: &[u8] = b"tls13 ";
-
-    let label = kind.to_bytes();
-    let output_len = u16::to_be_bytes(algorithm.len() as u16);
-    let label_len = u8::to_be_bytes((LABEL_PREFIX.len() + label.len()) as u8);
-    let context_len = u8::to_be_bytes(context.len() as u8);
-
-    let info = &[
-        &output_len[..],
-        &label_len[..],
-        LABEL_PREFIX,
-        label,
-        &context_len[..],
-        context,
-    ];
-    let okm = secret.expand(info, algorithm).unwrap();
-    into(okm)
-}
+use crate::tls::derive::{derive_secret, SecretKind};
+use crate::tls::deterministic_key_exchange;
+use std::convert::TryFrom;
 
 // ----
 // Types
@@ -231,6 +178,83 @@ pub fn op_compressions() -> Vec<Compression> {
     vec![Compression::Null]
 }
 
+fn prepare_read_key(
+    server_public_key: &[u8],
+    client_hello: &Message,
+    server_hello: &Message,
+) -> (&'static SupportedCipherSuite, Prk) {
+    let client_random = &[1u8; 32]; // todo see op_random()
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+
+    let group = NamedGroup::X25519;
+    let skxg = kx::KeyExchange::choose(group, &ALL_KX_GROUPS).unwrap();
+
+    // generates an ephemeral key: ring::agreement::EphemeralPrivateKey::generate
+    //let our_key_share: kx::KeyExchange = kx::KeyExchange::start(skxg).unwrap();
+
+    // always the same value
+    let our_key_share: kx::KeyExchange = deterministic_key_exchange(skxg);
+
+    let shared = our_key_share.complete(server_public_key).unwrap();
+
+    let key_log = NoKeyLog {};
+
+    let mut key_schedule =
+        KeyScheduleNonSecret::new(suite.hkdf_algorithm).into_handshake(&shared.shared_secret);
+
+    // let master_secret = &[0; 10]; // todo ?
+    // let early_key_schedule = KeyScheduleEarly::new(suite.hkdf_algorithm, master_secret);
+    // let mut key_schedule = early_key_schedule.into_handshake(shared.shared_secret.as_slice());
+
+    let mut transcript = HandshakeHash::new();
+    transcript.start_hash(&suite.get_hash());
+    // todo transcript
+    transcript.add_message(&client_hello);
+    transcript.add_message(&server_hello);
+    let hash_at_client_recvd_server_hello = transcript.get_current_hash();
+    println!("{:#?}", hash_at_client_recvd_server_hello);
+
+    let write_key = key_schedule.server_handshake_traffic_secret(
+        &hash_at_client_recvd_server_hello, // todo ?
+        &key_log,
+        client_random,
+    );
+
+    (suite, write_key)
+}
+
+/*pub fn op_encrypt(message: &OpaqueMessage, server_public_key: &[u8], ) -> OpaqueMessage {
+    let (suite, key) = prepare_read_key(server_public_key);
+    let encrypter = new_tls13_write(suite, &key);
+    let seq = 0; // todo ?
+    encrypter.encrypt(message.borrow(), seq).unwrap()
+}*/
+
+pub fn op_decrypt_after_server_hello(
+    application_data: &Message,
+    server_extensions: &Vec<ServerExtension>,
+    client_hello: &Message,
+    server_hello: &Message,
+) -> Message {
+    let server_extension = server_extensions
+        .find_extension(ExtensionType::KeyShare)
+        .unwrap();
+
+    if let ServerExtension::KeyShare(ks) = server_extension {
+        let server_public_key = ks.payload.0.as_slice();
+
+        let (suite, key) = prepare_read_key(server_public_key, client_hello, server_hello);
+        let decrypter = new_tls13_read(suite, &key);
+        let seq = 0; // todo ?
+        let message = decrypter
+            .decrypt(OpaqueMessage::from(application_data.clone()), seq)
+            .unwrap();
+        Message::try_from(message.clone()).unwrap()
+    } else {
+        panic!();
+    }
+}
+
 pub fn op_server_name_extension() -> ClientExtension {
     let dns_name = "maxammann.org";
     ClientExtension::ServerName(vec![ServerName {
@@ -257,10 +281,11 @@ pub fn op_signature_algorithm_extension() -> ClientExtension {
 
 pub fn op_key_share_extension() -> ClientExtension {
     //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
-    let key = Vec::from([42; 32]); // 32 byte public key
+    //let key = Vec::from([42; 32]); // 32 byte public key
+    let our_key_share: kx::KeyExchange = deterministic_key_exchange(&X25519);
     ClientExtension::KeyShare(vec![KeyShareEntry {
         group: NamedGroup::X25519,
-        payload: PayloadU16::new(key),
+        payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
     }])
 }
 
@@ -272,7 +297,10 @@ pub fn op_extensions_new() -> Vec<ClientExtension> {
     vec![]
 }
 
-pub fn op_extensions_append(extensions: &Vec<ClientExtension>, extension: &ClientExtension) -> Vec<ClientExtension> {
+pub fn op_extensions_append(
+    extensions: &Vec<ClientExtension>,
+    extension: &ClientExtension,
+) -> Vec<ClientExtension> {
     let mut new_extensions = extensions.clone();
     new_extensions.push(extension.clone());
     new_extensions
@@ -311,7 +339,7 @@ pub fn op_client_handshake_traffic_secret(secret: &hkdf::Prk, hs_hash: &Vec<u8>)
     secret
 }
 
-pub fn op_random_cipher_suite() -> CipherSuite {
+/*pub fn op_random_cipher_suite() -> CipherSuite {
     *vec![
         CipherSuite::TLS13_AES_128_CCM_SHA256,
         CipherSuite::TLS13_AES_128_CCM_8_SHA256,
@@ -344,7 +372,7 @@ pub fn op_random_extensions() -> Vec<ClientExtension> {
         key_share,
         supported_versions,
     ]
-}
+}*/
 
 // ----
 // Utils
@@ -452,17 +480,14 @@ register_fn!(
     op_encrypted_certificate,
     op_certificate,
     op_application_data,
-    op_random_cipher_suite,
     op_session_id,
     op_protocol_version12,
     op_random,
-    op_random_compression,
     op_server_name_extension,
     op_signature_algorithm_extension,
     op_key_share_extension,
     op_supported_versions_extension,
     op_x25519_support_group_extension,
-    op_random_extensions,
     op_concat_messages_2,
     op_concat_messages_3,
 );
