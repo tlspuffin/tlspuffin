@@ -1,6 +1,4 @@
-use rustls::internal::msgs::handshake::{
-    CertificatePayload, ServerKeyExchangePayload,
-};
+use rustls::internal::msgs::handshake::{CertificatePayload, ServerKeyExchangePayload};
 use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{
@@ -12,15 +10,7 @@ use rustls::{
 };
 
 use crate::agent::TLSVersion;
-use crate::term::op_impl::{
-    new_transcript, op_append_transcript, op_attack_cve_2021_3449, op_change_cipher_spec12,
-    op_cipher_suites, op_client_key_exchange, op_compressions, op_decrypt, op_encrypt,
-    op_extensions_append, op_extensions_new, op_finished, op_handshake_finished12,
-    op_key_share_extension, op_protocol_version12, op_random, op_seq_0, op_seq_1, op_seq_2,
-    op_seq_3, op_server_certificate, op_server_hello_done, op_server_key_exchange, op_session_id,
-    op_signature_algorithm_extension, op_supported_versions_extension, op_verify_data,
-    op_x25519_support_group_extension,
-};
+use crate::term::op_impl::*;
 use crate::trace::AgentDescriptor;
 use crate::{
     agent::AgentName,
@@ -203,7 +193,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     let op_server_hello_done = sig.new_op(&op_server_hello_done);
     let op_client_key_exchange = sig.new_op(&op_client_key_exchange);
     let op_change_cipher_spec12 = sig.new_op(&op_change_cipher_spec12);
-    let op_handshake_finished12 = sig.new_op(&op_handshake_finished12);
+    let op_handshake_finished12 = sig.new_op(&op_opaque_handshake_message);
 
     Trace {
         steps: vec![
@@ -266,8 +256,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                     recipe: Term::Application {
                         op: op_server_key_exchange.clone(),
                         args: vec![
-                            Term::Variable(sig.new_var::<ServerKeyExchangePayload>((1, 2))),
-                            //Term::Variable(sig.new_var::<ECDHEServerKeyExchange>((1, 2))),
+                            Term::Variable(sig.new_var::<Payload>((1, 2))),
                         ],
                     },
                 }),
@@ -395,76 +384,38 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
-    let op_client_hello = s.new_op(&op_client_hello);
-    let op_application_data = s.new_op(&op_application_data);
-    let op_extensions_append = s.new_op(&op_extensions_append);
 
-    let client_hello = Term::Application {
-        op: op_client_hello,
-        args: vec![
-            Term::Application {
-                op: s.new_op(&op_protocol_version12),
-                args: vec![],
-            },
-            Term::Application {
-                op: s.new_op(&op_random),
-                args: vec![],
-            },
-            Term::Application {
-                op: s.new_op(&op_session_id),
-                args: vec![],
-            },
-            // TLS13_AES_128_GCM_SHA256
-            Term::Application {
-                op: s.new_op(&op_cipher_suites),
-                args: vec![],
-            },
-            Term::Application {
-                op: s.new_op(&op_compressions),
-                args: vec![],
-            },
-            Term::Application {
-                op: op_extensions_append.clone(),
-                args: vec![
-                    Term::Application {
-                        op: op_extensions_append.clone(),
-                        args: vec![
-                            Term::Application {
-                                op: op_extensions_append.clone(),
-                                args: vec![
-                                    Term::Application {
-                                        op: op_extensions_append.clone(),
-                                        args: vec![
-                                            Term::Application {
-                                                op: s.new_op(&op_extensions_new),
-                                                args: vec![],
-                                            },
-                                            Term::Application {
-                                                op: s.new_op(&op_x25519_support_group_extension),
-                                                args: vec![],
-                                            },
-                                        ],
-                                    },
-                                    Term::Application {
-                                        op: s.new_op(&op_signature_algorithm_extension),
-                                        args: vec![],
-                                    },
-                                ],
-                            },
-                            Term::Application {
-                                op: s.new_op(&op_key_share_extension),
-                                args: vec![],
-                            },
-                        ],
-                    },
-                    Term::Application {
-                        op: s.new_op(&op_supported_versions_extension),
-                        args: vec![],
-                    },
-                ],
-            },
-        ],
-    };
+    let client_hello = app!(
+        s,
+        op_client_hello,
+        app_const!(s, op_protocol_version12),
+        app_const!(s, op_random),
+        app_const!(s, op_session_id),
+        // force TLS13_AES_128_GCM_SHA256
+        app_const!(s, op_cipher_suites),
+        app_const!(s, op_compressions),
+        app!(
+            s,
+            op_extensions_append,
+            app!(
+                s,
+                op_extensions_append,
+                app!(
+                    s,
+                    op_extensions_append,
+                    app!(
+                        s,
+                        op_extensions_append,
+                        app_const!(s, op_extensions_new),
+                        app_const!(s, op_x25519_support_group_extension),
+                    ),
+                    app_const!(s, op_signature_algorithm_extension)
+                ),
+                app_const!(s, op_key_share_extension)
+            ),
+            app_const!(s, op_supported_versions_extension)
+        ),
+    );
 
     let server_hello_transcript = app!(
         s,
@@ -585,6 +536,156 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                         var!(s, Vec<ServerExtension>, (0, 0)),
                         server_hello_transcript.clone(),
                         app_const!(s, op_seq_0) // sequence 0
+                    ),
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
+    let mut s = Signature::default();
+
+    let client_hello = app!(
+        s,
+        op_client_hello,
+        app_const!(s, op_protocol_version12),
+        app_const!(s, op_random),
+        app_const!(s, op_session_id),
+        // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        app_const!(s, op_cipher_suites12),
+        app_const!(s, op_compressions),
+        // todo We are not sending RenegotiationInfo, CertificateStatusRequest Extensions
+        app!(
+            s,
+            op_extensions_append,
+            app!(
+                s,
+                op_extensions_append,
+                app!(
+                    s,
+                    op_extensions_append,
+                    app!(
+                        s,
+                        op_extensions_append,
+                        app_const!(s, op_extensions_new),
+                        app_const!(s, op_x25519_support_group_extension),
+                    ),
+                    app_const!(s, op_signature_algorithm_extension)
+                ),
+                app_const!(s, op_ec_point_formats)
+            ),
+            app_const!(s, op_signed_certificate_timestamp)
+        ),
+    );
+
+    let server_hello_transcript = app!(
+        s,
+        op_append_transcript,
+        app!(
+            s,
+            op_append_transcript,
+            app_const!(s, new_transcript12),
+            client_hello.clone(), // ClientHello
+        ),
+        var!(s, Message, (0, 0)), // plaintext ServerHello
+    );
+
+    let certificate_transcript = app!(
+        s,
+        op_append_transcript,
+        server_hello_transcript.clone(),
+        var!(s, Message, (0, 1)), // Certificate
+    );
+
+    let server_key_exchange_transcript = app!(
+        s,
+        op_append_transcript,
+        certificate_transcript.clone(),
+        var!(s, Message, (0, 2)), // ServerKeyExchange
+    );
+
+    let server_hello_done_transcript = app!(
+        s,
+        op_append_transcript,
+        server_key_exchange_transcript.clone(),
+        var!(s, Message, (0, 3)), // ServerHelloDone
+    );
+
+    let client_key_exchange = app!(
+        s,
+        op_client_key_exchange,
+        app!(
+            s,
+            op_new_pubkey12,
+            app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2)))
+        )
+    );
+
+    let client_key_exchange_transcript = app!(
+        s,
+        op_append_transcript,
+        server_hello_done_transcript.clone(),
+        client_key_exchange.clone()
+    );
+    let trace = Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_2,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_2,
+                server: true,
+            },
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: client_hello.clone(),
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction { id: 0 }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: client_key_exchange.clone(),
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: app_const!(s, op_change_cipher_spec12),
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: app!(
+                        s,
+                        op_encrypt12,
+                        app!(
+                            s,
+                            op_finished12,
+                            app!(
+                                s,
+                                op_sign_transcript,
+                                var!(s, Random, (0, 0)),
+                                app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                                client_key_exchange_transcript.clone()
+                            )
+                        ),
+                        var!(s, Random, (0, 0)),
+                        app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                        app_const!(s, op_seq_0)
                     ),
                 }),
             },

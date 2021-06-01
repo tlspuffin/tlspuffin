@@ -8,6 +8,7 @@ use rustls::{
     },
     CipherSuite,
 };
+use rustls::internal::msgs::handshake::ServerKeyExchangePayload;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -115,7 +116,14 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                     todo!()
                 }
                 HandshakePayload::ServerKeyExchange(ske) => {
-                    vec![Box::new(message.clone()), Box::new(ske.clone())]
+                  match ske {
+                      ServerKeyExchangePayload::ECDHE(ecdhe) => {
+                          vec![Box::new(message.clone()), Box::new(ecdhe.clone())]
+                      }
+                      ServerKeyExchangePayload::Unknown(unknown) => {
+                          vec![Box::new(message.clone()), Box::new(unknown.clone())]
+                      }
+                  }
                 }
                 HandshakePayload::CertificateRequest(_) => {
                     todo!()

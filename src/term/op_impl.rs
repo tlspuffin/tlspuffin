@@ -1,10 +1,12 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::ops::Deref;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rand::seq::SliceRandom;
+use rand::Fill;
+use ring::agreement::PublicKey;
 use ring::{
     hkdf,
     hkdf::{Prk, HKDF_SHA256},
@@ -12,15 +14,20 @@ use ring::{
     hmac::Key,
     rand::SystemRandom,
 };
-use rustls::cipher::{new_tls13_read, new_tls13_write, GcmMessageEncrypter};
+use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write, GcmMessageEncrypter};
+use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
+use rustls::internal::msgs::base::PayloadU8;
+use rustls::internal::msgs::codec::{Codec, Reader};
 use rustls::internal::msgs::enums::ExtensionType;
-use rustls::internal::msgs::handshake::HasServerExtensions;
+use rustls::internal::msgs::handshake::{HasServerExtensions, ServerECDHParams};
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::key_schedule::{
     KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
 };
+use rustls::kx::KeyExchangeResult;
 use rustls::kx_group::X25519;
+use rustls::suites::Tls12CipherSuite;
 use rustls::{
     internal::msgs::{
         base::{Payload, PayloadU16},
@@ -38,7 +45,7 @@ use rustls::{
         },
         message::{Message, MessagePayload},
     },
-    kx, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
+    kx, tls12, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
     ALL_KX_GROUPS,
 };
 use HandshakePayload::EncryptedExtensions;
@@ -504,12 +511,12 @@ pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
     }
 }
 
-pub fn op_server_key_exchange(ske_payload: &ServerKeyExchangePayload) -> Message {
+pub fn op_server_key_exchange(data: &Payload) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ServerKeyExchange,
-            payload: HandshakePayload::ServerKeyExchange(ske_payload.clone()),
+            payload: HandshakePayload::ServerKeyExchange(ServerKeyExchangePayload::Unknown(data.clone())),
         }),
     }
 }
@@ -541,12 +548,112 @@ pub fn op_change_cipher_spec12() -> Message {
     }
 }
 
-pub fn op_handshake_finished12(data: &Payload) -> OpaqueMessage {
+pub fn op_opaque_handshake_message(data: &Payload) -> OpaqueMessage {
     OpaqueMessage {
         typ: Handshake,
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: data.clone(),
     }
+}
+
+// ----
+// seed_client_attacker12()
+// ----
+
+pub fn op_cipher_suites12() -> Vec<CipherSuite> {
+    vec![CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256]
+}
+
+pub fn op_signed_certificate_timestamp() -> ClientExtension {
+    ClientExtension::SignedCertificateTimestampRequest
+}
+
+pub fn op_ec_point_formats() -> ClientExtension {
+    ClientExtension::ECPointFormats(vec![
+        rustls::internal::msgs::enums::ECPointFormat::Uncompressed,
+    ])
+}
+
+pub fn new_transcript12() -> HandshakeHash {
+    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+
+    let mut transcript = HandshakeHash::new();
+    transcript.start_hash(&suite.get_hash());
+    transcript
+}
+
+pub fn op_decode_ecdh_params(payload: &Payload) -> ServerECDHParams {
+    let mut rd = Reader::init(payload.0.as_slice());
+    ServerECDHParams::read(&mut rd).unwrap()
+}
+
+fn new_key_exchange_result(server_ecdh_params: &ServerECDHParams) -> KeyExchangeResult {
+    let group = NamedGroup::X25519; // todo
+    let skxg = kx::KeyExchange::choose(group, &ALL_KX_GROUPS).unwrap();
+    let kx: kx::KeyExchange = deterministic_key_exchange(skxg);
+    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0).unwrap();
+    kxd
+}
+
+pub fn op_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Payload {
+    let kxd = new_key_exchange_result(server_ecdh_params);
+    let mut buf = Vec::new();
+    let ecpoint = PayloadU8::new(Vec::from(kxd.pubkey.as_ref()));
+    ecpoint.encode(&mut buf);
+    Payload::new(buf)
+}
+
+fn new_secrets(server_random: &Random, server_ecdh_params: &ServerECDHParams) -> ConnectionSecrets {
+    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+
+    let mut server_random_bytes = vec![0; 32];
+
+    server_random.write_slice(&mut server_random_bytes);
+
+    let randoms = ConnectionRandoms {
+        we_are_client: true,
+        client: [1; 32], // todo
+        server: server_random_bytes.try_into().unwrap(),
+    };
+    let kxd = new_key_exchange_result(server_ecdh_params);
+    let suite12 = Tls12CipherSuite::try_from(suite).unwrap();
+    let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
+    secrets
+}
+
+pub fn op_encrypt12(
+    message: &Message,
+    server_random: &Random,
+    server_ecdh_params: &ServerECDHParams,
+    sequence: &u64,
+) -> OpaqueMessage {
+    let secrets = new_secrets(server_random, server_ecdh_params);
+
+    let (decrypter, encrypter) = new_tls12(&secrets);
+    encrypter
+        .encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)
+        .unwrap()
+}
+
+pub fn op_finished12(data: &Payload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::Finished,
+            payload: HandshakePayload::Finished(data.clone()),
+        }),
+    }
+}
+
+pub fn op_sign_transcript(
+    server_random: &Random,
+    server_ecdh_params: &ServerECDHParams,
+    transcript: &HandshakeHash,
+) -> Payload {
+    let secrets = new_secrets(server_random, server_ecdh_params);
+
+    let vh = transcript.get_current_hash();
+    Payload::new(secrets.client_verify_data(&vh))
 }
 
 // ----
@@ -590,7 +697,7 @@ register_fn!(
     op_extensions_append,
     op_extensions_new,
     op_finished,
-    op_handshake_finished12,
+    op_finished12,
     op_hmac256,
     op_hmac256_new_key,
     op_key_share_extension,
