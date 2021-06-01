@@ -27,19 +27,42 @@ pub enum Term {
     Application { op: Operator, args: Vec<Term> },
 }
 
-impl Term {
+/// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
+/// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
+fn remove_prefix(str: &str) -> String {
+    let split: Option<(&str, &str)> = str.split_inclusive("<").collect_tuple();
 
-    /// Serialize a `Term`.
+    if let Some((non_generic, generic)) = split {
+        if let Some(pos) = non_generic.rfind("::") {
+            non_generic[pos + 2..].to_string() + generic
+        } else {
+          non_generic.to_string() + generic
+        }
+    } else {
+        if let Some(pos) = str.rfind("::") {
+            str[pos + 2..].to_string()
+        } else {
+            str.to_string()
+        }
+    }
+}
+
+impl Term {
     pub fn display(&self) -> String {
+        self.display_at_depth(0)
+    }
+
+    fn display_at_depth(&self, depth: usize) -> String {
+        let tabs = "\t".repeat(depth);
         match self {
-            Term::Variable(ref v) => format!("{}", v),
+            Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ_name.as_str())),
             Term::Application { ref op, ref args } => {
-                let op_str = op.display();
+                let op_str = remove_prefix(op.name());
                 if args.is_empty() {
-                    op_str
+                    format!("{}{}", tabs, op_str)
                 } else {
-                    let args_str = args.iter().map(Term::display).join(" ");
-                    format!("{}({})", op_str, args_str)
+                    let args_str = args.iter().map(|arg| arg.display_at_depth(depth + 1)).join(",\n");
+                    format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
                 }
             }
         }
@@ -109,7 +132,6 @@ impl Term {
         }
     }
 }
-
 
 #[macro_export]
 macro_rules! app_const {
