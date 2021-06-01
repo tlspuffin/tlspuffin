@@ -257,10 +257,6 @@ pub fn op_verify_data(
 
     let bytes = pending
         .sign_client_finish(&verify_transcript.get_current_hash());
-
-    println!("client_handshake_traffic_secret_transcript.get_current_hash() {:?}", &client_handshake_traffic_secret_transcript.get_current_hash());
-    println!("verify_transcript.get_current_hash() {:?}", &verify_transcript.get_current_hash());
-    println!("Finish hash  {:?}", bytes);
     Payload::new(
         bytes.as_ref(),
     )
@@ -278,13 +274,13 @@ pub fn op_append_transcript(transcript: &HandshakeHash, message: &Message) -> Ha
     let mut new_transcript: HandshakeHash = transcript.clone();
     new_transcript.add_message(message);
 
-    match &message.payload {
+/*    match &message.payload {
         MessagePayload::Alert(_) => {}
         MessagePayload::Handshake(h) => { println!("add_message() {:?}", h.typ);}
         MessagePayload::ChangeCipherSpec(_) => {}
         MessagePayload::ApplicationData(_) => {}
     }
-    println!("add_message() {:?}", &new_transcript.get_current_hash());
+    println!("add_message() {:?}", &new_transcript.get_current_hash());*/
     new_transcript
 }
 
