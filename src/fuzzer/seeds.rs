@@ -149,27 +149,22 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Output(OutputAction { id: 2 }),
             },
-            /*
-            todo
-             missing:
-                // CCS Client -> Server
-                Step {
-                    agent: server_openssl,
-                    action: Action::Input(InputAction {
-                        recipe: Term::Application {
-                            op: op_change_cipher_spec.clone(),
-                            args: vec![],
-                        },
-                    }),
-                },
-            */
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: Term::Application {
+                        op: op_change_cipher_spec.clone(),
+                        args: vec![],
+                    },
+                }),
+            },
             // Finished Client -> Server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((2, 0)))],
+                        args: vec![Term::Variable(sig.new_var::<Payload>((2, 1)))],
                     },
                 }),
             },
@@ -570,7 +565,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Output(OutputAction { id: 0 }),
             },
-/*            Step {
+            /*            Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: server_finished.clone()
