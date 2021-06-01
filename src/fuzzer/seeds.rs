@@ -423,7 +423,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
         app!(
             s,
             op_append_transcript,
-            app_const!(s, new_transcript),
+            app_const!(s, op_new_transcript),
             client_hello.clone(), // ClientHello
         ),
         var!(s, Message, (0, 0)), // plaintext ServerHello

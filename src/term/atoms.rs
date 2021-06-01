@@ -148,7 +148,7 @@ mod fn_container {
 
                     let (shape, dynamic_fn) = REGISTERED_FN
                         .get(name)
-                        .ok_or(de::Error::missing_field("could not find function"))?;
+                        .ok_or(de::Error::custom(format!("could not find function {}", name)))?;
                     // todo check if shape matches
                     Ok(FnContainer {
                         shape: DynamicFunctionShape {
@@ -196,7 +196,7 @@ mod fn_container {
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
                     let (shape, dynamic_fn) = REGISTERED_FN
                         .get(name)
-                        .ok_or(de::Error::missing_field("could not find function"))?;
+                        .ok_or(de::Error::custom(format!("Failed to link function symbol: Could not find function {}", name)))?;
                     // todo check if shape matches
                     let argument_types =
                         arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;

@@ -123,9 +123,42 @@ pub mod integration {
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
+    use crate::fuzzer::seeds::{seed_client_attacker12, seed_client_attacker};
 
     #[test]
-    fn test_serialisation_json() {
+    fn test_serialisation_seed_client_attacker_json() {
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_client_attacker(client, server);
+
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+        println!("serialized = {}", serialized1);
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_serialisation_seed_client_attacker12_json() {
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_client_attacker12(client, server);
+
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+        println!("serialized = {}", serialized1);
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_serialisation_seed_successful_json() {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -141,7 +174,7 @@ pub mod integration {
     }
 
     #[test]
-    fn test_serialisation_postcard() {
+    fn test_serialisation_seed_successful_postcard() {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();

@@ -266,7 +266,7 @@ pub fn op_verify_data(
     Payload::new(bytes.as_ref())
 }
 
-pub fn new_transcript() -> HandshakeHash {
+pub fn op_new_transcript() -> HandshakeHash {
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -516,7 +516,9 @@ pub fn op_server_key_exchange(data: &Payload) -> Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ServerKeyExchange,
-            payload: HandshakePayload::ServerKeyExchange(ServerKeyExchangePayload::Unknown(data.clone())),
+            payload: HandshakePayload::ServerKeyExchange(ServerKeyExchangePayload::Unknown(
+                data.clone(),
+            )),
         }),
     }
 }
@@ -574,7 +576,7 @@ pub fn op_ec_point_formats() -> ClientExtension {
     ])
 }
 
-pub fn new_transcript12() -> HandshakeHash {
+pub fn op_new_transcript12() -> HandshakeHash {
     let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -685,14 +687,18 @@ register_fn!(
     op_change_cipher_spec,
     op_change_cipher_spec12,
     op_cipher_suites,
+    op_cipher_suites12,
     op_client_handshake_traffic_secret,
     op_client_hello,
     op_client_key_exchange,
     op_compressions,
     op_concat_messages_2,
     op_concat_messages_3,
+    op_decode_ecdh_params,
     op_decrypt,
+    op_ec_point_formats,
     op_encrypt,
+    op_encrypt12,
     op_encrypted_certificate,
     op_extensions_append,
     op_extensions_new,
@@ -701,6 +707,8 @@ register_fn!(
     op_hmac256,
     op_hmac256_new_key,
     op_key_share_extension,
+    op_new_pubkey12,
+    op_opaque_handshake_message,
     op_protocol_version12,
     op_random,
     op_seq_0,
@@ -715,10 +723,14 @@ register_fn!(
     op_server_key_exchange,
     op_server_name_extension,
     op_session_id,
+    op_sign_transcript,
     op_signature_algorithm_extension,
+    op_signed_certificate_timestamp,
     op_supported_versions_extension,
     op_verify_data,
     op_x25519_support_group_extension,
+    op_new_transcript,
+    op_new_transcript12,
 );
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro
