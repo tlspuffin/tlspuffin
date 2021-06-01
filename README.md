@@ -49,6 +49,7 @@ in [benchmark.rs](benches/benchmark.rs). You can run them using:
 
 ```bash
 cargo bench
+xdg-open target/criterion/report/index.html
 ```
 
 Results:

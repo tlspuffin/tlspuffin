@@ -1,7 +1,12 @@
+use std::any::Any;
+
 use criterion::{criterion_group, criterion_main, Criterion};
 use ring::hmac::{Key, HMAC_SHA256};
-use std::any::Any;
-use tlspuffin::{make_dynamic, op_hmac256};
+
+use tlspuffin::agent::AgentName;
+use tlspuffin::fuzzer::seeds::{seed_client_attacker, seed_successful, seed_successful12};
+use tlspuffin::term::{make_dynamic, op_impl::op_hmac256};
+use tlspuffin::trace::TraceContext;
 
 fn benchmark_dynamic(c: &mut Criterion) {
     let mut group = c.benchmark_group("op_hmac256");
@@ -29,5 +34,47 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.finish()
 }
 
-criterion_group!(benches, benchmark_dynamic);
+fn benchmark_seeds(c: &mut Criterion) {
+    let mut group = c.benchmark_group("seeds");
+
+    group.bench_function("seed_successful", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_successful(client, server);
+
+            trace.spawn_agents(&mut ctx);
+            trace.execute(&mut ctx);
+        })
+    });
+
+    group.bench_function("seed_successful12", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_successful12(client, server);
+
+            trace.spawn_agents(&mut ctx);
+            trace.execute(&mut ctx);
+        })
+    });
+
+    group.bench_function("seed_client_attacker", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_client_attacker(client, server);
+
+            trace.spawn_agents(&mut ctx);
+            trace.execute(&mut ctx);
+        })
+    });
+
+    group.finish()
+}
+
+criterion_group!(benches, benchmark_dynamic, benchmark_seeds);
 criterion_main!(benches);
