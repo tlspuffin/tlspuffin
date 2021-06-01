@@ -539,6 +539,10 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                     ),
                 }),
             },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction { id: 1 }),
+            },
         ],
     };
 
@@ -587,7 +591,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
         app!(
             s,
             op_append_transcript,
-            app_const!(s, new_transcript12),
+            app_const!(s, op_new_transcript12),
             client_hello.clone(), // ClientHello
         ),
         var!(s, Message, (0, 0)), // plaintext ServerHello
@@ -688,6 +692,10 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
                         app_const!(s, op_seq_0)
                     ),
                 }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction { id: 1 }),
             },
         ],
     };
