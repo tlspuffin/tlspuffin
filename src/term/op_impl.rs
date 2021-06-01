@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::ops::Deref;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -19,14 +21,13 @@ use rustls::key_schedule::{
     KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
 };
 use rustls::kx_group::X25519;
-use rustls::suites::TLS13_AES_128_GCM_SHA256;
 use rustls::{
     internal::msgs::{
         base::{Payload, PayloadU16},
         ccs::ChangeCipherSpecPayload,
         enums::{
             Compression,
-            ContentType::{ApplicationData, ChangeCipherSpec, Handshake},
+            ContentType::{ChangeCipherSpec, Handshake},
             HandshakeType, NamedGroup, ServerNameType,
         },
         handshake::{
@@ -46,7 +47,6 @@ use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
 use crate::tls::derive::{derive_secret, SecretKind};
 use crate::tls::deterministic_key_exchange;
-use std::convert::TryFrom;
 
 // ----
 // Types
@@ -157,6 +157,16 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
 // seed_client_attacker()
 // ----
 
+pub fn op_finished(verify_data: &Payload) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_3, // todo this is not controllable
+        payload: MessagePayload::Handshake(HandshakeMessagePayload {
+            typ: HandshakeType::Finished,
+            payload: HandshakePayload::Finished(verify_data.clone()),
+        }),
+    }
+}
+
 pub fn op_protocol_version12() -> ProtocolVersion {
     ProtocolVersion::TLSv1_2
 }
@@ -178,80 +188,177 @@ pub fn op_compressions() -> Vec<Compression> {
     vec![Compression::Null]
 }
 
-fn prepare_read_key(
+fn prepare_key(
     server_public_key: &[u8],
-    client_hello: &Message,
-    server_hello: &Message,
+    transcript: &HandshakeHash,
+    write: bool,
 ) -> (&'static SupportedCipherSuite, Prk) {
     let client_random = &[1u8; 32]; // todo see op_random()
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let group = NamedGroup::X25519; // todo
+    let mut key_schedule = create_handshake_key_schedule(server_public_key, suite, group);
 
-    let group = NamedGroup::X25519;
+    let key = if write {
+        key_schedule.client_handshake_traffic_secret(
+            &transcript.get_current_hash(),
+            &NoKeyLog {},
+            client_random,
+        )
+    } else {
+        key_schedule.server_handshake_traffic_secret(
+            &transcript.get_current_hash(),
+            &NoKeyLog {},
+            client_random,
+        )
+    };
+
+    (suite, key)
+}
+
+fn create_handshake_key_schedule(
+    server_public_key: &[u8],
+    suite: &SupportedCipherSuite,
+    group: NamedGroup,
+) -> KeyScheduleHandshake {
     let skxg = kx::KeyExchange::choose(group, &ALL_KX_GROUPS).unwrap();
-
-    // generates an ephemeral key: ring::agreement::EphemeralPrivateKey::generate
-    //let our_key_share: kx::KeyExchange = kx::KeyExchange::start(skxg).unwrap();
-
-    // always the same value
+    // Shared Secret
     let our_key_share: kx::KeyExchange = deterministic_key_exchange(skxg);
-
     let shared = our_key_share.complete(server_public_key).unwrap();
 
-    let key_log = NoKeyLog {};
-
-    let mut key_schedule =
+    // Key Schedule without PSK
+    let key_schedule =
         KeyScheduleNonSecret::new(suite.hkdf_algorithm).into_handshake(&shared.shared_secret);
 
-    // let master_secret = &[0; 10]; // todo ?
-    // let early_key_schedule = KeyScheduleEarly::new(suite.hkdf_algorithm, master_secret);
-    // let mut key_schedule = early_key_schedule.into_handshake(shared.shared_secret.as_slice());
+    key_schedule
+}
 
-    let mut transcript = HandshakeHash::new();
-    transcript.start_hash(&suite.get_hash());
-    // todo transcript
-    transcript.add_message(&client_hello);
-    transcript.add_message(&server_hello);
-    let hash_at_client_recvd_server_hello = transcript.get_current_hash();
-    println!("{:#?}", hash_at_client_recvd_server_hello);
+pub fn op_verify_data(
+    server_extensions: &Vec<ServerExtension>,
+    verify_transcript: &HandshakeHash,
+    client_handshake_traffic_secret_transcript: &HandshakeHash,
+) -> Payload {
+    let client_random = &[1u8; 32]; // todo see op_random()
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
-    let write_key = key_schedule.server_handshake_traffic_secret(
-        &hash_at_client_recvd_server_hello, // todo ?
-        &key_log,
+    let group = NamedGroup::X25519; // todo
+
+    let keyshare = get_server_public_key(server_extensions);
+    let server_public_key = keyshare.unwrap().payload.0.as_slice();
+
+    let mut key_schedule = create_handshake_key_schedule(server_public_key, suite, group);
+
+    key_schedule.client_handshake_traffic_secret(
+        &client_handshake_traffic_secret_transcript.get_current_hash(),
+        &NoKeyLog,
         client_random,
     );
 
-    (suite, write_key)
+    let pending = key_schedule.into_traffic_with_client_finished_pending();
+
+    let bytes = pending
+        .sign_client_finish(&verify_transcript.get_current_hash());
+
+    println!("client_handshake_traffic_secret_transcript.get_current_hash() {:?}", &client_handshake_traffic_secret_transcript.get_current_hash());
+    println!("verify_transcript.get_current_hash() {:?}", &verify_transcript.get_current_hash());
+    println!("Finish hash  {:?}", bytes);
+    Payload::new(
+        bytes.as_ref(),
+    )
 }
 
-/*pub fn op_encrypt(message: &OpaqueMessage, server_public_key: &[u8], ) -> OpaqueMessage {
-    let (suite, key) = prepare_read_key(server_public_key);
-    let encrypter = new_tls13_write(suite, &key);
-    let seq = 0; // todo ?
-    encrypter.encrypt(message.borrow(), seq).unwrap()
-}*/
+pub fn new_transcript() -> HandshakeHash {
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
 
-pub fn op_decrypt_after_server_hello(
+    let mut transcript = HandshakeHash::new();
+    transcript.start_hash(&suite.get_hash());
+    transcript
+}
+
+pub fn op_append_transcript(transcript: &HandshakeHash, message: &Message) -> HandshakeHash {
+    let mut new_transcript: HandshakeHash = transcript.clone();
+    new_transcript.add_message(message);
+
+    match &message.payload {
+        MessagePayload::Alert(_) => {}
+        MessagePayload::Handshake(h) => { println!("add_message() {:?}", h.typ);}
+        MessagePayload::ChangeCipherSpec(_) => {}
+        MessagePayload::ApplicationData(_) => {}
+    }
+    println!("add_message() {:?}", &new_transcript.get_current_hash());
+    new_transcript
+}
+
+pub fn op_decrypt(
     application_data: &Message,
     server_extensions: &Vec<ServerExtension>,
-    client_hello: &Message,
-    server_hello: &Message,
+    transcript: &HandshakeHash,
+    sequence: &u64,
 ) -> Message {
+    let keyshare = get_server_public_key(server_extensions);
+
+    let server_public_key = keyshare.unwrap().payload.0.as_slice();
+    let (suite, key) = prepare_key(server_public_key, &transcript, false);
+    let decrypter = new_tls13_read(suite, &key);
+    let message = decrypter
+        .decrypt(OpaqueMessage::from(application_data.clone()), *sequence)
+        .unwrap();
+    let result = Message::try_from(message.clone()).unwrap();
+    return result;
+}
+
+pub fn op_encrypt(
+    some_message: &Message,
+    server_extensions: &Vec<ServerExtension>,
+    transcript: &HandshakeHash,
+    sequence: &u64,
+) -> Message {
+    let keyshare = get_server_public_key(server_extensions);
+
+    let server_public_key = keyshare.unwrap().payload.0.as_slice();
+    let (suite, key) = prepare_key(server_public_key, &transcript, true);
+    let encrypter = new_tls13_write(suite, &key);
+    let application_data = encrypter
+        .encrypt(
+            OpaqueMessage::from(some_message.clone()).borrow(),
+            *sequence,
+        )
+        .unwrap();
+    Message::try_from(application_data.clone()).unwrap()
+}
+
+pub fn op_seq_0() -> u64 {
+    0
+}
+
+pub fn op_seq_1() -> u64 {
+    1
+}
+
+pub fn op_seq_2() -> u64 {
+    2
+}
+
+pub fn op_seq_3() -> u64 {
+    3
+}
+
+pub fn op_seq_4() -> u64 {
+    4
+}
+
+pub fn op_seq_5() -> u64 {
+    5
+}
+
+pub fn get_server_public_key(server_extensions: &Vec<ServerExtension>) -> Option<&KeyShareEntry> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
         .unwrap();
 
-    if let ServerExtension::KeyShare(ks) = server_extension {
-        let server_public_key = ks.payload.0.as_slice();
-
-        let (suite, key) = prepare_read_key(server_public_key, client_hello, server_hello);
-        let decrypter = new_tls13_read(suite, &key);
-        let seq = 0; // todo ?
-        let message = decrypter
-            .decrypt(OpaqueMessage::from(application_data.clone()), seq)
-            .unwrap();
-        Message::try_from(message.clone()).unwrap()
+    if let ServerExtension::KeyShare(keyshare) = server_extension {
+        Some(keyshare)
     } else {
-        panic!();
+        None
     }
 }
 

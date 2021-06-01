@@ -109,3 +109,33 @@ impl Term {
         }
     }
 }
+
+
+#[macro_export]
+macro_rules! app_const {
+    ($sig:ident, $op:ident) => {
+        Term::Application {
+            op: $sig.new_op(&$op),
+            args: vec![],
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! app {
+    ($sig:ident, $op:ident, $($args:expr),*$(,)?) => {
+        Term::Application {
+            op: $sig.new_op(&$op),
+            args: vec![
+                $($args,)*
+            ],
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! var {
+    ($sig:ident, $typ:ty, $id:expr) => {
+        Term::Variable($sig.new_var::<$typ>($id))
+    };
+}
