@@ -255,11 +255,8 @@ pub fn op_verify_data(
 
     let pending = key_schedule.into_traffic_with_client_finished_pending();
 
-    let bytes = pending
-        .sign_client_finish(&verify_transcript.get_current_hash());
-    Payload::new(
-        bytes.as_ref(),
-    )
+    let bytes = pending.sign_client_finish(&verify_transcript.get_current_hash());
+    Payload::new(bytes.as_ref())
 }
 
 pub fn new_transcript() -> HandshakeHash {
@@ -274,7 +271,7 @@ pub fn op_append_transcript(transcript: &HandshakeHash, message: &Message) -> Ha
     let mut new_transcript: HandshakeHash = transcript.clone();
     new_transcript.add_message(message);
 
-/*    match &message.payload {
+    /*    match &message.payload {
         MessagePayload::Alert(_) => {}
         MessagePayload::Handshake(h) => { println!("add_message() {:?}", h.typ);}
         MessagePayload::ChangeCipherSpec(_) => {}
@@ -573,26 +570,48 @@ pub fn op_attack_cve_2021_3449(extensions: &Vec<ClientExtension>) -> Vec<ClientE
 register_fn!(
     REGISTERED_FN,
     REGISTERED_TYPES,
-    op_hmac256_new_key,
+    op_append_transcript,
+    op_application_data,
     op_arbitrary_to_key,
-    op_hmac256,
+    op_attack_cve_2021_3449,
+    op_certificate,
+    op_change_cipher_spec,
+    op_change_cipher_spec12,
+    op_cipher_suites,
     op_client_handshake_traffic_secret,
     op_client_hello,
-    op_server_hello,
-    op_change_cipher_spec,
-    op_encrypted_certificate,
-    op_certificate,
-    op_application_data,
-    op_session_id,
-    op_protocol_version12,
-    op_random,
-    op_server_name_extension,
-    op_signature_algorithm_extension,
-    op_key_share_extension,
-    op_supported_versions_extension,
-    op_x25519_support_group_extension,
+    op_client_key_exchange,
+    op_compressions,
     op_concat_messages_2,
     op_concat_messages_3,
+    op_decrypt,
+    op_encrypt,
+    op_encrypted_certificate,
+    op_extensions_append,
+    op_extensions_new,
+    op_finished,
+    op_handshake_finished12,
+    op_hmac256,
+    op_hmac256_new_key,
+    op_key_share_extension,
+    op_protocol_version12,
+    op_random,
+    op_seq_0,
+    op_seq_1,
+    op_seq_2,
+    op_seq_3,
+    op_seq_4,
+    op_seq_5,
+    op_server_certificate,
+    op_server_hello,
+    op_server_hello_done,
+    op_server_key_exchange,
+    op_server_name_extension,
+    op_session_id,
+    op_signature_algorithm_extension,
+    op_supported_versions_extension,
+    op_verify_data,
+    op_x25519_support_group_extension,
 );
 
 // todo it would be possible generate dynamic functions like in criterion_group! macro

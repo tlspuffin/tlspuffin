@@ -1,5 +1,5 @@
 use rustls::internal::msgs::handshake::{
-    CertificatePayload, ECDHEServerKeyExchange, ServerKeyExchangePayload,
+    CertificatePayload, ServerKeyExchangePayload,
 };
 use rustls::msgs::message::Message;
 use rustls::{
@@ -565,12 +565,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Output(OutputAction { id: 0 }),
             },
-            /*            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: server_finished.clone()
-                }),
-            },*/
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -594,7 +588,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                     ),
                 }),
             },
-            // todo input step for server to send the Finish message
         ],
     };
 
