@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub mod tests {
-    use openssl::rand::rand_bytes;
     use crate::openssl_binding::make_deterministic;
+    use openssl::rand::rand_bytes;
 
     #[test]
     fn test_openssl_no_randomness() {

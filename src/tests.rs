@@ -1,14 +1,14 @@
 #[cfg(test)]
 pub mod tlspuffin {
     use crate::agent::AgentName;
+    use crate::fuzzer::seeds::*;
+    use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::{
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
     use test_env_log::test;
-    use crate::openssl_binding::{openssl_version, make_deterministic};
-    use crate::fuzzer::seeds::*;
 
-    //#[test]
+    //#[test] todo this crashes at it discovers a vulnerability, commented for now
     fn test_seed_cve_2021_3449() {
         make_deterministic();
         let mut ctx = TraceContext::new();
@@ -64,7 +64,6 @@ pub mod tlspuffin {
         println!("{}", server_state);
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
-
 
     #[test]
     fn test_seed_successful() {
@@ -138,11 +137,11 @@ pub mod integration {
     use webpki_roots;
 
     use crate::agent::AgentName;
+    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12};
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
-    use crate::fuzzer::seeds::{seed_client_attacker12, seed_client_attacker};
 
     #[test]
     fn test_serialisation_seed_client_attacker_json() {
@@ -221,7 +220,8 @@ pub mod integration {
         let hello_client = hex::decode(hello_client_hex).unwrap();
         hexdump::hexdump(&hello_client);
 
-        let mut opaque_message = OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
+        let mut opaque_message =
+            OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
 
@@ -238,7 +238,8 @@ pub mod integration {
         let hello_client = hex::decode(hello_client_hex).unwrap();
         hexdump::hexdump(&hello_client);
 
-        let mut opaque_message = OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
+        let mut opaque_message =
+            OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
     #[test]

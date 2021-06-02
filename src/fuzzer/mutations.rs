@@ -11,7 +11,7 @@ use libafl::{
     Error,
 };
 
-use crate::trace::{Trace};
+use crate::trace::Trace;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        DummyMutator<R, S>,

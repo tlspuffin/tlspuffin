@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, type_name, TypeId},
+    any::{type_name, Any, TypeId},
     collections::hash_map::DefaultHasher,
     fmt,
     fmt::Formatter,

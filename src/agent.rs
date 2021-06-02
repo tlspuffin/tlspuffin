@@ -48,9 +48,6 @@ impl Agent {
     }
 
     pub fn from_stream(name: AgentName, stream: Box<dyn Stream>) -> Agent {
-        Agent {
-            name,
-            stream,
-        }
+        Agent { name, stream }
     }
 }

@@ -1,7 +1,7 @@
 use std::any::Any;
 
-use criterion::{Criterion, criterion_group, criterion_main};
-use ring::hmac::{HMAC_SHA256, Key};
+use criterion::{criterion_group, criterion_main, Criterion};
+use ring::hmac::{Key, HMAC_SHA256};
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::seeds::*;

@@ -3,11 +3,10 @@ use std::{any::TypeId, fmt::Formatter};
 
 use libafl::inputs::{HasLen, HasTargetBytes, Input};
 use rustls::internal::msgs::message::OpaqueMessage;
-use rustls::internal::msgs::{
-    message::{Message, MessagePayload::Handshake},
-};
+use rustls::internal::msgs::message::{Message, MessagePayload::Handshake};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::agent::TLSVersion;
 use crate::debug::{debug_message, debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
@@ -18,7 +17,6 @@ use crate::{
     term::{Term, TypeShape},
     variable_data::{extract_variables, VariableData},
 };
-use crate::agent::TLSVersion;
 
 pub type ObservedId = (u16, u16);
 
@@ -108,7 +106,12 @@ impl TraceContext {
         return name;
     }
 
-    pub fn new_openssl_agent(&mut self, name: AgentName, server: bool, tls_version: TLSVersion) -> AgentName {
+    pub fn new_openssl_agent(
+        &mut self,
+        name: AgentName,
+        server: bool,
+        tls_version: TLSVersion,
+    ) -> AgentName {
         return self.add_agent(Agent::new_openssl(name, server, tls_version));
     }
 
@@ -221,7 +224,7 @@ impl fmt::Display for Action {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
-            Action::Output(output)=> write!(f, "{}", output)
+            Action::Output(output) => write!(f, "{}", output),
         }
     }
 }

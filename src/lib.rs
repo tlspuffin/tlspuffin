@@ -8,7 +8,7 @@ pub mod term;
 pub mod trace;
 pub mod variable_data;
 
+mod debug;
 mod openssl_binding;
 mod tests;
-mod debug;
 mod tls;

@@ -1,5 +1,6 @@
 use std::any::Any;
 
+use rustls::internal::msgs::handshake::ServerKeyExchangePayload;
 use rustls::{
     internal::msgs::{
         enums::Compression,
@@ -8,7 +9,6 @@ use rustls::{
     },
     CipherSuite,
 };
-use rustls::internal::msgs::handshake::ServerKeyExchangePayload;
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -115,16 +115,14 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                 HandshakePayload::CertificateTLS13(_c) => {
                     todo!()
                 }
-                HandshakePayload::ServerKeyExchange(ske) => {
-                  match ske {
-                      ServerKeyExchangePayload::ECDHE(ecdhe) => {
-                          vec![Box::new(message.clone()), Box::new(ecdhe.clone())]
-                      }
-                      ServerKeyExchangePayload::Unknown(unknown) => {
-                          vec![Box::new(message.clone()), Box::new(unknown.0.clone())]
-                      }
-                  }
-                }
+                HandshakePayload::ServerKeyExchange(ske) => match ske {
+                    ServerKeyExchangePayload::ECDHE(ecdhe) => {
+                        vec![Box::new(message.clone()), Box::new(ecdhe.clone())]
+                    }
+                    ServerKeyExchangePayload::Unknown(unknown) => {
+                        vec![Box::new(message.clone()), Box::new(unknown.0.clone())]
+                    }
+                },
                 HandshakePayload::CertificateRequest(_) => {
                     todo!()
                 }

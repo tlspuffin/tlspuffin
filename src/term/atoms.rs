@@ -22,12 +22,7 @@ pub struct Variable {
 }
 
 impl Variable {
-    pub fn new(
-        id: u32,
-        typ_name: String,
-        type_shape: TypeShape,
-        observed_id: ObservedId,
-    ) -> Self {
+    pub fn new(id: u32, typ_name: String, type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
             id,
             typ_name,
@@ -51,11 +46,7 @@ pub struct Operator {
 }
 
 impl Operator {
-    pub fn new(
-        id: u32,
-        shape: DynamicFunctionShape,
-        dynamic_fn: Box<dyn DynamicFunction>,
-    ) -> Self {
+    pub fn new(id: u32, shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
             id,
             fn_container: FnContainer { shape, dynamic_fn },
@@ -91,8 +82,8 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::tls::REGISTERED_FN;
     use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::tls::REGISTERED_FN;
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";
@@ -146,9 +137,9 @@ mod fn_container {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                    let (shape, dynamic_fn) = REGISTERED_FN
-                        .get(name)
-                        .ok_or(de::Error::custom(format!("could not find function {}", name)))?;
+                    let (shape, dynamic_fn) = REGISTERED_FN.get(name).ok_or(de::Error::custom(
+                        format!("could not find function {}", name),
+                    ))?;
                     // todo check if shape matches
                     Ok(FnContainer {
                         shape: DynamicFunctionShape {
@@ -194,9 +185,11 @@ mod fn_container {
                     }
 
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-                    let (shape, dynamic_fn) = REGISTERED_FN
-                        .get(name)
-                        .ok_or(de::Error::custom(format!("Failed to link function symbol: Could not find function {}", name)))?;
+                    let (shape, dynamic_fn) =
+                        REGISTERED_FN.get(name).ok_or(de::Error::custom(format!(
+                            "Failed to link function symbol: Could not find function {}",
+                            name
+                        )))?;
                     // todo check if shape matches
                     let argument_types =
                         arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;

@@ -5,14 +5,12 @@ mod term {
     use itertools::Itertools;
     use rustls::internal::msgs::handshake::SessionID;
 
+    use crate::tls::fn_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
+    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES};
     use crate::{
-        term::{
-            Signature, Term,
-        },
+        term::{Signature, Term},
         trace::TraceContext,
     };
-    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES};
-    use crate::tls::fn_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16
@@ -128,6 +126,12 @@ mod term {
     #[test]
     fn test_static_functions() {
         println!("{}", REGISTERED_FN.iter().map(|tuple| tuple.0).join("\n"));
-        println!("{}", REGISTERED_TYPES.iter().map(|tuple| tuple.0.to_string()).join("\n"));
+        println!(
+            "{}",
+            REGISTERED_TYPES
+                .iter()
+                .map(|tuple| tuple.0.to_string())
+                .join("\n")
+        );
     }
 }

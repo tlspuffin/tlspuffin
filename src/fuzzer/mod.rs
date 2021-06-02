@@ -35,14 +35,13 @@ use libafl::{
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 
-
+use crate::openssl_binding::make_deterministic;
 use crate::{
     fuzzer::{mutations::trace_mutations, seeds::seed_successful},
-    trace::{TraceContext},
+    trace::TraceContext,
 };
-use crate::openssl_binding::make_deterministic;
-use libafl::bolts::shmem::{StdShMemProvider, ShMemProvider};
 use itertools::Itertools;
+use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 mod harness;
 mod mutations;
@@ -57,11 +56,8 @@ compile_error!(
     "you can not enable `sancov_pcguard_log` or `sancov_pcguard_libafl` in tests"
 );*/
 
-
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_pcguard_libafl"))]
-compile_error!(
-    "`sancov_pcguard_log` and `sancov_pcguard_libafl` features are mutually exclusive."
-);
+compile_error!("`sancov_pcguard_log` and `sancov_pcguard_libafl` features are mutually exclusive.");
 
 // Use log if explicitely enabled
 #[cfg(all(not(test), feature = "sancov_pcguard_log"))]
@@ -75,13 +71,7 @@ pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
 #[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub static mut MAX_EDGES_NUM: usize = 0;
 
-pub fn start(
-    num_cores: usize,
-    corpus_dirs: &[PathBuf],
-    objective_dir: PathBuf,
-    broker_port: u16,
-) {
-
+pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
     let stats = MultiStats::new(|s| info!("{}", s));
@@ -101,12 +91,12 @@ pub fn start(
         // Feedback to rate the interestingness of an input
         // This one is composed by two Feedbacks in OR
         let feedback = feedback_or!(
-        // New maximization map feedback linked to the edges observer and the feedback state
-        MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
-        // Time feedback, this one does not need a feedback state
-        TimeFeedback::new_with_observer(&time_observer),
-        TimeoutFeedback::new() // todo allow trailing comma
-    );
+            // New maximization map feedback linked to the edges observer and the feedback state
+            MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
+            // Time feedback, this one does not need a feedback state
+            TimeFeedback::new_with_observer(&time_observer),
+            TimeoutFeedback::new() // todo allow trailing comma
+        );
 
         // A feedback to choose if an input is a solution or not
         let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
@@ -177,10 +167,10 @@ pub fn start(
                 });
 
             /*        let mut ctx = TraceContext::new();
-                    let seed = seed_successful(&mut ctx).2;
-                    fuzzer
-                        .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-                        .unwrap();*/
+            let seed = seed_successful(&mut ctx).2;
+            fuzzer
+                .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
+                .unwrap();*/
 
             println!("We imported {} inputs from disk.", state.corpus().count());
         }

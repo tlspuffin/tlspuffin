@@ -1,10 +1,5 @@
-use std::convert::{TryFrom, TryInto};
-use ring::{
-    hkdf::{Prk},
-    hmac,
-    hmac::Key,
-    rand::SystemRandom,
-};
+use crate::tls::key_exchange::deterministic_key_exchange;
+use ring::{hkdf::Prk, hmac, hmac::Key, rand::SystemRandom};
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
@@ -13,15 +8,13 @@ use rustls::internal::msgs::codec::{Codec, Reader};
 use rustls::internal::msgs::enums::{AlertDescription, AlertLevel, ExtensionType};
 use rustls::internal::msgs::handshake::{HasServerExtensions, ServerECDHParams};
 use rustls::internal::msgs::message::OpaqueMessage;
-use rustls::key_schedule::{
-    KeyScheduleHandshake, KeyScheduleNonSecret,
-};
+use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
 use rustls::kx::KeyExchangeResult;
 use rustls::msgs::alert::AlertMessagePayload;
 use rustls::suites::Tls12CipherSuite;
 use rustls::{
     internal::msgs::{
-        base::{Payload},
+        base::Payload,
         ccs::ChangeCipherSpecPayload,
         enums::{
             Compression,
@@ -39,8 +32,8 @@ use rustls::{
     kx, tls12, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
     ALL_KX_GROUPS,
 };
+use std::convert::{TryFrom, TryInto};
 use HandshakePayload::EncryptedExtensions;
-use crate::tls::key_exchange::deterministic_key_exchange;
 
 // ----
 // Concrete implementations

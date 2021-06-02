@@ -1,6 +1,5 @@
-
 use rustls::internal::msgs::base::{PayloadU16, PayloadU8};
-use rustls::internal::msgs::enums::{NamedGroup, ServerNameType, ExtensionType};
+use rustls::internal::msgs::enums::{ExtensionType, NamedGroup, ServerNameType};
 use rustls::internal::msgs::handshake::{
     ClientExtension, KeyShareEntry, ServerName, ServerNamePayload,
 };
@@ -86,7 +85,6 @@ pub fn op_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
 pub fn op_supported_versions_extension() -> ClientExtension {
     ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
 }
-
 
 // ----
 // seed_client_attacker12()

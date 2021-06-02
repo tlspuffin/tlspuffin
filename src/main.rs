@@ -3,9 +3,9 @@ extern crate log;
 
 use std::{env, io::Write, path::PathBuf};
 
+use clap::{crate_authors, crate_name, crate_version, value_t, App, Arg, SubCommand};
 use env_logger::{fmt, Builder, Env};
 use log::Level;
-use clap::{Arg, App, value_t, crate_version, crate_authors, crate_name, SubCommand};
 
 use crate::fuzzer::start;
 use std::fs::File;
@@ -17,9 +17,9 @@ mod io;
 mod openssl_binding;
 mod term;
 mod tests;
+mod tls;
 mod trace;
 mod variable_data;
-mod tls;
 
 fn main() {
     fn init_logger() {
@@ -55,13 +55,9 @@ fn main() {
         .version(crate_version!())
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
-        .args_from_usage(
-            "-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'",
-        ).subcommand(
-        SubCommand::with_name("seed")
-            .about("Generates seeds to ./corpus"))
+        .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
+        .subcommand(SubCommand::with_name("seed").about("Generates seeds to ./corpus"))
         .get_matches();
-
 
     info!("{}", openssl_binding::openssl_version());
 

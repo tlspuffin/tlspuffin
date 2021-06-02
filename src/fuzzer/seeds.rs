@@ -1,25 +1,23 @@
+use rustls::internal::msgs::handshake::{CertificatePayload, ServerKeyExchangePayload};
+use rustls::msgs::message::Message;
 use rustls::{
-    CipherSuite,
     internal::msgs::{
         base::Payload,
         enums::Compression,
         handshake::{ClientExtension, Random, ServerExtension, SessionID},
-    }, ProtocolVersion,
-};
-use rustls::internal::msgs::handshake::{CertificatePayload, ServerKeyExchangePayload};
-use rustls::msgs::message::Message;
-
-use crate::{
-    agent::AgentName,
-    term::{
-        Signature, Term,
     },
-    trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
+    CipherSuite, ProtocolVersion,
 };
-use crate::{app, app_const, var, app1};
+
 use crate::agent::TLSVersion;
 use crate::tls::fn_impl::*;
 use crate::trace::AgentDescriptor;
+use crate::{
+    agent::AgentName,
+    term::{Signature, Term},
+    trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
+};
+use crate::{app, app1, app_const, var};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();

@@ -11,9 +11,9 @@ use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::M
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
+use crate::agent::TLSVersion;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::{debug::debug_binary_message_with_info, openssl_binding};
-use crate::agent::TLSVersion;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);
@@ -102,7 +102,8 @@ impl OpenSSLStream {
             openssl_stream: if server {
                 //let (cert, pkey) = openssl_binding::generate_cert().unwrap();
                 let (cert, pkey) = openssl_binding::rsa_cert().unwrap();
-                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version).unwrap()
+                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)
+                    .unwrap()
             } else {
                 openssl_binding::create_openssl_client(memory_stream, tls_version).unwrap()
             },

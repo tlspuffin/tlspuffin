@@ -2,9 +2,7 @@ use std::convert::TryFrom;
 
 use rustls::internal::msgs::codec::Reader;
 use rustls::internal::msgs::message::OpaqueMessage;
-use rustls::internal::msgs::{
-    message::{Message, MessagePayload},
-};
+use rustls::internal::msgs::message::{Message, MessagePayload};
 
 pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
     debug_binary_message_with_info("", buffer);
@@ -40,7 +38,6 @@ pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
     );
     //info!("{:?}", hexdump::hexdump(message.payload.0.as_slice()))
 }
-
 
 pub fn debug_message_with_info(info: &str, message: &Message) {
     let msg = match &message.payload {
