@@ -3,7 +3,7 @@ use std::{any::Any, iter};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{term::pretty::Pretty, trace::TraceContext, variable_data::VariableData};
+use crate::{trace::TraceContext};
 
 use super::{Operator, Variable};
 
@@ -66,10 +66,6 @@ impl Term {
                 }
             }
         }
-    }
-    /// A human-readable serialization of the `Term`.
-    pub fn pretty(&self) -> String {
-        Pretty::pretty(self)
     }
 
     /// Every [`Variable`] used in the `Term`.
