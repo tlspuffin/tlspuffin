@@ -16,7 +16,7 @@ use crate::{
     },
     trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
 };
-use crate::{app, app_const, var};
+use crate::{app, app_const, var, app1};
 use crate::agent::TLSVersion;
 use crate::tls::fn_impl::*;
 use crate::trace::AgentDescriptor;
@@ -656,7 +656,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
                     recipe: app!(
                         s,
                         op_encrypt12,
-                        app!(s, op_finished12, client_verify_data.clone()),
+                        app1!(s, op_finished12(client_verify_data.clone(),)),
                         var!(s, Random, (0, 0)),
                         app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
                         app_const!(s, op_seq_0)

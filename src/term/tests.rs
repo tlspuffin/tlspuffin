@@ -28,7 +28,7 @@ mod term {
 
         let data = "hello".as_bytes().to_vec();
 
-        println!("dd {:?}", data.type_id());
+        println!("TypeId of vec array {:?}", data.type_id());
 
         let variable = sig.new_var::<Vec<u8>>((0, 0));
 

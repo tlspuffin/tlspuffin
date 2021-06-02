@@ -1,4 +1,3 @@
-#[macro_use]
 use std::{
     any::{Any, type_name, TypeId},
     collections::hash_map::DefaultHasher,

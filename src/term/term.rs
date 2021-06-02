@@ -158,6 +158,18 @@ macro_rules! app {
 }
 
 #[macro_export]
+macro_rules! app1 {
+    ($sig:ident, $op:ident($($args:expr),*$(,)?)) => {
+        Term::Application {
+            op: $sig.new_op(&$op),
+            args: vec![
+                $($args,)*
+            ],
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! var {
     ($sig:ident, $typ:ty, $id:expr) => {
         Term::Variable($sig.new_var::<$typ>($id))
