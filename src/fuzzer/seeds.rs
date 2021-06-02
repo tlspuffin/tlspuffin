@@ -19,7 +19,6 @@ use crate::{
 use crate::{app, app_const, var};
 use crate::agent::TLSVersion;
 use crate::tls::op_impl::*;
-use crate::tls::op_impl::{op_application_data, op_change_cipher_spec, op_client_hello, op_server_hello};
 use crate::trace::AgentDescriptor;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {

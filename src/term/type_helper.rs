@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::op_impl::REGISTERED_TYPES;
+use crate::tls::REGISTERED_TYPES;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -167,27 +167,31 @@ macro_rules! dynamic_fn {
 #[macro_export]
 macro_rules! register_fn {
     ($name_fn:ident, $name_types:ident, $($f:path),+ $(,)?) => {
-        pub static $name_fn: Lazy<HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>> =
+        use itertools::Itertools;
+        use once_cell::sync::Lazy;
+        use std::collections::HashMap;
+        use crate::term::DynamicFunction;
+        pub static $name_fn: Lazy<HashMap<String, (Vec<crate::term::TypeShape>, Box<dyn DynamicFunction>)>> =
             Lazy::new(|| {
                 let tuples = vec![
-                    $(make_dynamic(&$f)),*
+                    $(crate::term::make_dynamic(&$f)),*
                 ];
 
                 tuples
                     .into_iter()
                     .map(|(shape, dynamic_fn)| {
-                        let types: Vec<TypeShape> = shape
+                        let types: Vec<crate::term::TypeShape> = shape
                             .argument_types
                             .iter()
                             .copied()
                             .chain(vec![shape.return_type])
-                            .collect_vec();
+                            .collect::<Vec<crate::term::TypeShape>>();
                         (shape.name, (types, dynamic_fn))
                     })
                     .collect()
             });
 
-        pub static $name_types: Lazy<HashMap<&str, TypeShape>> = Lazy::new(|| {
+        pub static $name_types: Lazy<HashMap<&str, crate::term::TypeShape>> = Lazy::new(|| {
             let functions = &$name_fn;
             let types = functions
                 .iter()
@@ -195,7 +199,7 @@ macro_rules! register_fn {
                 .unique()
                 .flatten()
                 .map(|typ| (typ.name, typ.clone()))
-                .collect::<HashMap<&str, TypeShape>>();
+                .collect::<HashMap<&str, crate::term::TypeShape>>();
             types
         });
     };

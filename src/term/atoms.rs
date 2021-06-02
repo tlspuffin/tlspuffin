@@ -91,7 +91,7 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::tls::op_impl::REGISTERED_FN;
+    use crate::tls::REGISTERED_FN;
     use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
 
     const NAME: &str = "name";

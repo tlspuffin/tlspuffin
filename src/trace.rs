@@ -12,7 +12,7 @@ use crate::debug::{debug_message, debug_message_with_info, debug_opaque_message_
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-use crate::tls::op_impl::MultiMessage;
+use crate::tls::MultiMessage;
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},

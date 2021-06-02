@@ -50,21 +50,12 @@ use rustls::{
 };
 use HandshakePayload::EncryptedExtensions;
 
-use crate::register_fn;
+
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
-use crate::tls::deterministic_key_exchange;
+use crate::tls::key_exchange::deterministic_key_exchange;
 use rustls::msgs::alert::AlertMessagePayload;
 
-// ----
-// Types
-// ----
 
-/// Special type which is used in [`crate::trace::InputAction`]. This is used if an recipe outputs
-/// more or less than exactly one message.
-#[derive(Clone)]
-pub struct MultiMessage {
-    pub messages: Vec<Message>,
-}
 
 // ----
 // Concrete implementations
@@ -337,30 +328,6 @@ pub fn op_encrypt(
     Message::try_from(application_data.clone()).unwrap()
 }
 
-pub fn op_seq_0() -> u64 {
-    0
-}
-
-pub fn op_seq_1() -> u64 {
-    1
-}
-
-pub fn op_seq_2() -> u64 {
-    2
-}
-
-pub fn op_seq_3() -> u64 {
-    3
-}
-
-pub fn op_seq_4() -> u64 {
-    4
-}
-
-pub fn op_seq_5() -> u64 {
-    5
-}
-
 pub fn get_server_public_key(server_extensions: &Vec<ServerExtension>) -> Option<&KeyShareEntry> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
@@ -373,83 +340,6 @@ pub fn get_server_public_key(server_extensions: &Vec<ServerExtension>) -> Option
     }
 }
 
-pub fn op_server_name_extension() -> ClientExtension {
-    let dns_name = "maxammann.org";
-    ClientExtension::ServerName(vec![ServerName {
-        typ: ServerNameType::HostName,
-        payload: ServerNamePayload::HostName((
-            PayloadU16(dns_name.to_string().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name)
-                .unwrap()
-                .to_owned(),
-        )),
-    }])
-}
-
-pub fn op_x25519_support_group_extension() -> ClientExtension {
-    ClientExtension::NamedGroups(vec![NamedGroup::X25519])
-}
-
-pub fn op_signature_algorithm_extension() -> ClientExtension {
-    ClientExtension::SignatureAlgorithms(vec![
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::RSA_PSS_SHA256,
-    ])
-}
-
-pub fn op_signature_algorithm_cert_extension() -> ClientExtension {
-    ClientExtension::SignatureAlgorithmsCert(vec![
-        SignatureScheme::RSA_PKCS1_SHA1,
-        SignatureScheme::ECDSA_SHA1_Legacy,
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::ECDSA_NISTP256_SHA256,
-        SignatureScheme::RSA_PKCS1_SHA384,
-        SignatureScheme::ECDSA_NISTP384_SHA384,
-        SignatureScheme::RSA_PKCS1_SHA512,
-        SignatureScheme::ECDSA_NISTP521_SHA512,
-        SignatureScheme::RSA_PSS_SHA256,
-        SignatureScheme::RSA_PSS_SHA384,
-        SignatureScheme::RSA_PSS_SHA512,
-        SignatureScheme::ED25519,
-        SignatureScheme::ED448
-    ])
-}
-
-
-pub fn op_key_share_extension() -> ClientExtension {
-    //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
-    //let key = Vec::from([42; 32]); // 32 byte public key
-    let our_key_share: kx::KeyExchange = deterministic_key_exchange(&X25519);
-    ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: NamedGroup::X25519,
-        payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
-    }])
-}
-
-pub fn op_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
-    ClientExtension::RenegotiationInfo(PayloadU8::new(data.clone()))
-}
-
-pub fn empty_bytes_vec() -> Vec<u8> {
-   vec![]
-}
-
-pub fn op_supported_versions_extension() -> ClientExtension {
-    ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
-}
-
-pub fn op_extensions_new() -> Vec<ClientExtension> {
-    vec![]
-}
-
-pub fn op_extensions_append(
-    extensions: &Vec<ClientExtension>,
-    extension: &ClientExtension,
-) -> Vec<ClientExtension> {
-    let mut new_extensions = extensions.clone();
-    new_extensions.push(extension.clone());
-    new_extensions
-}
 
 // ----
 // Unused
@@ -471,21 +361,6 @@ pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
     Vec::from(tag.as_ref())
 }
 
-// ----
-// Utils
-// ----
-
-pub fn op_concat_messages_2(msg1: &Message, msg2: &Message) -> MultiMessage {
-    MultiMessage {
-        messages: vec![msg1.clone(), msg2.clone()],
-    }
-}
-
-pub fn op_concat_messages_3(msg1: &Message, msg2: &Message, msg3: &Message) -> MultiMessage {
-    MultiMessage {
-        messages: vec![msg1.clone(), msg2.clone(), msg3.clone()],
-    }
-}
 
 // ----
 // TLS 1.2, all used in seed_successful12
@@ -554,16 +429,6 @@ pub fn op_opaque_handshake_message(data: &Payload) -> OpaqueMessage {
 
 pub fn op_cipher_suites12() -> Vec<CipherSuite> {
     vec![CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256]
-}
-
-pub fn op_signed_certificate_timestamp() -> ClientExtension {
-    ClientExtension::SignedCertificateTimestampRequest
-}
-
-pub fn op_ec_point_formats() -> ClientExtension {
-    ClientExtension::ECPointFormats(vec![
-        rustls::internal::msgs::enums::ECPointFormat::Uncompressed,
-    ])
 }
 
 pub fn op_new_transcript12() -> HandshakeHash {
@@ -647,81 +512,3 @@ pub fn op_sign_transcript(
     let vh = transcript.get_current_hash();
     secrets.client_verify_data(&vh)
 }
-
-// ----
-// Attack operations
-// ----
-
-// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3449
-
-pub fn op_attack_cve_2021_3449(extensions: &Vec<ClientExtension>) -> Vec<ClientExtension> {
-    extensions
-        .clone()
-        .into_iter()
-        .filter(|extension| extension.get_type() != ExtensionType::SignatureAlgorithms)
-        .collect_vec()
-}
-
-// ----
-// Registry
-// ----
-
-register_fn!(
-    REGISTERED_FN,
-    REGISTERED_TYPES,
-    op_append_transcript,
-    op_application_data,
-    op_arbitrary_to_key,
-    op_attack_cve_2021_3449,
-    op_certificate,
-    op_change_cipher_spec,
-    op_change_cipher_spec12,
-    op_cipher_suites,
-    op_cipher_suites12,
-    op_client_hello,
-    op_client_key_exchange,
-    op_compressions,
-    op_concat_messages_2,
-    op_concat_messages_3,
-    op_decode_ecdh_params,
-    op_decrypt,
-    op_ec_point_formats,
-    op_encrypt,
-    op_encrypt12,
-    op_encrypted_certificate,
-    op_extensions_append,
-    op_extensions_new,
-    op_finished,
-    op_finished12,
-    op_hmac256,
-    op_hmac256_new_key,
-    op_key_share_extension,
-    op_new_pubkey12,
-    op_opaque_handshake_message,
-    op_protocol_version12,
-    op_random,
-    op_seq_0,
-    op_seq_1,
-    op_seq_2,
-    op_seq_3,
-    op_seq_4,
-    op_seq_5,
-    op_server_certificate,
-    op_server_hello,
-    op_server_hello_done,
-    op_server_key_exchange,
-    op_server_name_extension,
-    op_session_id,
-    op_sign_transcript,
-    op_signature_algorithm_extension,
-    op_signed_certificate_timestamp,
-    op_supported_versions_extension,
-    op_verify_data,
-    op_x25519_support_group_extension,
-    op_new_transcript,
-    op_new_transcript12,
-);
-
-// todo it would be possible generate dynamic functions like in criterion_group! macro
-// or via a procedural macro.
-// https://gitlab.inria.fr/mammann/tlspuffin/-/issues/28
