@@ -3,7 +3,7 @@ extern crate log;
 
 use std::{env, io::Write, path::PathBuf};
 
-use clap::{crate_authors, crate_name, crate_version, value_t, App, Arg, SubCommand};
+use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
 use env_logger::{fmt, Builder, Env};
 use log::Level;
 
@@ -66,8 +66,7 @@ fn main() {
         env::current_dir().unwrap().to_string_lossy().to_string()
     );
 
-    if let Some(matches) = matches.subcommand_matches("seed") {
-        let mut ctx = trace::TraceContext::new();
+    if let Some(_matches) = matches.subcommand_matches("seed") {
         let client = agent::AgentName::first();
         let server = client.next();
         let trace = fuzzer::seeds::seed_successful(client, server);

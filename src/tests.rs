@@ -145,7 +145,6 @@ pub mod integration {
 
     #[test]
     fn test_serialisation_seed_client_attacker_json() {
-        let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_client_attacker(client, server);
@@ -161,7 +160,6 @@ pub mod integration {
 
     #[test]
     fn test_serialisation_seed_client_attacker12_json() {
-        let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
         let (trace, _) = seed_client_attacker12(client, server);
@@ -177,7 +175,7 @@ pub mod integration {
 
     #[test]
     fn test_serialisation_seed_successful_json() {
-        let mut ctx = TraceContext::new();
+        let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_successful(client, server);
@@ -193,7 +191,7 @@ pub mod integration {
 
     #[test]
     fn test_serialisation_seed_successful_postcard() {
-        let mut ctx = TraceContext::new();
+        let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_successful(client, server);
@@ -220,7 +218,7 @@ pub mod integration {
         let hello_client = hex::decode(hello_client_hex).unwrap();
         hexdump::hexdump(&hello_client);
 
-        let mut opaque_message =
+        let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
@@ -238,7 +236,7 @@ pub mod integration {
         let hello_client = hex::decode(hello_client_hex).unwrap();
         hexdump::hexdump(&hello_client);
 
-        let mut opaque_message =
+        let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
@@ -331,7 +329,7 @@ pub mod integration {
         out.append(&mut OpaqueMessage::from(message.clone()).encode());
         hexdump::hexdump(&out);
 
-        let mut decoded_message =
+        let decoded_message =
             Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap())
                 .unwrap();
 

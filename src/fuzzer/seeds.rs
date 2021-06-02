@@ -1,8 +1,7 @@
-use rustls::internal::msgs::handshake::{CertificatePayload, ServerKeyExchangePayload};
+use rustls::internal::msgs::handshake::{CertificatePayload};
 use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{
-        base::Payload,
         enums::Compression,
         handshake::{ClientExtension, Random, ServerExtension, SessionID},
     },
@@ -15,7 +14,7 @@ use crate::trace::AgentDescriptor;
 use crate::{
     agent::AgentName,
     term::{Signature, Term},
-    trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
+    trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app1, app_const, var};
 

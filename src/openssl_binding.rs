@@ -1,6 +1,6 @@
-use std::ffi::c_void;
-use std::io::{ErrorKind, Read};
-use std::os::raw::{c_char, c_int};
+
+use std::io::{ErrorKind};
+use std::os::raw::{c_int};
 
 use openssl::error::ErrorStack;
 use openssl::ssl::SslVersion;

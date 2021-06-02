@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{path::PathBuf, thread, time};
+use std::{path::PathBuf};
 
 use libafl::{
     bolts::{
@@ -71,7 +71,7 @@ pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
 #[cfg(any(test, not(feature = "sancov_pcguard_libafl")))]
 pub static mut MAX_EDGES_NUM: usize = 0;
 
-pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: PathBuf, broker_port: u16) {
+pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
     let stats = MultiStats::new(|s| info!("{}", s));

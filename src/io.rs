@@ -4,7 +4,7 @@ use std::{
     io::{Read, Write},
 };
 
-use itertools::Itertools;
+
 use openssl::ssl::SslStream;
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
@@ -12,8 +12,8 @@ use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::M
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
 use crate::agent::TLSVersion;
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::{debug::debug_binary_message_with_info, openssl_binding};
+use crate::debug::{debug_opaque_message_with_info};
+use crate::{openssl_binding};
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);

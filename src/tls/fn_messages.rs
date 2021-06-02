@@ -461,7 +461,7 @@ pub fn op_encrypt12(
 ) -> OpaqueMessage {
     let secrets = new_secrets(server_random, server_ecdh_params);
 
-    let (decrypter, encrypter) = new_tls12(&secrets);
+    let (_decrypter, encrypter) = new_tls12(&secrets);
     encrypter
         .encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)
         .unwrap()

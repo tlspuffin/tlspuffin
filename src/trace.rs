@@ -1,13 +1,13 @@
 use core::fmt;
 use std::{any::TypeId, fmt::Formatter};
 
-use libafl::inputs::{HasLen, HasTargetBytes, Input};
+use libafl::inputs::{HasLen, Input};
 use rustls::internal::msgs::message::OpaqueMessage;
-use rustls::internal::msgs::message::{Message, MessagePayload::Handshake};
+use rustls::internal::msgs::message::{Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::agent::TLSVersion;
-use crate::debug::{debug_message, debug_message_with_info, debug_opaque_message_with_info};
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
