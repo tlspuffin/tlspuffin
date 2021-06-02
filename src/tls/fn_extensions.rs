@@ -83,10 +83,6 @@ pub fn op_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
     ClientExtension::RenegotiationInfo(PayloadU8::new(data.clone()))
 }
 
-pub fn empty_bytes_vec() -> Vec<u8> {
-    vec![]
-}
-
 pub fn op_supported_versions_extension() -> ClientExtension {
     ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
 }

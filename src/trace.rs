@@ -258,7 +258,7 @@ impl OutputAction {
                         .as_str(),
                         &opaque_message,
                     );
-                    ctx.add_variable((self.id, sub_id), Box::new(opaque_message.payload));
+                    ctx.add_variable((self.id, sub_id), Box::new(opaque_message.payload.0));
                 }
             }
 

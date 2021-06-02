@@ -23,3 +23,7 @@ pub fn op_seq_4() -> u64 {
 pub fn op_seq_5() -> u64 {
     5
 }
+
+pub fn op_empty_bytes_vec() -> Vec<u8> {
+    vec![]
+}

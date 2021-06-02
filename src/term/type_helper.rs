@@ -269,8 +269,6 @@ impl fmt::Display for TypeShape {
     }
 }
 
-// todo serialization
-
 impl Serialize for TypeShape {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

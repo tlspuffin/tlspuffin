@@ -100,7 +100,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 2)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 2)))],
                     },
                 }),
             },
@@ -110,7 +110,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 3)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 3)))],
                     },
                 }),
             },
@@ -120,7 +120,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 4)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 4)))],
                     },
                 }),
             },
@@ -130,7 +130,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 5)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 5)))],
                     },
                 }),
             },
@@ -153,7 +153,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((2, 1)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 1)))],
                     },
                 }),
             },
@@ -166,7 +166,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((3, 0)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 0)))],
                     },
                 }),
             },
@@ -175,7 +175,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((3, 1)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 1)))],
                     },
                 }),
             },
@@ -254,7 +254,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_server_key_exchange.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 2)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 2)))],
                     },
                 }),
             },
@@ -278,7 +278,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_client_key_exchange.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((2, 0)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 0)))],
                     },
                 }),
             },
@@ -298,7 +298,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_handshake_finished12.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((2, 2)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 2)))],
                     },
                 }),
             },
@@ -322,7 +322,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_handshake_finished12.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Payload>((3, 1)))],
+                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 1)))],
                     },
                 }),
             },
@@ -552,7 +552,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
                 app_const!(s, op_signed_certificate_timestamp)
             ),
             // Enable Renegotiation
-            app!(s, op_renegotiation_info, app_const!(s, empty_bytes_vec)),
+            app!(s, op_renegotiation_info, app_const!(s, op_empty_bytes_vec)),
         )
     );
 
@@ -595,7 +595,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
         app!(
             s,
             op_new_pubkey12,
-            app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2)))
+            app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2)))
         )
     );
 
@@ -610,7 +610,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
         s,
         op_sign_transcript,
         var!(s, Random, (0, 0)),
-        app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+        app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
         client_key_exchange_transcript.clone()
     );
 
@@ -658,7 +658,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
                         op_encrypt12,
                         app!(s, op_finished12, client_verify_data.clone()),
                         var!(s, Random, (0, 0)),
-                        app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                        app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
                         app_const!(s, op_seq_0)
                     ),
                 }),
@@ -730,7 +730,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     op_encrypt12,
                     app_const!(s, op_alert_close_notify),
                     var!(s, Random, (0, 0)),
-                    app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                    app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
                     app_const!(s, op_seq_1)
                 ),
             }),
@@ -744,7 +744,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                 op_encrypt12,
                 renegotiation_client_hello.clone(),
                 var!(s, Random, (0, 0)),
-                app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
                 app_const!(s, op_seq_1)
             ),
         }),

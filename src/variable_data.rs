@@ -121,7 +121,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                           vec![Box::new(message.clone()), Box::new(ecdhe.clone())]
                       }
                       ServerKeyExchangePayload::Unknown(unknown) => {
-                          vec![Box::new(message.clone()), Box::new(unknown.clone())]
+                          vec![Box::new(message.clone()), Box::new(unknown.0.clone())]
                       }
                   }
                 }
@@ -144,7 +144,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                     todo!()
                 }
                 HandshakePayload::ClientKeyExchange(cke) => {
-                    vec![Box::new(message.clone()), Box::new(cke.clone())]
+                    vec![Box::new(message.clone()), Box::new(cke.0.clone())]
                 }
                 HandshakePayload::NewSessionTicket(ticket) => {
                     vec![
@@ -180,7 +180,7 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
             vec![]
         }
         MessagePayload::ApplicationData(opaque) => {
-            vec![Box::new(message.clone()), Box::new(opaque.clone())]
+            vec![Box::new(message.clone()), Box::new(opaque.0.clone())]
         }
     }
 }

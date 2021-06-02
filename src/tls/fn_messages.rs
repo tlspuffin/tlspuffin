@@ -1,36 +1,27 @@
-use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
-use std::ops::Deref;
-
-use itertools::Itertools;
-use once_cell::sync::Lazy;
-use rand::seq::SliceRandom;
-use rand::Fill;
-use ring::agreement::PublicKey;
 use ring::{
-    hkdf,
-    hkdf::{Prk, HKDF_SHA256},
+    hkdf::{Prk},
     hmac,
     hmac::Key,
     rand::SystemRandom,
 };
-use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write, GcmMessageEncrypter};
+use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::base::PayloadU8;
 use rustls::internal::msgs::codec::{Codec, Reader};
-use rustls::internal::msgs::enums::{ExtensionType, AlertDescription, AlertLevel};
+use rustls::internal::msgs::enums::{AlertDescription, AlertLevel, ExtensionType};
 use rustls::internal::msgs::handshake::{HasServerExtensions, ServerECDHParams};
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::key_schedule::{
-    KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
+    KeyScheduleHandshake, KeyScheduleNonSecret,
 };
 use rustls::kx::KeyExchangeResult;
-use rustls::kx_group::X25519;
+use rustls::msgs::alert::AlertMessagePayload;
 use rustls::suites::Tls12CipherSuite;
 use rustls::{
     internal::msgs::{
-        base::{Payload, PayloadU16},
+        base::{Payload},
         ccs::ChangeCipherSpecPayload,
         enums::{
             Compression,
@@ -49,13 +40,7 @@ use rustls::{
     ALL_KX_GROUPS,
 };
 use HandshakePayload::EncryptedExtensions;
-
-
-use crate::term::{make_dynamic, DynamicFunction, TypeShape};
 use crate::tls::key_exchange::deterministic_key_exchange;
-use rustls::msgs::alert::AlertMessagePayload;
-
-
 
 // ----
 // Concrete implementations
@@ -65,13 +50,12 @@ use rustls::msgs::alert::AlertMessagePayload;
 // TLS 1.3 Message constructors (Return type is message)
 // ----
 
-pub fn op_alert_close_notify(
-) -> Message {
+pub fn op_alert_close_notify() -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Alert(AlertMessagePayload {
             level: AlertLevel::Warning,
-            description: AlertDescription::CloseNotify
+            description: AlertDescription::CloseNotify,
         }),
     }
 }
@@ -131,10 +115,10 @@ pub fn op_change_cipher_spec() -> Message {
     }
 }
 
-pub fn op_application_data(data: &Payload) -> Message {
+pub fn op_application_data(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload: MessagePayload::ApplicationData(data.clone()),
+        payload: MessagePayload::ApplicationData(Payload::new(data.clone())),
     }
 }
 
@@ -340,7 +324,6 @@ pub fn get_server_public_key(server_extensions: &Vec<ServerExtension>) -> Option
     }
 }
 
-
 // ----
 // Unused
 // ----
@@ -361,7 +344,6 @@ pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
     Vec::from(tag.as_ref())
 }
 
-
 // ----
 // TLS 1.2, all used in seed_successful12
 // ----
@@ -376,13 +358,13 @@ pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
     }
 }
 
-pub fn op_server_key_exchange(data: &Payload) -> Message {
+pub fn op_server_key_exchange(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ServerKeyExchange,
             payload: HandshakePayload::ServerKeyExchange(ServerKeyExchangePayload::Unknown(
-                data.clone(),
+                Payload::new(data.clone()),
             )),
         }),
     }
@@ -398,12 +380,12 @@ pub fn op_server_hello_done() -> Message {
     }
 }
 
-pub fn op_client_key_exchange(data: &Payload) -> Message {
+pub fn op_client_key_exchange(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ClientKeyExchange,
-            payload: HandshakePayload::ClientKeyExchange(data.clone()),
+            payload: HandshakePayload::ClientKeyExchange(Payload::new(data.clone())),
         }),
     }
 }
@@ -415,11 +397,11 @@ pub fn op_change_cipher_spec12() -> Message {
     }
 }
 
-pub fn op_opaque_handshake_message(data: &Payload) -> OpaqueMessage {
+pub fn op_opaque_handshake_message(data: &Vec<u8>) -> OpaqueMessage {
     OpaqueMessage {
         typ: Handshake,
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
-        payload: data.clone(),
+        payload: Payload::new(data.clone()),
     }
 }
 
@@ -439,8 +421,8 @@ pub fn op_new_transcript12() -> HandshakeHash {
     transcript
 }
 
-pub fn op_decode_ecdh_params(payload: &Payload) -> ServerECDHParams {
-    let mut rd = Reader::init(payload.0.as_slice());
+pub fn op_decode_ecdh_params(data: &Vec<u8>) -> ServerECDHParams {
+    let mut rd = Reader::init(data.as_slice());
     ServerECDHParams::read(&mut rd).unwrap()
 }
 
@@ -452,12 +434,12 @@ fn new_key_exchange_result(server_ecdh_params: &ServerECDHParams) -> KeyExchange
     kxd
 }
 
-pub fn op_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Payload {
+pub fn op_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Vec<u8> {
     let kxd = new_key_exchange_result(server_ecdh_params);
     let mut buf = Vec::new();
     let ecpoint = PayloadU8::new(Vec::from(kxd.pubkey.as_ref()));
     ecpoint.encode(&mut buf);
-    Payload::new(buf)
+    buf
 }
 
 fn new_secrets(server_random: &Random, server_ecdh_params: &ServerECDHParams) -> ConnectionSecrets {
