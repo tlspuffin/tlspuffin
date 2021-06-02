@@ -12,7 +12,7 @@ mod term {
         trace::TraceContext,
     };
     use crate::tls::{REGISTERED_FN, REGISTERED_TYPES};
-    use crate::tls::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
+    use crate::tls::fn_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16

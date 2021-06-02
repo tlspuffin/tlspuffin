@@ -6,7 +6,7 @@ use ring::hmac::{HMAC_SHA256, Key};
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term::make_dynamic;
-use tlspuffin::tls::op_impl::op_hmac256;
+use tlspuffin::tls::fn_impl::op_hmac256;
 use tlspuffin::trace::TraceContext;
 
 fn benchmark_dynamic(c: &mut Criterion) {

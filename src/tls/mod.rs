@@ -15,7 +15,7 @@ mod fn_utils;
 mod fn_messages;
 mod fn_extensions;
 
-pub mod op_impl {
+pub mod fn_impl {
     pub use crate::tls::fn_messages::*;
     pub use crate::tls::fn_constants::*;
     pub use crate::tls::fn_utils::*;
