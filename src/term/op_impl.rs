@@ -19,7 +19,7 @@ use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::base::PayloadU8;
 use rustls::internal::msgs::codec::{Codec, Reader};
-use rustls::internal::msgs::enums::ExtensionType;
+use rustls::internal::msgs::enums::{ExtensionType, AlertDescription, AlertLevel};
 use rustls::internal::msgs::handshake::{HasServerExtensions, ServerECDHParams};
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::key_schedule::{
@@ -53,6 +53,7 @@ use HandshakePayload::EncryptedExtensions;
 use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
 use crate::tls::deterministic_key_exchange;
+use rustls::msgs::alert::AlertMessagePayload;
 
 // ----
 // Types
@@ -72,6 +73,17 @@ pub struct MultiMessage {
 // ----
 // TLS 1.3 Message constructors (Return type is message)
 // ----
+
+pub fn op_alert_close_notify(
+) -> Message {
+    Message {
+        version: ProtocolVersion::TLSv1_2, // todo this is not controllable
+        payload: MessagePayload::Alert(AlertMessagePayload {
+            level: AlertLevel::Warning,
+            description: AlertDescription::CloseNotify
+        }),
+    }
+}
 
 pub fn op_client_hello(
     client_version: &ProtocolVersion,
@@ -163,12 +175,12 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
 // seed_client_attacker()
 // ----
 
-pub fn op_finished(verify_data: &Payload) -> Message {
+pub fn op_finished(verify_data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_3, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Finished,
-            payload: HandshakePayload::Finished(verify_data.clone()),
+            payload: HandshakePayload::Finished(Payload::new(verify_data.clone())),
         }),
     }
 }
@@ -242,7 +254,7 @@ pub fn op_verify_data(
     server_extensions: &Vec<ServerExtension>,
     verify_transcript: &HandshakeHash,
     client_handshake_traffic_secret_transcript: &HandshakeHash,
-) -> Payload {
+) -> Vec<u8> {
     let client_random = &[1u8; 32]; // todo see op_random()
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
@@ -262,7 +274,7 @@ pub fn op_verify_data(
     let pending = key_schedule.into_traffic_with_client_finished_pending();
 
     let bytes = pending.sign_client_finish(&verify_transcript.get_current_hash());
-    Payload::new(bytes.as_ref())
+    Vec::from(bytes.as_ref())
 }
 
 pub fn op_new_transcript() -> HandshakeHash {
@@ -385,6 +397,25 @@ pub fn op_signature_algorithm_extension() -> ClientExtension {
     ])
 }
 
+pub fn op_signature_algorithm_cert_extension() -> ClientExtension {
+    ClientExtension::SignatureAlgorithmsCert(vec![
+        SignatureScheme::RSA_PKCS1_SHA1,
+        SignatureScheme::ECDSA_SHA1_Legacy,
+        SignatureScheme::RSA_PKCS1_SHA256,
+        SignatureScheme::ECDSA_NISTP256_SHA256,
+        SignatureScheme::RSA_PKCS1_SHA384,
+        SignatureScheme::ECDSA_NISTP384_SHA384,
+        SignatureScheme::RSA_PKCS1_SHA512,
+        SignatureScheme::ECDSA_NISTP521_SHA512,
+        SignatureScheme::RSA_PSS_SHA256,
+        SignatureScheme::RSA_PSS_SHA384,
+        SignatureScheme::RSA_PSS_SHA512,
+        SignatureScheme::ED25519,
+        SignatureScheme::ED448
+    ])
+}
+
+
 pub fn op_key_share_extension() -> ClientExtension {
     //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
     //let key = Vec::from([42; 32]); // 32 byte public key
@@ -393,6 +424,14 @@ pub fn op_key_share_extension() -> ClientExtension {
         group: NamedGroup::X25519,
         payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
     }])
+}
+
+pub fn op_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
+    ClientExtension::RenegotiationInfo(PayloadU8::new(data.clone()))
+}
+
+pub fn empty_bytes_vec() -> Vec<u8> {
+   vec![]
 }
 
 pub fn op_supported_versions_extension() -> ClientExtension {
@@ -593,7 +632,7 @@ pub fn op_finished12(data: &Payload) -> Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Finished,
-            payload: HandshakePayload::Finished(data.clone()),
+            payload: HandshakePayload::Finished(Payload::new(data.clone())),
         }),
     }
 }
@@ -602,11 +641,11 @@ pub fn op_sign_transcript(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
     transcript: &HandshakeHash,
-) -> Payload {
+) -> Vec<u8> {
     let secrets = new_secrets(server_random, server_ecdh_params);
 
     let vh = transcript.get_current_hash();
-    Payload::new(secrets.client_verify_data(&vh))
+    secrets.client_verify_data(&vh)
 }
 
 // ----

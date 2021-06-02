@@ -6,7 +6,26 @@ pub mod tlspuffin {
     };
     use test_env_log::test;
     use crate::openssl_binding::{openssl_version, make_deterministic};
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12};
+    use crate::fuzzer::seeds::*;
+
+    #[test]
+    fn test_seed_cve_2021_3449() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_cve_2021_3449(client, server);
+
+        println!("{}", trace);
+        trace.spawn_agents(&mut ctx);
+        trace.execute(&mut ctx).unwrap();
+
+        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", client_state);
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
 
     #[test]
     fn test_seed_client_attacker12() {
@@ -14,7 +33,7 @@ pub mod tlspuffin {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_client_attacker12(client, server);
+        let (trace, _) = seed_client_attacker12(client, server);
 
         println!("{}", trace);
         trace.spawn_agents(&mut ctx);

