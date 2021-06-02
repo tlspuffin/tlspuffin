@@ -315,6 +315,6 @@ impl InputAction {
 
 impl fmt::Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "recipe: {}", self.recipe.display())
+        write!(f, "recipe: {}", self.recipe)
     }
 }

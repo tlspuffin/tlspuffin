@@ -43,7 +43,7 @@ mod term {
             ],
         };
 
-        println!("{}", generated_term.pretty());
+        println!("{}", generated_term);
         let mut context = TraceContext::new();
         context.add_variable((0, 0), Box::new(data));
 
@@ -122,7 +122,7 @@ mod term {
             ],
         };
 
-        println!("{}", constructed_term.pretty());
+        println!("{}", constructed_term);
     }
 
     #[test]

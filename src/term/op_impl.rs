@@ -627,7 +627,7 @@ pub fn op_encrypt12(
         .unwrap()
 }
 
-pub fn op_finished12(data: &Payload) -> Message {
+pub fn op_finished12(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {

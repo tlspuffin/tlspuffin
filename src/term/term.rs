@@ -1,9 +1,10 @@
-use std::{any::Any, iter};
+use std::fmt::Formatter;
+use std::{any::Any, fmt, iter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{trace::TraceContext};
+use crate::trace::TraceContext;
 
 use super::{Operator, Variable};
 
@@ -36,7 +37,7 @@ fn remove_prefix(str: &str) -> String {
         if let Some(pos) = non_generic.rfind("::") {
             non_generic[pos + 2..].to_string() + generic
         } else {
-          non_generic.to_string() + generic
+            non_generic.to_string() + generic
         }
     } else {
         if let Some(pos) = str.rfind("::") {
@@ -47,11 +48,13 @@ fn remove_prefix(str: &str) -> String {
     }
 }
 
-impl Term {
-    pub fn display(&self) -> String {
-        self.display_at_depth(0)
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display_at_depth(0))
     }
+}
 
+impl Term {
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
@@ -61,7 +64,10 @@ impl Term {
                 if args.is_empty() {
                     format!("{}{}", tabs, op_str)
                 } else {
-                    let args_str = args.iter().map(|arg| arg.display_at_depth(depth + 1)).join(",\n");
+                    let args_str = args
+                        .iter()
+                        .map(|arg| arg.display_at_depth(depth + 1))
+                        .join(",\n");
                     format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
                 }
             }
