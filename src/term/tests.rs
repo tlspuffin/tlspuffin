@@ -2,17 +2,17 @@
 mod term {
     use std::any::{Any, TypeId};
 
+    use itertools::Itertools;
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::{
         term::{
-            op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id},
             Signature, Term,
         },
         trace::TraceContext,
     };
-    use crate::term::op_impl::{REGISTERED_FN, REGISTERED_TYPES};
-    use itertools::Itertools;
+    use crate::tls::op_impl::{REGISTERED_FN, REGISTERED_TYPES};
+    use crate::tls::op_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
 
     fn example_op_c(a: &u8) -> u16 {
         (a + 1) as u16

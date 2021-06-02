@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::term::op_impl::REGISTERED_TYPES;
+use crate::tls::op_impl::REGISTERED_TYPES;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]

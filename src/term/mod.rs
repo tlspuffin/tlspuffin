@@ -25,8 +25,6 @@
 
 pub use self::{atoms::*, signature::*, term::*, type_helper::*};
 
-pub mod op_impl;
-
 mod atoms;
 mod signature;
 mod term;

@@ -1,8 +1,9 @@
-use rustls::{SupportedKxGroup};
-use rustls::kx::KeyExchange;
 use ring::test::rand::FixedByteRandom;
+use rustls::SupportedKxGroup;
+use rustls::kx::KeyExchange;
 
 mod tests;
+pub mod op_impl;
 
 pub fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> KeyExchange {
     let random = FixedByteRandom { byte: 42 };

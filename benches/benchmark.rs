@@ -1,11 +1,12 @@
 use std::any::Any;
 
-use criterion::{criterion_group, criterion_main, Criterion};
-use ring::hmac::{Key, HMAC_SHA256};
+use criterion::{Criterion, criterion_group, criterion_main};
+use ring::hmac::{HMAC_SHA256, Key};
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::seeds::*;
-use tlspuffin::term::{make_dynamic, op_impl::op_hmac256};
+use tlspuffin::term::make_dynamic;
+use tlspuffin::tls::op_impl::op_hmac256;
 use tlspuffin::trace::TraceContext;
 
 fn benchmark_dynamic(c: &mut Criterion) {
