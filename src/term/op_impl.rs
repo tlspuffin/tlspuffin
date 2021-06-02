@@ -52,7 +52,6 @@ use HandshakePayload::EncryptedExtensions;
 
 use crate::register_fn;
 use crate::term::{make_dynamic, DynamicFunction, TypeShape};
-use crate::tls::derive::{derive_secret, SecretKind};
 use crate::tls::deterministic_key_exchange;
 
 // ----
@@ -433,54 +432,6 @@ pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
     Vec::from(tag.as_ref())
 }
 
-// https://github.com/ctz/rustls/blob/d03bf27e0b520fe73c901d0027bab12753a42bb6/rustls/src/key_schedule.rs#L164
-pub fn op_client_handshake_traffic_secret(secret: &hkdf::Prk, hs_hash: &Vec<u8>) -> Prk {
-    let secret: hkdf::Prk = derive_secret(
-        secret,
-        SecretKind::ClientHandshakeTrafficSecret,
-        HKDF_SHA256, // todo make configurable
-        hs_hash,
-        |okm| okm.into(),
-    );
-
-    secret
-}
-
-/*pub fn op_random_cipher_suite() -> CipherSuite {
-    *vec![
-        CipherSuite::TLS13_AES_128_CCM_SHA256,
-        CipherSuite::TLS13_AES_128_CCM_8_SHA256,
-        CipherSuite::TLS13_AES_128_GCM_SHA256,
-        CipherSuite::TLS13_AES_256_GCM_SHA384,
-        CipherSuite::TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-    ]
-    .choose(&mut rand::thread_rng())
-    .unwrap()
-}
-
-pub fn op_random_compression() -> Compression {
-    *vec![Compression::Null, Compression::Deflate, Compression::LSZ]
-        .choose(&mut rand::thread_rng())
-        .unwrap()
-}
-
-pub fn op_random_extensions() -> Vec<ClientExtension> {
-    let server_name: ClientExtension = op_server_name_extension();
-
-    let supported_groups: ClientExtension = op_x25519_support_group_extension();
-    let signature_algorithms: ClientExtension = op_signature_algorithm_extension();
-    let key_share: ClientExtension = op_key_share_extension();
-    let supported_versions: ClientExtension = op_supported_versions_extension();
-
-    vec![
-        server_name,
-        supported_groups,
-        signature_algorithms,
-        key_share,
-        supported_versions,
-    ]
-}*/
-
 // ----
 // Utils
 // ----
@@ -688,7 +639,6 @@ register_fn!(
     op_change_cipher_spec12,
     op_cipher_suites,
     op_cipher_suites12,
-    op_client_handshake_traffic_secret,
     op_client_hello,
     op_client_key_exchange,
     op_compressions,
