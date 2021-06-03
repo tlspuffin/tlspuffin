@@ -11,20 +11,20 @@ use crate::{
     trace::ObservedId,
 };
 
-use super::Operator;
+use super::Function;
 
 /// Records a universe of symbols.
 ///
 ///
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Signature {
-    pub(crate) operators: Vec<Operator>,
+    pub(crate) operators: Vec<Function>,
     pub(crate) variables: Vec<Variable>,
 }
 
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
-    pub fn new(operators: Vec<Operator>) -> Signature {
+    pub fn new(operators: Vec<Function>) -> Signature {
         Signature {
             operators,
             variables: vec![],
@@ -32,7 +32,7 @@ impl Signature {
     }
     /// Returns every [`Operator`] known to the `Signature`, in the order they were created.
     ///
-    pub fn operators(&self) -> Vec<Operator> {
+    pub fn operators(&self) -> Vec<Function> {
         self.operators.clone()
     }
     /// Returns every [`Variable`] known to the `Signature`, in the order they were created.
@@ -43,12 +43,12 @@ impl Signature {
 
     /// Create a new [`Operator`] distinct from all existing [`Operator`]s.
     ///
-    pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Operator
-    where
+    pub fn new_op<F: 'static, Types>(&mut self, f: &'static F) -> Function
+        where
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        let operator = Operator::new(self.operators.len() as u32, shape, dynamic_fn);
+        let operator = Function::new(self.operators.len() as u32, shape, dynamic_fn);
         self.operators.push(operator.clone());
         operator
     }

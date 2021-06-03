@@ -6,7 +6,7 @@ use ring::hmac::{Key, HMAC_SHA256};
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term::make_dynamic;
-use tlspuffin::tls::fn_impl::op_hmac256;
+use tlspuffin::tls::fn_impl::fn_hmac256;
 use tlspuffin::trace::TraceContext;
 
 fn benchmark_dynamic(c: &mut Criterion) {
@@ -17,7 +17,7 @@ fn benchmark_dynamic(c: &mut Criterion) {
             let key_data = [0; 256];
             let key = Key::new(HMAC_SHA256, &key_data);
             let data = "test".as_bytes().to_vec();
-            op_hmac256(&key, &data)
+            fn_hmac256(&key, &data)
         })
     });
 
@@ -26,7 +26,7 @@ fn benchmark_dynamic(c: &mut Criterion) {
             let key_data = [0; 256];
             let key = Key::new(HMAC_SHA256, &key_data);
             let data = "test".as_bytes().to_vec();
-            let (_, dynamic_fn) = make_dynamic(&op_hmac256);
+            let (_, dynamic_fn) = make_dynamic(&fn_hmac256);
             let args: Vec<Box<dyn Any>> = vec![Box::new(key), Box::new(data)];
             dynamic_fn(&args)
         })

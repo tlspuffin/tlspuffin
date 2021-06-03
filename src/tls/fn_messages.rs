@@ -43,7 +43,7 @@ use HandshakePayload::EncryptedExtensions;
 // TLS 1.3 Message constructors (Return type is message)
 // ----
 
-pub fn op_alert_close_notify() -> Message {
+pub fn fn_alert_close_notify() -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Alert(AlertMessagePayload {
@@ -53,7 +53,7 @@ pub fn op_alert_close_notify() -> Message {
     }
 }
 
-pub fn op_client_hello(
+pub fn fn_client_hello(
     client_version: &ProtocolVersion,
     random: &Random,
     session_id: &SessionID,
@@ -77,7 +77,7 @@ pub fn op_client_hello(
     }
 }
 
-pub fn op_server_hello(
+pub fn fn_server_hello(
     legacy_version: &ProtocolVersion,
     random: &Random,
     session_id: &SessionID,
@@ -101,14 +101,14 @@ pub fn op_server_hello(
     }
 }
 
-pub fn op_change_cipher_spec() -> Message {
+pub fn fn_change_cipher_spec() -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
     }
 }
 
-pub fn op_application_data(data: &Vec<u8>) -> Message {
+pub fn fn_application_data(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ApplicationData(Payload::new(data.clone())),
@@ -119,7 +119,7 @@ pub fn op_application_data(data: &Vec<u8>) -> Message {
 // TLS 1.3 Unused
 // ----
 
-pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Message {
+pub fn fn_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -129,7 +129,7 @@ pub fn op_encrypted_certificate(server_extensions: &Vec<ServerExtension>) -> Mes
     }
 }
 
-pub fn op_certificate(certificate: &CertificatePayload) -> Message {
+pub fn fn_certificate(certificate: &CertificatePayload) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -143,7 +143,7 @@ pub fn op_certificate(certificate: &CertificatePayload) -> Message {
 // seed_client_attacker()
 // ----
 
-pub fn op_finished(verify_data: &Vec<u8>) -> Message {
+pub fn fn_finished(verify_data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_3, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -153,24 +153,24 @@ pub fn op_finished(verify_data: &Vec<u8>) -> Message {
     }
 }
 
-pub fn op_protocol_version12() -> ProtocolVersion {
+pub fn fn_protocol_version12() -> ProtocolVersion {
     ProtocolVersion::TLSv1_2
 }
 
-pub fn op_session_id() -> SessionID {
+pub fn fn_session_id() -> SessionID {
     SessionID::empty()
 }
 
-pub fn op_random() -> Random {
+pub fn fn_random() -> Random {
     let random_data: [u8; 32] = [1; 32];
     Random::from(random_data)
 }
 
-pub fn op_cipher_suites() -> Vec<CipherSuite> {
+pub fn fn_cipher_suites() -> Vec<CipherSuite> {
     vec![CipherSuite::TLS13_AES_128_GCM_SHA256]
 }
 
-pub fn op_compressions() -> Vec<Compression> {
+pub fn fn_compressions() -> Vec<Compression> {
     vec![Compression::Null]
 }
 
@@ -218,7 +218,7 @@ fn create_handshake_key_schedule(
     key_schedule
 }
 
-pub fn op_verify_data(
+pub fn fn_verify_data(
     server_extensions: &Vec<ServerExtension>,
     verify_transcript: &HandshakeHash,
     client_handshake_traffic_secret_transcript: &HandshakeHash,
@@ -245,7 +245,7 @@ pub fn op_verify_data(
     Vec::from(bytes.as_ref())
 }
 
-pub fn op_new_transcript() -> HandshakeHash {
+pub fn fn_new_transcript() -> HandshakeHash {
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -253,7 +253,7 @@ pub fn op_new_transcript() -> HandshakeHash {
     transcript
 }
 
-pub fn op_append_transcript(transcript: &HandshakeHash, message: &Message) -> HandshakeHash {
+pub fn fn_append_transcript(transcript: &HandshakeHash, message: &Message) -> HandshakeHash {
     let mut new_transcript: HandshakeHash = transcript.clone();
     new_transcript.add_message(message);
 
@@ -267,7 +267,7 @@ pub fn op_append_transcript(transcript: &HandshakeHash, message: &Message) -> Ha
     new_transcript
 }
 
-pub fn op_decrypt(
+pub fn fn_decrypt(
     application_data: &Message,
     server_extensions: &Vec<ServerExtension>,
     transcript: &HandshakeHash,
@@ -285,7 +285,7 @@ pub fn op_decrypt(
     return result;
 }
 
-pub fn op_encrypt(
+pub fn fn_encrypt(
     some_message: &Message,
     server_extensions: &Vec<ServerExtension>,
     transcript: &HandshakeHash,
@@ -321,18 +321,18 @@ pub fn get_server_public_key(server_extensions: &Vec<ServerExtension>) -> Option
 // Unused
 // ----
 
-pub fn op_hmac256_new_key() -> Key {
+pub fn fn_hmac256_new_key() -> Key {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
     let random = SystemRandom::new();
     let key = hmac::Key::generate(hmac::HMAC_SHA256, &random).unwrap();
     key
 }
 
-pub fn op_arbitrary_to_key(key: &Vec<u8>) -> Key {
+pub fn fn_arbitrary_to_key(key: &Vec<u8>) -> Key {
     Key::new(hmac::HMAC_SHA256, key.as_slice())
 }
 
-pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
+pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
     let tag = hmac::sign(&key, msg);
     Vec::from(tag.as_ref())
 }
@@ -341,7 +341,7 @@ pub fn op_hmac256(key: &Key, msg: &Vec<u8>) -> Vec<u8> {
 // TLS 1.2, all used in seed_successful12
 // ----
 
-pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
+pub fn fn_server_certificate(certs: &CertificatePayload) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -351,7 +351,7 @@ pub fn op_server_certificate(certs: &CertificatePayload) -> Message {
     }
 }
 
-pub fn op_server_key_exchange(data: &Vec<u8>) -> Message {
+pub fn fn_server_key_exchange(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -363,7 +363,7 @@ pub fn op_server_key_exchange(data: &Vec<u8>) -> Message {
     }
 }
 
-pub fn op_server_hello_done() -> Message {
+pub fn fn_server_hello_done() -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -373,7 +373,7 @@ pub fn op_server_hello_done() -> Message {
     }
 }
 
-pub fn op_client_key_exchange(data: &Vec<u8>) -> Message {
+pub fn fn_client_key_exchange(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -383,14 +383,14 @@ pub fn op_client_key_exchange(data: &Vec<u8>) -> Message {
     }
 }
 
-pub fn op_change_cipher_spec12() -> Message {
+pub fn fn_change_cipher_spec12() -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload),
     }
 }
 
-pub fn op_opaque_handshake_message(data: &Vec<u8>) -> OpaqueMessage {
+pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> OpaqueMessage {
     OpaqueMessage {
         typ: Handshake,
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
@@ -402,11 +402,11 @@ pub fn op_opaque_handshake_message(data: &Vec<u8>) -> OpaqueMessage {
 // seed_client_attacker12()
 // ----
 
-pub fn op_cipher_suites12() -> Vec<CipherSuite> {
+pub fn fn_cipher_suites12() -> Vec<CipherSuite> {
     vec![CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256]
 }
 
-pub fn op_new_transcript12() -> HandshakeHash {
+pub fn fn_new_transcript12() -> HandshakeHash {
     let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -414,7 +414,7 @@ pub fn op_new_transcript12() -> HandshakeHash {
     transcript
 }
 
-pub fn op_decode_ecdh_params(data: &Vec<u8>) -> ServerECDHParams {
+pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> ServerECDHParams {
     let mut rd = Reader::init(data.as_slice());
     ServerECDHParams::read(&mut rd).unwrap()
 }
@@ -427,7 +427,7 @@ fn new_key_exchange_result(server_ecdh_params: &ServerECDHParams) -> KeyExchange
     kxd
 }
 
-pub fn op_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Vec<u8> {
+pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Vec<u8> {
     let kxd = new_key_exchange_result(server_ecdh_params);
     let mut buf = Vec::new();
     let ecpoint = PayloadU8::new(Vec::from(kxd.pubkey.as_ref()));
@@ -453,7 +453,7 @@ fn new_secrets(server_random: &Random, server_ecdh_params: &ServerECDHParams) ->
     secrets
 }
 
-pub fn op_encrypt12(
+pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
@@ -467,7 +467,7 @@ pub fn op_encrypt12(
         .unwrap()
 }
 
-pub fn op_finished12(data: &Vec<u8>) -> Message {
+pub fn fn_finished12(data: &Vec<u8>) -> Message {
     Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -477,7 +477,7 @@ pub fn op_finished12(data: &Vec<u8>) -> Message {
     }
 }
 
-pub fn op_sign_transcript(
+pub fn fn_sign_transcript(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
     transcript: &HandshakeHash,

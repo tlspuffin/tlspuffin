@@ -20,10 +20,10 @@ use crate::{app, app1, app_const, var};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();
-    let op_client_hello = sig.new_op(&op_client_hello);
-    let op_server_hello = sig.new_op(&op_server_hello);
-    let op_change_cipher_spec = sig.new_op(&op_change_cipher_spec);
-    let op_application_data = sig.new_op(&op_application_data);
+    let op_client_hello = sig.new_op(&fn_client_hello);
+    let op_server_hello = sig.new_op(&fn_server_hello);
+    let op_change_cipher_spec = sig.new_op(&fn_change_cipher_spec);
+    let op_application_data = sig.new_op(&fn_application_data);
 
     Trace {
         descriptors: vec![
@@ -182,14 +182,14 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     let mut sig = Signature::default();
-    let op_client_hello = sig.new_op(&op_client_hello);
-    let op_server_hello = sig.new_op(&op_server_hello);
-    let op_server_certificate = sig.new_op(&op_server_certificate);
-    let op_server_key_exchange = sig.new_op(&op_server_key_exchange);
-    let op_server_hello_done = sig.new_op(&op_server_hello_done);
-    let op_client_key_exchange = sig.new_op(&op_client_key_exchange);
-    let op_change_cipher_spec12 = sig.new_op(&op_change_cipher_spec12);
-    let op_handshake_finished12 = sig.new_op(&op_opaque_handshake_message);
+    let op_client_hello = sig.new_op(&fn_client_hello);
+    let op_server_hello = sig.new_op(&fn_server_hello);
+    let op_server_certificate = sig.new_op(&fn_server_certificate);
+    let op_server_key_exchange = sig.new_op(&fn_server_key_exchange);
+    let op_server_hello_done = sig.new_op(&fn_server_hello_done);
+    let op_client_key_exchange = sig.new_op(&fn_client_key_exchange);
+    let op_change_cipher_spec12 = sig.new_op(&fn_change_cipher_spec12);
+    let op_handshake_finished12 = sig.new_op(&fn_opaque_handshake_message);
 
     Trace {
         steps: vec![
@@ -344,43 +344,43 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
 
     let client_hello = app!(
         s,
-        op_client_hello,
-        app_const!(s, op_protocol_version12),
-        app_const!(s, op_random),
-        app_const!(s, op_session_id),
+        fn_client_hello,
+        app_const!(s, fn_protocol_version12),
+        app_const!(s, fn_random),
+        app_const!(s, fn_session_id),
         // force TLS13_AES_128_GCM_SHA256
-        app_const!(s, op_cipher_suites),
-        app_const!(s, op_compressions),
+        app_const!(s, fn_cipher_suites),
+        app_const!(s, fn_compressions),
         app!(
             s,
-            op_extensions_append,
+            fn_extensions_append,
             app!(
                 s,
-                op_extensions_append,
+                fn_extensions_append,
                 app!(
                     s,
-                    op_extensions_append,
+                    fn_extensions_append,
                     app!(
                         s,
-                        op_extensions_append,
-                        app_const!(s, op_extensions_new),
-                        app_const!(s, op_x25519_support_group_extension),
+                        fn_extensions_append,
+                        app_const!(s, fn_extensions_new),
+                        app_const!(s, fn_x25519_support_group_extension),
                     ),
-                    app_const!(s, op_signature_algorithm_extension)
+                    app_const!(s, fn_signature_algorithm_extension)
                 ),
-                app_const!(s, op_key_share_extension)
+                app_const!(s, fn_key_share_extension)
             ),
-            app_const!(s, op_supported_versions_extension)
+            app_const!(s, fn_supported_versions_extension)
         ),
     );
 
     let server_hello_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         app!(
             s,
-            op_append_transcript,
-            app_const!(s, op_new_transcript),
+            fn_append_transcript,
+            app_const!(s, fn_new_transcript),
             client_hello.clone(), // ClientHello
         ),
         var!(s, Message, (0, 0)), // plaintext ServerHello
@@ -388,63 +388,63 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
 
     let encrypted_extensions = app!(
         s,
-        op_decrypt,
+        fn_decrypt,
         var!(s, Message, (0, 2)), // Encrypted Extensions
         var!(s, Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, op_seq_0), // sequence 0
+        app_const!(s, fn_seq_0), // sequence 0
     );
 
     let encrypted_extension_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_hello_transcript.clone(),
         encrypted_extensions.clone() // plaintext Encrypted Extensions
     );
     let server_certificate = app!(
         s,
-        op_decrypt,
+        fn_decrypt,
         var!(s, Message, (0, 3)), // Server Certificate
         var!(s, Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, op_seq_1), // sequence 1
+        app_const!(s, fn_seq_1), // sequence 1
     );
 
     let server_certificate_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         encrypted_extension_transcript.clone(),
         server_certificate.clone() // plaintext Server Certificate
     );
 
     let server_certificate_verify = app!(
         s,
-        op_decrypt,
+        fn_decrypt,
         var!(s, Message, (0, 4)), // Server Certificate Verify
         var!(s, Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, op_seq_2) // sequence 2
+        app_const!(s, fn_seq_2) // sequence 2
     );
 
     let server_certificate_verify_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_certificate_transcript.clone(),
         server_certificate_verify.clone() // plaintext Server Certificate Verify
     );
 
     let server_finished = app!(
         s,
-        op_decrypt,
+        fn_decrypt,
         var!(s, Message, (0, 5)), // Server Handshake Finished
         var!(s, Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, op_seq_3) // sequence 3
+        app_const!(s, fn_seq_3) // sequence 3
     );
 
     let server_finished_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_certificate_verify_transcript.clone(),
         server_finished.clone(), // plaintext Server Handshake Finished
     );
@@ -478,13 +478,13 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: app!(
                         s,
-                        op_encrypt,
+                        fn_encrypt,
                         app!(
                             s,
-                            op_finished,
+                            fn_finished,
                             app!(
                                 s,
-                                op_verify_data,
+                                fn_verify_data,
                                 var!(s, Vec<ServerExtension>, (0, 0)),
                                 server_finished_transcript.clone(),
                                 server_hello_transcript.clone()
@@ -492,7 +492,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                         ),
                         var!(s, Vec<ServerExtension>, (0, 0)),
                         server_hello_transcript.clone(),
-                        app_const!(s, op_seq_0) // sequence 0
+                        app_const!(s, fn_seq_0) // sequence 0
                     ),
                 }),
             },
@@ -511,55 +511,55 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
 
     let client_hello = app!(
         s,
-        op_client_hello,
-        app_const!(s, op_protocol_version12),
-        app_const!(s, op_random),
-        app_const!(s, op_session_id),
+        fn_client_hello,
+        app_const!(s, fn_protocol_version12),
+        app_const!(s, fn_random),
+        app_const!(s, fn_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(s, op_cipher_suites12),
-        app_const!(s, op_compressions),
+        app_const!(s, fn_cipher_suites12),
+        app_const!(s, fn_compressions),
         // todo CertificateStatusRequest Extension
         app!(
             s,
-            op_extensions_append,
+            fn_extensions_append,
             app!(
                 s,
-                op_extensions_append,
+                fn_extensions_append,
                 app!(
                     s,
-                    op_extensions_append,
+                    fn_extensions_append,
                     app!(
                         s,
-                        op_extensions_append,
+                        fn_extensions_append,
                         app!(
                             s,
-                            op_extensions_append,
+                            fn_extensions_append,
                             app!(
                                 s,
-                                op_extensions_append,
-                                app_const!(s, op_extensions_new),
-                                app_const!(s, op_x25519_support_group_extension),
+                                fn_extensions_append,
+                                app_const!(s, fn_extensions_new),
+                                app_const!(s, fn_x25519_support_group_extension),
                             ),
-                            app_const!(s, op_signature_algorithm_extension)
+                            app_const!(s, fn_signature_algorithm_extension)
                         ),
-                        app_const!(s, op_ec_point_formats)
+                        app_const!(s, fn_ec_point_formats)
                     ),
-                    app_const!(s, op_signature_algorithm_cert_extension)
+                    app_const!(s, fn_signature_algorithm_cert_extension)
                 ),
-                app_const!(s, op_signed_certificate_timestamp)
+                app_const!(s, fn_signed_certificate_timestamp)
             ),
             // Enable Renegotiation
-            app!(s, op_renegotiation_info, app_const!(s, op_empty_bytes_vec)),
+            app!(s, fn_renegotiation_info, app_const!(s, fn_empty_bytes_vec)),
         )
     );
 
     let server_hello_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         app!(
             s,
-            op_append_transcript,
-            app_const!(s, op_new_transcript12),
+            fn_append_transcript,
+            app_const!(s, fn_new_transcript12),
             client_hello.clone(), // ClientHello
         ),
         var!(s, Message, (0, 0)), // plaintext ServerHello
@@ -567,47 +567,47 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
 
     let certificate_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_hello_transcript.clone(),
         var!(s, Message, (0, 1)), // Certificate
     );
 
     let server_key_exchange_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         certificate_transcript.clone(),
         var!(s, Message, (0, 2)), // ServerKeyExchange
     );
 
     let server_hello_done_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_key_exchange_transcript.clone(),
         var!(s, Message, (0, 3)), // ServerHelloDone
     );
 
     let client_key_exchange = app!(
         s,
-        op_client_key_exchange,
+        fn_client_key_exchange,
         app!(
             s,
-            op_new_pubkey12,
-            app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2)))
+            fn_new_pubkey12,
+            app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2)))
         )
     );
 
     let client_key_exchange_transcript = app!(
         s,
-        op_append_transcript,
+        fn_append_transcript,
         server_hello_done_transcript.clone(),
         client_key_exchange.clone()
     );
 
     let client_verify_data = app!(
         s,
-        op_sign_transcript,
+        fn_sign_transcript,
         var!(s, Random, (0, 0)),
-        app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
+        app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
         client_key_exchange_transcript.clone()
     );
 
@@ -644,7 +644,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: app_const!(s, op_change_cipher_spec12),
+                    recipe: app_const!(s, fn_change_cipher_spec12),
                 }),
             },
             Step {
@@ -652,11 +652,11 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
                 action: Action::Input(InputAction {
                     recipe: app!(
                         s,
-                        op_encrypt12,
-                        app1!(s, op_finished12(client_verify_data.clone(),)),
+                        fn_encrypt12,
+                        app1!(s, fn_finished12(client_verify_data.clone(),)),
                         var!(s, Random, (0, 0)),
-                        app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
-                        app_const!(s, op_seq_0)
+                        app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
+                        app_const!(s, fn_seq_0)
                     ),
                 }),
             },
@@ -679,34 +679,34 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
 
     let renegotiation_client_hello = app!(
         s,
-        op_client_hello,
-        app_const!(s, op_protocol_version12),
-        app_const!(s, op_random),
-        app_const!(s, op_session_id),
+        fn_client_hello,
+        app_const!(s, fn_protocol_version12),
+        app_const!(s, fn_random),
+        app_const!(s, fn_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(s, op_cipher_suites12),
-        app_const!(s, op_compressions),
+        app_const!(s, fn_cipher_suites12),
+        app_const!(s, fn_compressions),
         app!(
             s,
-            op_extensions_append,
+            fn_extensions_append,
             app!(
                 s,
-                op_extensions_append,
+                fn_extensions_append,
                 app!(
                     s,
-                    op_extensions_append,
+                    fn_extensions_append,
                     app!(
                         s,
-                        op_extensions_append,
-                        app_const!(s, op_extensions_new),
-                        app_const!(s, op_x25519_support_group_extension),
+                        fn_extensions_append,
+                        app_const!(s, fn_extensions_new),
+                        app_const!(s, fn_x25519_support_group_extension),
                     ),
-                    app_const!(s, op_ec_point_formats)
+                    app_const!(s, fn_ec_point_formats)
                 ),
-                app_const!(s, op_signature_algorithm_cert_extension)
+                app_const!(s, fn_signature_algorithm_cert_extension)
             ),
             // Enable Renegotiation
-            app!(s, op_renegotiation_info, client_verify_data),
+            app!(s, fn_renegotiation_info, client_verify_data),
         )
     );
 
@@ -729,11 +729,11 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         action: Action::Input(InputAction {
             recipe: app!(
                 s,
-                op_encrypt12,
+                fn_encrypt12,
                 renegotiation_client_hello.clone(),
                 var!(s, Random, (0, 0)),
-                app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
-                app_const!(s, op_seq_1)
+                app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
+                app_const!(s, fn_seq_1)
             ),
         }),
     });

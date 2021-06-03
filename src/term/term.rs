@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::trace::TraceContext;
 
-use super::{Operator, Variable};
+use super::{Function, Variable};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///
@@ -17,15 +17,12 @@ pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
     ///
-    /// [`Variable`]: struct.Variable.html
-    ///
     Variable(Variable),
-    /// An [`Operator`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
+    /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
-    /// A `Term` that is an application of an [`Operator`] with arity 0 applied to 0 `Term`s can be considered a constant.
+    /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    /// [`Operator`]: struct.Operator.html
-    Application { op: Operator, args: Vec<Term> },
+    Application { op: Function, args: Vec<Term> },
 }
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
@@ -88,7 +85,7 @@ impl Term {
     ///
     /// [`Operator`]: struct.Operator.html
     ///
-    pub fn operators(&self) -> Vec<Operator> {
+    pub fn operators(&self) -> Vec<Function> {
         match *self {
             Term::Variable(_) => vec![],
             Term::Application { ref op, ref args } => args

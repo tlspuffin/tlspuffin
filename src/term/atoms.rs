@@ -40,12 +40,12 @@ impl fmt::Display for Variable {
 
 /// A symbol with fixed arity.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Operator {
+pub struct Function {
     pub id: u32,
     fn_container: FnContainer,
 }
 
-impl Operator {
+impl Function {
     pub fn new(id: u32, shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
             id,

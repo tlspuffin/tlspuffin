@@ -9,11 +9,11 @@ use rustls::{ProtocolVersion, SignatureScheme};
 
 use crate::tls::key_exchange::deterministic_key_exchange;
 
-pub fn op_extensions_new() -> Vec<ClientExtension> {
+pub fn fn_extensions_new() -> Vec<ClientExtension> {
     vec![]
 }
 
-pub fn op_extensions_append(
+pub fn fn_extensions_append(
     extensions: &Vec<ClientExtension>,
     extension: &ClientExtension,
 ) -> Vec<ClientExtension> {
@@ -26,7 +26,7 @@ pub fn op_extensions_append(
 // seed_client_attacker()
 // ----
 
-pub fn op_server_name_extension() -> ClientExtension {
+pub fn fn_server_name_extension() -> ClientExtension {
     let dns_name = "maxammann.org";
     ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
@@ -39,18 +39,18 @@ pub fn op_server_name_extension() -> ClientExtension {
     }])
 }
 
-pub fn op_x25519_support_group_extension() -> ClientExtension {
+pub fn fn_x25519_support_group_extension() -> ClientExtension {
     ClientExtension::NamedGroups(vec![NamedGroup::X25519])
 }
 
-pub fn op_signature_algorithm_extension() -> ClientExtension {
+pub fn fn_signature_algorithm_extension() -> ClientExtension {
     ClientExtension::SignatureAlgorithms(vec![
         SignatureScheme::RSA_PKCS1_SHA256,
         SignatureScheme::RSA_PSS_SHA256,
     ])
 }
 
-pub fn op_signature_algorithm_cert_extension() -> ClientExtension {
+pub fn fn_signature_algorithm_cert_extension() -> ClientExtension {
     ClientExtension::SignatureAlgorithmsCert(vec![
         SignatureScheme::RSA_PKCS1_SHA1,
         SignatureScheme::ECDSA_SHA1_Legacy,
@@ -68,7 +68,7 @@ pub fn op_signature_algorithm_cert_extension() -> ClientExtension {
     ])
 }
 
-pub fn op_key_share_extension() -> ClientExtension {
+pub fn fn_key_share_extension() -> ClientExtension {
     //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
     //let key = Vec::from([42; 32]); // 32 byte public key
     let our_key_share: KeyExchange = deterministic_key_exchange(&X25519);
@@ -78,11 +78,11 @@ pub fn op_key_share_extension() -> ClientExtension {
     }])
 }
 
-pub fn op_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
+pub fn fn_renegotiation_info(data: &Vec<u8>) -> ClientExtension {
     ClientExtension::RenegotiationInfo(PayloadU8::new(data.clone()))
 }
 
-pub fn op_supported_versions_extension() -> ClientExtension {
+pub fn fn_supported_versions_extension() -> ClientExtension {
     ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3])
 }
 
@@ -90,11 +90,11 @@ pub fn op_supported_versions_extension() -> ClientExtension {
 // seed_client_attacker12()
 // ----
 
-pub fn op_signed_certificate_timestamp() -> ClientExtension {
+pub fn fn_signed_certificate_timestamp() -> ClientExtension {
     ClientExtension::SignedCertificateTimestampRequest
 }
 
-pub fn op_ec_point_formats() -> ClientExtension {
+pub fn fn_ec_point_formats() -> ClientExtension {
     ClientExtension::ECPointFormats(vec![
         rustls::internal::msgs::enums::ECPointFormat::Uncompressed,
     ])
@@ -106,7 +106,7 @@ pub fn op_ec_point_formats() -> ClientExtension {
 
 // https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3449
 
-pub fn op_attack_cve_2021_3449(extensions: &Vec<ClientExtension>) -> Vec<ClientExtension> {
+pub fn fn_attack_cve_2021_3449(extensions: &Vec<ClientExtension>) -> Vec<ClientExtension> {
     extensions
         .clone()
         .into_iter()

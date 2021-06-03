@@ -5,7 +5,7 @@ mod term {
     use itertools::Itertools;
     use rustls::internal::msgs::handshake::SessionID;
 
-    use crate::tls::fn_impl::{op_client_hello, op_hmac256, op_hmac256_new_key, op_session_id};
+    use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
     use crate::tls::{REGISTERED_FN, REGISTERED_TYPES};
     use crate::{
         term::{Signature, Term},
@@ -20,9 +20,9 @@ mod term {
     fn example() {
         let mut sig = Signature::default();
 
-        let hmac256_new_key = sig.new_op(&op_hmac256_new_key);
-        let hmac256 = sig.new_op(&op_hmac256);
-        let _client_hello = sig.new_op(&op_client_hello);
+        let hmac256_new_key = sig.new_op(&fn_hmac256_new_key);
+        let hmac256 = sig.new_op(&fn_hmac256);
+        let _client_hello = sig.new_op(&fn_client_hello);
 
         let data = "hello".as_bytes().to_vec();
 
@@ -62,7 +62,7 @@ mod term {
         let app = sig.new_op(&example_op_c);
         let s = sig.new_op(&example_op_c);
 
-        let var_data = op_session_id();
+        let var_data = fn_session_id();
 
         let k = sig.new_var::<SessionID>((0, 0));
 
