@@ -10,6 +10,7 @@ use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tls::REGISTERED_TYPES;
+use std::error::Error;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -70,13 +71,13 @@ pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, String> + Send + Sync {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, Box<dyn Error>> + Send + Sync {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, String> + Clone + Send + Sync,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, Box<dyn Error>> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -113,10 +114,11 @@ pub trait DescribableFunction<Types> {
 
 macro_rules! dynamic_fn {
     ($($arg:ident)* => $res:ident) => (
-    impl<F, $res: 'static, $($arg: 'static),*>
+    impl<E, F, $res: 'static, $($arg: 'static),*>
         DescribableFunction<($res, $($arg),*)> for F
     where
-        F: (Fn($(&$arg),*)  -> Result<$res, String>) + Send + Sync,
+        E: std::error::Error,
+        F: (Fn($(&$arg),*)  -> Result<$res, E>) + Send + Sync,
         $res: Send + Sync,
         $($arg: Send + Sync),*
     {

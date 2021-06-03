@@ -23,12 +23,13 @@ use rustls::{
     ALL_KX_GROUPS,
 };
 use HandshakePayload::EncryptedExtensions;
+use super::NoneError;
 
 // ----
 // TLS 1.3 Message constructors (Return type is message)
 // ----
 
-pub fn fn_alert_close_notify() -> Result<Message, String> {
+pub fn fn_alert_close_notify() -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Alert(AlertMessagePayload {
@@ -45,7 +46,7 @@ pub fn fn_client_hello(
     cipher_suites: &Vec<CipherSuite>,
     compression_methods: &Vec<Compression>,
     extensions: &Vec<ClientExtension>,
-) -> Result<Message, String> {
+) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -69,7 +70,7 @@ pub fn fn_server_hello(
     cipher_suite: &CipherSuite,
     compression_method: &Compression,
     extensions: &Vec<ServerExtension>,
-) -> Result<Message, String> {
+) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -86,14 +87,14 @@ pub fn fn_server_hello(
     })
 }
 
-pub fn fn_change_cipher_spec() -> Result<Message, String> {
+pub fn fn_change_cipher_spec() -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload {}),
     })
 }
 
-pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, String> {
+pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ApplicationData(Payload::new(data.clone())),
@@ -106,7 +107,7 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, String> {
 
 pub fn fn_encrypted_certificate(
     server_extensions: &Vec<ServerExtension>,
-) -> Result<Message, String> {
+) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -116,7 +117,7 @@ pub fn fn_encrypted_certificate(
     })
 }
 
-pub fn fn_certificate(certificate: &CertificatePayload) -> Result<Message, String> {
+pub fn fn_certificate(certificate: &CertificatePayload) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -130,7 +131,7 @@ pub fn fn_certificate(certificate: &CertificatePayload) -> Result<Message, Strin
 // seed_client_attacker()
 // ----
 
-pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, String> {
+pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_3, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -144,7 +145,7 @@ pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, String> {
 // TLS 1.2, all used in seed_successful12
 // ----
 
-pub fn fn_server_certificate(certs: &CertificatePayload) -> Result<Message, String> {
+pub fn fn_server_certificate(certs: &CertificatePayload) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -154,7 +155,7 @@ pub fn fn_server_certificate(certs: &CertificatePayload) -> Result<Message, Stri
     })
 }
 
-pub fn fn_server_key_exchange(data: &Vec<u8>) -> Result<Message, String> {
+pub fn fn_server_key_exchange(data: &Vec<u8>) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -166,7 +167,7 @@ pub fn fn_server_key_exchange(data: &Vec<u8>) -> Result<Message, String> {
     })
 }
 
-pub fn fn_server_hello_done() -> Result<Message, String> {
+pub fn fn_server_hello_done() -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -176,7 +177,7 @@ pub fn fn_server_hello_done() -> Result<Message, String> {
     })
 }
 
-pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, String> {
+pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -186,14 +187,14 @@ pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, String> {
     })
 }
 
-pub fn fn_change_cipher_spec12() -> Result<Message, String> {
+pub fn fn_change_cipher_spec12() -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::ChangeCipherSpec(ChangeCipherSpecPayload),
     })
 }
 
-pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<OpaqueMessage, String> {
+pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<OpaqueMessage, NoneError> {
     Ok(OpaqueMessage {
         typ: Handshake,
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
@@ -205,7 +206,7 @@ pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<OpaqueMessage, Stri
 // seed_client_attacker12()
 // ----
 
-pub fn fn_finished12(data: &Vec<u8>) -> Result<Message, String> {
+pub fn fn_finished12(data: &Vec<u8>) -> Result<Message, NoneError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2, // todo this is not controllable
         payload: MessagePayload::Handshake(HandshakeMessagePayload {

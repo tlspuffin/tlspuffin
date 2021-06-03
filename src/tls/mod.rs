@@ -18,6 +18,7 @@ use fn_impl::*;
 
 use crate::register_fn;
 use crate::tls::key_exchange::deterministic_key_exchange;
+use std::{error, fmt};
 
 mod fn_constants;
 mod fn_extensions;
@@ -136,14 +137,7 @@ fn new_secrets(server_random: &Random, server_ecdh_params: &ServerECDHParams) ->
     secrets
 }
 
-fn stringify(err: rustls::error::Error) -> String {
-    format!("error: {}", err)
-}
-fn stringify_unit(err: ()) -> String {
-    format!("error")
-}
-
-pub trait IntoResult<T> {
+/*pub trait IntoResult<T> {
     fn into_fn_result(self) -> T;
 }
 
@@ -165,6 +159,17 @@ impl<T> IntoResult<Result<T, String>> for Option<T> {
             None => Err(format!("error")),
             Some(some) => Ok(some),
         }
+    }
+}*/
+
+#[derive(Debug)]
+pub struct NoneError;
+
+impl std::error::Error for NoneError {}
+
+impl fmt::Display for NoneError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NoneError")
     }
 }
 
