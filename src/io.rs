@@ -4,7 +4,6 @@ use std::{
     io::{Read, Write},
 };
 
-
 use openssl::ssl::SslStream;
 use rustls::internal::msgs::message::OpaqueMessage;
 use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
@@ -12,8 +11,8 @@ use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::M
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
 use crate::agent::TLSVersion;
-use crate::debug::{debug_opaque_message_with_info};
-use crate::{openssl_binding};
+use crate::debug::debug_opaque_message_with_info;
+use crate::openssl_binding;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);
@@ -23,7 +22,7 @@ pub trait Stream: std::io::Read + std::io::Write {
 
     fn describe_state(&self) -> &'static str;
 
-    fn next_state(&mut self);
+    fn next_state(&mut self) -> Result<(), String>;
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -69,13 +68,9 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.ssl().state_string_long()
     }
 
-    fn next_state(&mut self) {
+    fn next_state(&mut self) -> Result<(), String> {
         let stream = &mut self.openssl_stream;
-        if self.server {
-            openssl_binding::server_accept(stream);
-        } else {
-            openssl_binding::client_connect(stream);
-        }
+        openssl_binding::do_handshake(stream)
     }
 }
 
@@ -187,7 +182,7 @@ impl Stream for MemoryStream {
         todo!()
     }
 
-    fn next_state(&mut self) {
+    fn next_state(&mut self) -> Result<(), String> {
         todo!()
     }
 }

@@ -82,7 +82,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), String> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.next_state())
+            .map(|agent| agent.stream.next_state())?
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".

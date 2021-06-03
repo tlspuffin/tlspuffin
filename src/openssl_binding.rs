@@ -171,25 +171,34 @@ pub fn create_openssl_server(
     SslStream::new(ssl, stream)
 }
 
-pub fn log_io_error(error: &openssl::ssl::Error) {
+pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), String> {
     if let Some(io_error) = error.io_error() {
         match io_error.kind() {
             ErrorKind::WouldBlock => {
                 // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
                 info!("Would have blocked but the underlying stream is non-blocking!");
+                Ok(())
             }
             _ => {
-                panic!("Unexpected IO Error: {}", io_error);
+                let error: String = format!("Unexpected IO Error: {}", io_error);
+                error!("{}", &error);
+                Err(error)
             }
         }
+    } else {
+        Ok(())
     }
 }
 
-pub fn log_ssl_error(error: &openssl::ssl::Error) {
+pub fn log_ssl_error(error: &openssl::ssl::Error) -> Result<(), String> {
     if let Some(ssl_error) = error.ssl_error() {
         // OpenSSL threw an error, that means that there should be an Alert message in the
         // outbound channel
-        error!("SSL Error: {}", ssl_error);
+        let error = format!("SSL Error: {}", ssl_error);
+        error!("{}", &error);
+        Err(error)
+    } else {
+        Ok(())
     }
 }
 
@@ -215,33 +224,24 @@ pub fn create_openssl_client(
     SslStream::new(ssl, stream)
 }
 
-pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
-    // todo: return these errors
-    if let Err(error) = stream.do_handshake() {
-        log_io_error(&error);
-        log_ssl_error(&error);
-    } else {
-        info!("Handshake is done");
-    }
-}
-
-pub fn server_accept(stream: &mut SslStream<MemoryStream>) {
+pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), String> {
     if stream.ssl().state_string_long() == "SSL negotiation finished successfully" {
         // todo improve this case
         let mut vec: Vec<u8> = Vec::from([1; 128]);
 
         if let Err(error) = stream.ssl_read(&mut vec) {
-            log_io_error(&error);
-            log_ssl_error(&error);
+            log_io_error(&error)?;
+            log_ssl_error(&error)?;
         } else {
-            info!("read succeeded");
+            trace!("read succeeded");
         }
     } else {
         if let Err(error) = stream.do_handshake() {
-            log_io_error(&error);
-            log_ssl_error(&error);
+            log_io_error(&error)?;
+            log_ssl_error(&error)?;
         } else {
-            info!("Handshake is done");
+            trace!("Handshake is done");
         }
     }
+    Ok(())
 }
