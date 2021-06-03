@@ -68,11 +68,6 @@ impl Function {
     pub fn dynamic_fn(&self) -> &Box<dyn DynamicFunction> {
         &self.fn_container.dynamic_fn
     }
-
-    /// Serialize an `Operator`.
-    pub fn display(&self) -> String {
-        format!("{}", self.name())
-    }
 }
 
 mod fn_container {

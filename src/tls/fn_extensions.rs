@@ -101,7 +101,7 @@ pub fn fn_ec_point_formats() -> ClientExtension {
 }
 
 // ----
-// Attack operations
+// Attack functions
 // ----
 
 // https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-3449

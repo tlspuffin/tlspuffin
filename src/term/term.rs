@@ -8,10 +8,8 @@ use crate::trace::TraceContext;
 
 use super::{Function, Variable};
 
-/// A first-order term: either a [`Variable`] or an application of an [`Operator`].
+/// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
-/// [`Variable`]: struct.Variable.html
-/// [`Operator`]: struct.Operator.html
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
@@ -22,7 +20,7 @@ pub enum Term {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application { op: Function, args: Vec<Term> },
+    Application(Function, Vec<Term>),
 }
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
@@ -56,8 +54,8 @@ impl Term {
         let tabs = "\t".repeat(depth);
         match self {
             Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ_name.as_str())),
-            Term::Application { ref op, ref args } => {
-                let op_str = remove_prefix(op.name());
+            Term::Application(ref func, ref args) => {
+                let op_str = remove_prefix(func.name());
                 if args.is_empty() {
                     format!("{}{}", tabs, op_str)
                 } else {
@@ -73,25 +71,21 @@ impl Term {
 
     /// Every [`Variable`] used in the `Term`.
     ///
-    /// [`Variable`]: struct.Variable.html
-    ///
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
             Term::Variable(ref v) => vec![v.clone()],
-            Term::Application { ref args, .. } => args.iter().flat_map(Term::variables).collect(),
+            Term::Application(_, ref args) => args.iter().flat_map(Term::variables).collect(),
         }
     }
-    /// Every [`Operator`] used in the `Term`.
+    /// Every [`Function`] used in the `Term`.
     ///
-    /// [`Operator`]: struct.Operator.html
-    ///
-    pub fn operators(&self) -> Vec<Function> {
+    pub fn functions(&self) -> Vec<Function> {
         match *self {
             Term::Variable(_) => vec![],
-            Term::Application { ref op, ref args } => args
+            Term::Application(ref func, ref args) => args
                 .iter()
-                .flat_map(Term::operators)
-                .chain(iter::once(op.clone()))
+                .flat_map(Term::functions)
+                .chain(iter::once(func.clone()))
                 .collect(),
         }
     }
@@ -100,7 +94,7 @@ impl Term {
     pub fn args(&self) -> Vec<Term> {
         match self {
             Term::Variable(_) => vec![],
-            Term::Application { args, .. } => args.clone(),
+            Term::Application(_, args) => args.clone(),
         }
     }
 
@@ -113,7 +107,7 @@ impl Term {
                     "Unable to find variable {} with observed id {:?} in TraceContext!",
                     v, v.observed_id
                 )),
-            Term::Application { op, args } => {
+            Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
                     match term.evaluate(context) {
@@ -125,7 +119,7 @@ impl Term {
                         }
                     }
                 }
-                let dynamic_fn = &op.dynamic_fn();
+                let dynamic_fn = &func.dynamic_fn();
                 Ok(dynamic_fn(&dynamic_args))
             }
         }
@@ -135,34 +129,21 @@ impl Term {
 #[macro_export]
 macro_rules! app_const {
     ($sig:ident, $op:ident) => {
-        Term::Application {
-            op: $sig.new_op(&$op),
-            args: vec![],
-        }
+        Term::Application($sig.new_function(&$op),vec![])
     };
 }
 
 #[macro_export]
 macro_rules! app {
     ($sig:ident, $op:ident, $($args:expr),*$(,)?) => {
-        Term::Application {
-            op: $sig.new_op(&$op),
-            args: vec![
-                $($args,)*
-            ],
-        }
+        Term::Application($sig.new_function(&$op),vec![$($args,)*])
     };
 }
 
 #[macro_export]
 macro_rules! app1 {
     ($sig:ident, $op:ident($($args:expr),*$(,)?)) => {
-        Term::Application {
-            op: $sig.new_op(&$op),
-            args: vec![
-                $($args,)*
-            ],
-        }
+        Term::Application($sig.new_function(&$op),vec![$($args,)*])
     };
 }
 

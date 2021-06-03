@@ -20,9 +20,9 @@ mod term {
     fn example() {
         let mut sig = Signature::default();
 
-        let hmac256_new_key = sig.new_op(&fn_hmac256_new_key);
-        let hmac256 = sig.new_op(&fn_hmac256);
-        let _client_hello = sig.new_op(&fn_client_hello);
+        let hmac256_new_key = sig.new_function(&fn_hmac256_new_key);
+        let hmac256 = sig.new_function(&fn_hmac256);
+        let _client_hello = sig.new_function(&fn_client_hello);
 
         let data = "hello".as_bytes().to_vec();
 
@@ -30,16 +30,13 @@ mod term {
 
         let variable = sig.new_var::<Vec<u8>>((0, 0));
 
-        let generated_term = Term::Application {
-            op: hmac256,
-            args: vec![
-                Term::Application {
-                    op: hmac256_new_key,
-                    args: vec![],
-                },
+        let generated_term = Term::Application(
+            hmac256,
+            vec![
+                Term::Application(hmac256_new_key, vec![]),
                 Term::Variable(variable),
             ],
-        };
+        );
 
         println!("{}", generated_term);
         let mut context = TraceContext::new();
@@ -59,8 +56,8 @@ mod term {
     fn playground() {
         let mut sig = Signature::default();
 
-        let app = sig.new_op(&example_op_c);
-        let s = sig.new_op(&example_op_c);
+        let example = sig.new_function(&example_op_c);
+        let example1 = sig.new_function(&example_op_c);
 
         let var_data = fn_session_id();
 
@@ -72,53 +69,47 @@ mod term {
         println!("{:?}", TypeId::of::<SessionID>());
         println!("{:?}", var_data.type_id());
 
-        let operator = s.clone();
-        let dynamic_fn = operator.dynamic_fn();
+        let func = example.clone();
+        let dynamic_fn = func.dynamic_fn();
         println!(
             "{:?}",
             dynamic_fn(&vec![Box::new(1u8)])
                 .downcast_ref::<u16>()
                 .unwrap()
         );
-        println!("{}", s.shape());
+        println!("{}", example.shape());
 
-        let constructed_term = Term::Application {
-            op: app.clone(),
-            args: vec![
-                Term::Application {
-                    op: app.clone(),
-                    args: vec![
-                        Term::Application {
-                            op: app.clone(),
-                            args: vec![
-                                Term::Application {
-                                    op: s.clone(),
-                                    args: vec![],
-                                },
+        let constructed_term = Term::Application(
+            example1.clone(),
+            vec![
+                Term::Application(
+                    example1.clone(),
+                    vec![
+                        Term::Application(
+                            example1.clone(),
+                            vec![
+                                Term::Application(example1.clone(), vec![]),
                                 Term::Variable(k.clone()),
                             ],
-                        },
+                        ),
                         Term::Variable(k.clone()),
                     ],
-                },
-                Term::Application {
-                    op: app.clone(),
-                    args: vec![
-                        Term::Application {
-                            op: app.clone(),
-                            args: vec![
+                ),
+                Term::Application(
+                    example1.clone(),
+                    vec![
+                        Term::Application(
+                            example1.clone(),
+                            vec![
                                 Term::Variable(k.clone()),
-                                Term::Application {
-                                    op: s.clone(),
-                                    args: vec![],
-                                },
+                                Term::Application(example.clone(), vec![]),
                             ],
-                        },
+                        ),
                         Term::Variable(k.clone()),
                     ],
-                },
+                ),
             ],
-        };
+        );
 
         println!("{}", constructed_term);
     }

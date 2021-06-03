@@ -19,11 +19,7 @@ use crate::{
 use crate::{app, app1, app_const, var};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
-    let mut sig = Signature::default();
-    let op_client_hello = sig.new_op(&fn_client_hello);
-    let op_server_hello = sig.new_op(&fn_server_hello);
-    let op_change_cipher_spec = sig.new_op(&fn_change_cipher_spec);
-    let op_application_data = sig.new_op(&fn_application_data);
+    let mut s = Signature::default();
 
     Trace {
         descriptors: vec![
@@ -47,17 +43,17 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_client_hello,
-                        args: vec![
-                            Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
-                            Term::Variable(sig.new_var::<Random>((0, 0))),
-                            Term::Variable(sig.new_var::<SessionID>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0))),
+                    recipe: Term::Application(
+                        s.new_function(&fn_client_hello),
+                        vec![
+                            Term::Variable(s.new_var::<ProtocolVersion>((0, 0))),
+                            Term::Variable(s.new_var::<Random>((0, 0))),
+                            Term::Variable(s.new_var::<SessionID>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<CipherSuite>>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<Compression>>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<ClientExtension>>((0, 0))),
                         ],
-                    },
+                    ),
                 }),
             },
             Step {
@@ -68,67 +64,64 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_server_hello,
-                        args: vec![
-                            Term::Variable(sig.new_var::<ProtocolVersion>((1, 0))),
-                            Term::Variable(sig.new_var::<Random>((1, 0))),
-                            Term::Variable(sig.new_var::<SessionID>((1, 0))),
-                            Term::Variable(sig.new_var::<CipherSuite>((1, 0))),
-                            Term::Variable(sig.new_var::<Compression>((1, 0))),
-                            Term::Variable(sig.new_var::<Vec<ServerExtension>>((1, 0))),
+                    recipe: Term::Application(
+                        s.new_function(&fn_server_hello),
+                        vec![
+                            Term::Variable(s.new_var::<ProtocolVersion>((1, 0))),
+                            Term::Variable(s.new_var::<Random>((1, 0))),
+                            Term::Variable(s.new_var::<SessionID>((1, 0))),
+                            Term::Variable(s.new_var::<CipherSuite>((1, 0))),
+                            Term::Variable(s.new_var::<Compression>((1, 0))),
+                            Term::Variable(s.new_var::<Vec<ServerExtension>>((1, 0))),
                         ],
-                    },
+                    ),
                 }),
             },
             // CCS Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_change_cipher_spec.clone(),
-                        args: vec![],
-                    },
+                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec), vec![]),
                 }),
             },
             // Encrypted Extensions Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 2)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 2)))],
+                    ),
                 }),
             },
             // Certificate Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 3)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 3)))],
+                    ),
                 }),
             },
             // Certificate Verify Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 4)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 4)))],
+                    ),
                 }),
             },
             // Finish Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 5)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 5)))],
+                    ),
                 }),
             },
             Step {
@@ -138,20 +131,17 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_change_cipher_spec.clone(),
-                        args: vec![],
-                    },
+                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec), vec![]),
                 }),
             },
             // Finished Client -> Server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 1)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 1)))],
+                    ),
                 }),
             },
             Step {
@@ -161,19 +151,19 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 0)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 0)))],
+                    ),
                 }),
             },
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_application_data.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 1)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_application_data),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 1)))],
+                    ),
                 }),
             },
         ],
@@ -181,15 +171,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
-    let mut sig = Signature::default();
-    let op_client_hello = sig.new_op(&fn_client_hello);
-    let op_server_hello = sig.new_op(&fn_server_hello);
-    let op_server_certificate = sig.new_op(&fn_server_certificate);
-    let op_server_key_exchange = sig.new_op(&fn_server_key_exchange);
-    let op_server_hello_done = sig.new_op(&fn_server_hello_done);
-    let op_client_key_exchange = sig.new_op(&fn_client_key_exchange);
-    let op_change_cipher_spec12 = sig.new_op(&fn_change_cipher_spec12);
-    let op_handshake_finished12 = sig.new_op(&fn_opaque_handshake_message);
+    let mut s = Signature::default();
 
     Trace {
         steps: vec![
@@ -201,17 +183,17 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_client_hello.clone(),
-                        args: vec![
-                            Term::Variable(sig.new_var::<ProtocolVersion>((0, 0))),
-                            Term::Variable(sig.new_var::<Random>((0, 0))),
-                            Term::Variable(sig.new_var::<SessionID>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<CipherSuite>>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<Compression>>((0, 0))),
-                            Term::Variable(sig.new_var::<Vec<ClientExtension>>((0, 0))),
+                    recipe: Term::Application(
+                        s.new_function(&fn_client_hello),
+                        vec![
+                            Term::Variable(s.new_var::<ProtocolVersion>((0, 0))),
+                            Term::Variable(s.new_var::<Random>((0, 0))),
+                            Term::Variable(s.new_var::<SessionID>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<CipherSuite>>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<Compression>>((0, 0))),
+                            Term::Variable(s.new_var::<Vec<ClientExtension>>((0, 0))),
                         ],
-                    },
+                    ),
                 }),
             },
             Step {
@@ -222,47 +204,44 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_server_hello,
-                        args: vec![
-                            Term::Variable(sig.new_var::<ProtocolVersion>((1, 0))),
-                            Term::Variable(sig.new_var::<Random>((1, 0))),
-                            Term::Variable(sig.new_var::<SessionID>((1, 0))),
-                            Term::Variable(sig.new_var::<CipherSuite>((1, 0))),
-                            Term::Variable(sig.new_var::<Compression>((1, 0))),
-                            Term::Variable(sig.new_var::<Vec<ServerExtension>>((1, 0))),
+                    recipe: Term::Application(
+                        s.new_function(&fn_server_hello),
+                        vec![
+                            Term::Variable(s.new_var::<ProtocolVersion>((1, 0))),
+                            Term::Variable(s.new_var::<Random>((1, 0))),
+                            Term::Variable(s.new_var::<SessionID>((1, 0))),
+                            Term::Variable(s.new_var::<CipherSuite>((1, 0))),
+                            Term::Variable(s.new_var::<Compression>((1, 0))),
+                            Term::Variable(s.new_var::<Vec<ServerExtension>>((1, 0))),
                         ],
-                    },
+                    ),
                 }),
             },
             // Server Certificate, Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_server_certificate.clone(),
-                        args: vec![Term::Variable(sig.new_var::<CertificatePayload>((1, 1)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_server_certificate),
+                        vec![Term::Variable(s.new_var::<CertificatePayload>((1, 1)))],
+                    ),
                 }),
             },
             // Server Key Exchange, Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_server_key_exchange.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((1, 2)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_server_key_exchange),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 2)))],
+                    ),
                 }),
             },
             // Server Hello Done, Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_server_hello_done.clone(),
-                        args: vec![],
-                    },
+                    recipe: Term::Application(s.new_function(&fn_server_hello_done), vec![]),
                 }),
             },
             Step {
@@ -273,30 +252,27 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_client_key_exchange.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 0)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_client_key_exchange),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 0)))],
+                    ),
                 }),
             },
             // Client Change Cipher Spec, Client -> Server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_change_cipher_spec12.clone(),
-                        args: vec![],
-                    },
+                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec12).clone(), vec![]),
                 }),
             },
             // Client Handshake Finished, Client -> Server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_handshake_finished12.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((2, 2)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_opaque_handshake_message),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 2)))],
+                    ),
                 }),
             },
             Step {
@@ -307,20 +283,17 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_change_cipher_spec12.clone(),
-                        args: vec![],
-                    },
+                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec12), vec![]),
                 }),
             },
             // Server Handshake Finished, Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application {
-                        op: op_handshake_finished12.clone(),
-                        args: vec![Term::Variable(sig.new_var::<Vec<u8>>((3, 1)))],
-                    },
+                    recipe: Term::Application(
+                        s.new_function(&fn_opaque_handshake_message),
+                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 1)))],
+                    ),
                 }),
             },
         ],
