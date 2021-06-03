@@ -56,12 +56,10 @@ impl Signature {
     fn new_var_internal(
         &mut self,
         type_shape: TypeShape,
-        typ_name: String,
         observed_id: ObservedId,
     ) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
-            typ_name,
             type_shape,
             observed_id,
         };
@@ -72,7 +70,6 @@ impl Signature {
     pub fn new_var<T: 'static>(&mut self, observed_id: ObservedId) -> Variable {
         self.new_var_internal(
             TypeShape::of::<T>(),
-            std::any::type_name::<T>().to_string(),
             observed_id,
         )
     }

@@ -227,6 +227,7 @@ pub fn client_connect(stream: &mut SslStream<MemoryStream>) {
 
 pub fn server_accept(stream: &mut SslStream<MemoryStream>) {
     if stream.ssl().state_string_long() == "SSL negotiation finished successfully" {
+        // todo improve this case
         let mut vec: Vec<u8> = Vec::from([1; 128]);
 
         if let Err(error) = stream.ssl_read(&mut vec) {

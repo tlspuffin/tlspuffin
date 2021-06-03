@@ -16,16 +16,14 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Variable {
     pub id: u32,
-    pub typ_name: String,
     pub type_shape: TypeShape,
     pub observed_id: ObservedId,
 }
 
 impl Variable {
-    pub fn new(id: u32, typ_name: String, type_shape: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(id: u32, type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
             id,
-            typ_name,
             type_shape,
             observed_id,
         }
@@ -34,7 +32,7 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "var<{}>", self.typ_name)
+        write!(f, "var<{}>", self.type_shape)
     }
 }
 
