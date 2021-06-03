@@ -120,7 +120,8 @@ impl Term {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                Ok(dynamic_fn(&dynamic_args))
+                let result = dynamic_fn(&dynamic_args).unwrap(); // todo
+                Ok(result)
             }
         }
     }

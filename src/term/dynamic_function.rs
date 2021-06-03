@@ -70,13 +70,13 @@ pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Send + Sync {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, String> + Send + Sync {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any> + Clone + Send + Sync,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, String> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -113,10 +113,10 @@ pub trait DescribableFunction<Types> {
 
 macro_rules! dynamic_fn {
     ($($arg:ident)* => $res:ident) => (
-    impl<F, $res: 'static, $($arg: 'static),*> // 'static missing
+    impl<F, $res: 'static, $($arg: 'static),*>
         DescribableFunction<($res, $($arg),*)> for F
     where
-        F: (Fn($(&$arg),*)  -> $res) + Send + Sync,
+        F: (Fn($(&$arg),*)  -> Result<$res, String>) + Send + Sync,
         $res: Send + Sync,
         $($arg: Send + Sync),*
     {
@@ -134,7 +134,7 @@ macro_rules! dynamic_fn {
                 #[allow(unused_mut)]
                 let mut index = 0;
 
-                Box::new(self($(
+                let result = self($(
                        #[allow(unused_assignments)]
                        {
                            if let Some(arg_) = args.get(index)
@@ -156,7 +156,9 @@ macro_rules! dynamic_fn {
                                )
                            }
                        }
-                ),*))
+                ),*);
+
+                Ok(Box::new(result.unwrap())) // todo
             })
         }
     }
