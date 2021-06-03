@@ -2,17 +2,18 @@ use ring::test::rand::FixedByteRandom;
 use rustls::kx::KeyExchange;
 use rustls::SupportedKxGroup;
 
-pub fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> KeyExchange {
+use crate::tls::{FnError, IntoFnResult};
+
+pub fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };
-    //let random = SystemRandom::new();
-    let ours =
-        ring::agreement::EphemeralPrivateKey::generate(skxg.agreement_algorithm, &random).unwrap();
+    let ours = ring::agreement::EphemeralPrivateKey::generate(skxg.agreement_algorithm, &random)
+        .into_fn_result()?;
 
-    let pubkey = ours.compute_public_key().unwrap();
+    let pubkey = ours.compute_public_key().into_fn_result()?;
 
-    KeyExchange {
+    Ok(KeyExchange {
         skxg,
         privkey: ours,
         pubkey,
-    }
+    })
 }

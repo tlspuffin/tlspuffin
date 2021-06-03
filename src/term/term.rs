@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
+use crate::tls::FnError;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -98,15 +99,15 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, String> {
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, FnError> {
         match self {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.type_shape, v.observed_id)
                 .map(|data| data.clone_box_any())
-                .ok_or(format!(
+                .ok_or(FnError(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",
                     v, v.observed_id
-                )),
+                ))),
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
@@ -120,8 +121,8 @@ impl Term {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                let result = dynamic_fn(&dynamic_args).unwrap(); // todo
-                Ok(result)
+                let result = dynamic_fn(&dynamic_args);
+                result.map_err(|err| FnError(err.to_string()))
             }
         }
     }

@@ -287,7 +287,7 @@ pub struct InputAction {
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let evaluated = self.recipe.evaluate(ctx).map_err(|err| err.0)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;

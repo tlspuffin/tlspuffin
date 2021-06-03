@@ -6,9 +6,12 @@ use rustls::internal::msgs::handshake::{
 use rustls::kx::KeyExchange;
 use rustls::kx_group::X25519;
 use rustls::{ProtocolVersion, SignatureScheme};
-use super::NoneError;
 
 use crate::tls::key_exchange::deterministic_key_exchange;
+
+use super::NoneError;
+use webpki::InvalidDnsNameError;
+use crate::tls::FnError;
 
 pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, NoneError> {
     Ok(vec![])
@@ -27,15 +30,13 @@ pub fn fn_extensions_append(
 // seed_client_attacker()
 // ----
 
-pub fn fn_server_name_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_server_name_extension() -> Result<ClientExtension, InvalidDnsNameError> {
     let dns_name = "maxammann.org";
     Ok(ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName((
             PayloadU16(dns_name.to_string().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name)
-                .unwrap()
-                .to_owned(),
+            webpki::DnsNameRef::try_from_ascii_str(dns_name)?.to_owned(),
         )),
     }]))
 }
@@ -69,10 +70,10 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, NoneEr
     ]))
 }
 
-pub fn fn_key_share_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_key_share_extension() -> Result<ClientExtension, FnError> {
     //let key = Vec::from(rand::random::<[u8; 32]>()); // 32 byte public key
     //let key = Vec::from([42; 32]); // 32 byte public key
-    let our_key_share: KeyExchange = deterministic_key_exchange(&X25519);
+    let our_key_share: KeyExchange = deterministic_key_exchange(&X25519)?;
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
         group: NamedGroup::X25519,
         payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
@@ -80,11 +81,15 @@ pub fn fn_key_share_extension() -> Result<ClientExtension, NoneError> {
 }
 
 pub fn fn_renegotiation_info(data: &Vec<u8>) -> Result<ClientExtension, NoneError> {
-    Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(data.clone())))
+    Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
+        data.clone(),
+    )))
 }
 
 pub fn fn_supported_versions_extension() -> Result<ClientExtension, NoneError> {
-    Ok(ClientExtension::SupportedVersions(vec![ProtocolVersion::TLSv1_3]))
+    Ok(ClientExtension::SupportedVersions(vec![
+        ProtocolVersion::TLSv1_3,
+    ]))
 }
 
 // ----

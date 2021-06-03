@@ -6,14 +6,14 @@ mod term {
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
-    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES};
+    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES, NoneError};
     use crate::{
         term::{Signature, Term},
         trace::TraceContext,
     };
 
-    fn example_op_c(a: &u8) -> u16 {
-        (a + 1) as u16
+    fn example_op_c(a: &u8) -> Result<u16, NoneError> {
+       Ok( (a + 1) as u16)
     }
 
     #[test]
@@ -73,7 +73,7 @@ mod term {
         let dynamic_fn = func.dynamic_fn();
         println!(
             "{:?}",
-            dynamic_fn(&vec![Box::new(1u8)])
+            dynamic_fn(&vec![Box::new(1u8)]).unwrap()
                 .downcast_ref::<u16>()
                 .unwrap()
         );
