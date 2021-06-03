@@ -139,22 +139,22 @@ macro_rules! dynamic_fn {
                        #[allow(unused_assignments)]
                        {
                            if let Some(arg_) = args.get(index)
-                                    .unwrap_or_else(|| {
+                                    .ok_or_else(|| {
                                         let shape = Self::shape();
-                                        panic!("Missing argument #{} while calling {}.", index + 1, shape.name)
-                                    })
+                                        FnError::Message(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
+                                    })?
                                     .as_ref().downcast_ref::<$arg>() {
                                index = index + 1;
                                arg_
                            } else {
                                let shape = Self::shape();
-                               panic!(
+                               return Err(FnError::Message(format!(
                                     "Passed argument #{} of {} did not match the shape {}. Hashes of passed types are {}.",
                                     index + 1,
                                     shape.name,
                                     shape,
                                     format_args(args)
-                               )
+                               )));
                            }
                        }
                 ),*);
