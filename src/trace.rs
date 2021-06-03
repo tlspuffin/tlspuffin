@@ -11,7 +11,7 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-use crate::tls::{FnError, MultiMessage};
+use crate::tls::{MultiMessage};
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},

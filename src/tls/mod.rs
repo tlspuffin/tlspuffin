@@ -1,8 +1,8 @@
-use std::{error, fmt};
+use std::{fmt};
 use std::convert::{TryFrom, TryInto};
 
 use ring::hkdf::Prk;
-use rustls::{ALL_KX_GROUPS, Error, kx, SupportedCipherSuite, tls12};
+use rustls::{ALL_KX_GROUPS, kx, SupportedCipherSuite, tls12};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::{ExtensionType, NamedGroup};
@@ -147,7 +147,7 @@ fn new_secrets(
     };
     let kxd = new_key_exchange_result(server_ecdh_params)?;
     let suite12 = Tls12CipherSuite::try_from(suite)
-        .map_err(|err| FnError::Message("VersionNotCompatibleError".to_string()))?;
+        .map_err(|_err| FnError::Message("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
     Ok(secrets)
 }

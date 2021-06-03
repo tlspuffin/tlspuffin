@@ -1,4 +1,4 @@
-use rustls::Error;
+
 use super::FnError;
 
 pub fn fn_seq_0() -> Result<u64, FnError> {

@@ -2,7 +2,7 @@
 pub mod tlspuffin {
     use nix::sys::signal::Signal;
     use nix::sys::wait::WaitStatus::Signaled;
-    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+    use nix::sys::wait::{waitpid, WaitPidFlag};
     use nix::unistd::{fork, ForkResult};
     use test_env_log::test;
 
