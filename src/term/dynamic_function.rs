@@ -9,7 +9,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::REGISTERED_TYPES;
+use crate::tls::{REGISTERED_TYPES, FnError};
 use std::error::Error;
 
 /// Describes the shape of a [`DynamicFunction`]
@@ -71,13 +71,13 @@ pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, Box<dyn Error>> + Send + Sync {
+pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Send + Sync {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, Box<dyn Error>> + Clone + Send + Sync,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -114,11 +114,10 @@ pub trait DescribableFunction<Types> {
 
 macro_rules! dynamic_fn {
     ($($arg:ident)* => $res:ident) => (
-    impl<E, F, $res: 'static, $($arg: 'static),*>
+    impl<F, $res: 'static, $($arg: 'static),*>
         DescribableFunction<($res, $($arg),*)> for F
     where
-        E: std::error::Error,
-        F: (Fn($(&$arg),*)  -> Result<$res, E>) + Send + Sync,
+        F: (Fn($(&$arg),*)  -> Result<$res, FnError>) + Send + Sync,
         $res: Send + Sync,
         $($arg: Send + Sync),*
     {
@@ -136,7 +135,7 @@ macro_rules! dynamic_fn {
                 #[allow(unused_mut)]
                 let mut index = 0;
 
-                let result = self($(
+                let result: Result<$res, FnError> = self($(
                        #[allow(unused_assignments)]
                        {
                            if let Some(arg_) = args.get(index)
@@ -160,7 +159,7 @@ macro_rules! dynamic_fn {
                        }
                 ),*);
 
-                Ok(Box::new(result.unwrap())) // todo
+                result.map(|result| Box::new(result) as Box<dyn std::any::Any>)
             })
         }
     }

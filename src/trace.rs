@@ -2,8 +2,8 @@ use core::fmt;
 use std::{any::TypeId, fmt::Formatter};
 
 use libafl::inputs::{HasLen, Input};
+use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::OpaqueMessage;
-use rustls::internal::msgs::message::{Message};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::agent::TLSVersion;
@@ -11,7 +11,7 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-use crate::tls::MultiMessage;
+use crate::tls::{FnError, MultiMessage};
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
@@ -287,7 +287,10 @@ pub struct InputAction {
 impl InputAction {
     fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx).map_err(|err| err.0)?;
+        let evaluated = self
+            .recipe
+            .evaluate(ctx)
+            .map_err(|err| format!("{}", err))?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
@@ -309,7 +312,7 @@ impl InputAction {
                 opaque_message,
             );
         } else {
-            return Err(String::from("Recipe is not a `Message` or `MultiMessage`!"));
+            return Err(String::from("Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!"));
         }
 
         ctx.next_state(step.agent)

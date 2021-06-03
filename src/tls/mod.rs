@@ -1,7 +1,8 @@
-use std::convert::{TryFrom, TryInto};
 use std::{error, fmt};
+use std::convert::{TryFrom, TryInto};
 
 use ring::hkdf::Prk;
+use rustls::{ALL_KX_GROUPS, Error, kx, SupportedCipherSuite, tls12};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::{ExtensionType, NamedGroup};
@@ -11,9 +12,8 @@ use rustls::internal::msgs::handshake::{
 use rustls::internal::msgs::message::Message;
 use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
-use rustls::suites::Tls12CipherSuite;
 use rustls::NoKeyLog;
-use rustls::{kx, tls12, Error, SupportedCipherSuite, ALL_KX_GROUPS};
+use rustls::suites::Tls12CipherSuite;
 
 use fn_impl::*;
 
@@ -83,14 +83,14 @@ fn create_handshake_key_schedule(
     suite: &SupportedCipherSuite,
     group: NamedGroup,
 ) -> Result<KeyScheduleHandshake, FnError> {
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError(
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError::Message(
         "Failed to choose group in key exchange".to_string(),
     ))?;
     // Shared Secret
     let our_key_share: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared = our_key_share
         .complete(server_public_key)
-        .ok_or(FnError("Failed to complete key exchange".to_string()))?;
+        .ok_or(FnError::Message("Failed to complete key exchange".to_string()))?;
 
     // Key Schedule without PSK
     let key_schedule =
@@ -104,12 +104,12 @@ pub fn get_server_public_key(
 ) -> Result<&KeyShareEntry, FnError> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
-        .ok_or(FnError("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Message("KeyShare extension not found".to_string()))?;
 
     if let ServerExtension::KeyShare(keyshare) = server_extension {
         Ok(keyshare)
     } else {
-        Err(FnError("KeyShare extension not found".to_string()))
+        Err(FnError::Message("KeyShare extension not found".to_string()))
     }
 }
 
@@ -123,7 +123,7 @@ fn new_key_exchange_result(
     let group = NamedGroup::X25519; // todo
     let skxg = kx::KeyExchange::choose(group, &ALL_KX_GROUPS).into_fn_result()?;
     let kx: kx::KeyExchange = deterministic_key_exchange(skxg)?;
-    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0).unwrap();
+    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0).into_fn_result()?;
     Ok(kxd)
 }
 
@@ -137,14 +137,17 @@ fn new_secrets(
 
     server_random.write_slice(&mut server_random_bytes);
 
+    let server_random = server_random_bytes.try_into().map_err(|_|FnError::Message(
+        "Server random did not have length of 32.".to_string(),
+    ))?;
     let randoms = ConnectionRandoms {
         we_are_client: true,
         client: [1; 32], // todo
-        server: server_random_bytes.try_into().unwrap(),
+        server: server_random,
     };
     let kxd = new_key_exchange_result(server_ecdh_params)?;
     let suite12 = Tls12CipherSuite::try_from(suite)
-        .map_err(|err| FnError("VersionNotCompatibleError".to_string()))?;
+        .map_err(|err| FnError::Message("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
     Ok(secrets)
 }
@@ -158,35 +161,30 @@ where
     E: std::error::Error,
 {
     fn into_fn_result(self) -> Result<T, FnError> {
-        self.map_err(|err| FnError(format!("error: {}", err)))
+        self.map_err(|err| FnError::Message(format!("error: {}", err)))
     }
 }
 
 impl<T> IntoFnResult<Result<T, FnError>> for Option<T> {
     fn into_fn_result(self) -> Result<T, FnError> {
-        self.ok_or(FnError(format!("failed to unwrap optional value")))
+        self.ok_or(FnError::Message(format!("failed to unwrap optional value")))
     }
 }
 
 #[derive(Debug)]
-pub struct NoneError;
-
-impl std::error::Error for NoneError {}
-
-impl fmt::Display for NoneError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NoneError")
-    }
+pub enum FnError {
+    NoneError,
+    Message(String),
 }
-
-#[derive(Debug)]
-pub struct FnError(pub String);
 
 impl std::error::Error for FnError {}
 
 impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FnError: {}", self.0)
+        write!(f, "FnError: {}", match self {
+            FnError::NoneError => "NoneError",
+            FnError::Message(msg) => msg
+        })
     }
 }
 

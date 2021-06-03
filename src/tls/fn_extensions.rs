@@ -9,18 +9,17 @@ use rustls::{ProtocolVersion, SignatureScheme};
 
 use crate::tls::key_exchange::deterministic_key_exchange;
 
-use super::NoneError;
-use webpki::InvalidDnsNameError;
-use crate::tls::FnError;
+use super::FnError;
+use crate::tls::IntoFnResult;
 
-pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, NoneError> {
+pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])
 }
 
 pub fn fn_extensions_append(
     extensions: &Vec<ClientExtension>,
     extension: &ClientExtension,
-) -> Result<Vec<ClientExtension>, NoneError> {
+) -> Result<Vec<ClientExtension>, FnError> {
     let mut new_extensions = extensions.clone();
     new_extensions.push(extension.clone());
     Ok(new_extensions)
@@ -30,29 +29,29 @@ pub fn fn_extensions_append(
 // seed_client_attacker()
 // ----
 
-pub fn fn_server_name_extension() -> Result<ClientExtension, InvalidDnsNameError> {
+pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
     let dns_name = "maxammann.org";
     Ok(ClientExtension::ServerName(vec![ServerName {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName((
             PayloadU16(dns_name.to_string().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name)?.to_owned(),
+            webpki::DnsNameRef::try_from_ascii_str(dns_name).into_fn_result()?.to_owned(),
         )),
     }]))
 }
 
-pub fn fn_x25519_support_group_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_x25519_support_group_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::NamedGroups(vec![NamedGroup::X25519]))
 }
 
-pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(vec![
         SignatureScheme::RSA_PKCS1_SHA256,
         SignatureScheme::RSA_PSS_SHA256,
     ]))
 }
 
-pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithmsCert(vec![
         SignatureScheme::RSA_PKCS1_SHA1,
         SignatureScheme::ECDSA_SHA1_Legacy,
@@ -80,13 +79,13 @@ pub fn fn_key_share_extension() -> Result<ClientExtension, FnError> {
     }]))
 }
 
-pub fn fn_renegotiation_info(data: &Vec<u8>) -> Result<ClientExtension, NoneError> {
+pub fn fn_renegotiation_info(data: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
         data.clone(),
     )))
 }
 
-pub fn fn_supported_versions_extension() -> Result<ClientExtension, NoneError> {
+pub fn fn_supported_versions_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SupportedVersions(vec![
         ProtocolVersion::TLSv1_3,
     ]))
@@ -96,11 +95,11 @@ pub fn fn_supported_versions_extension() -> Result<ClientExtension, NoneError> {
 // seed_client_attacker12()
 // ----
 
-pub fn fn_signed_certificate_timestamp() -> Result<ClientExtension, NoneError> {
+pub fn fn_signed_certificate_timestamp() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignedCertificateTimestampRequest)
 }
 
-pub fn fn_ec_point_formats() -> Result<ClientExtension, NoneError> {
+pub fn fn_ec_point_formats() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(vec![
         rustls::internal::msgs::enums::ECPointFormat::Uncompressed,
     ]))

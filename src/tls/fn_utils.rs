@@ -9,17 +9,14 @@ use rustls::internal::msgs::base::PayloadU8;
 use rustls::internal::msgs::codec::{Codec, Reader};
 use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension};
 use rustls::internal::msgs::message::{Message, OpaqueMessage};
-use rustls::Error;
 
-use crate::tls::{FnError, IntoFnResult};
-
-use super::{MultiMessage, NoneError};
+use super::{FnError, IntoFnResult, MultiMessage};
 
 // ----
 // Utils
 // ----
 
-pub fn fn_concat_messages_2(msg1: &Message, msg2: &Message) -> Result<MultiMessage, NoneError> {
+pub fn fn_concat_messages_2(msg1: &Message, msg2: &Message) -> Result<MultiMessage, FnError> {
     Ok(MultiMessage {
         messages: vec![msg1.clone(), msg2.clone()],
     })
@@ -29,7 +26,7 @@ pub fn fn_concat_messages_3(
     msg1: &Message,
     msg2: &Message,
     msg3: &Message,
-) -> Result<MultiMessage, NoneError> {
+) -> Result<MultiMessage, FnError> {
     Ok(MultiMessage {
         messages: vec![msg1.clone(), msg2.clone(), msg3.clone()],
     })
@@ -39,7 +36,7 @@ pub fn fn_concat_messages_3(
 // seed_client_attacker()
 // ----
 
-pub fn fn_new_transcript() -> Result<HandshakeHash, NoneError> {
+pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -50,7 +47,7 @@ pub fn fn_new_transcript() -> Result<HandshakeHash, NoneError> {
 pub fn fn_append_transcript(
     transcript: &HandshakeHash,
     message: &Message,
-) -> Result<HandshakeHash, NoneError> {
+) -> Result<HandshakeHash, FnError> {
     let mut new_transcript: HandshakeHash = transcript.clone();
     new_transcript.add_message(message);
 
@@ -105,7 +102,7 @@ pub fn fn_encrypt(
 // seed_client_attacker12()
 // ----
 
-pub fn fn_new_transcript12() -> Result<HandshakeHash, NoneError> {
+pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
@@ -115,7 +112,9 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, NoneError> {
 
 pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd).ok_or(FnError("Failed to create ServerECDHParams".to_string()))
+    ServerECDHParams::read(&mut rd).ok_or(super::FnError::Message(
+        "Failed to create ServerECDHParams".to_string(),
+    ))
 }
 
 pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Result<Vec<u8>, FnError> {
@@ -144,17 +143,17 @@ pub fn fn_encrypt12(
 // Unused
 // ----
 
-pub fn fn_hmac256_new_key() -> Result<Key, ring::error::Unspecified> {
+pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
     let random = FixedByteRandom { byte: 12 };
-    hmac::Key::generate(hmac::HMAC_SHA256, &random)
+    hmac::Key::generate(hmac::HMAC_SHA256, &random).into_fn_result()
 }
 
-pub fn fn_arbitrary_to_key(key: &Vec<u8>) -> Result<Key, NoneError> {
+pub fn fn_arbitrary_to_key(key: &Vec<u8>) -> Result<Key, FnError> {
     Ok(Key::new(hmac::HMAC_SHA256, key.as_slice()))
 }
 
-pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, NoneError> {
+pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let tag = hmac::sign(&key, msg);
     Ok(Vec::from(tag.as_ref()))
 }

@@ -6,13 +6,13 @@ mod term {
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
-    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES, NoneError};
+    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES, FnError};
     use crate::{
         term::{Signature, Term},
         trace::TraceContext,
     };
 
-    fn example_op_c(a: &u8) -> Result<u16, NoneError> {
+    fn example_op_c(a: &u8) -> Result<u16, FnError> {
        Ok( (a + 1) as u16)
     }
 

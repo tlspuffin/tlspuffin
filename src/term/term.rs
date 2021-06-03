@@ -104,7 +104,7 @@ impl Term {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.type_shape, v.observed_id)
                 .map(|data| data.clone_box_any())
-                .ok_or(FnError(format!(
+                .ok_or(FnError::Message(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",
                     v, v.observed_id
                 ))),
@@ -122,7 +122,7 @@ impl Term {
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result = dynamic_fn(&dynamic_args);
-                result.map_err(|err| FnError(err.to_string()))
+                result.map_err(|err| FnError::Message(err.to_string()))
             }
         }
     }
