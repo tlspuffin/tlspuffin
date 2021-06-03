@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     term::{
-        type_helper::{make_dynamic, DescribableFunction},
+        dynamic_function::{make_dynamic, DescribableFunction},
         TypeShape, Variable,
     },
     trace::ObservedId,

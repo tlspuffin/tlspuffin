@@ -23,10 +23,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pub use self::{atoms::*, signature::*, term::*, type_helper::*};
+pub use self::{atoms::*, signature::*, term::*, dynamic_function::*};
 
 mod atoms;
 mod signature;
 mod term;
 mod tests;
-mod type_helper;
+mod dynamic_function;

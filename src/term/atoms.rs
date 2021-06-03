@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::term::atoms::fn_container::FnContainer;
 use crate::{
     term::{
-        type_helper::{DynamicFunction, DynamicFunctionShape},
+        dynamic_function::{DynamicFunction, DynamicFunctionShape},
         TypeShape,
     },
     trace::ObservedId,
