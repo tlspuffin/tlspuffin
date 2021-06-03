@@ -1,4 +1,4 @@
-use rustls::internal::msgs::handshake::{CertificatePayload};
+use rustls::internal::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{
@@ -688,7 +688,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         app_const!(s, op_compressions),
         app!(
             s,
-            op_attack_cve_2021_3449,
+            op_extensions_append,
             app!(
                 s,
                 op_extensions_append,
@@ -698,24 +698,15 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     app!(
                         s,
                         op_extensions_append,
-                        app!(
-                            s,
-                            op_extensions_append,
-                            app!(
-                                s,
-                                op_extensions_append,
-                                app_const!(s, op_extensions_new),
-                                app_const!(s, op_x25519_support_group_extension),
-                            ),
-                            app_const!(s, op_signature_algorithm_extension)
-                        ),
-                        app_const!(s, op_ec_point_formats)
+                        app_const!(s, op_extensions_new),
+                        app_const!(s, op_x25519_support_group_extension),
                     ),
-                    app_const!(s, op_signature_algorithm_cert_extension)
+                    app_const!(s, op_ec_point_formats)
                 ),
-                // Enable Renegotiation
-                app!(s, op_renegotiation_info, client_verify_data),
-            )
+                app_const!(s, op_signature_algorithm_cert_extension)
+            ),
+            // Enable Renegotiation
+            app!(s, op_renegotiation_info, client_verify_data),
         )
     );
 

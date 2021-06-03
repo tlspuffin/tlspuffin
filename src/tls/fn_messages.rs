@@ -436,7 +436,7 @@ pub fn op_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Vec<u8> {
 }
 
 fn new_secrets(server_random: &Random, server_ecdh_params: &ServerECDHParams) -> ConnectionSecrets {
-    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo
 
     let mut server_random_bytes = vec![0; 32];
 
