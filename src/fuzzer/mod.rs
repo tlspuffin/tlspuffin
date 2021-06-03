@@ -1,6 +1,8 @@
 use core::time::Duration;
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
+use itertools::Itertools;
+use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::{
     bolts::{
         current_nanos,
@@ -40,8 +42,6 @@ use crate::{
     fuzzer::{mutations::trace_mutations, seeds::seed_successful},
     trace::TraceContext,
 };
-use itertools::Itertools;
-use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 mod harness;
 mod mutations;
@@ -77,6 +77,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf,
     let stats = MultiStats::new(|s| info!("{}", s));
 
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr| {
+        info!("We're a client, let's fuzz :)");
         // Create an observation channel using the coverage map
         let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
         let map_observer = StdMapObserver::new("edges", edges);
@@ -118,8 +119,6 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf,
                 tuple_list!(feedback_state),
             )
         });
-
-        println!("We're a client, let's fuzz :)");
 
         // Setup a basic mutator with a mutational stage
         let mutator = StdScheduledMutator::new(trace_mutations());
@@ -165,13 +164,6 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf,
                         &corpus_dirs, err
                     )
                 });
-
-            /*        let mut ctx = TraceContext::new();
-            let seed = seed_successful(&mut ctx).2;
-            fuzzer
-                .evaluate_input(&mut state, &mut executor, &mut restarting_mgr, seed.clone())
-                .unwrap();*/
-
             println!("We imported {} inputs from disk.", state.corpus().count());
         }
 
@@ -185,7 +177,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf,
         .run_client(&mut run_client)
         .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
-        .stdout_file(Some("/dev/null"))
+        //todo where should we log the output of the harness?
+        //.stdout_file(Some("/dev/null"))
         .build()
         .launch()
         .expect("Launcher failed");
