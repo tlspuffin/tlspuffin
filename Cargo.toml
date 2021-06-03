@@ -33,7 +33,6 @@ libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "83b
 # Logging
 log = "0.4"
 env_logger = "0.8"
-test-env-log = "0.2"
 
 # Utils
 clap = "2"
@@ -55,6 +54,9 @@ openssl-src = { path = './openssl-src' }
 
 [dev-dependencies]
 criterion = "0.3"
+# Support logging in tests
+test-env-log = "0.2"
+nix = "0.21"
 
 [profile.release]
 panic = "abort"

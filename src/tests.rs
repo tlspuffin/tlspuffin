@@ -1,30 +1,51 @@
 #[cfg(test)]
 pub mod tlspuffin {
+    use nix::sys::signal::Signal;
+    use nix::sys::wait::WaitStatus::Signaled;
+    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+    use nix::unistd::{fork, ForkResult};
+    use test_env_log::test;
+
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::*;
     use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::{
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
-    use test_env_log::test;
 
-    //#[test] todo this crashes at it discovers a vulnerability, commented for now
+    #[test]
     fn test_seed_cve_2021_3449() {
-        make_deterministic();
-        let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_cve_2021_3449(client, server);
+        match unsafe { fork() } {
+            Ok(ForkResult::Parent { child, .. }) => {
+                let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
 
-        println!("{}", trace);
-        trace.spawn_agents(&mut ctx);
-        trace.execute(&mut ctx).unwrap();
+                if let Signaled(_, signal, _) = status {
+                    if signal != Signal::SIGSEGV {
+                        panic!("Trace did crash with SIGSEGV!")
+                    }
+                } else {
+                    panic!("Trace did not signal!")
+                }
+            }
+            Ok(ForkResult::Child) => {
+                make_deterministic();
+                let mut ctx = TraceContext::new();
+                let client = AgentName::first();
+                let server = client.next();
+                let trace = seed_cve_2021_3449(client, server);
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        println!("{}", client_state);
-        println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+                println!("{}", trace);
+                trace.spawn_agents(&mut ctx);
+                trace.execute(&mut ctx).unwrap();
+
+                let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+                let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+                println!("{}", client_state);
+                println!("{}", server_state);
+                assert!(server_state.contains("SSL negotiation finished successfully"));
+            }
+            Err(_) => panic!("Fork failed"),
+        }
     }
 
     #[test]
