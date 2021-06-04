@@ -1,3 +1,6 @@
+#![feature(trace_macros)]
+#![feature(log_syntax)]
+
 use rustls::internal::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::Message;
 use rustls::{
@@ -8,14 +11,14 @@ use rustls::{
     CipherSuite, ProtocolVersion,
 };
 
-use crate::agent::{TLSVersion, AgentDescriptor};
+use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
     term::{Signature, Term},
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
-use crate::{app, app1, app_const, var};
+use crate::{app, app_const, term, var};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
@@ -261,7 +264,10 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec12).clone(), vec![]),
+                    recipe: Term::Application(
+                        s.new_function(&fn_change_cipher_spec12).clone(),
+                        vec![],
+                    ),
                 }),
             },
             // Client Handshake Finished, Client -> Server
@@ -311,16 +317,66 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     }
 }
 
+macro_rules! ast {
+    (call $func:ident) => {{
+        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
+        let func = crate::term::Function::new(0, shape, dynamic_fn);
+        Term::Application(func, vec![])
+    }};
+
+    (call $func:ident $left:tt, $right:tt ) => {{
+        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
+        let func = crate::term::Function::new(0, shape, dynamic_fn);
+        Term::Application(func, vec![ast_arg!($left), ast_arg!($right)])
+    }};
+}
+
+#[macro_export]
+macro_rules! ast_arg {
+    ( ( $e:tt ) ) => (ast!($e));
+    ( ( $($e:tt)* ) ) => ( ast!( $($e)* ) );
+    ( $e:tt ) => {
+        ast!($e)
+    };
+}
+
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
 
+    let client_hello1 = ast! {
+       call fn_client_hello
+            (call fn_client_hello (call fn_protocol_version12), (call fn_client_hello (call fn_protocol_version12), (call fn_random))),
+            (call fn_random)
+    };
+
+    let client_hello1 = ast! {
+       call fn_client_hello (call fn_protocol_version12), (call fn_random)
+    };
+
+    //println!("macro {}", client_hello1);
+
+    /*    let client_hello1 = ast! {
+       fn_protocol_version12()
+    };
+    let client_hello1 = ast! {
+       fn_random()
+    };*/
+    /*    let client_hello2 = term! {
+           fn_extensions_append(
+                fn_extensions_append(
+                    fn_extensions_new(),
+                    fn_x25519_support_group_extension()
+                ),
+                fn_x25519_support_group_extension()
+            )
+        };
+    */
     let client_hello = app!(
         s,
         fn_client_hello,
         app_const!(s, fn_protocol_version12),
         app_const!(s, fn_random),
         app_const!(s, fn_session_id),
-        // force TLS13_AES_128_GCM_SHA256
         app_const!(s, fn_cipher_suites),
         app_const!(s, fn_compressions),
         app!(
@@ -625,7 +681,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
                     recipe: app!(
                         s,
                         fn_encrypt12,
-                        app1!(s, fn_finished12(client_verify_data.clone(),)),
+                        app!(s, fn_finished12, client_verify_data.clone()),
                         var!(s, Random, (0, 0)),
                         app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
                         app_const!(s, fn_seq_0)

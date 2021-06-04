@@ -1,13 +1,16 @@
+#![feature(trace_macros)]
+#![feature(log_syntax)]
+
 use std::fmt::Formatter;
 use std::{any::Any, fmt, iter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use crate::tls::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
-use crate::tls::FnError;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -131,7 +134,7 @@ impl Term {
 #[macro_export]
 macro_rules! app_const {
     ($sig:ident, $op:ident) => {
-        Term::Application($sig.new_function(&$op),vec![])
+        Term::Application($sig.new_function(&$op), vec![])
     };
 }
 
@@ -143,15 +146,28 @@ macro_rules! app {
 }
 
 #[macro_export]
-macro_rules! app1 {
-    ($sig:ident, $op:ident($($args:expr),*$(,)?)) => {
-        Term::Application($sig.new_function(&$op),vec![$($args,)*])
-    };
-}
-
-#[macro_export]
 macro_rules! var {
     ($sig:ident, $typ:ty, $id:expr) => {
         Term::Variable($sig.new_var::<$typ>($id))
     };
 }
+
+
+/*#[macro_export]
+macro_rules! term {
+    (% call $func:ident $($args:tt)*) => (call $func $($args),*);
+    (^$($args:tt)*) => (vec![$(term![%$args]),*]);
+    (($($args:tt),*)) => (term![^$($args)*]);
+    (call $func:ident $($args:tt)*) => {
+        {
+            let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
+            let func = crate::term::Function::new(0, shape, dynamic_fn);
+            Term::Application(func, term![$($args)*])
+        }
+    };
+
+
+    //(^($($args:tt)*)) => (stringify!($(term![%$args])*));
+}
+*/
+
