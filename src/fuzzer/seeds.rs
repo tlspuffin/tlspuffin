@@ -318,39 +318,36 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
 }
 
 macro_rules! ast {
-    (call $func:ident) => {{
+    ($func:ident) => {{
         let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
         let func = crate::term::Function::new(0, shape, dynamic_fn);
         Term::Application(func, vec![])
     }};
 
-    (call $func:ident $left:tt, $right:tt ) => {{
+    ($func:ident $($args:tt),*) => {{
         let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
         let func = crate::term::Function::new(0, shape, dynamic_fn);
-        Term::Application(func, vec![ast_arg!($left), ast_arg!($right)])
+        Term::Application(func, vec![$(ast_arg!($args)),*])
     }};
 }
 
-#[macro_export]
 macro_rules! ast_arg {
-    ( ( $e:tt ) ) => (ast!($e));
     ( ( $($e:tt)* ) ) => ( ast!( $($e)* ) );
-    ( $e:tt ) => {
-        ast!($e)
-    };
+    ( ( $e:tt ) ) => (ast!($e));
+    ( $e:tt ) => (ast!($e));
 }
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
 
     let client_hello1 = ast! {
-       call fn_client_hello
-            (call fn_client_hello (call fn_protocol_version12), (call fn_client_hello (call fn_protocol_version12), (call fn_random))),
-            (call fn_random)
+       fn_client_hello
+            (fn_client_hello fn_protocol_version12, (fn_client_hello fn_protocol_version12, fn_random)),
+            fn_random
     };
 
     let client_hello1 = ast! {
-       call fn_client_hello (call fn_protocol_version12), (call fn_random)
+       fn_client_hello (fn_protocol_version12), (fn_random), (fn_random)
     };
 
     //println!("macro {}", client_hello1);
@@ -361,16 +358,16 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let client_hello1 = ast! {
        fn_random()
     };*/
-    /*    let client_hello2 = term! {
-           fn_extensions_append(
-                fn_extensions_append(
-                    fn_extensions_new(),
-                    fn_x25519_support_group_extension()
-                ),
-                fn_x25519_support_group_extension()
-            )
-        };
-    */
+    let client_hello2 = ast! {
+       fn_extensions_append
+            (fn_extensions_append
+                fn_extensions_new,
+                fn_x25519_support_group_extension
+            ),
+            fn_x25519_support_group_extension
+
+    };
+
     let client_hello = app!(
         s,
         fn_client_hello,
