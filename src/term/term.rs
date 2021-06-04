@@ -153,21 +153,43 @@ macro_rules! var {
 }
 
 
-/*#[macro_export]
+// todo we could improve performance by not recreating these
+#[macro_export]
 macro_rules! term {
-    (% call $func:ident $($args:tt)*) => (call $func $($args),*);
-    (^$($args:tt)*) => (vec![$(term![%$args]),*]);
-    (($($args:tt),*)) => (term![^$($args)*]);
-    (call $func:ident $($args:tt)*) => {
-        {
-            let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
-            let func = crate::term::Function::new(0, shape, dynamic_fn);
-            Term::Application(func, term![$($args)*])
-        }
-    };
+    // Variables
+    (($step:expr, $msg:expr) / $typ:ty) => {{
+        let var = crate::term::Variable::new(
+            0, // todo remove?
+            crate::term::TypeShape::of::<$typ>(),
+            ($step, $msg)
+        );
+        crate::term::Term::Variable(var)
+    }};
 
+    // Constants
+    ($func:ident) => {{
+        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
+        let func = crate::term::Function::new(
+            0, // todo remove?
+            shape,
+            dynamic_fn
+        );
+        crate::term::Term::Application(func, vec![])
+    }};
 
-    //(^($($args:tt)*)) => (stringify!($(term![%$args])*));
+    // Function Applications
+    ($func:ident ($($args:tt),*)) => {{
+        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
+        let func = crate::term::Function::new(0, shape, dynamic_fn);
+        crate::term::Term::Application(func, vec![$(crate::term_arg!($args)),*])
+    }};
 }
-*/
 
+#[macro_export]
+macro_rules! term_arg {
+    // Somehow the following rules is very important
+    ( ( $($e:tt)* ) ) => ( term!( $($e)* ) );
+    // not sure why I should need this
+    // ( ( $e:tt ) ) => (ast!($e));
+    ( $e:tt ) => (term!($e));
+}

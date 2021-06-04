@@ -6,12 +6,12 @@ use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::OpaqueMessage;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::agent::{TLSVersion, AgentDescriptor};
+use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-use crate::tls::{MultiMessage};
+use crate::tls::MultiMessage;
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
@@ -35,7 +35,7 @@ impl TraceContext {
     pub fn new() -> Self {
         Self {
             knowledge: vec![],
-            agents: vec![]
+            agents: vec![],
         }
     }
 
@@ -103,28 +103,27 @@ impl TraceContext {
         return name;
     }
 
-    pub fn new_openssl_agent(
-        &mut self,
-        descriptor: &AgentDescriptor,
-    ) -> AgentName {
+    pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> AgentName {
         return self.add_agent(Agent::new_openssl(descriptor));
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.descriptor.name == name).ok_or(format!(
-            "Could not find agent {}. Did you forget to call spawn_agents?",
-            name
-        ))
+        iter.find(|agent| agent.descriptor.name == name)
+            .ok_or(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.descriptor.name == name).ok_or(format!(
-            "Could not find agent {}. Did you forget to call spawn_agents?",
-            name
-        ))
+        iter.find(|agent| agent.descriptor.name == name)
+            .ok_or(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
     }
 }
 
@@ -223,6 +222,13 @@ pub struct OutputAction {
 }
 
 impl OutputAction {
+    pub fn new_step(agent: AgentName, id: u16) -> Step {
+        Step {
+            agent,
+            action: Action::Output(OutputAction { id }),
+        }
+    }
+
     fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         ctx.next_state(step.agent)?;
 
@@ -273,6 +279,13 @@ pub struct InputAction {
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl InputAction {
+    pub fn new_step(agent: AgentName, recipe: Term) -> Step {
+        Step {
+            agent,
+            action: Action::Input(InputAction { recipe }),
+        }
+    }
+
     fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
         // message controlled by the attacker
         let evaluated = self
@@ -300,7 +313,9 @@ impl InputAction {
                 opaque_message,
             );
         } else {
-            return Err(String::from("Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!"));
+            return Err(String::from(
+                "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
+            ));
         }
 
         ctx.next_state(step.agent)

@@ -1,4 +1,53 @@
 #[cfg(test)]
+mod macros {
+    use rustls::ProtocolVersion;
+
+    use crate::term;
+    use crate::tls::fn_impl::*;
+
+    fn test_compilation() {
+        // reminds me of Lisp, lol
+        let test_nested_with_variable = term! {
+           fn_client_hello(
+                (fn_client_hello(
+                    fn_protocol_version12,
+                    fn_random,
+                    (fn_client_hello(fn_protocol_version12,
+                        fn_random,
+                        fn_random,
+                        ((0,0)/ProtocolVersion)
+                    ))
+                )),
+                fn_random
+            )
+        };
+
+        let set_simple_function2 = term! {
+           fn_client_hello(fn_protocol_version12, fn_random, fn_random)
+        };
+
+        let test_simple_function1 = term! {
+           fn_protocol_version12()
+        };
+        let test_simple_function = term! {
+           fn_random(((0,0)/ProtocolVersion))
+        };
+        let test_variable = term! {
+            (0,0)/ProtocolVersion
+        };
+        let set_nested_function = term! {
+           fn_extensions_append(
+                (fn_extensions_append(
+                    fn_extensions_new,
+                    fn_x25519_support_group_extension
+                )),
+                fn_x25519_support_group_extension
+            )
+        };
+    }
+}
+
+#[cfg(test)]
 mod term {
     use std::any::{Any, TypeId};
 
@@ -6,14 +55,14 @@ mod term {
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
-    use crate::tls::{REGISTERED_FN, REGISTERED_TYPES, FnError};
+    use crate::tls::{FnError, REGISTERED_FN, REGISTERED_TYPES};
     use crate::{
         term::{Signature, Term},
         trace::TraceContext,
     };
 
     fn example_op_c(a: &u8) -> Result<u16, FnError> {
-       Ok( (a + 1) as u16)
+        Ok((a + 1) as u16)
     }
 
     #[test]
@@ -73,7 +122,8 @@ mod term {
         let dynamic_fn = func.dynamic_fn();
         println!(
             "{:?}",
-            dynamic_fn(&vec![Box::new(1u8)]).unwrap()
+            dynamic_fn(&vec![Box::new(1u8)])
+                .unwrap()
                 .downcast_ref::<u16>()
                 .unwrap()
         );

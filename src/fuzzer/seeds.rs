@@ -176,49 +176,49 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
 
     Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_2,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_2,
+                server: true,
+            },
+        ],
         steps: vec![
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction { id: 0 }),
-            },
+            OutputAction::new_step(client, 0),
             // Client Hello, Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: Term::Application(
-                        s.new_function(&fn_client_hello),
-                        vec![
-                            Term::Variable(s.new_var::<ProtocolVersion>((0, 0))),
-                            Term::Variable(s.new_var::<Random>((0, 0))),
-                            Term::Variable(s.new_var::<SessionID>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<CipherSuite>>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<Compression>>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<ClientExtension>>((0, 0))),
-                        ],
-                    ),
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 1 }),
-            },
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((0, 0)/ProtocolVersion),
+                        ((0, 0)/Random),
+                        ((0, 0)/SessionID),
+                        ((0, 0)/Vec<CipherSuite>),
+                        ((0, 0)/Vec<Compression>),
+                        ((0, 0)/Vec<ClientExtension>)
+                    )
+                },
+            ),
+            OutputAction::new_step(server, 1),
             // Server Hello, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: Term::Application(
-                        s.new_function(&fn_server_hello),
-                        vec![
-                            Term::Variable(s.new_var::<ProtocolVersion>((1, 0))),
-                            Term::Variable(s.new_var::<Random>((1, 0))),
-                            Term::Variable(s.new_var::<SessionID>((1, 0))),
-                            Term::Variable(s.new_var::<CipherSuite>((1, 0))),
-                            Term::Variable(s.new_var::<Compression>((1, 0))),
-                            Term::Variable(s.new_var::<Vec<ServerExtension>>((1, 0))),
-                        ],
-                    ),
-                }),
-            },
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((1, 0)/ProtocolVersion),
+                            ((1, 0)/Random),
+                            ((1, 0)/SessionID),
+                            ((1, 0)/CipherSuite),
+                            ((1, 0)/Compression),
+                            ((1, 0)/Vec<ServerExtension>)
+                        )
+                },
+            ),
             // Server Certificate, Server -> Client
             Step {
                 agent: client,
@@ -302,71 +302,11 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 }),
             },
         ],
-        descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_2,
-                server: false,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_2,
-                server: true,
-            },
-        ],
     }
-}
-
-macro_rules! ast {
-    ($func:ident) => {{
-        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
-        let func = crate::term::Function::new(0, shape, dynamic_fn);
-        Term::Application(func, vec![])
-    }};
-
-    ($func:ident $($args:tt),*) => {{
-        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
-        let func = crate::term::Function::new(0, shape, dynamic_fn);
-        Term::Application(func, vec![$(ast_arg!($args)),*])
-    }};
-}
-
-macro_rules! ast_arg {
-    ( ( $($e:tt)* ) ) => ( ast!( $($e)* ) );
-    ( ( $e:tt ) ) => (ast!($e));
-    ( $e:tt ) => (ast!($e));
 }
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let mut s = Signature::default();
-
-    let client_hello1 = ast! {
-       fn_client_hello
-            (fn_client_hello fn_protocol_version12, (fn_client_hello fn_protocol_version12, fn_random)),
-            fn_random
-    };
-
-    let client_hello1 = ast! {
-       fn_client_hello (fn_protocol_version12), (fn_random), (fn_random)
-    };
-
-    //println!("macro {}", client_hello1);
-
-    /*    let client_hello1 = ast! {
-       fn_protocol_version12()
-    };
-    let client_hello1 = ast! {
-       fn_random()
-    };*/
-    let client_hello2 = ast! {
-       fn_extensions_append
-            (fn_extensions_append
-                fn_extensions_new,
-                fn_x25519_support_group_extension
-            ),
-            fn_x25519_support_group_extension
-
-    };
 
     let client_hello = app!(
         s,
