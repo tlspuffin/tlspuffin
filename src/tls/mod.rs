@@ -17,8 +17,10 @@ use rustls::suites::Tls12CipherSuite;
 
 use fn_impl::*;
 
-use crate::register_fn;
+use crate::define_signature;
 use crate::tls::key_exchange::deterministic_key_exchange;
+use std::hash::Hash;
+use std::collections::hash_map::DefaultHasher;
 
 mod fn_constants;
 mod fn_extensions;
@@ -192,9 +194,8 @@ impl fmt::Display for FnError {
 // Registry
 // ----
 
-register_fn!(
-    REGISTERED_FN,
-    REGISTERED_TYPES,
+define_signature!(
+    SIGNATURE,
     // constants
     fn_empty_bytes_vec,
     fn_seq_0,

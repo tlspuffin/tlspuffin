@@ -15,15 +15,13 @@ use crate::{
 ///
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Variable {
-    pub id: u32,
     pub typ: TypeShape,
     pub observed_id: ObservedId,
 }
 
 impl Variable {
-    pub fn new(id: u32, type_shape: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
-            id,
             typ: type_shape,
             observed_id,
         }
@@ -39,14 +37,12 @@ impl fmt::Display for Variable {
 /// A symbol with fixed arity.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Function {
-    pub id: u32,
     fn_container: FnContainer,
 }
 
 impl Function {
-    pub fn new(id: u32, shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
+    pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
-            id,
             fn_container: FnContainer { shape, dynamic_fn },
         }
     }
@@ -76,7 +72,7 @@ mod fn_container {
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
-    use crate::tls::REGISTERED_FN;
+    use crate::tls::SIGNATURE;
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";
@@ -130,7 +126,7 @@ mod fn_container {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                    let (_shape, dynamic_fn) = REGISTERED_FN.get(name).ok_or(de::Error::custom(
+                    let (_shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or(de::Error::custom(
                         format!("could not find function {}", name),
                     ))?;
                     // todo check if shape matches
@@ -179,7 +175,7 @@ mod fn_container {
 
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
                     let (_shape, dynamic_fn) =
-                        REGISTERED_FN.get(name).ok_or(de::Error::custom(format!(
+                        SIGNATURE.functions_by_name.get(name).ok_or(de::Error::custom(format!(
                             "Failed to link function symbol: Could not find function {}",
                             name
                         )))?;

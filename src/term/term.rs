@@ -1,6 +1,3 @@
-#![feature(trace_macros)]
-#![feature(log_syntax)]
-
 use std::fmt::Formatter;
 use std::{any::Any, fmt, iter};
 
@@ -133,54 +130,44 @@ impl Term {
 
 #[macro_export]
 macro_rules! app_const {
-    ($sig:ident, $op:ident) => {
-        Term::Application($sig.new_function(&$op), vec![])
+    ($op:ident) => {
+        Term::Application(Signature::new_function(&$op), vec![])
     };
 }
 
 #[macro_export]
 macro_rules! app {
-    ($sig:ident, $op:ident, $($args:expr),*$(,)?) => {
-        Term::Application($sig.new_function(&$op),vec![$($args,)*])
+    ($op:ident, $($args:expr),*$(,)?) => {
+        Term::Application(Signature::new_function(&$op),vec![$($args,)*])
     };
 }
 
 #[macro_export]
 macro_rules! var {
-    ($sig:ident, $typ:ty, $id:expr) => {
-        Term::Variable($sig.new_var::<$typ>($id))
+    ($typ:ty, $id:expr) => {
+        Term::Variable(Signature::new_var::<$typ>($id))
     };
 }
-
 
 // todo we could improve performance by not recreating these
 #[macro_export]
 macro_rules! term {
     // Variables
     (($step:expr, $msg:expr) / $typ:ty) => {{
-        let var = crate::term::Variable::new(
-            0, // todo remove?
-            crate::term::TypeShape::of::<$typ>(),
-            ($step, $msg)
-        );
+        let var = crate::term::Signature::new_var::<$typ>( ($step, $msg));
         crate::term::Term::Variable(var)
     }};
 
     // Constants
     ($func:ident) => {{
-        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
-        let func = crate::term::Function::new(
-            0, // todo remove?
-            shape,
-            dynamic_fn
-        );
+        let func = crate::term::Signature::new_function(&$func);
         crate::term::Term::Application(func, vec![])
     }};
 
     // Function Applications
     ($func:ident ($($args:tt),*)) => {{
         let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
-        let func = crate::term::Function::new(0, shape, dynamic_fn);
+        let func = crate::term::Signature::new_function(&$func);
         crate::term::Term::Application(func, vec![$(crate::term_arg!($args)),*])
     }};
 }
@@ -188,8 +175,8 @@ macro_rules! term {
 #[macro_export]
 macro_rules! term_arg {
     // Somehow the following rules is very important
-    ( ( $($e:tt)* ) ) => ( term!( $($e)* ) );
+    ( ( $($e:tt)* ) ) => (term!($($e)*));
     // not sure why I should need this
     // ( ( $e:tt ) ) => (ast!($e));
-    ( $e:tt ) => (term!($e));
+    ($e:tt) => (term!($e));
 }

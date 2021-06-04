@@ -1,6 +1,3 @@
-#![feature(trace_macros)]
-#![feature(log_syntax)]
-
 use rustls::internal::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::Message;
 use rustls::{
@@ -19,9 +16,10 @@ use crate::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app_const, term, var};
+use crate::tls::SIGNATURE;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
-    let mut s = Signature::default();
+    let mut s = &SIGNATURE;
 
     Trace {
         descriptors: vec![
@@ -46,14 +44,14 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_client_hello),
+                        Signature::new_function(&fn_client_hello),
                         vec![
-                            Term::Variable(s.new_var::<ProtocolVersion>((0, 0))),
-                            Term::Variable(s.new_var::<Random>((0, 0))),
-                            Term::Variable(s.new_var::<SessionID>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<CipherSuite>>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<Compression>>((0, 0))),
-                            Term::Variable(s.new_var::<Vec<ClientExtension>>((0, 0))),
+                            Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
+                            Term::Variable(Signature::new_var::<Random>((0, 0))),
+                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                            Term::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
+                            Term::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
+                            Term::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
                         ],
                     ),
                 }),
@@ -67,14 +65,14 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_server_hello),
+                        Signature::new_function(&fn_server_hello),
                         vec![
-                            Term::Variable(s.new_var::<ProtocolVersion>((1, 0))),
-                            Term::Variable(s.new_var::<Random>((1, 0))),
-                            Term::Variable(s.new_var::<SessionID>((1, 0))),
-                            Term::Variable(s.new_var::<CipherSuite>((1, 0))),
-                            Term::Variable(s.new_var::<Compression>((1, 0))),
-                            Term::Variable(s.new_var::<Vec<ServerExtension>>((1, 0))),
+                            Term::Variable(Signature::new_var::<ProtocolVersion>((1, 0))),
+                            Term::Variable(Signature::new_var::<Random>((1, 0))),
+                            Term::Variable(Signature::new_var::<SessionID>((1, 0))),
+                            Term::Variable(Signature::new_var::<CipherSuite>((1, 0))),
+                            Term::Variable(Signature::new_var::<Compression>((1, 0))),
+                            Term::Variable(Signature::new_var::<Vec<ServerExtension>>((1, 0))),
                         ],
                     ),
                 }),
@@ -83,7 +81,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec), vec![]),
+                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
                 }),
             },
             // Encrypted Extensions Server -> Client
@@ -91,8 +89,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 2)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
                     ),
                 }),
             },
@@ -101,8 +99,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 3)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 3)))],
                     ),
                 }),
             },
@@ -111,8 +109,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 4)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 4)))],
                     ),
                 }),
             },
@@ -121,8 +119,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 5)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 5)))],
                     ),
                 }),
             },
@@ -133,7 +131,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec), vec![]),
+                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
                 }),
             },
             // Finished Client -> Server
@@ -141,8 +139,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 1)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 1)))],
                     ),
                 }),
             },
@@ -154,8 +152,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 0)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 0)))],
                     ),
                 }),
             },
@@ -163,8 +161,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_application_data),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 1)))],
+                        Signature::new_function(&fn_application_data),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
                     ),
                 }),
             },
@@ -173,7 +171,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
-    let mut s = Signature::default();
+    let mut s = &SIGNATURE;
 
     Trace {
         descriptors: vec![
@@ -224,8 +222,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_server_certificate),
-                        vec![Term::Variable(s.new_var::<CertificatePayload>((1, 1)))],
+                        Signature::new_function(&fn_server_certificate),
+                        vec![Term::Variable(Signature::new_var::<CertificatePayload>((1, 1)))],
                     ),
                 }),
             },
@@ -234,8 +232,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_server_key_exchange),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((1, 2)))],
+                        Signature::new_function(&fn_server_key_exchange),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
                     ),
                 }),
             },
@@ -243,7 +241,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(s.new_function(&fn_server_hello_done), vec![]),
+                    recipe: Term::Application(Signature::new_function(&fn_server_hello_done), vec![]),
                 }),
             },
             Step {
@@ -255,8 +253,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_client_key_exchange),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 0)))],
+                        Signature::new_function(&fn_client_key_exchange),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 0)))],
                     ),
                 }),
             },
@@ -265,7 +263,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_change_cipher_spec12).clone(),
+                        Signature::new_function(&fn_change_cipher_spec12).clone(),
                         vec![],
                     ),
                 }),
@@ -275,8 +273,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_opaque_handshake_message),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((2, 2)))],
+                        Signature::new_function(&fn_opaque_handshake_message),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 2)))],
                     ),
                 }),
             },
@@ -288,7 +286,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(s.new_function(&fn_change_cipher_spec12), vec![]),
+                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec12), vec![]),
                 }),
             },
             // Server Handshake Finished, Server -> Client
@@ -296,8 +294,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        s.new_function(&fn_opaque_handshake_message),
-                        vec![Term::Variable(s.new_var::<Vec<u8>>((3, 1)))],
+                        Signature::new_function(&fn_opaque_handshake_message),
+                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
                     ),
                 }),
             },
@@ -306,109 +304,108 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
-    let mut s = Signature::default();
+    let mut s = &SIGNATURE;
 
     let client_hello = app!(
-        s,
         fn_client_hello,
-        app_const!(s, fn_protocol_version12),
-        app_const!(s, fn_random),
-        app_const!(s, fn_session_id),
-        app_const!(s, fn_cipher_suites),
-        app_const!(s, fn_compressions),
+        app_const!(fn_protocol_version12),
+        app_const!(fn_random),
+        app_const!(fn_session_id),
+        app_const!(fn_cipher_suites),
+        app_const!(fn_compressions),
         app!(
-            s,
+            
             fn_extensions_append,
             app!(
-                s,
+                
                 fn_extensions_append,
                 app!(
-                    s,
+                    
                     fn_extensions_append,
                     app!(
-                        s,
+                        
                         fn_extensions_append,
-                        app_const!(s, fn_extensions_new),
-                        app_const!(s, fn_x25519_support_group_extension),
+                        app_const!(fn_extensions_new),
+                        app_const!(fn_x25519_support_group_extension),
                     ),
-                    app_const!(s, fn_signature_algorithm_extension)
+                    app_const!(fn_signature_algorithm_extension)
                 ),
-                app_const!(s, fn_key_share_extension)
+                app_const!(fn_key_share_extension)
             ),
-            app_const!(s, fn_supported_versions_extension)
+            app_const!(fn_supported_versions_extension)
         ),
     );
 
     let server_hello_transcript = app!(
-        s,
+        
         fn_append_transcript,
         app!(
-            s,
+            
             fn_append_transcript,
-            app_const!(s, fn_new_transcript),
+            app_const!(fn_new_transcript),
             client_hello.clone(), // ClientHello
         ),
-        var!(s, Message, (0, 0)), // plaintext ServerHello
+        var!(Message, (0, 0)), // plaintext ServerHello
     );
 
     let encrypted_extensions = app!(
-        s,
+        
         fn_decrypt,
-        var!(s, Message, (0, 2)), // Encrypted Extensions
-        var!(s, Vec<ServerExtension>, (0, 0)),
+        var!(Message, (0, 2)), // Encrypted Extensions
+        var!(Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, fn_seq_0), // sequence 0
+        app_const!(fn_seq_0), // sequence 0
     );
 
     let encrypted_extension_transcript = app!(
-        s,
+        
         fn_append_transcript,
         server_hello_transcript.clone(),
         encrypted_extensions.clone() // plaintext Encrypted Extensions
     );
     let server_certificate = app!(
-        s,
+        
         fn_decrypt,
-        var!(s, Message, (0, 3)), // Server Certificate
-        var!(s, Vec<ServerExtension>, (0, 0)),
+        var!(Message, (0, 3)), // Server Certificate
+        var!(Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, fn_seq_1), // sequence 1
+        app_const!(fn_seq_1), // sequence 1
     );
 
     let server_certificate_transcript = app!(
-        s,
+        
         fn_append_transcript,
         encrypted_extension_transcript.clone(),
         server_certificate.clone() // plaintext Server Certificate
     );
 
     let server_certificate_verify = app!(
-        s,
+        
         fn_decrypt,
-        var!(s, Message, (0, 4)), // Server Certificate Verify
-        var!(s, Vec<ServerExtension>, (0, 0)),
+        var!(Message, (0, 4)), // Server Certificate Verify
+        var!(Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, fn_seq_2) // sequence 2
+        app_const!(fn_seq_2) // sequence 2
     );
 
     let server_certificate_verify_transcript = app!(
-        s,
+        
         fn_append_transcript,
         server_certificate_transcript.clone(),
         server_certificate_verify.clone() // plaintext Server Certificate Verify
     );
 
     let server_finished = app!(
-        s,
+        
         fn_decrypt,
-        var!(s, Message, (0, 5)), // Server Handshake Finished
-        var!(s, Vec<ServerExtension>, (0, 0)),
+        var!(Message, (0, 5)), // Server Handshake Finished
+        var!(Vec<ServerExtension>, (0, 0)),
         server_hello_transcript.clone(),
-        app_const!(s, fn_seq_3) // sequence 3
+        app_const!(fn_seq_3) // sequence 3
     );
 
     let server_finished_transcript = app!(
-        s,
+        
         fn_append_transcript,
         server_certificate_verify_transcript.clone(),
         server_finished.clone(), // plaintext Server Handshake Finished
@@ -442,22 +439,22 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: app!(
-                        s,
+                        
                         fn_encrypt,
                         app!(
-                            s,
+                            
                             fn_finished,
                             app!(
-                                s,
+                                
                                 fn_verify_data,
-                                var!(s, Vec<ServerExtension>, (0, 0)),
+                                var!(Vec<ServerExtension>, (0, 0)),
                                 server_finished_transcript.clone(),
                                 server_hello_transcript.clone()
                             )
                         ),
-                        var!(s, Vec<ServerExtension>, (0, 0)),
+                        var!(Vec<ServerExtension>, (0, 0)),
                         server_hello_transcript.clone(),
-                        app_const!(s, fn_seq_0) // sequence 0
+                        app_const!(fn_seq_0) // sequence 0
                     ),
                 }),
             },
@@ -472,107 +469,100 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
-    let mut s = Signature::default();
+    let mut s = &SIGNATURE;
 
     let client_hello = app!(
-        s,
+        
         fn_client_hello,
-        app_const!(s, fn_protocol_version12),
-        app_const!(s, fn_random),
-        app_const!(s, fn_session_id),
+        app_const!(fn_protocol_version12),
+        app_const!(fn_random),
+        app_const!(fn_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(s, fn_cipher_suites12),
-        app_const!(s, fn_compressions),
+        app_const!(fn_cipher_suites12),
+        app_const!(fn_compressions),
         // todo CertificateStatusRequest Extension
         app!(
-            s,
             fn_extensions_append,
             app!(
-                s,
+                
                 fn_extensions_append,
                 app!(
-                    s,
+                    
                     fn_extensions_append,
                     app!(
-                        s,
+                        
                         fn_extensions_append,
                         app!(
-                            s,
+                            
                             fn_extensions_append,
                             app!(
-                                s,
+                                
                                 fn_extensions_append,
-                                app_const!(s, fn_extensions_new),
-                                app_const!(s, fn_x25519_support_group_extension),
+                                app_const!(fn_extensions_new),
+                                app_const!(fn_x25519_support_group_extension),
                             ),
-                            app_const!(s, fn_signature_algorithm_extension)
+                            app_const!(fn_signature_algorithm_extension)
                         ),
-                        app_const!(s, fn_ec_point_formats)
+                        app_const!(fn_ec_point_formats)
                     ),
-                    app_const!(s, fn_signature_algorithm_cert_extension)
+                    app_const!(fn_signature_algorithm_cert_extension)
                 ),
-                app_const!(s, fn_signed_certificate_timestamp)
+                app_const!(fn_signed_certificate_timestamp)
             ),
             // Enable Renegotiation
-            app!(s, fn_renegotiation_info, app_const!(s, fn_empty_bytes_vec)),
+            app!(fn_renegotiation_info, app_const!(fn_empty_bytes_vec)),
         )
     );
 
     let server_hello_transcript = app!(
-        s,
+        
         fn_append_transcript,
         app!(
-            s,
             fn_append_transcript,
-            app_const!(s, fn_new_transcript12),
+            app_const!(fn_new_transcript12),
             client_hello.clone(), // ClientHello
         ),
-        var!(s, Message, (0, 0)), // plaintext ServerHello
+        var!(Message, (0, 0)), // plaintext ServerHello
     );
 
     let certificate_transcript = app!(
-        s,
         fn_append_transcript,
         server_hello_transcript.clone(),
-        var!(s, Message, (0, 1)), // Certificate
+        var!(Message, (0, 1)), // Certificate
     );
 
     let server_key_exchange_transcript = app!(
-        s,
         fn_append_transcript,
         certificate_transcript.clone(),
-        var!(s, Message, (0, 2)), // ServerKeyExchange
+        var!(Message, (0, 2)), // ServerKeyExchange
     );
 
     let server_hello_done_transcript = app!(
-        s,
+        
         fn_append_transcript,
         server_key_exchange_transcript.clone(),
-        var!(s, Message, (0, 3)), // ServerHelloDone
+        var!(Message, (0, 3)), // ServerHelloDone
     );
 
     let client_key_exchange = app!(
-        s,
+        
         fn_client_key_exchange,
         app!(
-            s,
             fn_new_pubkey12,
-            app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2)))
+            app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2)))
         )
     );
 
     let client_key_exchange_transcript = app!(
-        s,
         fn_append_transcript,
         server_hello_done_transcript.clone(),
         client_key_exchange.clone()
     );
 
     let client_verify_data = app!(
-        s,
         fn_sign_transcript,
-        var!(s, Random, (0, 0)),
-        app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
+        var!(Random, (0, 0)),
+        app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
         client_key_exchange_transcript.clone()
     );
 
@@ -609,19 +599,19 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: app_const!(s, fn_change_cipher_spec12),
+                    recipe: app_const!(fn_change_cipher_spec12),
                 }),
             },
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: app!(
-                        s,
+                        
                         fn_encrypt12,
-                        app!(s, fn_finished12, client_verify_data.clone()),
-                        var!(s, Random, (0, 0)),
-                        app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
-                        app_const!(s, fn_seq_0)
+                        app!(fn_finished12, client_verify_data.clone()),
+                        var!(Random, (0, 0)),
+                        app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
+                        app_const!(fn_seq_0)
                     ),
                 }),
             },
@@ -638,53 +628,52 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
 // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/40
 // todo it seems this needs to be encrypted? somehow the server is not processing this data
 pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
-    let mut s = Signature::default();
+    let mut s = &SIGNATURE;
 
     let (mut trace, client_verify_data) = seed_client_attacker12(client, server);
 
     let renegotiation_client_hello = app!(
-        s,
         fn_client_hello,
-        app_const!(s, fn_protocol_version12),
-        app_const!(s, fn_random),
-        app_const!(s, fn_session_id),
+        app_const!(fn_protocol_version12),
+        app_const!(fn_random),
+        app_const!(fn_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(s, fn_cipher_suites12),
-        app_const!(s, fn_compressions),
+        app_const!(fn_cipher_suites12),
+        app_const!(fn_compressions),
         app!(
-            s,
+            
             fn_extensions_append,
             app!(
-                s,
+                
                 fn_extensions_append,
                 app!(
-                    s,
+                    
                     fn_extensions_append,
                     app!(
-                        s,
+                        
                         fn_extensions_append,
-                        app_const!(s, fn_extensions_new),
-                        app_const!(s, fn_x25519_support_group_extension),
+                        app_const!(fn_extensions_new),
+                        app_const!(fn_x25519_support_group_extension),
                     ),
-                    app_const!(s, fn_ec_point_formats)
+                    app_const!(fn_ec_point_formats)
                 ),
-                app_const!(s, fn_signature_algorithm_cert_extension)
+                app_const!(fn_signature_algorithm_cert_extension)
             ),
             // Enable Renegotiation
-            app!(s, fn_renegotiation_info, client_verify_data),
+            app!(fn_renegotiation_info, client_verify_data),
         )
     );
 
-    /*    trace.steps.push(Step {
+    /*    trace.stepSignature::push(Step {
             agent: server,
             action: Action::Input(InputAction {
                 recipe: app!(
-                    s,
+                    
                     op_encrypt12,
-                    app_const!(s, op_alert_close_notify),
-                    var!(s, Random, (0, 0)),
-                    app!(s, op_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
-                    app_const!(s, op_seq_1)
+                    app_const!(op_alert_close_notify),
+                    var!(Random, (0, 0)),
+                    app!(op_decode_ecdh_paramvar!(Vec<u8>, (0, 2))), // ServerECDHParams
+                    app_const!(op_seq_1)
                 ),
             }),
         });
@@ -693,12 +682,11 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         agent: server,
         action: Action::Input(InputAction {
             recipe: app!(
-                s,
                 fn_encrypt12,
                 renegotiation_client_hello.clone(),
-                var!(s, Random, (0, 0)),
-                app!(s, fn_decode_ecdh_params, var!(s, Vec<u8>, (0, 2))), // ServerECDHParams
-                app_const!(s, fn_seq_1)
+                var!(Random, (0, 0)),
+                app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
+                app_const!(fn_seq_1)
             ),
         }),
     });
