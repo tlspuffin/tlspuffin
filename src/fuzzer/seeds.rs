@@ -8,9 +8,8 @@ use rustls::{
     CipherSuite, ProtocolVersion,
 };
 
-use crate::agent::TLSVersion;
+use crate::agent::{TLSVersion, AgentDescriptor};
 use crate::tls::fn_impl::*;
-use crate::trace::AgentDescriptor;
 use crate::{
     agent::AgentName,
     term::{Signature, Term},

@@ -16,7 +16,7 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Variable {
     pub id: u32,
-    pub type_shape: TypeShape,
+    pub typ: TypeShape,
     pub observed_id: ObservedId,
 }
 
@@ -24,7 +24,7 @@ impl Variable {
     pub fn new(id: u32, type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
             id,
-            type_shape,
+            typ: type_shape,
             observed_id,
         }
     }
@@ -32,7 +32,7 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "var<{}>", self.type_shape)
+        write!(f, "var<{}>", self.typ)
     }
 }
 

@@ -60,7 +60,7 @@ impl Signature {
     ) -> Variable {
         let variable = Variable {
             id: self.variables.len() as u32,
-            type_shape,
+            typ: type_shape,
             observed_id,
         };
         self.variables.push(variable.clone());
@@ -83,7 +83,7 @@ impl Signature {
                 if let Some(_variable) = self
                     .variables
                     .iter()
-                    .find(|variable| args.iter().any(|type_id| variable.type_shape == *type_id))
+                    .find(|variable| args.iter().any(|type_id| variable.typ == *type_id))
                 {
                     // we found an already existing `variable` which helps us to call `function`
                 }

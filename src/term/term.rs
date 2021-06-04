@@ -54,7 +54,7 @@ impl Term {
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
-            Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.type_shape.name)),
+            Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
             Term::Application(ref func, ref args) => {
                 let op_str = remove_prefix(func.name());
                 if args.is_empty() {
@@ -102,7 +102,7 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, FnError> {
         match self {
             Term::Variable(v) => context
-                .get_variable_by_type_id(v.type_shape, v.observed_id)
+                .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(FnError::Message(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",

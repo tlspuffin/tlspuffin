@@ -6,7 +6,7 @@ use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::OpaqueMessage;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::agent::TLSVersion;
+use crate::agent::{TLSVersion, AgentDescriptor};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
@@ -29,15 +29,13 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    last_agent_added: AgentName,
 }
 
 impl TraceContext {
     pub fn new() -> Self {
         Self {
             knowledge: vec![],
-            agents: vec![],
-            last_agent_added: AgentName::first(),
+            agents: vec![]
         }
     }
 
@@ -100,25 +98,22 @@ impl TraceContext {
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
-        let name = agent.name;
-        self.last_agent_added = agent.name;
+        let name = agent.descriptor.name;
         self.agents.push(agent);
         return name;
     }
 
     pub fn new_openssl_agent(
         &mut self,
-        name: AgentName,
-        server: bool,
-        tls_version: TLSVersion,
+        descriptor: &AgentDescriptor,
     ) -> AgentName {
-        return self.add_agent(Agent::new_openssl(name, server, tls_version));
+        return self.add_agent(Agent::new_openssl(descriptor));
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.name == name).ok_or(format!(
+        iter.find(|agent| agent.descriptor.name == name).ok_or(format!(
             "Could not find agent {}. Did you forget to call spawn_agents?",
             name
         ))
@@ -126,18 +121,11 @@ impl TraceContext {
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.name == name).ok_or(format!(
+        iter.find(|agent| agent.descriptor.name == name).ok_or(format!(
             "Could not find agent {}. Did you forget to call spawn_agents?",
             name
         ))
     }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AgentDescriptor {
-    pub name: AgentName,
-    pub tls_version: TLSVersion,
-    pub server: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -158,7 +146,7 @@ impl HasLen for Trace {
 impl Trace {
     pub fn spawn_agents(&self, ctx: &mut TraceContext) {
         for descriptor in &self.descriptors {
-            ctx.new_openssl_agent(descriptor.name, descriptor.server, descriptor.tls_version);
+            ctx.new_openssl_agent(&descriptor);
         }
     }
 

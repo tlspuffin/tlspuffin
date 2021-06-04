@@ -31,6 +31,13 @@ impl PartialEq for AgentName {
     }
 }
 
+#[derive(Debug, Copy, Clone, Deserialize, Serialize)]
+pub struct AgentDescriptor {
+    pub name: AgentName,
+    pub tls_version: TLSVersion,
+    pub server: bool,
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum TLSVersion {
     V1_3,
@@ -38,16 +45,22 @@ pub enum TLSVersion {
 }
 
 pub struct Agent {
-    pub name: AgentName,
+    pub descriptor: AgentDescriptor,
     pub stream: Box<dyn Stream>,
 }
 
 impl Agent {
-    pub fn new_openssl(name: AgentName, server: bool, tls_version: TLSVersion) -> Self {
-        Self::from_stream(name, Box::new(OpenSSLStream::new(server, &tls_version)))
+    pub fn new_openssl(descriptor: &AgentDescriptor) -> Self {
+        Self::from_stream(
+            descriptor,
+            Box::new(OpenSSLStream::new(
+                descriptor.server,
+                &descriptor.tls_version,
+            )),
+        )
     }
 
-    pub fn from_stream(name: AgentName, stream: Box<dyn Stream>) -> Agent {
-        Agent { name, stream }
+    pub fn from_stream(descriptor: &AgentDescriptor, stream: Box<dyn Stream>) -> Agent {
+        Agent { descriptor: *descriptor, stream }
     }
 }
