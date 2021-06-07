@@ -76,6 +76,7 @@ pub mod tlspuffin {
         let trace = seed_client_attacker(client, server);
 
         println!("{}", trace);
+        println!("{}", trace.dot_graph());
         trace.spawn_agents(&mut ctx);
         trace.execute(&mut ctx).unwrap();
 
@@ -85,6 +86,15 @@ pub mod tlspuffin {
         println!("{}", server_state);
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
+
+    #[test]
+    fn test_dot_graph() {
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_client_attacker12(client, server);
+        println!("{}", trace.0.dot_graph());
+    }
+
 
     #[test]
     fn test_seed_successful() {

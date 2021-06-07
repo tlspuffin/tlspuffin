@@ -51,13 +51,13 @@ mod macros {
 mod term {
     use std::any::{Any, TypeId};
 
+    use itertools::Itertools;
     use rustls::internal::msgs::handshake::SessionID;
 
+    use crate::term::Signature;
     use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
     use crate::tls::{FnError, SIGNATURE};
     use crate::{term::Term, trace::TraceContext};
-    use itertools::Itertools;
-    use crate::term::Signature;
 
     fn example_op_c(a: &u8) -> Result<u16, FnError> {
         Ok((a + 1) as u16)
@@ -99,12 +99,7 @@ mod term {
 
     #[test]
     fn playground() {
-        let example = Signature::new_function(&example_op_c);
-        let example1 = Signature::new_function(&example_op_c);
-
         let var_data = fn_session_id();
-
-        let k = Signature::new_var::<SessionID>((0, 0));
 
         println!("vec {:?}", TypeId::of::<Vec<u8>>());
         println!("vec {:?}", TypeId::of::<Vec<u16>>());
@@ -112,7 +107,7 @@ mod term {
         println!("{:?}", TypeId::of::<SessionID>());
         println!("{:?}", var_data.type_id());
 
-        let func = example.clone();
+        let func = Signature::new_function(&example_op_c).clone();
         let dynamic_fn = func.dynamic_fn();
         println!(
             "{:?}",
@@ -121,41 +116,42 @@ mod term {
                 .downcast_ref::<u16>()
                 .unwrap()
         );
-        println!("{}", example.shape());
+        println!("{}", Signature::new_function(&example_op_c).shape());
 
         let constructed_term = Term::Application(
-            example1.clone(),
+            Signature::new_function(&example_op_c),
             vec![
                 Term::Application(
-                    example1.clone(),
+                    Signature::new_function(&example_op_c),
                     vec![
                         Term::Application(
-                            example1.clone(),
+                            Signature::new_function(&example_op_c),
                             vec![
-                                Term::Application(example1.clone(), vec![]),
-                                Term::Variable(k.clone()),
+                                Term::Application(Signature::new_function(&example_op_c), vec![]),
+                                Term::Variable(Signature::new_var::<SessionID>((0, 0))),
                             ],
                         ),
-                        Term::Variable(k.clone()),
+                        Term::Variable(Signature::new_var::<SessionID>((0, 0))),
                     ],
                 ),
                 Term::Application(
-                    example1.clone(),
+                    Signature::new_function(&example_op_c),
                     vec![
                         Term::Application(
-                            example1.clone(),
+                            Signature::new_function(&example_op_c),
                             vec![
-                                Term::Variable(k.clone()),
-                                Term::Application(example.clone(), vec![]),
+                                Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                                Term::Application(Signature::new_function(&example_op_c), vec![]),
                             ],
                         ),
-                        Term::Variable(k.clone()),
+                        Term::Variable(Signature::new_var::<SessionID>((0, 0))),
                     ],
                 ),
             ],
         );
 
         println!("{}", constructed_term);
+        println!("{}", constructed_term.dot_subgraph(0, "test"));
     }
 
     #[test]

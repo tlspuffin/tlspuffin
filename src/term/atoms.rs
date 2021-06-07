@@ -10,18 +10,33 @@ use crate::{
     },
     trace::ObservedId,
 };
+use rand::random;
+use crate::term::remove_prefix;
 
 /// A symbol for an unspecified term.
 ///
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Variable {
+    /// Unique ID of this variable. Uniqueness is only guaranteed within the term this variable belongs to.
+    pub unique_id: u32,
     pub typ: TypeShape,
     pub observed_id: ObservedId,
 }
 
+impl Clone for Variable {
+    fn clone(&self) -> Self {
+        Variable {
+            unique_id: random(),  // todo
+            typ: self.typ.clone(),
+            observed_id: self.observed_id.clone()
+        }
+    }
+}
+
 impl Variable {
-    pub fn new(type_shape: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(unique_id: u32, type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
+            unique_id,
             typ: type_shape,
             observed_id,
         }
@@ -30,19 +45,35 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "var<{}>", self.typ)
+        write!(f, "({},{})/{}", self.observed_id.0, self.observed_id.1, remove_prefix(self.typ.name))
     }
 }
 
 /// A symbol with fixed arity.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
+    /// Unique ID of this function. Uniqueness is only guaranteed within the term this function belongs to.
+    pub unique_id: u32,
     fn_container: FnContainer,
 }
 
+impl Clone for Function {
+    fn clone(&self) -> Self {
+        Function {
+            unique_id: random(), // todo
+            fn_container: self.fn_container.clone()
+        }
+    }
+}
+
 impl Function {
-    pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
+    pub fn new(
+        unique_id: u32,
+        shape: DynamicFunctionShape,
+        dynamic_fn: Box<dyn DynamicFunction>,
+    ) -> Self {
         Self {
+            unique_id,
             fn_container: FnContainer { shape, dynamic_fn },
         }
     }
@@ -61,6 +92,12 @@ impl Function {
 
     pub fn dynamic_fn(&self) -> &Box<dyn DynamicFunction> {
         &self.fn_container.dynamic_fn
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.fn_container.shape.fmt(f)
     }
 }
 
@@ -126,9 +163,14 @@ mod fn_container {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                    let (_shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or(de::Error::custom(
-                        format!("could not find function {}", name),
-                    ))?;
+                    let (_shape, dynamic_fn) =
+                        SIGNATURE
+                            .functions_by_name
+                            .get(name)
+                            .ok_or(de::Error::custom(format!(
+                                "could not find function {}",
+                                name
+                            )))?;
                     // todo check if shape matches
                     Ok(FnContainer {
                         shape: DynamicFunctionShape {
@@ -175,10 +217,13 @@ mod fn_container {
 
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
                     let (_shape, dynamic_fn) =
-                        SIGNATURE.functions_by_name.get(name).ok_or(de::Error::custom(format!(
-                            "Failed to link function symbol: Could not find function {}",
-                            name
-                        )))?;
+                        SIGNATURE
+                            .functions_by_name
+                            .get(name)
+                            .ok_or(de::Error::custom(format!(
+                                "Failed to link function symbol: Could not find function {}",
+                                name
+                            )))?;
                     // todo check if shape matches
                     let argument_types =
                         arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;

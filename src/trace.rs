@@ -170,6 +170,24 @@ impl Trace {
 
         Ok(())
     }
+
+    pub fn dot_graph(&self) -> String {
+        let mut subgraphs = Vec::new();
+
+        for (i, step) in self.steps.iter().enumerate() {
+            let subgraph_name = format!("Step #{} (Agent  {})", i, step.agent);
+
+            let subgraph = match &step.action {
+                Action::Input(input) => format!("{}", input.recipe.dot_subgraph(i, subgraph_name.as_str())),
+                Action::Output(output) => format!("subgraph cluster{} {{ label=\"{} - ({},)\" \"\" [color=\"#00000000\"]; }}", i, subgraph_name.as_str(), output.id)
+            };
+
+            subgraphs.push(subgraph);
+        }
+
+
+        format!("graph \"Trace\" {{ splines=false; {} }}", subgraphs.join("\n"))
+    }
 }
 
 impl fmt::Display for Trace {

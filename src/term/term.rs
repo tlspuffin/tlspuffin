@@ -1,8 +1,11 @@
+use std::error::Error;
 use std::fmt::Formatter;
 use std::{any::Any, fmt, iter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use tabbycat::attributes::{arrowhead, color, label, ArrowShape, Color};
+use tabbycat::{AttrList, Edge, Graph, GraphBuilder, GraphType, Identity, StmtList, SubGraph};
 
 use crate::tls::FnError;
 use crate::trace::TraceContext;
@@ -26,7 +29,7 @@ pub enum Term {
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
-fn remove_prefix(str: &str) -> String {
+pub(crate) fn remove_prefix(str: &str) -> String {
     let split: Option<(&str, &str)> = str.split_inclusive("<").collect_tuple();
 
     if let Some((non_generic, generic)) = split {
@@ -68,6 +71,54 @@ impl Term {
                 }
             }
         }
+    }
+
+    fn unique_id(&self, id_prefix: &str) -> String {
+        match self {
+            Term::Variable(variable) => format!("var_{}_{}", id_prefix, variable.unique_id),
+            Term::Application(func, _) => format!("func_{}_{}", id_prefix, func.unique_id),
+        }
+    }
+
+    fn collect_statements(term: &Term, id_prefix: &str, statements: &mut Vec<String>) {
+        match term {
+            Term::Variable(variable) => {
+                statements.push(format!(
+                    "{} [label=\"{}\",style=filled,colorscheme=dark28,fillcolor=1,shape=oval];",
+                    term.unique_id(id_prefix),
+                    variable.to_string()
+                ));
+            }
+            Term::Application(func, subterms) => {
+                statements.push(format!(
+                    "{} [label=\"{}\",style=filled,colorscheme=dark28,fillcolor={},shape=box];",
+                    term.unique_id(id_prefix),
+                    remove_prefix(func.name()),
+                    if func.arity() == 0 {
+                        "1"
+                    } else {
+                        "2"
+                    }
+                ));
+
+                for subterm in subterms {
+                    statements.push(format!("{} -- {};", term.unique_id(id_prefix), subterm.unique_id(id_prefix)));
+                    Self::collect_statements(subterm, id_prefix, statements);
+                }
+            }
+        }
+    }
+
+    pub fn dot_subgraph(&self, id: usize, label: &str) -> String {
+        let mut statements = Vec::new();
+        let subgraph_id_prefix = id.to_string();
+        Self::collect_statements(self, subgraph_id_prefix.as_str(), &mut statements);
+        format!(
+            "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
+            id,
+            label,
+            statements.iter().join("\n")
+        )
     }
 
     /// Every [`Variable`] used in the `Term`.
