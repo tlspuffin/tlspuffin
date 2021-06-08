@@ -30,3 +30,4 @@ mod signature;
 mod term;
 mod tests;
 mod dynamic_function;
+mod macros;
