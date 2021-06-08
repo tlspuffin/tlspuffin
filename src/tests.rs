@@ -54,7 +54,7 @@ pub mod tlspuffin {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let (trace, _) = seed_client_attacker12(client, server);
+        let trace = seed_client_attacker12(client, server);
 
         println!("{}", trace);
         trace.spawn_agents(&mut ctx);
@@ -92,7 +92,7 @@ pub mod tlspuffin {
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_client_attacker12(client, server);
-        println!("{}", trace.0.dot_graph());
+        println!("{}", trace.dot_graph());
     }
 
 
@@ -193,7 +193,7 @@ pub mod integration {
     fn test_serialisation_seed_client_attacker12_json() {
         let client = AgentName::first();
         let server = client.next();
-        let (trace, _) = seed_client_attacker12(client, server);
+        let trace = seed_client_attacker12(client, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
         println!("serialized = {}", serialized1);

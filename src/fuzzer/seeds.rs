@@ -473,10 +473,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
 }
 
 fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
-    let mut s = &SIGNATURE;
-
     let client_hello = app!(
-        
         fn_client_hello,
         app_const!(fn_protocol_version12),
         app_const!(fn_random),
@@ -488,19 +485,14 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
         app!(
             fn_extensions_append,
             app!(
-                
                 fn_extensions_append,
                 app!(
-                    
                     fn_extensions_append,
                     app!(
-                        
                         fn_extensions_append,
                         app!(
-                            
                             fn_extensions_append,
                             app!(
-                                
                                 fn_extensions_append,
                                 app_const!(fn_extensions_new),
                                 app_const!(fn_x25519_support_group_extension),
@@ -519,7 +511,6 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
     );
 
     let server_hello_transcript = app!(
-        
         fn_append_transcript,
         app!(
             fn_append_transcript,
@@ -542,14 +533,12 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
     );
 
     let server_hello_done_transcript = app!(
-        
         fn_append_transcript,
         server_key_exchange_transcript.clone(),
         var!(Message, (0, 3)), // ServerHelloDone
     );
 
     let client_key_exchange = app!(
-        
         fn_client_key_exchange,
         app!(
             fn_new_pubkey12,

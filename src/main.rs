@@ -68,16 +68,11 @@ fn main() {
                 .about("Plots a trace stored in a file")
                 .args_from_usage("<input> 'The file which stores a trace'")
                 .args_from_usage("<format> 'The format of the plot, can be svg or pdf'")
-                .args_from_usage("<output> 'The file to which the trace should be written'"),
+                .args_from_usage("<output_prefix> 'The file to which the trace should be written'"),
         ])
         .get_matches();
 
     info!("{}", openssl_binding::openssl_version());
-
-    println!(
-        "Workdir: {:?}",
-        env::current_dir().unwrap().to_string_lossy().to_string()
-    );
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         let client = agent::AgentName::first();
@@ -95,14 +90,14 @@ fn main() {
         ];
 
         for (trace_fn, name) in traces {
-            let mut file = File::create(format!("corpus/{}.trace", name)).unwrap();
+            let mut file = File::create(format!("./corpus/{}.trace", name)).unwrap();
             let buffer = postcard::to_allocvec(&trace_fn(client, server)).unwrap();
             file.write_all(&buffer).unwrap();
-            info!("Generated seeds to ./corpus")
+            println!("Generated seed traces into the directory ./corpus")
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
-        let output = matches.value_of("output").unwrap();
+        let output_prefix = matches.value_of("output_prefix").unwrap();
         let input = matches.value_of("input").unwrap();
         let format = matches.value_of("format").unwrap();
         let mut input_file = File::open(input).unwrap();
@@ -114,21 +109,23 @@ fn main() {
 
         // All-in-one tree
         write_graphviz(
-            format!("{}_{}.{}", output, 0, format).as_str(),
+            format!("{}_{}.{}", output_prefix, "all", format).as_str(),
             format,
             &trace.dot_graph().as_str(),
         )
-        .unwrap();
+        .expect("Failed to generate graph.");
 
         for (i, subgraph) in trace.dot_subgraphs().iter().enumerate() {
-            let wrapped_subgraph = format!("graph \"\" {{ splines=false; {} }}", subgraph);
+            let wrapped_subgraph = format!("strict graph \"\" {{ splines=true; {} }}", subgraph);
             write_graphviz(
-                format!("{}_{}.{}", output, i + 1, format).as_str(),
+                format!("{}_{}.{}", output_prefix, i, format).as_str(),
                 format,
                 wrapped_subgraph.as_str(),
             )
-            .unwrap();
+            .expect("Failed to generate graph.");
         }
+
+        println!("Created plots")
     } else {
         let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
 

@@ -71,49 +71,58 @@ impl Term {
         }
     }
 
-    fn unique_id(&self, id_prefix: &str) -> String {
+    fn unique_id(&self, cluster_id: usize) -> String {
         match self {
-            Term::Variable(variable) => format!("var_{}_{}", id_prefix, variable.unique_id),
-            Term::Application(func, _) => format!("func_{}_{}", id_prefix, func.unique_id),
+            Term::Variable(variable) => format!("var_{}_{}", cluster_id, variable.unique_id),
+            Term::Application(func, _) => format!("func_{}_{}", cluster_id, func.unique_id),
         }
     }
 
-    fn collect_statements(term: &Term, id_prefix: &str, statements: &mut Vec<String>) {
+    fn node_attributes(obj: impl fmt::Display, color: u8, shape: &str) -> String {
+        format!(
+            "[label=\"{}\",style=filled,colorscheme=dark28,fillcolor={},shape={}]",
+            obj, color, shape
+        )
+    }
+
+    fn collect_statements(term: &Term, cluster_id: usize, statements: &mut Vec<String>) {
         match term {
             Term::Variable(variable) => {
                 statements.push(format!(
-                    "{} [label=\"{}\",style=filled,colorscheme=dark28,fillcolor=1,shape=oval];",
-                    term.unique_id(id_prefix),
-                    variable.to_string()
+                    "{} {};",
+                    term.unique_id(cluster_id),
+                    Self::node_attributes(variable, 1, "oval")
                 ));
             }
             Term::Application(func, subterms) => {
                 statements.push(format!(
-                    "{} [label=\"{}\",style=filled,colorscheme=dark28,fillcolor={},shape=box];",
-                    term.unique_id(id_prefix),
-                    remove_prefix(func.name()),
-                    if func.arity() == 0 {
-                        "1"
-                    } else {
-                        "2"
-                    }
+                    "{} {};",
+                    term.unique_id(cluster_id),
+                    Self::node_attributes(
+                        remove_prefix(func.name()),
+                        if func.arity() == 0 { 1 } else { 2 },
+                        "box"
+                    )
                 ));
 
                 for subterm in subterms {
-                    statements.push(format!("{} -- {};", term.unique_id(id_prefix), subterm.unique_id(id_prefix)));
-                    Self::collect_statements(subterm, id_prefix, statements);
+                    statements.push(format!(
+                        "{} -- {};",
+                        term.unique_id(cluster_id),
+                        subterm.unique_id(cluster_id)
+                    ));
+                    Self::collect_statements(subterm, cluster_id, statements);
                 }
             }
         }
     }
 
-    pub fn dot_subgraph(&self, id: usize, label: &str) -> String {
+    pub fn dot_subgraph(&self, cluster_id: usize, label: &str) -> String {
         let mut statements = Vec::new();
-        let subgraph_id_prefix = id.to_string();
-        Self::collect_statements(self, subgraph_id_prefix.as_str(), &mut statements);
+        Self::collect_statements(self, cluster_id, &mut statements);
         format!(
             "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
-            id,
+            cluster_id,
             label,
             statements.iter().join("\n")
         )
