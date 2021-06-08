@@ -17,7 +17,8 @@ use crate::term::remove_prefix;
 ///
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all terms ever created.
+    /// Unique ID of this variable. Uniqueness is guaranteed across all terms ever created. Cloning
+    /// change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
@@ -56,7 +57,8 @@ impl fmt::Display for Variable {
 /// A symbol with fixed arity.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
-    /// Unique ID of this function. Uniqueness is guaranteed across all terms ever created.
+    /// Unique ID of this function. Uniqueness is guaranteed across all terms ever created. Cloning
+    /// change this ID.
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.
     pub resistant_id: u32,

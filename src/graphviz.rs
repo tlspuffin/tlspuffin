@@ -26,7 +26,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
 impl Trace {
     pub fn dot_graph(&self) -> String {
         format!(
-            "strict graph \"Trace\" {{ splines=true; {} }}",
+            "strict digraph \"Trace\" {{ splines=true; {} }}",
             self.dot_subgraphs(false).join("\n")
         )
     }
@@ -115,7 +115,7 @@ impl Term {
 
                 for subterm in subterms {
                     statements.push(format!(
-                        "{} -- {};",
+                        "{} -> {};",
                         term.unique_id(tree_mode, cluster_id),
                         subterm.unique_id(tree_mode, cluster_id)
                     ));

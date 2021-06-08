@@ -151,7 +151,7 @@ mod term {
         );
 
         println!("{}", constructed_term);
-        println!("{}", constructed_term.dot_subgraph(0, "test"));
+        println!("{}", constructed_term.dot_subgraph(true, 0, "test"));
     }
 
     #[test]
