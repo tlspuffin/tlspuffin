@@ -115,7 +115,7 @@ fn main() {
         )
         .expect("Failed to generate graph.");
 
-        for (i, subgraph) in trace.dot_subgraphs().iter().enumerate() {
+        for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
             let wrapped_subgraph = format!("strict graph \"\" {{ splines=true; {} }}", subgraph);
             write_graphviz(
                 format!("{}_{}.{}", output_prefix, i, format).as_str(),

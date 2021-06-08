@@ -63,7 +63,6 @@ impl Signature {
     {
         let (shape, dynamic_fn) = make_dynamic(f);
         let func = Function::new(
-            random(),
             shape.clone(),
             dynamic_fn.clone());
         func
@@ -71,7 +70,6 @@ impl Signature {
 
     fn new_var_internal(type_shape: TypeShape, observed_id: ObservedId) -> Variable {
         let variable = Variable::new(
-            random(), // fixme not guranteed to be unique
             type_shape,
             observed_id,
         );

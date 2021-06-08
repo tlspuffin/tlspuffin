@@ -17,8 +17,10 @@ use crate::term::remove_prefix;
 ///
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable {
-    /// Unique ID of this variable. Uniqueness is only guaranteed within the term this variable belongs to.
+    /// Unique ID of this variable. Uniqueness is guaranteed across all terms ever created.
     pub unique_id: u32,
+    /// ID of this variable. This id stays the same during cloning.
+    pub resistant_id: u32,
     pub typ: TypeShape,
     pub observed_id: ObservedId,
 }
@@ -27,6 +29,7 @@ impl Clone for Variable {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),  // todo
+            resistant_id: self.resistant_id,
             typ: self.typ.clone(),
             observed_id: self.observed_id.clone()
         }
@@ -34,9 +37,10 @@ impl Clone for Variable {
 }
 
 impl Variable {
-    pub fn new(unique_id: u32, type_shape: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
-            unique_id,
+            unique_id: random(), // todo
+            resistant_id: random(), // todo
             typ: type_shape,
             observed_id,
         }
@@ -52,15 +56,18 @@ impl fmt::Display for Variable {
 /// A symbol with fixed arity.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
-    /// Unique ID of this function. Uniqueness is only guaranteed within the term this function belongs to.
+    /// Unique ID of this function. Uniqueness is guaranteed across all terms ever created.
     pub unique_id: u32,
+    /// ID of this function. This id stays the same during cloning.
+    pub resistant_id: u32,
     fn_container: FnContainer,
 }
 
 impl Clone for Function {
     fn clone(&self) -> Self {
         Function {
-            unique_id: random(), // todo
+            unique_id: random(),  // todo
+            resistant_id: self.resistant_id,
             fn_container: self.fn_container.clone()
         }
     }
@@ -68,12 +75,12 @@ impl Clone for Function {
 
 impl Function {
     pub fn new(
-        unique_id: u32,
         shape: DynamicFunctionShape,
         dynamic_fn: Box<dyn DynamicFunction>,
     ) -> Self {
         Self {
-            unique_id,
+            unique_id: random(), // todo
+            resistant_id: random(), // todo
             fn_container: FnContainer { shape, dynamic_fn },
         }
     }

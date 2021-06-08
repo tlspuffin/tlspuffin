@@ -174,11 +174,11 @@ impl Trace {
     pub fn dot_graph(&self) -> String {
         format!(
             "strict graph \"Trace\" {{ splines=true; {} }}",
-            self.dot_subgraphs().join("\n")
+            self.dot_subgraphs(false).join("\n")
         )
     }
 
-    pub fn dot_subgraphs(&self) -> Vec<String> {
+    pub fn dot_subgraphs(&self, tree_mode: bool) -> Vec<String> {
         let mut subgraphs = Vec::new();
 
         for (i, step) in self.steps.iter().enumerate() {
@@ -186,7 +186,12 @@ impl Trace {
 
             let subgraph = match &step.action {
                 Action::Input(input) => {
-                    format!("{}", input.recipe.dot_subgraph(i, subgraph_name.as_str()))
+                    format!(
+                        "{}",
+                        input
+                            .recipe
+                            .dot_subgraph(tree_mode, i, subgraph_name.as_str())
+                    )
                 }
                 Action::Output(output) => format!(
                     "subgraph cluster{} {{ label=\"{} - ({},)\" \"\" [color=\"#00000000\"]; }}",

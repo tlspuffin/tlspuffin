@@ -71,33 +71,50 @@ impl Term {
         }
     }
 
-    fn unique_id(&self, cluster_id: usize) -> String {
+    fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
-            Term::Variable(variable) => format!("var_{}_{}", cluster_id, variable.unique_id),
-            Term::Application(func, _) => format!("func_{}_{}", cluster_id, func.unique_id),
+            Term::Variable(variable) => {
+                if tree_mode {
+                    format!("v_{}_{}", cluster_id, variable.unique_id)
+                } else {
+                    format!("v_{}", variable.resistant_id)
+                }
+            }
+            Term::Application(func, _) => {
+                if tree_mode {
+                    format!("f_{}_{}", cluster_id, func.unique_id)
+                } else {
+                    format!("f_{}", func.resistant_id)
+                }
+            }
         }
     }
 
-    fn node_attributes(obj: impl fmt::Display, color: u8, shape: &str) -> String {
+    fn node_attributes(displayable: impl fmt::Display, color: u8, shape: &str) -> String {
         format!(
             "[label=\"{}\",style=filled,colorscheme=dark28,fillcolor={},shape={}]",
-            obj, color, shape
+            displayable, color, shape
         )
     }
 
-    fn collect_statements(term: &Term, cluster_id: usize, statements: &mut Vec<String>) {
+    fn collect_statements(
+        term: &Term,
+        tree_mode: bool,
+        cluster_id: usize,
+        statements: &mut Vec<String>,
+    ) {
         match term {
             Term::Variable(variable) => {
                 statements.push(format!(
                     "{} {};",
-                    term.unique_id(cluster_id),
+                    term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(variable, 1, "oval")
                 ));
             }
             Term::Application(func, subterms) => {
                 statements.push(format!(
                     "{} {};",
-                    term.unique_id(cluster_id),
+                    term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
                         remove_prefix(func.name()),
                         if func.arity() == 0 { 1 } else { 2 },
@@ -108,18 +125,21 @@ impl Term {
                 for subterm in subterms {
                     statements.push(format!(
                         "{} -- {};",
-                        term.unique_id(cluster_id),
-                        subterm.unique_id(cluster_id)
+                        term.unique_id(tree_mode, cluster_id),
+                        subterm.unique_id(tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(subterm, cluster_id, statements);
+                    Self::collect_statements(subterm, tree_mode, cluster_id, statements);
                 }
             }
         }
     }
 
-    pub fn dot_subgraph(&self, cluster_id: usize, label: &str) -> String {
+    /// If `tree_mode` is true then each subgraph is self-contained and does not reference other
+    /// clusters or nodes outside of this subgraph. Therefore, only trees are generated. If it is
+    /// false, then graphs are rendered.
+    pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
         let mut statements = Vec::new();
-        Self::collect_statements(self, cluster_id, &mut statements);
+        Self::collect_statements(self, tree_mode, cluster_id, &mut statements);
         format!(
             "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
             cluster_id,
