@@ -468,7 +468,11 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     trace
 }
 
-pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
+pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
+    _seed_client_attacker12(client, server).0
+}
+
+fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
     let mut s = &SIGNATURE;
 
     let client_hello = app!(
@@ -630,7 +634,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, T
 pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
     let mut s = &SIGNATURE;
 
-    let (mut trace, client_verify_data) = seed_client_attacker12(client, server);
+    let (mut trace, client_verify_data) = _seed_client_attacker12(client, server);
 
     let renegotiation_client_hello = app!(
         fn_client_hello,

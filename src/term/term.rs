@@ -4,8 +4,6 @@ use std::{any::Any, fmt, iter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use tabbycat::attributes::{arrowhead, color, label, ArrowShape, Color};
-use tabbycat::{AttrList, Edge, Graph, GraphBuilder, GraphType, Identity, StmtList, SubGraph};
 
 use crate::tls::FnError;
 use crate::trace::TraceContext;
