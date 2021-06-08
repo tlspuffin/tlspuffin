@@ -172,6 +172,10 @@ impl Trace {
     }
 
     pub fn dot_graph(&self) -> String {
+        format!("graph \"Trace\" {{ splines=false; {} }}", self.dot_subgraphs().join("\n"))
+    }
+
+    pub fn dot_subgraphs(&self) -> Vec<String> {
         let mut subgraphs = Vec::new();
 
         for (i, step) in self.steps.iter().enumerate() {
@@ -186,7 +190,7 @@ impl Trace {
         }
 
 
-        format!("graph \"Trace\" {{ splines=false; {} }}", subgraphs.join("\n"))
+        subgraphs
     }
 }
 
