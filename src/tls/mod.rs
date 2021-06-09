@@ -49,10 +49,6 @@ pub struct MultiMessage {
     pub messages: Vec<Message>,
 }
 
-// todo it would be possible generate dynamic functions like in criterion_group! macro
-// or via a procedural macro.
-// https://gitlab.inria.fr/mammann/tlspuffin/-/issues/28
-
 fn prepare_key(
     server_public_key: &[u8],
     transcript: &HandshakeHash,
@@ -123,8 +119,8 @@ fn new_key_exchange_result(
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<KeyExchangeResult, FnError> {
     let group = NamedGroup::X25519; // todo
-    let skxg = kx::KeyExchange::choose(group, &ALL_KX_GROUPS).into_fn_result()?;
-    let kx: kx::KeyExchange = deterministic_key_exchange(skxg)?;
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).into_fn_result()?;
+    let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0).into_fn_result()?;
     Ok(kxd)
 }
@@ -140,7 +136,7 @@ fn new_secrets(
     server_random.write_slice(&mut server_random_bytes);
 
     let server_random = server_random_bytes.try_into().map_err(|_|FnError::Message(
-        "Server random did not have length of 32.".to_string(),
+        "Server random did not have length of 32".to_string(),
     ))?;
     let randoms = ConnectionRandoms {
         we_are_client: true,
@@ -163,7 +159,7 @@ where
     E: std::error::Error,
 {
     fn into_fn_result(self) -> Result<T, FnError> {
-        self.map_err(|err| FnError::Message(format!("error: {}", err)))
+        self.map_err(|err| FnError::Message(format!("{}", err)))
     }
 }
 
@@ -175,7 +171,6 @@ impl<T> IntoFnResult<Result<T, FnError>> for Option<T> {
 
 #[derive(Debug)]
 pub enum FnError {
-    NoneError,
     Message(String),
 }
 
@@ -184,14 +179,13 @@ impl std::error::Error for FnError {}
 impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "FnError: {}", match self {
-            FnError::NoneError => "NoneError",
             FnError::Message(msg) => msg
         })
     }
 }
 
 // ----
-// Registry
+// Signature
 // ----
 
 define_signature!(
