@@ -188,8 +188,6 @@ pub struct TypeShape {
     pub name: &'static str,
 }
 
-struct UnknownType;
-
 impl TypeShape {
     pub fn of<T: 'static>() -> TypeShape {
         Self {

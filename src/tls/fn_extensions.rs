@@ -21,6 +21,7 @@ pub fn fn_extensions_append(
 ) -> Result<Vec<ClientExtension>, FnError> {
     let mut new_extensions = extensions.clone();
     new_extensions.push(extension.clone());
+
     Ok(new_extensions)
 }
 
