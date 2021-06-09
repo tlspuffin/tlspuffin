@@ -11,7 +11,7 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-use crate::tls::MultiMessage;
+
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
@@ -297,11 +297,6 @@ impl InputAction {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
 
             debug_message_with_info(format!("Input message").as_str(), msg);
-        } else if let Some(multi) = evaluated.as_ref().downcast_ref::<MultiMessage>() {
-            for msg in &multi.messages {
-                ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
-                debug_message_with_info(format!("Input message").as_str(), msg);
-            }
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
             ctx.add_to_inbound(
                 step.agent,

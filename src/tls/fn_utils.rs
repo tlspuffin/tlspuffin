@@ -10,27 +10,7 @@ use rustls::internal::msgs::codec::{Codec, Reader};
 use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension};
 use rustls::internal::msgs::message::{Message, OpaqueMessage};
 
-use super::{FnError, IntoFnResult, MultiMessage};
-
-// ----
-// Utils
-// ----
-
-pub fn fn_concat_messages_2(msg1: &Message, msg2: &Message) -> Result<MultiMessage, FnError> {
-    Ok(MultiMessage {
-        messages: vec![msg1.clone(), msg2.clone()],
-    })
-}
-
-pub fn fn_concat_messages_3(
-    msg1: &Message,
-    msg2: &Message,
-    msg3: &Message,
-) -> Result<MultiMessage, FnError> {
-    Ok(MultiMessage {
-        messages: vec![msg1.clone(), msg2.clone(), msg3.clone()],
-    })
-}
+use super::{FnError, IntoFnResult};
 
 // ----
 // seed_client_attacker()

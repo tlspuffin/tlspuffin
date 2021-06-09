@@ -38,17 +38,6 @@ pub mod fn_impl {
     };
 }
 
-// ----
-// Types
-// ----
-
-/// Special type which is used in [`crate::trace::InputAction`]. This is used if an recipe outputs
-/// more or less than exactly one message.
-#[derive(Clone)]
-pub struct MultiMessage {
-    pub messages: Vec<Message>,
-}
-
 fn prepare_key(
     server_public_key: &[u8],
     transcript: &HandshakeHash,
@@ -245,7 +234,4 @@ define_signature!(
     fn_session_id,
     fn_sign_transcript,
     fn_verify_data,
-    // utils
-    fn_concat_messages_2,
-    fn_concat_messages_3,
 );
