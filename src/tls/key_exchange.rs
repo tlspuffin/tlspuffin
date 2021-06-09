@@ -2,7 +2,7 @@ use ring::test::rand::FixedByteRandom;
 use rustls::kx::KeyExchange;
 use rustls::SupportedKxGroup;
 
-use crate::tls::{FnError};
+use crate::tls::error::FnError;
 
 pub fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };

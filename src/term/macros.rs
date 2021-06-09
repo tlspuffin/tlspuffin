@@ -36,7 +36,6 @@ macro_rules! term {
 
     // Function Applications
     ($func:ident ($($args:tt),*)) => {{
-        let (shape, dynamic_fn) = crate::term::make_dynamic(&$func);
         let func = crate::term::Signature::new_function(&$func);
         crate::term::Term::Application(func, vec![$(crate::term_arg!($args)),*])
     }};

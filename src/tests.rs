@@ -35,7 +35,7 @@ pub mod tlspuffin {
                 let trace = seed_cve_2021_3449(client, server);
 
                 println!("{}", trace);
-                trace.spawn_agents(&mut ctx);
+                trace.spawn_agents(&mut ctx).unwrap();
                 trace.execute(&mut ctx).unwrap();
             }
             Err(_) => panic!("Fork failed"),
@@ -51,7 +51,7 @@ pub mod tlspuffin {
         let trace = seed_client_attacker12(client, server);
 
         println!("{}", trace);
-        trace.spawn_agents(&mut ctx);
+        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -71,7 +71,7 @@ pub mod tlspuffin {
 
         println!("{}", trace);
         println!("{}", trace.dot_graph());
-        trace.spawn_agents(&mut ctx);
+        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -99,7 +99,7 @@ pub mod tlspuffin {
         let trace = seed_successful(client, server);
 
         info!("{}", trace);
-        trace.spawn_agents(&mut ctx);
+        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -120,7 +120,7 @@ pub mod tlspuffin {
         let trace = seed_successful12(client, server);
 
         info!("{}", trace);
-        trace.spawn_agents(&mut ctx);
+        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();

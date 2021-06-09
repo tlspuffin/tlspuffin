@@ -9,23 +9,21 @@ pub fn harness(input: &Trace) -> ExitKind {
 
     if let Err(err) = input.spawn_agents(&mut ctx) {
         match err {
-            Error::FnError(err) => panic!(err),
-            Error::OpenSSLErrorStack(err) => panic!(err),
-            Error::IOError(err) => panic!(err),
-            Error::Agent(err) => panic!(err),
-            Error::Stream(err) => panic!(err),
-            Error::TermEvaluation(err) => panic!(err),
+            Error::Fn(err) => panic!("{}", err),
+            Error::OpenSSL(err) => panic!("{}", err),
+            Error::IO(err) => panic!("{}", err),
+            Error::Agent(err) => panic!("{}", err),
+            Error::Stream(err) => panic!("{}", err),
         }
     }
 
     if let Err(err) = input.execute(&mut ctx) {
         match err {
-            Error::FnError(err) => panic!(err),
-            Error::OpenSSLErrorStack(err) => panic!(err),
-            Error::IOError(err) => panic!(err),
-            Error::Agent(err) => panic!(err),
-            Error::Stream(err) => panic!(err),
-            Error::TermEvaluation(err) => panic!(err),
+            Error::Fn(err) => panic!("{}", err),
+            Error::OpenSSL(err) => panic!("{}", err),
+            Error::IO(err) => panic!("{}", err),
+            Error::Agent(err) => panic!("{}", err),
+            Error::Stream(err) => panic!("{}", err),
         }
     }
 

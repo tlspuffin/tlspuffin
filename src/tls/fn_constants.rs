@@ -1,5 +1,5 @@
 
-use super::FnError;
+use super::error::FnError;
 
 pub fn fn_seq_0() -> Result<u64, FnError> {
     Ok(0)

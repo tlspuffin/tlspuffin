@@ -1,3 +1,2 @@
-# Crashes with SIGABRT (Aborted) somehow..
-#set follow-fork-mode child
-#set detach-on-fork off
+# Crashes with SIGABRT (Aborted) somehow when using InteliJ's GDB..
+set follow-fork-mode child

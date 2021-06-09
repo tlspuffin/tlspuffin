@@ -2,7 +2,7 @@ use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::{Compression, NamedGroup};
 use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension, SessionID};
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
-use super::FnError;
+use super::error::FnError;
 
 pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_2)
@@ -35,10 +35,10 @@ pub fn fn_verify_data(
 
     let group = NamedGroup::X25519; // todo
 
-    let keyshare = super::get_server_public_key(server_extensions)?;
+    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
     let server_public_key = keyshare.payload.0.as_slice();
 
-    let mut key_schedule = super::create_handshake_key_schedule(server_public_key, suite, group)?;
+    let mut key_schedule = super::tls12_key_schedule(server_public_key, suite, group)?;
 
     key_schedule.client_handshake_traffic_secret(
         &client_handshake_traffic_secret_transcript.get_current_hash(),
@@ -65,7 +65,7 @@ pub fn fn_sign_transcript(
     server_ecdh_params: &ServerECDHParams,
     transcript: &HandshakeHash,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = super::new_secrets(server_random, server_ecdh_params)?;
+    let secrets = super::tls12_new_secrets(server_random, server_ecdh_params)?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))

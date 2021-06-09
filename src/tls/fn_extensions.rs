@@ -9,7 +9,7 @@ use rustls::{ProtocolVersion, SignatureScheme};
 
 use crate::tls::key_exchange::deterministic_key_exchange;
 
-use super::FnError;
+use super::error::FnError;
 
 pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])

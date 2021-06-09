@@ -16,11 +16,8 @@ use crate::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app_const, term, var};
-use crate::tls::SIGNATURE;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
-    let mut s = &SIGNATURE;
-
     Trace {
         descriptors: vec![
             AgentDescriptor {
@@ -171,8 +168,6 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
-    let mut s = &SIGNATURE;
-
     Trace {
         descriptors: vec![
             AgentDescriptor {
@@ -304,8 +299,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
-    let mut s = &SIGNATURE;
-
     let client_hello = app!(
         fn_client_hello,
         app_const!(fn_protocol_version12),
@@ -337,7 +330,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let server_hello_transcript = app!(
-        
         fn_append_transcript,
         app!(
             
@@ -349,7 +341,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let encrypted_extensions = app!(
-        
         fn_decrypt,
         var!(Message, (0, 2)), // Encrypted Extensions
         var!(Vec<ServerExtension>, (0, 0)),
@@ -358,13 +349,11 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let encrypted_extension_transcript = app!(
-        
         fn_append_transcript,
         server_hello_transcript.clone(),
         encrypted_extensions.clone() // plaintext Encrypted Extensions
     );
     let server_certificate = app!(
-        
         fn_decrypt,
         var!(Message, (0, 3)), // Server Certificate
         var!(Vec<ServerExtension>, (0, 0)),
@@ -373,14 +362,12 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let server_certificate_transcript = app!(
-        
         fn_append_transcript,
         encrypted_extension_transcript.clone(),
         server_certificate.clone() // plaintext Server Certificate
     );
 
     let server_certificate_verify = app!(
-        
         fn_decrypt,
         var!(Message, (0, 4)), // Server Certificate Verify
         var!(Vec<ServerExtension>, (0, 0)),
@@ -389,14 +376,12 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let server_certificate_verify_transcript = app!(
-        
         fn_append_transcript,
         server_certificate_transcript.clone(),
         server_certificate_verify.clone() // plaintext Server Certificate Verify
     );
 
     let server_finished = app!(
-        
         fn_decrypt,
         var!(Message, (0, 5)), // Server Handshake Finished
         var!(Vec<ServerExtension>, (0, 0)),
@@ -405,7 +390,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     );
 
     let server_finished_transcript = app!(
-        
         fn_append_transcript,
         server_certificate_verify_transcript.clone(),
         server_finished.clone(), // plaintext Server Handshake Finished
@@ -625,16 +609,12 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         app_const!(fn_cipher_suites12),
         app_const!(fn_compressions),
         app!(
-            
             fn_extensions_append,
             app!(
-                
                 fn_extensions_append,
                 app!(
-                    
                     fn_extensions_append,
                     app!(
-                        
                         fn_extensions_append,
                         app_const!(fn_extensions_new),
                         app_const!(fn_x25519_support_group_extension),

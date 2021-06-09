@@ -56,7 +56,7 @@ mod term {
 
     use crate::term::Signature;
     use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
-    use crate::tls::{FnError, SIGNATURE};
+    use crate::tls::{error::FnError, SIGNATURE};
     use crate::{term::Term, trace::TraceContext};
 
     fn example_op_c(a: &u8) -> Result<u16, FnError> {

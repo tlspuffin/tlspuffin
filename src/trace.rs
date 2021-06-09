@@ -17,6 +17,7 @@ use crate::{
     term::{Term, TypeShape},
     variable_data::{extract_variables, VariableData},
 };
+use crate::tls::error::FnError;
 
 pub type ObservedId = (u16, u16);
 
@@ -308,9 +309,9 @@ impl InputAction {
                 opaque_message,
             );
         } else {
-            return Err(Error::TermEvaluation(String::from(
+            return Err(FnError::Message(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
-            )));
+            )).into());
         }
 
         ctx.next_state(step.agent)

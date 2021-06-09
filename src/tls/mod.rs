@@ -1,8 +1,4 @@
-use std::collections::hash_map::DefaultHasher;
 use std::convert::{TryFrom, TryInto};
-use std::fmt;
-use std::hash::Hash;
-
 use ring::hkdf::Prk;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
@@ -10,18 +6,15 @@ use rustls::internal::msgs::enums::{ExtensionType, NamedGroup};
 use rustls::internal::msgs::handshake::{
     HasServerExtensions, KeyShareEntry, Random, ServerECDHParams, ServerExtension,
 };
-use rustls::internal::msgs::message::Message;
 use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::suites::Tls12CipherSuite;
 use rustls::NoKeyLog;
-use rustls::{kx, tls12, SupportedCipherSuite, ALL_KX_GROUPS};
-use webpki::InvalidDnsNameError;
-
+use rustls::{tls12, SupportedCipherSuite, ALL_KX_GROUPS};
 use fn_impl::*;
-
 use crate::define_signature;
 use crate::tls::key_exchange::deterministic_key_exchange;
+use crate::tls::error::FnError;
 
 mod fn_constants;
 mod fn_extensions;
@@ -38,8 +31,9 @@ pub mod fn_impl {
         tls::fn_utils::*,
     };
 }
+pub mod error;
 
-fn prepare_key(
+fn tls13_client_handshake_traffic_secret(
     server_public_key: &[u8],
     transcript: &HandshakeHash,
     write: bool,
@@ -47,7 +41,7 @@ fn prepare_key(
     let client_random = &[1u8; 32]; // todo see op_random()
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
     let group = NamedGroup::X25519; // todo
-    let mut key_schedule = create_handshake_key_schedule(server_public_key, suite, group)?;
+    let mut key_schedule = tls12_key_schedule(server_public_key, suite, group)?;
 
     let key = if write {
         key_schedule.client_handshake_traffic_secret(
@@ -66,7 +60,7 @@ fn prepare_key(
     Ok((suite, key))
 }
 
-fn create_handshake_key_schedule(
+fn tls12_key_schedule(
     server_public_key: &[u8],
     suite: &SupportedCipherSuite,
     group: NamedGroup,
@@ -89,7 +83,7 @@ fn create_handshake_key_schedule(
     Ok(key_schedule)
 }
 
-pub fn get_server_public_key(
+pub fn tls13_get_server_key_share(
     server_extensions: &Vec<ServerExtension>,
 ) -> Result<&KeyShareEntry, FnError> {
     let server_extension = server_extensions
@@ -107,7 +101,7 @@ pub fn get_server_public_key(
 // seed_client_attacker12()
 // ----
 
-fn new_key_exchange_result(
+fn tls12_key_exchange(
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<KeyExchangeResult, FnError> {
     let group = NamedGroup::X25519; // todo
@@ -118,7 +112,7 @@ fn new_key_exchange_result(
     Ok(kxd)
 }
 
-fn new_secrets(
+fn tls12_new_secrets(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<ConnectionSecrets, FnError> {
@@ -136,55 +130,13 @@ fn new_secrets(
         client: [1; 32], // todo
         server: server_random,
     };
-    let kxd = new_key_exchange_result(server_ecdh_params)?;
+    let kxd = tls12_key_exchange(server_ecdh_params)?;
     let suite12 = Tls12CipherSuite::try_from(suite)
         .map_err(|_err| FnError::Message("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
     Ok(secrets)
 }
 
-#[derive(Debug, Clone)]
-pub enum FnError {
-    Message(String),
-}
-
-impl std::error::Error for FnError {}
-
-impl From<rustls::error::Error> for FnError {
-    fn from(err: rustls::error::Error) -> Self {
-        FnError::Message(err.to_string())
-    }
-}
-
-impl From<String> for FnError {
-    fn from(message: String) -> Self {
-        FnError::Message(message)
-    }
-}
-
-impl From<ring::error::Unspecified> for FnError {
-    fn from(err: ring::error::Unspecified) -> Self {
-        FnError::Message(err.to_string())
-    }
-}
-
-impl From<InvalidDnsNameError> for FnError {
-    fn from(err: InvalidDnsNameError) -> Self {
-        FnError::Message(err.to_string())
-    }
-}
-
-impl fmt::Display for FnError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "FnError: {}",
-            match self {
-                FnError::Message(msg) => msg,
-            }
-        )
-    }
-}
 
 // ----
 // Signature

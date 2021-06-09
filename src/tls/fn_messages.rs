@@ -23,7 +23,7 @@ use rustls::{
     ALL_KX_GROUPS,
 };
 use HandshakePayload::EncryptedExtensions;
-use super::FnError;
+use super::error::FnError;
 
 // ----
 // TLS 1.3 Message constructors (Return type is message)

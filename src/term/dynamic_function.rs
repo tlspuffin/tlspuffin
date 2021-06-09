@@ -9,7 +9,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::{SIGNATURE, FnError};
+use crate::tls::{SIGNATURE, error::FnError};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -196,10 +196,6 @@ impl TypeShape {
             inner_type_id: TypeId::of::<T>(),
             name: type_name::<T>(),
         }
-    }
-
-    fn default_type_id() -> TypeId {
-        TypeId::of::<UnknownType>()
     }
 }
 
