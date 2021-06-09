@@ -10,7 +10,6 @@ use rustls::{ProtocolVersion, SignatureScheme};
 use crate::tls::key_exchange::deterministic_key_exchange;
 
 use super::FnError;
-use crate::tls::IntoFnResult;
 
 pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])
@@ -35,7 +34,7 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName((
             PayloadU16(dns_name.to_string().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name).into_fn_result()?.to_owned(),
+            webpki::DnsNameRef::try_from_ascii_str(dns_name)?.to_owned(),
         )),
     }]))
 }

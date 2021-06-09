@@ -3,6 +3,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::io::{OpenSSLStream, Stream};
+use crate::error::Error;
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct AgentName(u8);
@@ -50,14 +51,15 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new_openssl(descriptor: &AgentDescriptor) -> Self {
-        Self::from_stream(
+    pub fn new_openssl(descriptor: &AgentDescriptor) -> Result<Self, Error> {
+        let openssl_stream = OpenSSLStream::new(
+            descriptor.server,
+            &descriptor.tls_version,
+        )?;
+        Ok(Self::from_stream(
             descriptor,
-            Box::new(OpenSSLStream::new(
-                descriptor.server,
-                &descriptor.tls_version,
-            )),
-        )
+            Box::new(openssl_stream),
+        ))
     }
 
     pub fn from_stream(descriptor: &AgentDescriptor, stream: Box<dyn Stream>) -> Agent {

@@ -10,14 +10,24 @@ pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
 
 pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8]>) {
     let mut reader = Reader::init(buffer.as_ref());
-    if let Ok(opaque_message) = OpaqueMessage::read(&mut reader) {
-        if let Ok(message) = Message::try_from(opaque_message) {
-            debug_message_with_info(info, &message);
-        } else {
-            panic!("Failed to decode message!")
+    match OpaqueMessage::read(&mut reader) {
+        Ok(opaque_message) => match Message::try_from(opaque_message) {
+            Ok(message) => {
+                debug_message_with_info(info, &message);
+            }
+            Err(err) => {
+                info!(
+                    "Failed to debug message as decoding to an Message failed: {}",
+                    err
+                );
+            }
+        },
+        Err(err) => {
+            info!(
+                "Failed to debug message as decoding to an OpaqueMessage failed: {:?}",
+                err
+            );
         }
-    } else {
-        panic!("Failed to decode message!")
     }
 }
 

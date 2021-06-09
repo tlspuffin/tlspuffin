@@ -8,10 +8,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::MessageResult;
-
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
@@ -73,14 +73,14 @@ impl TraceContext {
         &mut self,
         agent_name: AgentName,
         message: &MessageResult,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.stream.add_to_inbound(message))
     }
 
-    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), String> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.next_state())?
+    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
+        let agent = self.find_agent_mut(agent_name)?;
+        Ok(agent.stream.next_state()?)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -88,13 +88,11 @@ impl TraceContext {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<MessageResult, String> {
-        self.find_agent_mut(agent_name).and_then(|agent| {
-            agent
-                .stream
-                .take_message_from_outbound()
-                .ok_or::<String>("Failed to take data from inbound channel".to_string())
-        })
+    ) -> Result<Option<MessageResult>, Error> {
+        let agent = self.find_agent_mut(agent_name)?;
+        Ok(agent
+            .stream
+            .take_message_from_outbound()?)
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -103,18 +101,19 @@ impl TraceContext {
         return name;
     }
 
-    pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> AgentName {
-        return self.add_agent(Agent::new_openssl(descriptor));
+    pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
+        let agent_name = self.add_agent(Agent::new_openssl(descriptor)?);
+        return Ok(agent_name);
     }
 
-    fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, String> {
+    fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or(format!(
+            .ok_or(Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
-            ))
+            )))
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
@@ -143,13 +142,15 @@ impl HasLen for Trace {
 }
 
 impl Trace {
-    pub fn spawn_agents(&self, ctx: &mut TraceContext) {
+    pub fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            ctx.new_openssl_agent(&descriptor);
+            ctx.new_openssl_agent(&descriptor)?;
         }
+
+        Ok(())
     }
 
-    pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), String> {
+    pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         self.execute_with_listener(ctx, |_step| {})
     }
 
@@ -157,7 +158,7 @@ impl Trace {
         &self,
         ctx: &mut TraceContext,
         execution_listener: fn(step: &Step) -> (),
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
@@ -195,11 +196,11 @@ pub enum Action {
 }
 
 pub trait Execute {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String>;
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error>;
 }
 
 impl Execute for Action {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
+    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         match self {
             Action::Input(input) => input.input(step, ctx),
             Action::Output(output) => output.output(step, ctx),
@@ -229,11 +230,11 @@ impl OutputAction {
         }
     }
 
-    fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
+    fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         ctx.next_state(step.agent)?;
 
         let mut sub_id = 0u16;
-        while let Ok(result) = ctx.take_message_from_outbound(step.agent) {
+        while let Some(result) = ctx.take_message_from_outbound(step.agent)? {
             match result {
                 MessageResult::Message(message) => {
                     debug_message_with_info(
@@ -286,12 +287,11 @@ impl InputAction {
         }
     }
 
-    fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), String> {
+    fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         // message controlled by the attacker
         let evaluated = self
             .recipe
-            .evaluate(ctx)
-            .map_err(|err| format!("{}", err))?;
+            .evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
@@ -308,9 +308,9 @@ impl InputAction {
                 opaque_message,
             );
         } else {
-            return Err(String::from(
+            return Err(Error::TermEvaluation(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
-            ));
+            )));
         }
 
         ctx.next_state(step.agent)

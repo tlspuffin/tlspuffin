@@ -2,11 +2,33 @@ use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::trace::{Trace, TraceContext};
+use crate::error::Error;
 
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
-    input.spawn_agents(&mut ctx);
-    input.execute(&mut ctx).unwrap();
+
+    if let Err(err) = input.spawn_agents(&mut ctx) {
+        match err {
+            Error::FnError(err) => panic!(err),
+            Error::OpenSSLErrorStack(err) => panic!(err),
+            Error::IOError(err) => panic!(err),
+            Error::Agent(err) => panic!(err),
+            Error::Stream(err) => panic!(err),
+            Error::TermEvaluation(err) => panic!(err),
+        }
+    }
+
+    if let Err(err) = input.execute(&mut ctx) {
+        match err {
+            Error::FnError(err) => panic!(err),
+            Error::OpenSSLErrorStack(err) => panic!(err),
+            Error::IOError(err) => panic!(err),
+            Error::Agent(err) => panic!(err),
+            Error::Stream(err) => panic!(err),
+            Error::TermEvaluation(err) => panic!(err),
+        }
+    }
+
     ExitKind::Ok
 }
 

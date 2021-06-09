@@ -8,6 +8,8 @@ use crate::tls::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
+use crate::error::Error;
+use crate::error::Error::TermEvaluation;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -50,12 +52,12 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, FnError> {
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
-                .ok_or(FnError::Message(format!(
+                .ok_or(Error::TermEvaluation(format!(
                     "Unable to find variable {} with observed id {:?} in TraceContext!",
                     v, v.observed_id
                 ))),
@@ -73,7 +75,7 @@ impl Term {
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result = dynamic_fn(&dynamic_args);
-                result.map_err(|err| FnError::Message(err.to_string()))
+                result.map_err(|err| Error::TermEvaluation(err.to_string()))
             }
         }
     }

@@ -1,8 +1,9 @@
-use std::{fmt};
+use std::collections::hash_map::DefaultHasher;
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
+use std::hash::Hash;
 
 use ring::hkdf::Prk;
-use rustls::{ALL_KX_GROUPS, kx, SupportedCipherSuite, tls12};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::{ExtensionType, NamedGroup};
@@ -12,15 +13,15 @@ use rustls::internal::msgs::handshake::{
 use rustls::internal::msgs::message::Message;
 use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
-use rustls::NoKeyLog;
 use rustls::suites::Tls12CipherSuite;
+use rustls::NoKeyLog;
+use rustls::{kx, tls12, SupportedCipherSuite, ALL_KX_GROUPS};
+use webpki::InvalidDnsNameError;
 
 use fn_impl::*;
 
 use crate::define_signature;
 use crate::tls::key_exchange::deterministic_key_exchange;
-use std::hash::Hash;
-use std::collections::hash_map::DefaultHasher;
 
 mod fn_constants;
 mod fn_extensions;
@@ -77,7 +78,9 @@ fn create_handshake_key_schedule(
     let our_key_share: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared = our_key_share
         .complete(server_public_key)
-        .ok_or(FnError::Message("Failed to complete key exchange".to_string()))?;
+        .ok_or(FnError::Message(
+            "Failed to complete key exchange".to_string(),
+        ))?;
 
     // Key Schedule without PSK
     let key_schedule =
@@ -108,9 +111,10 @@ fn new_key_exchange_result(
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<KeyExchangeResult, FnError> {
     let group = NamedGroup::X25519; // todo
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).into_fn_result()?;
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
+        .ok_or("Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0).into_fn_result()?;
+    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
     Ok(kxd)
 }
 
@@ -124,9 +128,9 @@ fn new_secrets(
 
     server_random.write_slice(&mut server_random_bytes);
 
-    let server_random = server_random_bytes.try_into().map_err(|_|FnError::Message(
-        "Server random did not have length of 32".to_string(),
-    ))?;
+    let server_random = server_random_bytes
+        .try_into()
+        .map_err(|_| FnError::Message("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
         we_are_client: true,
         client: [1; 32], // todo
@@ -139,37 +143,46 @@ fn new_secrets(
     Ok(secrets)
 }
 
-pub trait IntoFnResult<T> {
-    fn into_fn_result(self) -> T;
-}
-
-impl<T, E> IntoFnResult<Result<T, FnError>> for Result<T, E>
-where
-    E: std::error::Error,
-{
-    fn into_fn_result(self) -> Result<T, FnError> {
-        self.map_err(|err| FnError::Message(format!("{}", err)))
-    }
-}
-
-impl<T> IntoFnResult<Result<T, FnError>> for Option<T> {
-    fn into_fn_result(self) -> Result<T, FnError> {
-        self.ok_or(FnError::Message(format!("failed to unwrap optional value")))
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FnError {
     Message(String),
 }
 
 impl std::error::Error for FnError {}
 
+impl From<rustls::error::Error> for FnError {
+    fn from(err: rustls::error::Error) -> Self {
+        FnError::Message(err.to_string())
+    }
+}
+
+impl From<String> for FnError {
+    fn from(message: String) -> Self {
+        FnError::Message(message)
+    }
+}
+
+impl From<ring::error::Unspecified> for FnError {
+    fn from(err: ring::error::Unspecified) -> Self {
+        FnError::Message(err.to_string())
+    }
+}
+
+impl From<InvalidDnsNameError> for FnError {
+    fn from(err: InvalidDnsNameError) -> Self {
+        FnError::Message(err.to_string())
+    }
+}
+
 impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FnError: {}", match self {
-            FnError::Message(msg) => msg
-        })
+        write!(
+            f,
+            "FnError: {}",
+            match self {
+                FnError::Message(msg) => msg,
+            }
+        )
     }
 }
 

@@ -13,16 +13,17 @@ use crate::agent::Agent;
 use crate::agent::TLSVersion;
 use crate::debug::debug_opaque_message_with_info;
 use crate::openssl_binding;
+use crate::error::Error;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Option<MessageResult>;
+    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error>;
 
     fn describe_state(&self) -> &'static str;
 
-    fn next_state(&mut self) -> Result<(), String>;
+    fn next_state(&mut self) -> Result<(), Error>;
 }
 
 /// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
@@ -55,7 +56,7 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.get_mut().add_to_inbound(result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<MessageResult> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         self.openssl_stream.get_mut().take_message_from_outbound()
     }
 
@@ -68,9 +69,9 @@ impl Stream for OpenSSLStream {
         self.openssl_stream.ssl().state_string_long()
     }
 
-    fn next_state(&mut self) -> Result<(), String> {
+    fn next_state(&mut self) -> Result<(), Error> {
         let stream = &mut self.openssl_stream;
-        openssl_binding::do_handshake(stream)
+        Ok(openssl_binding::do_handshake(stream)?)
     }
 }
 
@@ -91,19 +92,20 @@ impl Write for OpenSSLStream {
 }
 
 impl OpenSSLStream {
-    pub fn new(server: bool, tls_version: &TLSVersion) -> Self {
+    pub fn new(server: bool, tls_version: &TLSVersion) -> Result<Self, Error> {
         let memory_stream = MemoryStream::new();
-        OpenSSLStream {
-            openssl_stream: if server {
-                //let (cert, pkey) = openssl_binding::generate_cert().unwrap();
-                let (cert, pkey) = openssl_binding::rsa_cert().unwrap();
-                openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)
-                    .unwrap()
-            } else {
-                openssl_binding::create_openssl_client(memory_stream, tls_version).unwrap()
-            },
+        let openssl_stream = if server {
+            //let (cert, pkey) = openssl_binding::generate_cert();
+            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
+        } else {
+            openssl_binding::create_openssl_client(memory_stream, tls_version)?
+        };
+
+        Ok(OpenSSLStream {
+            openssl_stream,
             server,
-        }
+        })
     }
 }
 
@@ -138,7 +140,7 @@ impl Stream for MemoryStream {
         self.inbound.get_mut().extend_from_slice(&out);
     }
 
-    fn take_message_from_outbound(&mut self) -> Option<MessageResult> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         let mut deframer = MessageDeframer::new();
         if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
             let mut rest_buffer: Vec<u8> = Vec::new();
@@ -152,7 +154,8 @@ impl Stream for MemoryStream {
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();
-            self.outbound.write_all(&rest_buffer).unwrap();
+            self.outbound.write_all(&rest_buffer)
+                .map_err(|err| Error::Stream(format!("Failed to write into outbound buffer: {}", err)))?;
 
             if let Some(opaque_message) = first_message {
                 debug_opaque_message_with_info(
@@ -160,21 +163,21 @@ impl Stream for MemoryStream {
                     &opaque_message,
                 );
 
-                Some(match Message::try_from(opaque_message.clone()) {
+                Ok(Some(match Message::try_from(opaque_message.clone()) {
                     Ok(message) => MessageResult::Message(message),
                     Err(err) => {
                         // todo keep statistics about this as it may mean we need to remove logical checks
                         warn!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
                         MessageResult::OpaqueMessage(opaque_message)
                     }
-                })
+                }))
             } else {
                 // no message to return
-                None
+                Ok(None)
             }
         } else {
             // Unable to deframe
-            None
+            Err(Error::Stream("Failed to deframe bianry buffer".to_string()))
         }
     }
 
@@ -182,7 +185,7 @@ impl Stream for MemoryStream {
         todo!()
     }
 
-    fn next_state(&mut self) -> Result<(), String> {
+    fn next_state(&mut self) -> Result<(), Error> {
         todo!()
     }
 }

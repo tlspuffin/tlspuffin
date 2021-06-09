@@ -20,6 +20,7 @@ use openssl::{
 use crate::agent::TLSVersion;
 use crate::io::MemoryStream;
 use std::mem::transmute;
+use crate::error::Error;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -78,7 +79,7 @@ i7RrmCDnL/ue3MkPP+8=
    cd openssl-src/openssl
    git checkout OpenSSL_1_1_1j
 */
-pub fn rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
+pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
     let pkey = PKey::from_rsa(rsa)?;
 
@@ -171,7 +172,7 @@ pub fn create_openssl_server(
     SslStream::new(ssl, stream)
 }
 
-pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), String> {
+pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), Error> {
     if let Some(io_error) = error.io_error() {
         match io_error.kind() {
             ErrorKind::WouldBlock => {
@@ -180,9 +181,7 @@ pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), String> {
                 Ok(())
             }
             _ => {
-                let error: String = format!("Unexpected IO Error: {}", io_error);
-                error!("{}", &error);
-                Err(error)
+                Err(Error::IOError(format!("Unexpected IO Error: {}", io_error)))
             }
         }
     } else {
@@ -190,13 +189,11 @@ pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), String> {
     }
 }
 
-pub fn log_ssl_error(error: &openssl::ssl::Error) -> Result<(), String> {
+pub fn log_ssl_error(error: &openssl::ssl::Error) -> Result<(), Error> {
     if let Some(ssl_error) = error.ssl_error() {
         // OpenSSL threw an error, that means that there should be an Alert message in the
         // outbound channel
-        let error = format!("SSL Error: {}", ssl_error);
-        error!("{}", &error);
-        Err(error)
+        Err(Error::OpenSSLErrorStack(ssl_error.clone()))
     } else {
         Ok(())
     }
@@ -224,7 +221,7 @@ pub fn create_openssl_client(
     SslStream::new(ssl, stream)
 }
 
-pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), String> {
+pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
     if stream.ssl().state_string_long() == "SSL negotiation finished successfully" {
         // todo improve this case
         let mut vec: Vec<u8> = Vec::from([1; 128]);

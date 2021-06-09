@@ -10,7 +10,7 @@ use rustls::internal::msgs::codec::{Codec, Reader};
 use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension};
 use rustls::internal::msgs::message::{Message, OpaqueMessage};
 
-use super::{FnError, IntoFnResult};
+use super::{FnError};
 
 // ----
 // seed_client_attacker()
@@ -52,10 +52,8 @@ pub fn fn_decrypt(
     let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key) = super::prepare_key(server_public_key, &transcript, false)?;
     let decrypter = new_tls13_read(suite, &key);
-    let message = decrypter
-        .decrypt(OpaqueMessage::from(application_data.clone()), *sequence)
-        .into_fn_result()?;
-    Message::try_from(message.clone()).into_fn_result()
+    let message = decrypter.decrypt(OpaqueMessage::from(application_data.clone()), *sequence)?;
+    Ok(Message::try_from(message.clone())?)
 }
 
 pub fn fn_encrypt(
@@ -69,13 +67,11 @@ pub fn fn_encrypt(
     let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key) = super::prepare_key(server_public_key, &transcript, true)?;
     let encrypter = new_tls13_write(suite, &key);
-    let application_data = encrypter
-        .encrypt(
-            OpaqueMessage::from(some_message.clone()).borrow(),
-            *sequence,
-        )
-        .into_fn_result()?;
-    Message::try_from(application_data.clone()).into_fn_result()
+    let application_data = encrypter.encrypt(
+        OpaqueMessage::from(some_message.clone()).borrow(),
+        *sequence,
+    )?;
+    Ok(Message::try_from(application_data.clone())?)
 }
 
 // ----
@@ -114,9 +110,7 @@ pub fn fn_encrypt12(
     let secrets = super::new_secrets(server_random, server_ecdh_params)?;
 
     let (_decrypter, encrypter) = new_tls12(&secrets);
-    encrypter
-        .encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)
-        .into_fn_result()
+    Ok(encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?)
 }
 
 // ----
@@ -126,7 +120,7 @@ pub fn fn_encrypt12(
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     // todo maybe we need a context for rng? Maybe also for hs_hash?
     let random = FixedByteRandom { byte: 12 };
-    hmac::Key::generate(hmac::HMAC_SHA256, &random).into_fn_result()
+    Ok(hmac::Key::generate(hmac::HMAC_SHA256, &random)?)
 }
 
 pub fn fn_arbitrary_to_key(key: &Vec<u8>) -> Result<Key, FnError> {

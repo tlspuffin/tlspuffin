@@ -8,8 +8,10 @@ pub mod term;
 pub mod trace;
 pub mod variable_data;
 pub mod tls;
+pub mod error;
 
 mod debug;
 mod openssl_binding;
 mod tests;
 mod graphviz;
+
