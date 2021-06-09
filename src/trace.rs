@@ -4,9 +4,9 @@ use std::{any::TypeId, fmt::Formatter};
 use libafl::inputs::{HasLen, Input};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::OpaqueMessage;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 
-use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::agent::{AgentDescriptor};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs

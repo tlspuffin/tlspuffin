@@ -7,7 +7,7 @@ mod macros {
 
     fn test_compilation() {
         // reminds me of Lisp, lol
-        let test_nested_with_variable = term! {
+        let _test_nested_with_variable = term! {
            fn_client_hello(
                 (fn_client_hello(
                     fn_protocol_version12,
@@ -22,20 +22,20 @@ mod macros {
             )
         };
 
-        let set_simple_function2 = term! {
+        let _set_simple_function2 = term! {
            fn_client_hello((fn_protocol_version12()), fn_random, fn_random)
         };
 
-        let test_simple_function1 = term! {
+        let _test_simple_function1 = term! {
            fn_protocol_version12
         };
-        let test_simple_function = term! {
+        let _test_simple_function = term! {
            fn_random(((0,0)/ProtocolVersion))
         };
-        let test_variable = term! {
+        let _test_variable = term! {
             (0,0)/ProtocolVersion
         };
-        let set_nested_function = term! {
+        let _set_nested_function = term! {
            fn_extensions_append(
                 (fn_extensions_append(
                     fn_extensions_new,

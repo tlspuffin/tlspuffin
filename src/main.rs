@@ -2,8 +2,8 @@
 extern crate log;
 
 use std::fs::File;
-use std::io::{BufWriter, Read};
-use std::process::{Command, Stdio};
+use std::io::{Read};
+
 use std::{env, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};

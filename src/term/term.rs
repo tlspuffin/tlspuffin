@@ -4,7 +4,7 @@ use std::{any::Any, fmt};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error;
+
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
