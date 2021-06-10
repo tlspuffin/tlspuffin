@@ -70,7 +70,6 @@ pub mod tlspuffin {
         let trace = seed_client_attacker(client, server);
 
         println!("{}", trace);
-        println!("{}", trace.dot_graph());
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -86,7 +85,7 @@ pub mod tlspuffin {
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_client_attacker12(client, server);
-        println!("{}", trace.dot_graph());
+        println!("{}", trace.dot_graph(true));
     }
 
 

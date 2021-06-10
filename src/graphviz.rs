@@ -24,10 +24,10 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
 }
 
 impl Trace {
-    pub fn dot_graph(&self) -> String {
+    pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" {{ splines=true; {} }}",
-            self.dot_subgraphs(false).join("\n")
+            self.dot_subgraphs(tree_mode).join("\n")
         )
     }
 

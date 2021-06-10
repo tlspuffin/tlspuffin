@@ -4,11 +4,10 @@ use std::{any::Any, fmt};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-
+use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
-use crate::tls::error::FnError;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -32,6 +31,34 @@ impl fmt::Display for Term {
 }
 
 impl Term {
+    pub fn size(&self) -> u32 {
+        match self {
+            Term::Variable(ref v) => 1,
+            Term::Application(ref func, ref args) => {
+                args.iter().map(|subterm| subterm.size()).sum()
+            }
+        }
+    }
+
+    pub fn is_leaf(&self) -> bool {
+        match self {
+            Term::Variable(_) => {
+                true // variable
+            }
+            Term::Application(_, ref subterms) => {
+                subterms.is_empty() // constant
+            }
+        }
+    }
+
+    pub fn mutate_to_variable(&mut self, variable: Variable) {
+        *self = Term::Variable(variable)
+    }
+
+    pub fn mutate_to_application(&mut self, func: Function, subterms: Vec<Term>) {
+        *self = Term::Application(func, subterms)
+    }
+
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
@@ -77,6 +104,30 @@ impl Term {
                 result
             }
         }
+    }
+}
+
+impl<'a> IntoIterator for &'a Term {
+    type Item = &'a Term;
+    type IntoIter = std::vec::IntoIter<&'a Term>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
+            match term {
+                &Term::Variable(ref items) => {
+                    v.extend(term);
+                },
+                &Term::Application(_, ref subterms) => {
+                    for subterm in subterms {
+                        append(subterm, v);
+                    }
+                }
+            }
+        }
+
+        let mut result = vec![];
+        append(self, &mut result);
+        result.into_iter()
     }
 }
 
