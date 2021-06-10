@@ -12,18 +12,19 @@ use libafl::{
     Error,
 };
 
-use crate::term::Term;
+use crate::term::{Term, TypeShape};
 use crate::trace::{Action, InputAction, Step, Trace};
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
+       ReplaceReuseMutator<R, S>,
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
     C: Corpus<Trace>,
     R: Rand,
 {
-    tuple_list!(RepeatMutator::new())
+    tuple_list!(RepeatMutator::new(), ReplaceReuseMutator::new())
 }
 
 /// REPEAT: Repeats an input which is already part of the trace
@@ -99,8 +100,8 @@ where
         P: FnMut(&T) -> bool,
     {
         // create iterator
-        let mut iter = from.into_iter().filter(filter);
-        let length = iter.size_hint().1.unwrap();
+        let mut iter = from.into_iter().filter(filter).collect::<Vec<T>>();
+        let length = iter.len();
 
         // make sure there is something to choose from
         debug_assert!(length > 0, "choosing from an empty iterator");
@@ -109,7 +110,7 @@ where
         let index = rand.below(length as u64) as usize;
 
         // return the item chosen
-        iter.nth(index).unwrap()
+        iter.into_iter().nth(index).unwrap()
     }
 
     fn choose_input_action_mut<'a>(
@@ -143,34 +144,63 @@ where
         }
     }
 
-    fn choose_term_mut<'a>(trace: &'a mut Trace, rand: &mut R) -> Option<&'a mut Term> {
+    fn choose_term_mut<'a>(
+        trace: &'a mut Trace,
+        rand: &mut R,
+        type_shape: &TypeShape,
+    ) -> Option<&'a mut Term> {
         if let Some(input) = Self::choose_input_action_mut(trace, rand) {
-            let term = &mut input.recipe;
-            let size = term.size();
-
-
-            fn random<'a, R: Rand>(term: &'a mut Term, rand: &mut R, size: usize) -> Option<&'a mut Term> {
-                let index = rand.between(0, (size - 1) as u64) as usize;
-
-                if index == 0 {
-                    Some(term)
+            fn random<'a, R: Rand>(
+                term: &'a mut Term,
+                rand: &mut R,
+                requested_index: usize,
+                mut current_index: usize,
+                type_shape: &TypeShape,
+            ) -> (Option<&'a mut Term>, usize) {
+                if requested_index == current_index && term.get_type_shape() == type_shape {
+                    (Some(term), current_index)
                 } else {
+                    let increment = if term.get_type_shape() == type_shape {
+                        1
+                    } else {
+                        0
+                    };
+                    current_index += increment;
+
                     match term {
-                        Term::Variable(_) => {},
+                        Term::Variable(_) => {}
                         Term::Application(_, ref mut subterms) => {
                             for subterm in subterms {
-                                if let Some(selected) = random(subterm, rand, size) {
-                                    return Some(selected)
+                                let (selected, new_index) = random(
+                                    subterm,
+                                    rand,
+                                    requested_index,
+                                    current_index,
+                                    type_shape,
+                                );
+
+                                current_index = new_index;
+
+                                if let Some(selected) = selected {
+                                    return (Some(selected), new_index);
                                 }
                             }
                         }
                     }
 
-                    None
+                    (None, current_index)
                 }
             }
 
-            random(term, rand, size)
+            let term = &mut input.recipe;
+            let length = term.length_of_type(type_shape);
+
+            if length == 0 {
+                None
+            } else {
+                let index = rand.between(0, (length - 1) as u64) as usize;
+                random(term, rand, index, 0, type_shape).0
+            }
         } else {
             None
         }
@@ -179,10 +209,11 @@ where
     fn choose_term<'a>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
         if let Some(input) = Self::choose_input_action(trace, rand) {
             let term = &input.recipe;
-            let size = term.size();
+            let size = term.length();
 
             let index = rand.between(0, (size - 1) as u64) as usize;
 
+            //term.into_iter().filter(|term| term.get_type_shape() == *shape).nth(index)
             term.into_iter().nth(index)
         } else {
             None
@@ -202,19 +233,27 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let (Some(random_term2), Some(random_term1)) = (
-            Self::choose_term(trace, rand).cloned(),
-            Self::choose_term_mut(trace, rand),
-        ) {
-            match random_term2 {
-                Term::Variable(variable) => {
-                    random_term1.mutate_to_variable(variable.clone());
+
+        /*        if let (Some(replacement), Some(to_replace)) = (
+                    Self::choose_term(trace, rand, &TypeShape::of::<Term>()).cloned(),
+                    Self::choose_term_mut(trace, rand),
+                ) {
+        */
+        if let Some(replacement) = Self::choose_term(trace, rand).cloned() {
+            let shape = replacement.get_type_shape();
+            if let Some(to_replace) = Self::choose_term_mut(trace, rand, shape) {
+                match replacement {
+                    Term::Variable(variable) => {
+                        to_replace.mutate_to_variable(variable.clone());
+                    }
+                    Term::Application(func, subterms) => {
+                        to_replace.mutate_to_application(func.clone(), subterms.clone());
+                    }
                 }
-                Term::Application(func, subterms) => {
-                    random_term1.mutate_to_application(func.clone(), subterms.clone());
-                }
+                Ok(MutationResult::Mutated)
+            } else {
+                Ok(MutationResult::Skipped)
             }
-            Ok(MutationResult::Mutated)
         } else {
             Ok(MutationResult::Skipped)
         }
@@ -258,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_replace_reuse() {
-        let rand = StdRand::with_seed(88);
+        let rand = StdRand::with_seed(1235);
         let mut corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
 
         let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
@@ -274,13 +313,15 @@ mod tests {
 
         write_graphviz("test_mutation.svg", "svg", trace.dot_graph(true).as_str());
 
-        mutator.mutate(&mut state, &mut trace, 0).unwrap();
-
-        write_graphviz(
-            "test_mutation_after.svg",
-            "svg",
-            trace.dot_graph(true).as_str(),
-        );
+        for i in 0..10 {
+            let mut trace = seed_client_attacker12(client, server);
+            println!("{:?}", mutator.mutate(&mut state, &mut trace, 0).unwrap());
+            write_graphviz(
+                format!("test_mutation_after{}.svg", i).as_str(),
+                "svg",
+                trace.dot_graph(true).as_str(),
+            );
+        }
     }
 
     #[test]

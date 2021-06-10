@@ -112,7 +112,7 @@ fn main() {
         write_graphviz(
             format!("{}_{}.{}", output_prefix, "all", format).as_str(),
             format,
-            &trace.dot_graph().as_str(),
+            &trace.dot_graph(false).as_str(),
         )
         .expect("Failed to generate graph.");
 

@@ -1,14 +1,15 @@
+use std::borrow::BorrowMut;
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use crate::term::TypeShape;
 use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
-use std::borrow::BorrowMut;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -32,15 +33,29 @@ impl fmt::Display for Term {
 }
 
 impl Term {
-    pub fn size(&self) -> usize {
+    pub fn length(&self) -> usize {
         match self {
             Term::Variable(ref v) => 1,
             Term::Application(ref func, ref args) => {
                 if args.is_empty() {
-                    return 1
+                    return 1;
                 }
 
-                args.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
+                args.iter().map(|subterm| subterm.length()).sum::<usize>() + 1
+            }
+        }
+    }
+
+    pub fn length_of_type(&self, type_shape: &TypeShape) -> usize {
+        let increment = if type_shape == self.get_type_shape() {
+            1
+        } else {
+            0
+        };
+        match self {
+            Term::Variable(ref v) => increment,
+            Term::Application(ref func, ref args) => {
+                args.iter().map(|subterm| subterm.length_of_type(type_shape)).sum::<usize>() + increment
             }
         }
     }
@@ -53,6 +68,13 @@ impl Term {
             Term::Application(_, ref subterms) => {
                 subterms.is_empty() // constant
             }
+        }
+    }
+
+    pub fn get_type_shape(&self) -> &TypeShape {
+        match self {
+            Term::Variable(v) => &v.typ,
+            Term::Application(function, _) => &function.shape().return_type,
         }
     }
 
@@ -121,8 +143,7 @@ impl<'a> IntoIterator for &'a Term {
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
             match term {
-                &Term::Variable(_) => {
-                },
+                &Term::Variable(_) => {}
                 &Term::Application(_, ref subterms) => {
                     for subterm in subterms {
                         append(subterm, v);
