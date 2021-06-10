@@ -145,28 +145,32 @@ where
 
     fn choose_term_mut<'a>(trace: &'a mut Trace, rand: &mut R) -> Option<&'a mut Term> {
         if let Some(input) = Self::choose_input_action_mut(trace, rand) {
-            let mut term = &mut input.recipe;
+            let term = &mut input.recipe;
             let size = term.size();
 
-            loop {
-                if rand.between(0, (size - 1) as u64) != 0 {
-                    return Some(term)
-                }
 
-                match term {
-                    Term::Variable(_) => {}
-                    Term::Application(_, ref mut subterms) => {
-                        let subterm = rand.choose(subterms);
-                        term = subterm
+            fn random<'a, R: Rand>(term: &'a mut Term, rand: &mut R, size: usize) -> Option<&'a mut Term> {
+                let index = rand.between(0, (size - 1) as u64) as usize;
+
+                if index == 0 {
+                    Some(term)
+                } else {
+                    match term {
+                        Term::Variable(_) => {},
+                        Term::Application(_, ref mut subterms) => {
+                            for subterm in subterms {
+                                if let Some(selected) = random(subterm, rand, size) {
+                                    return Some(selected)
+                                }
+                            }
+                        }
                     }
-                }
 
-                if term.is_leaf() {
-                    break
+                    None
                 }
             }
 
-            None
+            random(term, rand, size)
         } else {
             None
         }
@@ -174,35 +178,12 @@ where
 
     fn choose_term<'a>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
         if let Some(input) = Self::choose_input_action(trace, rand) {
-            let mut term = &input.recipe;
+            let term = &input.recipe;
             let size = term.size();
 
-            loop {
-                if rand.between(0, (size - 1) as u64) != 0 {
-                    return Some(term)
-                }
+            let index = rand.between(0, (size - 1) as u64) as usize;
 
-                match term {
-                    Term::Variable(_) => {}
-                    Term::Application(_, ref subterms) => {
-                        let subterm = rand.choose(subterms);
-                        term = subterm
-                    }
-                }
-
-                match term {
-                    Term::Variable(_) => {
-                        break; // variable, can't go deeper
-                    }
-                    Term::Application(_, ref subterms) => {
-                        if subterms.is_empty() {
-                            break; // constant, can't go deeper
-                        }
-                    }
-                }
-            }
-
-            None
+            term.into_iter().nth(index)
         } else {
             None
         }

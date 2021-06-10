@@ -8,6 +8,7 @@ use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
+use std::borrow::BorrowMut;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -31,11 +32,15 @@ impl fmt::Display for Term {
 }
 
 impl Term {
-    pub fn size(&self) -> u32 {
+    pub fn size(&self) -> usize {
         match self {
             Term::Variable(ref v) => 1,
             Term::Application(ref func, ref args) => {
-                args.iter().map(|subterm| subterm.size()).sum()
+                if args.is_empty() {
+                    return 1
+                }
+
+                args.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
             }
         }
     }
@@ -107,6 +112,8 @@ impl Term {
     }
 }
 
+/// Having the same mutator for &'a mut Term is not possible in Rust:
+/// https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
 impl<'a> IntoIterator for &'a Term {
     type Item = &'a Term;
     type IntoIter = std::vec::IntoIter<&'a Term>;
@@ -114,8 +121,7 @@ impl<'a> IntoIterator for &'a Term {
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
             match term {
-                &Term::Variable(ref items) => {
-                    v.extend(term);
+                &Term::Variable(_) => {
                 },
                 &Term::Application(_, ref subterms) => {
                     for subterm in subterms {
@@ -123,6 +129,8 @@ impl<'a> IntoIterator for &'a Term {
                     }
                 }
             }
+
+            v.push(term);
         }
 
         let mut result = vec![];
