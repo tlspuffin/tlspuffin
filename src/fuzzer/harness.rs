@@ -8,23 +8,11 @@ pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
 
     if let Err(err) = input.spawn_agents(&mut ctx) {
-        match err {
-            Error::Fn(err) => panic!("{}", err),
-            Error::OpenSSL(err) => panic!("{}", err),
-            Error::IO(err) => panic!("{}", err),
-            Error::Agent(err) => panic!("{}", err),
-            Error::Stream(err) => panic!("{}", err),
-        }
+        trace!("{}", err);
     }
 
     if let Err(err) = input.execute(&mut ctx) {
-        match err {
-            Error::Fn(err) => panic!("{}", err),
-            Error::OpenSSL(err) => panic!("{}", err),
-            Error::IO(err) => panic!("{}", err),
-            Error::Agent(err) => panic!("{}", err),
-            Error::Stream(err) => panic!("{}", err),
-        }
+        trace!("{}", err);
     }
 
     ExitKind::Ok

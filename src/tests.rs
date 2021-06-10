@@ -88,7 +88,6 @@ pub mod tlspuffin {
         println!("{}", trace.dot_graph(true));
     }
 
-
     #[test]
     fn test_seed_successful() {
         make_deterministic();
@@ -263,6 +262,35 @@ pub mod integration {
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
+    }
+
+    /// https://github.com/maxammann/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d
+    #[test]
+    fn test_server_hello_parsing() {
+        let hex = "160303004a020000460303de257a3941501c11fa7898af1b1b2aea4f5e39e521b35dc84ffab\
+        e830e9a98ec20e1cb49645b1cd6e2d0aa5c87b5a3837bcf33334e96c37a77a79c9df63413dc15c02f00";
+        let binary = hex::decode(hex).unwrap();
+        let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
+        println!("{:#?}", Message::try_from(opaque_message).unwrap());
+    }
+
+    #[test]
+    fn test_encrypted_tls12_messages() {
+        let hexn = vec![
+           "1603030028155e38ddd323ca97440b4bb44fe810e9f4d10e5280795ca0660c7d8c8dddcd95355538a3d2cc0256",
+        "16030300280d8d288b7a398d5c078280388c71106391756b19d1bb5c95ec18f5de8a0c772062df0d18f24e02b5",
+        "16030300280032e43a49aa2134ac20d701f3427aee8cf7c397eb2b9ed88a09bfba4c9fe94a10e6c88be89a7a67",
+        "1603030028149ee35e3205a0fea0fd2f14555c7fd0b6acc2bf926a674841375ed061dbf359ac64905c8c616095",
+        "1603030028182bdc85dc708633cc973b23173fd1e9a7296c744ce44443c678b2be0d9c0b050b3b26f9cd697ed9",
+        "160303002805330e9cee1941f19b744f7ddab94a8caf2afcc8ceb97e4389c4f7c0b329219bcbf4d68c1fc71266",
+        "1603030028fe4121bb8fb7467a63b25cc96f2eb3df1ef61fc31431a37db61825a7680d85b9fc04e980055e65db",
+        ];
+
+        for hex in hexn {
+            let binary = hex::decode(hex).unwrap();
+            let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
+            println!("{:#?}", Message::try_from(opaque_message).unwrap());
+        }
     }
     #[test]
     fn test_rustls_message_stability_cert() {

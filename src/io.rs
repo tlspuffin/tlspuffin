@@ -5,15 +5,16 @@ use std::{
 };
 
 use openssl::ssl::SslStream;
-use rustls::internal::msgs::message::OpaqueMessage;
+use rustls::internal::msgs::message::{OpaqueMessage, MessagePayload};
+use rustls::internal::msgs::handshake::HandshakePayload;
 use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
 
 #[allow(unused)] // used in docs
 use crate::agent::Agent;
 use crate::agent::TLSVersion;
 use crate::debug::debug_opaque_message_with_info;
-use crate::openssl_binding;
 use crate::error::Error;
+use crate::openssl_binding;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);
@@ -154,8 +155,9 @@ impl Stream for MemoryStream {
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();
-            self.outbound.write_all(&rest_buffer)
-                .map_err(|err| Error::Stream(format!("Failed to write into outbound buffer: {}", err)))?;
+            self.outbound.write_all(&rest_buffer).map_err(|err| {
+                Error::Stream(format!("Failed to write into outbound buffer: {}", err))
+            })?;
 
             if let Some(opaque_message) = first_message {
                 debug_opaque_message_with_info(
@@ -164,10 +166,27 @@ impl Stream for MemoryStream {
                 );
 
                 Ok(Some(match Message::try_from(opaque_message.clone()) {
-                    Ok(message) => MessageResult::Message(message),
+                    Ok(message) => {
+
+                        match &message.payload {
+                            // this check is for TLS 1.2 encrypted handshake messages,
+                            // the current parser will return a Handshake of
+                            // type HandshakePayload::Unknown.
+                            // https://github.com/maxammann/rustls/blob/8f85f586686acf3fbd9ee8315d49a7fbcef2e127/rustls/src/msgs/handshake.rs#L2199
+                            MessagePayload::Handshake(hs)  => {
+                                if matches!(&hs.payload, HandshakePayload::Unknown(_)) {
+                                    MessageResult::OpaqueMessage(opaque_message)
+                                } else {
+                                    MessageResult::Message(message)
+                                }
+                            }
+                            _ => {
+                                MessageResult::Message(message)
+                            }
+                        }
+                    },
                     Err(err) => {
-                        // todo keep statistics about this as it may mean we need to remove logical checks
-                        warn!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}: {}", err, hex::encode(opaque_message.clone().encode()));
                         MessageResult::OpaqueMessage(opaque_message)
                     }
                 }))

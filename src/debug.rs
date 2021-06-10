@@ -16,14 +16,14 @@ pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8
                 debug_message_with_info(info, &message);
             }
             Err(err) => {
-                info!(
+                trace!(
                     "Failed to debug message as decoding to an Message failed: {}",
                     err
                 );
             }
         },
         Err(err) => {
-            info!(
+            trace!(
                 "Failed to debug message as decoding to an OpaqueMessage failed: {:?}",
                 err
             );
@@ -36,7 +36,7 @@ pub fn debug_message(message: &Message) {
 }
 
 pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
-    info!(
+    trace!(
         "{}Opaque Message ({:?}): {:?}",
         if info.is_empty() {
             info.to_string()
@@ -61,7 +61,7 @@ pub fn debug_message_with_info(info: &str, message: &Message) {
         MessagePayload::ApplicationData(_) => "ApplicationData".to_string(),
     };
 
-    info!(
+    trace!(
         "{}Message ({:?}): {}",
         if info.is_empty() {
             info.to_string()

@@ -8,7 +8,7 @@
     <option name="emulateTerminal" value="false" />
     <option name="backtrace" value="SHORT" />
     <envs>
-      <env name="RUST_LOG" value="trace" />
+      <env name="RUST_LOG" value="info" />
     </envs>
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
