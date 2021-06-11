@@ -325,7 +325,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 ),
                 app_const!(fn_key_share_extension)
             ),
-            app_const!(fn_supported_versions_extension)
+            app_const!(fn_supported_versions13_extension)
         ),
     );
 
@@ -490,7 +490,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                 app_const!(fn_signed_certificate_timestamp)
             ),
             // Enable Renegotiation
-            app!(fn_renegotiation_info, app_const!(fn_empty_bytes_vec)),
+            app_const!(fn_renegotiation_info_initial_extension),
         )
     );
 
@@ -624,7 +624,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                 app_const!(fn_signature_algorithm_cert_extension)
             ),
             // Enable Renegotiation
-            app!(fn_renegotiation_info, client_verify_data),
+            app!(fn_renegotiation_info_extension, client_verify_data),
         )
     );
 

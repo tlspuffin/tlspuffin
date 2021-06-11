@@ -16,11 +16,11 @@ use crate::define_signature;
 use crate::tls::key_exchange::deterministic_key_exchange;
 use crate::tls::error::FnError;
 
-mod fn_constants;
-mod fn_extensions;
-mod fn_fields;
-mod fn_messages;
-mod fn_utils;
+pub mod fn_constants;
+pub mod fn_extensions;
+pub mod fn_fields;
+pub mod fn_messages;
+pub mod fn_utils;
 mod key_exchange;
 mod tests;
 
@@ -83,7 +83,7 @@ fn tls12_key_schedule(
     Ok(key_schedule)
 }
 
-pub fn tls13_get_server_key_share(
+fn tls13_get_server_key_share(
     server_extensions: &Vec<ServerExtension>,
 ) -> Result<&KeyShareEntry, FnError> {
     let server_extension = server_extensions
@@ -137,6 +137,11 @@ fn tls12_new_secrets(
     Ok(secrets)
 }
 
+#[macro_export]
+macro_rules! nyi_fn {
+    () => ();
+}
+
 
 // ----
 // Signature
@@ -157,12 +162,12 @@ define_signature!(
     fn_extensions_append,
     fn_extensions_new,
     fn_key_share_extension,
-    fn_renegotiation_info,
+    fn_renegotiation_info_extension,
     fn_server_name_extension,
     fn_signature_algorithm_cert_extension,
     fn_signature_algorithm_extension,
     fn_signed_certificate_timestamp,
-    fn_supported_versions_extension,
+    fn_supported_versions13_extension,
     fn_x25519_support_group_extension,
     // messages
     fn_alert_close_notify,
