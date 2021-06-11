@@ -217,7 +217,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        Signature::new_function(&fn_server_certificate),
+                        Signature::new_function(&fn_certificate),
                         vec![Term::Variable(Signature::new_var::<CertificatePayload>((1, 1)))],
                     ),
                 }),
@@ -483,7 +483,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                             ),
                             app_const!(fn_signature_algorithm_extension)
                         ),
-                        app_const!(fn_ec_point_formats)
+                        app_const!(fn_ec_point_formats_extension)
                     ),
                     app_const!(fn_signature_algorithm_cert_extension)
                 ),
@@ -619,7 +619,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                         app_const!(fn_client_extensions_new),
                         app_const!(fn_x25519_support_group_extension),
                     ),
-                    app_const!(fn_ec_point_formats)
+                    app_const!(fn_ec_point_formats_extension)
                 ),
                 app_const!(fn_signature_algorithm_cert_extension)
             ),

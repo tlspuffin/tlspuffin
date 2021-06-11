@@ -1,4 +1,5 @@
 use std::convert::{TryFrom, TryInto};
+
 use ring::hkdf::Prk;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
@@ -11,10 +12,12 @@ use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::suites::Tls12CipherSuite;
 use rustls::NoKeyLog;
 use rustls::{tls12, SupportedCipherSuite, ALL_KX_GROUPS};
+
 use fn_impl::*;
+
 use crate::define_signature;
-use crate::tls::key_exchange::deterministic_key_exchange;
 use crate::tls::error::FnError;
+use crate::tls::key_exchange::deterministic_key_exchange;
 
 pub mod fn_constants;
 pub mod fn_extensions;
@@ -101,9 +104,7 @@ fn tls13_get_server_key_share(
 // seed_client_attacker12()
 // ----
 
-fn tls12_key_exchange(
-    server_ecdh_params: &ServerECDHParams,
-) -> Result<KeyExchangeResult, FnError> {
+fn tls12_key_exchange(server_ecdh_params: &ServerECDHParams) -> Result<KeyExchangeResult, FnError> {
     let group = NamedGroup::X25519; // todo
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or("Failed to find key exchange group".to_string())?;
@@ -139,9 +140,8 @@ fn tls12_new_secrets(
 
 #[macro_export]
 macro_rules! nyi_fn {
-    () => ();
+    () => {};
 }
-
 
 // ----
 // Signature
@@ -158,50 +158,77 @@ define_signature!(
     fn_seq_4,
     fn_seq_5,
     // extensions
-    fn_ec_point_formats,
+    fn_al_protocol_negotiation,
+    fn_append_preshared_keys_identity,
+    fn_cert_req_extensions_append,
+    fn_cert_req_extensions_new,
     fn_client_extensions_append,
     fn_client_extensions_new,
+    fn_cookie_extension,
+    fn_cookie_hello_retry_extension,
+    fn_early_data_extension,
+    fn_ec_point_formats_extension,
+    fn_ec_point_formats_server_extension,
+    fn_empty_preshared_keys_identity_vec,
+    fn_extended_master_secret_extension,
+    fn_hello_retry_extensions_append,
+    fn_hello_retry_extensions_new,
+    fn_hello_retry_key_share_extension,
     fn_key_share_extension,
+    fn_new_preshared_key_identity,
+    fn_preshared_keys,
+    fn_psk_exchange_modes_extension,
     fn_renegotiation_info_extension,
+    fn_renegotiation_info_initial_extension,
+    fn_server_extensions_append,
+    fn_server_extensions_new,
     fn_server_name_extension,
+    fn_session_ticket_offer_extension,
+    fn_session_ticket_request_extension,
     fn_signature_algorithm_cert_extension,
     fn_signature_algorithm_extension,
     fn_signed_certificate_timestamp,
+    fn_status_request_extension,
+    fn_supported_versions12_extension,
+    fn_supported_versions12_hello_retry_extension,
     fn_supported_versions13_extension,
+    fn_supported_versions13_hello_retry_extension,
+    fn_transport_parameters_draft_extension,
+    fn_transport_parameters_extension,
     fn_x25519_support_group_extension,
     // messages
     fn_alert_close_notify,
-    fn_append_transcript,
     fn_application_data,
-    fn_arbitrary_to_key,
     fn_certificate,
+    fn_certificate13,
+    fn_certificate_request,
+    fn_certificate_request13,
+    fn_certificate_status,
+    fn_certificate_verify,
     fn_change_cipher_spec,
-    fn_change_cipher_spec,
-    fn_new_cipher_suites,
-    fn_new_cipher_suites12,
     fn_client_hello,
     fn_client_key_exchange,
-    fn_compressions,
-    fn_decode_ecdh_params,
-    fn_decrypt,
-    fn_encrypt,
-    fn_encrypt12,
     fn_encrypted_extensions,
     fn_finished,
-    fn_finished,
-    fn_hmac256,
-    fn_hmac256_new_key,
-    fn_new_pubkey12,
-    fn_new_transcript,
-    fn_new_transcript12,
+    fn_hello_request,
+    fn_hello_retry_request,
+    fn_key_update,
+    fn_key_update_not_requested,
+    fn_message_hash,
+    fn_new_session_ticket,
+    fn_new_session_ticket13,
     fn_opaque_handshake_message,
-    fn_protocol_version12,
-    fn_new_random,
-    fn_server_certificate,
     fn_server_hello,
     fn_server_hello_done,
     fn_server_key_exchange,
+    // fields
+    fn_compressions,
+    fn_new_cipher_suites,
+    fn_new_cipher_suites12,
+    fn_new_random,
     fn_new_session_id,
+    fn_protocol_version12,
+    fn_protocol_version13,
     fn_sign_transcript,
     fn_verify_data,
 );

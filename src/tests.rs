@@ -168,6 +168,7 @@ pub mod integration {
     use tls_parser::{TlsMessage, TlsMessageHandshake, parse_tls_plaintext};
     use std::any::{TypeId, Any};
     use crate::variable_data::AsAny;
+    use std::borrow::Borrow;
 
     #[test]
     fn test_serialisation_seed_client_attacker_json() {
@@ -403,13 +404,14 @@ pub mod integration {
     }
 
     trait AsTlsMessage<'a> {
-        fn as_tls_message(&'a self) -> &TlsMessage<'a>;
+        fn as_tls_message(&'a self) -> TlsMessage<'a>;
     }
 
     impl<'a> AsTlsMessage<'a> for StaticTlsMessage {
-        fn as_tls_message(&'a self) -> &TlsMessage<'a> {
-            let res = parse_tls_plaintext(self.data.as_slice()).unwrap();
-            res.1.msg.get(0).unwrap()
+        fn as_tls_message(&'a self) -> TlsMessage<'a> {
+            let mut res = parse_tls_plaintext(self.data.as_slice()).unwrap();
+            let x = res.1.msg.pop();
+            x.unwrap()
         }
     }
 

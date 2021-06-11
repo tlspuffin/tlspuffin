@@ -78,7 +78,8 @@ pub fn fn_cert_req_extensions_append(
 
 // todo NewSessionTicketExtension
 
-// todo Unknown Extensions for ClientExtension, ServerExtension, HelloRetryExtension
+// todo Unknown Extensions for
+//      ClientExtension, ServerExtension, HelloRetryExtension, NewSessionTicketExtension
 
 //
 // Actual extensions
@@ -219,9 +220,9 @@ nyi_fn!();
 pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SessionTicketRequest)
 }
-pub fn fn_session_ticket_offer_extension(ticket: Vec<u8>) -> Result<ClientExtension, FnError> {
+pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    Ok(ClientExtension::SessionTicketOffer(Payload::new(ticket)))
+    Ok(ClientExtension::SessionTicketOffer(Payload::new(ticket.clone())))
 }
 /// TLMSP => 0x0024,
 nyi_fn!();
@@ -284,11 +285,11 @@ pub fn fn_supported_versions13_hello_retry_extension() -> Result<HelloRetryExten
     Ok(HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_3))
 }
 /// Cookie => 0x002c,
-pub fn fn_cookie_extension(cookie: Vec<u8>) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::Cookie(PayloadU16::new(cookie)))
+pub fn fn_cookie_extension(cookie: &Vec<u8>) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::Cookie(PayloadU16::new(cookie.clone())))
 }
-pub fn fn_cookie_hello_retry_extension(cookie: Vec<u8>) -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::Cookie(PayloadU16::new(cookie)))
+pub fn fn_cookie_hello_retry_extension(cookie: &Vec<u8>) -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::Cookie(PayloadU16::new(cookie.clone())))
 }
 /// PSKKeyExchangeModes => 0x002d,
 pub fn fn_psk_exchange_modes_extension() -> Result<ClientExtension, FnError> {

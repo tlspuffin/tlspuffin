@@ -143,7 +143,7 @@ pub fn fn_server_hello(
 /// hello_verify_request_RESERVED => 0x03,
 nyi_fn!();
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(ticket: Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(ticket: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -151,15 +151,15 @@ pub fn fn_new_session_ticket(ticket: Vec<u8>) -> Result<Message, FnError> {
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
                 lifetime_hint: 10,
-                ticket: PayloadU16::new(ticket),
+                ticket: PayloadU16::new(ticket.clone()),
             }),
         }),
     })
 }
 pub fn fn_new_session_ticket13(
-    nonce: Vec<u8>,
-    ticket: Vec<u8>,
-    extensions: Vec<NewSessionTicketExtension>,
+    nonce: &Vec<u8>,
+    ticket: &Vec<u8>,
+    extensions: &Vec<NewSessionTicketExtension>,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     Ok(Message {
@@ -169,8 +169,8 @@ pub fn fn_new_session_ticket13(
             payload: HandshakePayload::NewSessionTicketTLS13(NewSessionTicketPayloadTLS13 {
                 lifetime: 10,
                 age_add: 12,
-                nonce: PayloadU8::new(nonce),
-                ticket: PayloadU16::new(ticket),
+                nonce: PayloadU8::new(nonce.clone()),
+                ticket: PayloadU16::new(ticket.clone()),
                 exts: extensions.clone(),
             }),
         }),
@@ -180,10 +180,10 @@ pub fn fn_new_session_ticket13(
 nyi_fn!();
 /// HelloRetryRequest => 0x06,
 pub fn fn_hello_retry_request(
-    legacy_version: ProtocolVersion,
-    session_id: SessionID,
-    cipher_suite: CipherSuite,
-    extensions: Vec<HelloRetryExtension>,
+    legacy_version: &ProtocolVersion,
+    session_id: &SessionID,
+    cipher_suite: &CipherSuite,
+    extensions: &Vec<HelloRetryExtension>,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -269,8 +269,8 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
     })
 }
 pub fn fn_certificate_request13(
-    context: Vec<u8>,
-    extensions: Vec<CertReqExtension>,
+    context: &Vec<u8>,
+    extensions: &Vec<CertReqExtension>,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      Vec<CertReqExtension> is not possible to create
