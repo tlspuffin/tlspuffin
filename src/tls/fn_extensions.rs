@@ -16,11 +16,11 @@ use crate::tls::key_exchange::deterministic_key_exchange;
 
 use super::error::FnError;
 
-pub fn fn_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
+pub fn fn_client_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])
 }
 
-pub fn fn_extensions_append(
+pub fn fn_client_extensions_append(
     extensions: &Vec<ClientExtension>,
     extension: &ClientExtension,
 ) -> Result<Vec<ClientExtension>, FnError> {
@@ -29,6 +29,56 @@ pub fn fn_extensions_append(
 
     Ok(new_extensions)
 }
+
+pub fn fn_server_extensions_new() -> Result<Vec<ServerExtension>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_server_extensions_append(
+    extensions: &Vec<ServerExtension>,
+    extension: &ServerExtension,
+) -> Result<Vec<ServerExtension>, FnError> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+
+    Ok(new_extensions)
+}
+
+pub fn fn_hello_retry_extensions_new() -> Result<Vec<HelloRetryExtension>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_hello_retry_extensions_append(
+    extensions: &Vec<HelloRetryExtension>,
+    extension: &HelloRetryExtension,
+) -> Result<Vec<HelloRetryExtension>, FnError> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+
+    Ok(new_extensions)
+}
+
+pub fn fn_cert_req_extensions_new() -> Result<Vec<CertReqExtension>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_cert_req_extensions_append(
+    extensions: &Vec<CertReqExtension>,
+    extension: &CertReqExtension,
+) -> Result<Vec<CertReqExtension>, FnError> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+
+    Ok(new_extensions)
+}
+
+// todo ServerExtensions
+
+// todo CertReqExtension
+
+// todo NewSessionTicketExtension
+
+// todo Unknown Extensions for ClientExtension, ServerExtension, HelloRetryExtension
 
 //
 // Actual extensions
@@ -82,9 +132,14 @@ pub fn fn_x25519_support_group_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::NamedGroups(vec![NamedGroup::X25519]))
 }
 /// ECPointFormats => 0x000b,
-pub fn fn_ec_point_formats() -> Result<ClientExtension, FnError> {
+pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(vec![
-        rustls::internal::msgs::enums::ECPointFormat::Uncompressed,
+        ECPointFormat::Uncompressed,
+    ]))
+}
+pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ECPointFormats(vec![
+        ECPointFormat::Uncompressed,
     ]))
 }
 /// SRP => 0x000c,
@@ -222,9 +277,18 @@ pub fn fn_supported_versions13_extension() -> Result<ClientExtension, FnError> {
         ProtocolVersion::TLSv1_3,
     ]))
 }
+pub fn fn_supported_versions12_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_2))
+}
+pub fn fn_supported_versions13_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_3))
+}
 /// Cookie => 0x002c,
 pub fn fn_cookie_extension(cookie: Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::Cookie(PayloadU16::new(cookie)))
+}
+pub fn fn_cookie_hello_retry_extension(cookie: Vec<u8>) -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::Cookie(PayloadU16::new(cookie)))
 }
 /// PSKKeyExchangeModes => 0x002d,
 pub fn fn_psk_exchange_modes_extension() -> Result<ClientExtension, FnError> {
@@ -264,6 +328,9 @@ pub fn fn_key_share_extension() -> Result<ClientExtension, FnError> {
         group: NamedGroup::X25519,
         payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
     }]))
+}
+pub fn fn_hello_retry_key_share_extension() -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::KeyShare(NamedGroup::X25519))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();

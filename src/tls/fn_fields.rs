@@ -4,20 +4,25 @@ use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtensio
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 use super::error::FnError;
 
+pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
+    Ok(ProtocolVersion::TLSv1_3)
+}
+
 pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_2)
 }
 
-pub fn fn_session_id() -> Result<SessionID, FnError> {
+pub fn fn_new_session_id() -> Result<SessionID, FnError> {
     Ok(SessionID::empty())
 }
 
-pub fn fn_random() -> Result<Random, FnError> {
+pub fn fn_new_random() -> Result<Random, FnError> {
     let random_data: [u8; 32] = [1; 32];
     Ok(Random::from(random_data))
 }
 
-pub fn fn_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
+// todo fn_add_cipher_suite
+pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
 }
 
@@ -56,7 +61,7 @@ pub fn fn_verify_data(
 // seed_client_attacker12()
 // ----
 
-pub fn fn_cipher_suites12() -> Result<Vec<CipherSuite>, FnError> {
+pub fn fn_new_cipher_suites12() -> Result<Vec<CipherSuite>, FnError> {
     Ok(vec![CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256])
 }
 

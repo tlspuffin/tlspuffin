@@ -11,34 +11,34 @@ mod macros {
            fn_client_hello(
                 (fn_client_hello(
                     fn_protocol_version12,
-                    fn_random,
+                    fn_new_random,
                     (fn_client_hello(fn_protocol_version12,
-                        fn_random,
-                        fn_random,
+                        fn_new_random,
+                        fn_new_random,
                         ((0,0)/ProtocolVersion)
                     ))
                 )),
-                fn_random
+                fn_new_random
             )
         };
 
         let _set_simple_function2 = term! {
-           fn_client_hello((fn_protocol_version12()), fn_random, fn_random)
+           fn_client_hello((fn_protocol_version12()), fn_new_random, fn_new_random)
         };
 
         let _test_simple_function1 = term! {
            fn_protocol_version12
         };
         let _test_simple_function = term! {
-           fn_random(((0,0)/ProtocolVersion))
+           fn_new_random(((0,0)/ProtocolVersion))
         };
         let _test_variable = term! {
             (0,0)/ProtocolVersion
         };
         let _set_nested_function = term! {
-           fn_extensions_append(
-                (fn_extensions_append(
-                    fn_extensions_new,
+           fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
                     fn_x25519_support_group_extension
                 )),
                 fn_x25519_support_group_extension
@@ -55,7 +55,7 @@ mod term {
     use rustls::internal::msgs::handshake::SessionID;
 
     use crate::term::Signature;
-    use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_session_id};
+    use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_new_session_id};
     use crate::tls::{error::FnError, SIGNATURE};
     use crate::{term::Term, trace::TraceContext};
 
@@ -99,7 +99,7 @@ mod term {
 
     #[test]
     fn playground() {
-        let var_data = fn_session_id();
+        let var_data = fn_new_session_id();
 
         println!("vec {:?}", TypeId::of::<Vec<u8>>());
         println!("vec {:?}", TypeId::of::<Vec<u16>>());

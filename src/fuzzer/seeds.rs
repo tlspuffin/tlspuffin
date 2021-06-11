@@ -258,7 +258,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
-                        Signature::new_function(&fn_change_cipher_spec12).clone(),
+                        Signature::new_function(&fn_change_cipher_spec).clone(),
                         vec![],
                     ),
                 }),
@@ -281,7 +281,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec12), vec![]),
+                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
                 }),
             },
             // Server Handshake Finished, Server -> Client
@@ -302,23 +302,23 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let client_hello = app!(
         fn_client_hello,
         app_const!(fn_protocol_version12),
-        app_const!(fn_random),
-        app_const!(fn_session_id),
-        app_const!(fn_cipher_suites),
+        app_const!(fn_new_random),
+        app_const!(fn_new_session_id),
+        app_const!(fn_new_cipher_suites),
         app_const!(fn_compressions),
         app!(
             
-            fn_extensions_append,
+            fn_client_extensions_append,
             app!(
                 
-                fn_extensions_append,
+                fn_client_extensions_append,
                 app!(
                     
-                    fn_extensions_append,
+                    fn_client_extensions_append,
                     app!(
                         
-                        fn_extensions_append,
-                        app_const!(fn_extensions_new),
+                        fn_client_extensions_append,
+                        app_const!(fn_client_extensions_new),
                         app_const!(fn_x25519_support_group_extension),
                     ),
                     app_const!(fn_signature_algorithm_extension)
@@ -460,25 +460,25 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
     let client_hello = app!(
         fn_client_hello,
         app_const!(fn_protocol_version12),
-        app_const!(fn_random),
-        app_const!(fn_session_id),
+        app_const!(fn_new_random),
+        app_const!(fn_new_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(fn_cipher_suites12),
+        app_const!(fn_new_cipher_suites12),
         app_const!(fn_compressions),
         // todo CertificateStatusRequest Extension
         app!(
-            fn_extensions_append,
+            fn_client_extensions_append,
             app!(
-                fn_extensions_append,
+                fn_client_extensions_append,
                 app!(
-                    fn_extensions_append,
+                    fn_client_extensions_append,
                     app!(
-                        fn_extensions_append,
+                        fn_client_extensions_append,
                         app!(
-                            fn_extensions_append,
+                            fn_client_extensions_append,
                             app!(
-                                fn_extensions_append,
-                                app_const!(fn_extensions_new),
+                                fn_client_extensions_append,
+                                app_const!(fn_client_extensions_new),
                                 app_const!(fn_x25519_support_group_extension),
                             ),
                             app_const!(fn_signature_algorithm_extension)
@@ -576,7 +576,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: app_const!(fn_change_cipher_spec12),
+                    recipe: app_const!(fn_change_cipher_spec),
                 }),
             },
             Step {
@@ -584,7 +584,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                 action: Action::Input(InputAction {
                     recipe: app!(
                         fn_encrypt12,
-                        app!(fn_finished12, client_verify_data.clone()),
+                        app!(fn_finished, client_verify_data.clone()),
                         var!(Random, (0, 0)),
                         app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
                         app_const!(fn_seq_0)
@@ -603,20 +603,20 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
     let renegotiation_client_hello = app!(
         fn_client_hello,
         app_const!(fn_protocol_version12),
-        app_const!(fn_random),
-        app_const!(fn_session_id),
+        app_const!(fn_new_random),
+        app_const!(fn_new_session_id),
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-        app_const!(fn_cipher_suites12),
+        app_const!(fn_new_cipher_suites12),
         app_const!(fn_compressions),
         app!(
-            fn_extensions_append,
+            fn_client_extensions_append,
             app!(
-                fn_extensions_append,
+                fn_client_extensions_append,
                 app!(
-                    fn_extensions_append,
+                    fn_client_extensions_append,
                     app!(
-                        fn_extensions_append,
-                        app_const!(fn_extensions_new),
+                        fn_client_extensions_append,
+                        app_const!(fn_client_extensions_new),
                         app_const!(fn_x25519_support_group_extension),
                     ),
                     app_const!(fn_ec_point_formats)
