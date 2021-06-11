@@ -196,6 +196,8 @@ define_signature!(
     fn_transport_parameters_draft_extension,
     fn_transport_parameters_extension,
     fn_x25519_support_group_extension,
+    fn_empty_vec_of_vec,
+    fn_append_vec,
     // messages
     fn_alert_close_notify,
     fn_application_data,

@@ -157,10 +157,10 @@ nyi_fn!();
 /// Heartbeat => 0x000f,
 nyi_fn!();
 /// ALProtocolNegotiation => 0x0010,
-pub fn empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
+pub fn fn_empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
     Ok(vec![])
 }
-pub fn append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Vec<u8>>, FnError> {
+pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Vec<u8>>, FnError> {
     let mut new = vec_of_vec.clone();
     new.push(data.clone());
     Ok(new)
