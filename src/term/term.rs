@@ -55,7 +55,10 @@ impl Term {
         match self {
             Term::Variable(ref v) => increment,
             Term::Application(ref func, ref args) => {
-                args.iter().map(|subterm| subterm.length_of_type(type_shape)).sum::<usize>() + increment
+                args.iter()
+                    .map(|subterm| subterm.length_of_type(type_shape))
+                    .sum::<usize>()
+                    + increment
             }
         }
     }
@@ -121,10 +124,7 @@ impl Term {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
-                .ok_or(FnError::Message(format!(
-                    "Unable to find variable {} with observed id {:?} in TraceContext!",
-                    v, v.observed_id
-                ))),
+                .ok_or(FnError::Message(format!("Unable to find variable {}!", v))),
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
@@ -146,7 +146,8 @@ impl Term {
 }
 
 /// Having the same mutator for &'a mut Term is not possible in Rust:
-/// https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
+/// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
+/// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
 impl<'a> IntoIterator for &'a Term {
     type Item = &'a Term;
     type IntoIter = std::vec::IntoIter<&'a Term>;

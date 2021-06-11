@@ -134,7 +134,11 @@ pub struct Trace {
 }
 
 // LibAFL support
-impl Input for Trace {}
+impl Input for Trace {
+    fn generate_name(&self, idx: usize) -> String {
+        format!("{id:>4}.trace", id=idx)
+    }
+}
 
 impl HasLen for Trace {
     fn len(&self) -> usize {
@@ -163,9 +167,7 @@ impl Trace {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
-            if let Err(err) = step.action.execute(step, ctx) {
-                return Err(err);
-            }
+            step.action.execute(step, ctx)?;
 
             execution_listener(step);
         }

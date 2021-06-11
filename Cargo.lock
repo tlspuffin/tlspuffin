@@ -10,6 +10,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43bb833f0bf979d8475d38fbf09ed3b8a55e1885fe93ad3f93239fc6a4f17b98"
+dependencies = [
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -476,7 +487,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 dependencies = [
- "ahash",
+ "ahash 0.4.7",
  "serde",
 ]
 
@@ -614,8 +625,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "libafl"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=de933fe#de933fee63338cb1116eaab3bef81683c7388106"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=c123872#c123872b111bf2828218fa342e7df44f1bb21f16"
 dependencies = [
+ "ahash 0.7.4",
  "compression",
  "core_affinity",
  "ctor",
@@ -645,7 +657,7 @@ dependencies = [
 [[package]]
 name = "libafl_derive"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=de933fe#de933fee63338cb1116eaab3bef81683c7388106"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=c123872#c123872b111bf2828218fa342e7df44f1bb21f16"
 dependencies = [
  "quote",
  "syn",
@@ -654,7 +666,7 @@ dependencies = [
 [[package]]
 name = "libafl_targets"
 version = "0.3.2"
-source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=de933fe#de933fee63338cb1116eaab3bef81683c7388106"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=c123872#c123872b111bf2828218fa342e7df44f1bb21f16"
 dependencies = [
  "cc",
  "libafl",

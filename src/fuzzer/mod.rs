@@ -18,7 +18,7 @@ use libafl::{
     feedback_or,
     feedbacks::{
         CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MapIndexesMetadata, MaxMapFeedback,
-        MaxReducer, OrFeedback, TimeFeedback, TimeoutFeedback,
+        MaxReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::BytesInput,
