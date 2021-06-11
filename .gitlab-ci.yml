@@ -17,12 +17,8 @@ before_script:
 build:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
+    - cargo test --release
     - cargo build --release --bin tlspuffin --verbose
-
-test:
-  script:
-    - rustc --version && cargo --version  # Print version info for debugging
-    - cargo test --verbose
 
 # Test that gathering coverage works
 # todo, as this requires a rust nightly
@@ -32,7 +28,7 @@ test:
 
 pages:
   script:
-  - cargo doc --lib
+  - cargo doc --lib --no-deps
   - mv target/doc public
   artifacts:
     paths:
