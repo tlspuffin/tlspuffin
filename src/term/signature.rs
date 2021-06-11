@@ -21,6 +21,7 @@ pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 ///
 pub struct Signature {
     pub functions_by_name: HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>,
+    pub functions: Vec<FunctionDefinition>,
     pub types_by_name: HashMap<&'static str, TypeShape>,
 }
 
@@ -29,6 +30,7 @@ impl Signature {
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
         let functions_by_name: HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)> =
             definitions
+                .clone()
                 .into_iter()
                 .map(|(shape, dynamic_fn)| {
                     let types: Vec<crate::term::TypeShape> = shape
@@ -51,6 +53,7 @@ impl Signature {
 
         Signature {
             functions_by_name,
+            functions: definitions,
             types_by_name,
         }
     }

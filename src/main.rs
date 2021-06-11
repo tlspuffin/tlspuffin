@@ -134,7 +134,7 @@ fn main() {
         start(
             num_cores,
             &[PathBuf::from("./corpus")],
-            PathBuf::from("./crashes"),
+            &PathBuf::from("./crashes"),
             1337,
         );
     }

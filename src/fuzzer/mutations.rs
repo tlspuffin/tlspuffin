@@ -13,11 +13,14 @@ use libafl::{
 
 use crate::term::{Term, TypeShape};
 use crate::trace::{Action, InputAction, Step, Trace};
+use crate::fuzzer::mutations_util::*;
+use crate::tls::SIGNATURE;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
        SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
+       ReplaceMatchMutator<R, S>,
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -27,7 +30,8 @@ where
     tuple_list!(
         RepeatMutator::new(),
         SkipMutator::new(),
-        ReplaceReuseMutator::new()
+        ReplaceReuseMutator::new(),
+        ReplaceMatchMutator::new()
     )
 }
 
@@ -154,135 +158,18 @@ where
 }
 
 impl<R, S> ReplaceReuseMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn choose_iter<I, E, T, P>(from: I, filter: P, rand: &mut R) -> Option<T>
     where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>,
-        P: FnMut(&T) -> bool,
-    {
-        // create iterator
-        let mut iter = from.into_iter().filter(filter).collect::<Vec<T>>();
-        let length = iter.len();
-
-        if length == 0 {
-            None
-        } else {
-            // pick a random, valid index
-            let index = rand.below(length as u64) as usize;
-
-            // return the item chosen
-            iter.into_iter().nth(index)
-        }
-    }
-
-    fn choose_input_action_mut<'a>(
-        trace: &'a mut Trace,
-        rand: &mut R,
-    ) -> Option<&'a mut InputAction> {
-        Self::choose_iter(
-            &mut trace.steps,
-            |step| matches!(step.action, Action::Input(_)),
-            rand,
-        )
-        .and_then(|step| match &mut step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
-    }
-
-    fn choose_input_action<'a>(trace: &'a Trace, rand: &mut R) -> Option<&'a InputAction> {
-        Self::choose_iter(
-            &trace.steps,
-            |step| matches!(step.action, Action::Input(_)),
-            rand,
-        )
-        .and_then(|step| match &step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
-    }
-
-    /// Finds a term by a `type_shape` and `requested_index`.
-    /// `requested_index` and `current_index` must be smaller than the amount of terms which have
-    /// the type shape `type_shape`.
-    fn find_term_mut<'a>(
-        term: &'a mut Term,
-        rand: &mut R,
-        requested_index: usize,
-        mut current_index: usize,
-        type_shape: &TypeShape,
-    ) -> (Option<&'a mut Term>, usize) {
-        let is_compatible = term.get_type_shape() == type_shape;
-        if is_compatible && requested_index == current_index {
-            (Some(term), current_index)
-        } else {
-            if is_compatible {
-                // increment only if the term is relevant
-                current_index += 1;
-            };
-
-            match term {
-                Term::Application(_, ref mut subterms) => {
-                    for subterm in subterms {
-                        let (selected, new_index) = Self::find_term_mut(
-                            subterm,
-                            rand,
-                            requested_index,
-                            current_index,
-                            type_shape,
-                        );
-
-                        current_index = new_index;
-
-                        if let Some(selected) = selected {
-                            return (Some(selected), new_index);
-                        }
-                    }
-                }
-                Term::Variable(_) => {}
-            }
-
-            (None, current_index)
-        }
-    }
-
-    fn choose_term_mut<'a>(
-        trace: &'a mut Trace,
-        rand: &mut R,
-        requested_type: &TypeShape,
-    ) -> Option<&'a mut Term> {
-        if let Some(input) = Self::choose_input_action_mut(trace, rand) {
-            let term = &mut input.recipe;
-            let length = term.length_of_type(requested_type);
-
-            if length == 0 {
-                None
-            } else {
-                let requested_index = rand.between(0, (length - 1) as u64) as usize;
-                Self::find_term_mut(term, rand, requested_index, 0, requested_type).0
-            }
-        } else {
-            None
-        }
-    }
-
-    fn choose_term<'a>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
-        if let Some(input) = Self::choose_input_action(trace, rand) {
-            let term = &input.recipe;
-            let size = term.length();
-
-            let index = rand.between(0, (size - 1) as u64) as usize;
-
-            term.into_iter().nth(index)
-        } else {
-            None
+        S: HasRand<R>,
+        R: Rand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData,
         }
     }
 }
+
 
 impl<R, S> Mutator<Trace, S> for ReplaceReuseMutator<R, S>
 where
@@ -296,9 +183,9 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some(replacement) = Self::choose_term(trace, rand).cloned() {
+        if let Some(replacement) = choose_term(trace, rand).cloned() {
             let requested_type = replacement.get_type_shape();
-            if let Some(to_replace) = Self::choose_term_mut(trace, rand, requested_type) {
+            if let Some(to_replace) = choose_term_mut(trace, rand, requested_type) {
                 to_replace.mutate(&replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -318,7 +205,19 @@ where
     }
 }
 
-impl<R, S> ReplaceReuseMutator<R, S>
+/// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
+/// An example would be to replace a constant with another constant or the binary function
+/// fn_add with fn_sub.
+#[derive(Default)]
+pub struct ReplaceMatchMutator<R, S>
+    where
+        S: HasRand<R>,
+        R: Rand,
+{
+    phantom: PhantomData<(R, S)>,
+}
+
+impl<R, S> ReplaceMatchMutator<R, S>
 where
     S: HasRand<R>,
     R: Rand,
@@ -330,6 +229,49 @@ where
         }
     }
 }
+
+impl<R, S> Mutator<Trace, S> for ReplaceMatchMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        let (requested_shape, requested_dynamic_fn) = rand.choose(&SIGNATURE.functions);
+
+        // todo improve choosing such that we only find function which have compatible arguments
+        if let Some(mut to_mutate) = choose_term_mut(trace, rand, &requested_shape.return_type).cloned() {
+                match &mut to_mutate {
+                    Term::Variable(_) => {
+                        // todo improve choosing such that we only look at functions in the term
+                        Ok(MutationResult::Skipped)
+                    }
+                    Term::Application(func, _) => {
+                        func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
+                        Ok(MutationResult::Mutated)
+                    }
+                }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<R, S> Named for ReplaceMatchMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn name(&self) -> &str {
+        "ReplaceMatchMutator"
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

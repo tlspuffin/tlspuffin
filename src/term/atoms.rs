@@ -102,6 +102,11 @@ impl Function {
     pub fn dynamic_fn(&self) -> &Box<dyn DynamicFunction> {
         &self.fn_container.dynamic_fn
     }
+
+    pub fn change_function(&mut self, shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) {
+        self.fn_container.shape = shape;
+        self.fn_container.dynamic_fn = dynamic_fn;
+    }
 }
 
 impl fmt::Display for Function {

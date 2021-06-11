@@ -39,7 +39,7 @@ use crate::{
 };
 use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
 
-pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf, broker_port: u16) {
+pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
     let stats = MultiStats::new(|s| info!("{}", s));
@@ -79,8 +79,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], _objective_dir: PathBuf,
                 InMemoryCorpus::new(),
                 // Corpus in which we store solutions (crashes in this example),
                 // on disk so the user can get them after stopping the fuzzer
-                // OnDiskCorpus::new(objective_dir).unwrap(),
-                InMemoryCorpus::new(),
+                OnDiskCorpus::new(objective_dir.clone()).unwrap(),
+                //InMemoryCorpus::new(),
                 // States of the feedbacks.
                 // They are the data related to the feedbacks that you want to persist in the State.
                 //tuple_list!(),
