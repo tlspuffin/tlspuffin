@@ -320,6 +320,8 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
         SignatureScheme::RSA_PSS_SHA512,
         SignatureScheme::ED25519,
         SignatureScheme::ED448,
+        SignatureScheme::RSA_PKCS1_SHA256,
+        SignatureScheme::RSA_PSS_SHA256,
     ]))
 }
 /// KeyShare => 0x0033,

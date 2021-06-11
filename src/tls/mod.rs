@@ -231,4 +231,16 @@ define_signature!(
     fn_protocol_version13,
     fn_sign_transcript,
     fn_verify_data,
+    // utils
+    fn_append_transcript,
+    fn_arbitrary_to_key,
+    fn_decode_ecdh_params,
+    fn_decrypt,
+    fn_encrypt,
+    fn_encrypt12,
+    fn_hmac256,
+    fn_hmac256_new_key,
+    fn_new_pubkey12,
+    fn_new_transcript,
+    fn_new_transcript12,
 );
