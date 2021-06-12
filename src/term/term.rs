@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
@@ -82,22 +81,7 @@ impl Term {
     }
 
     pub fn mutate(&mut self, other: &Term) {
-        match other {
-            Term::Variable(variable) => {
-                self.mutate_to_variable(variable.clone());
-            }
-            Term::Application(func, subterms) => {
-                self.mutate_to_application(func.clone(), subterms.clone());
-            }
-        }
-    }
-
-    fn mutate_to_variable(&mut self, variable: Variable) {
-        *self = Term::Variable(variable)
-    }
-
-    fn mutate_to_application(&mut self, func: Function, subterms: Vec<Term>) {
-        *self = Term::Application(func, subterms)
+        *self = other.clone();
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
