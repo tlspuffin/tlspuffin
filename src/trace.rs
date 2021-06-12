@@ -198,11 +198,7 @@ pub enum Action {
     Output(OutputAction),
 }
 
-pub trait Execute {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error>;
-}
-
-impl Execute for Action {
+impl Action {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         match self {
             Action::Input(input) => input.input(step, ctx),
