@@ -23,7 +23,7 @@ mod sancov_pcguard_log;
 
 // Use dummy in tests
 #[cfg(test)]
-mod sancov_pcguard_dummy;
+mod sancov_dummy;
 mod mutations_util;
 
 // Edges
