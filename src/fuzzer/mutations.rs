@@ -273,6 +273,8 @@ where
 }
 
 
+// todo SWAP: https://github.com/Sgeo/take_mut
+
 #[cfg(test)]
 mod tests {
     use libafl::bolts::rands::{RomuTrioRand, StdRand};
