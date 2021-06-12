@@ -37,7 +37,9 @@ use crate::openssl_binding::make_deterministic;
 use crate::{
     fuzzer::{mutations::trace_mutations},
 };
-use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
+use super::{harness};
+pub use super::{EDGES_MAP, MAX_EDGES_NUM};
+
 
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     make_deterministic();
@@ -46,25 +48,20 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr| {
         info!("We're a client, let's fuzz :)");
-        // Create an observation channel using the coverage map
-        let edges = unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] };
-        let map_observer = StdMapObserver::new("edges", edges);
-        let edges_observer = HitcountsMapObserver::new(map_observer);
 
-        // Create an observation channel to keep track of the execution time
+        let edges_observer = StdMapObserver::new("edges", unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] });
         let time_observer = TimeObserver::new("time");
 
-        // The state of the edges feedback.
-        let feedback_state = MapFeedbackState::with_observer(&edges_observer);
+        let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
         // Feedback to rate the interestingness of an input
         // This one is composed by two Feedbacks in OR
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            MaxMapFeedback::new_tracking(&feedback_state, &edges_observer, true, false),
+            //MaxMapFeedback::new_tracking(&edges_feedbac_k_state, &edges_observer, true, false),
+            MaxMapFeedback::new(&edges_feedback_state, &edges_observer),
             // Time feedback, this one does not need a feedback state
-            TimeFeedback::new_with_observer(&time_observer),
-            TimeoutFeedback::new() // todo allow trailing comma
+            TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
@@ -84,7 +81,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
                 // States of the feedbacks.
                 // They are the data related to the feedbacks that you want to persist in the State.
                 //tuple_list!(),
-                tuple_list!(feedback_state),
+                tuple_list!(edges_feedback_state),
             )
         });
 
@@ -106,7 +103,6 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let mut executor = TimeoutExecutor::new(
             InProcessExecutor::new(
                 &mut harness_fn,
-                //tuple_list!(time_observer),
                 // hint: edges_observer is expensive to serialize
                 tuple_list!(edges_observer, time_observer),
                 &mut fuzzer,
@@ -114,7 +110,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
                 &mut restarting_mgr,
             )?,
             // 10 seconds timeout
-            Duration::new(100000, 0),
+            Duration::new(60, 0),
         );
 
         // In case the corpus is empty (on first run), reset
