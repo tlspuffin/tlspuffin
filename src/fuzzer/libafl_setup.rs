@@ -75,7 +75,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
                 // RNG
                 StdRand::with_seed(current_nanos()),
                 // Corpus that will be evolved, we keep it in memory for performance
-                OnDiskCorpus::new(PathBuf::from("corpus_inspection")).unwrap(),
+                //OnDiskCorpus::new(PathBuf::from("corpus_inspection")).unwrap(),
+                InMemoryCorpus::new(),
                 // Corpus in which we store solutions (crashes in this example),
                 // on disk so the user can get them after stopping the fuzzer
                 OnDiskCorpus::new(objective_dir.clone()).unwrap(),
