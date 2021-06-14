@@ -11,10 +11,10 @@ use libafl::{
     Error,
 };
 
-use crate::term::{Term, TypeShape};
-use crate::trace::{Action, InputAction, Step, Trace};
 use crate::fuzzer::mutations_util::*;
+use crate::term::Term;
 use crate::tls::SIGNATURE;
+use crate::trace::{InputAction, Step, Trace};
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -158,9 +158,9 @@ where
 }
 
 impl<R, S> ReplaceReuseMutator<R, S>
-    where
-        S: HasRand<R>,
-        R: Rand,
+where
+    S: HasRand<R>,
+    R: Rand,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -169,7 +169,6 @@ impl<R, S> ReplaceReuseMutator<R, S>
         }
     }
 }
-
 
 impl<R, S> Mutator<Trace, S> for ReplaceReuseMutator<R, S>
 where
@@ -184,8 +183,9 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(replacement) = choose_term(trace, rand).cloned() {
-            let requested_type = replacement.get_type_shape();
-            if let Some(to_replace) = choose_term_mut(trace, rand, requested_type) {
+            if let Some(to_replace) = choose_term_mut(trace, rand, |term: &Term| {
+                term.get_type_shape() == replacement.get_type_shape()
+            }) {
                 to_replace.mutate(&replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -210,9 +210,9 @@ where
 /// fn_add with fn_sub.
 #[derive(Default)]
 pub struct ReplaceMatchMutator<R, S>
-    where
-        S: HasRand<R>,
-        R: Rand,
+where
+    S: HasRand<R>,
+    R: Rand,
 {
     phantom: PhantomData<(R, S)>,
 }
@@ -244,18 +244,24 @@ where
         let rand = state.rand_mut();
         let (requested_shape, requested_dynamic_fn) = rand.choose(&SIGNATURE.functions);
 
-        // todo improve choosing such that we only find function which have compatible arguments
-        if let Some(mut to_mutate) = choose_term_mut(trace, rand, &requested_shape.return_type).cloned() {
-                match &mut to_mutate {
-                    Term::Variable(_) => {
-                        // todo improve choosing such that we only look at functions in the term
-                        Ok(MutationResult::Skipped)
-                    }
-                    Term::Application(func, _) => {
-                        func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
-                        Ok(MutationResult::Mutated)
-                    }
+        let filter = |term: &Term| match term {
+            Term::Variable(_) => false,
+            Term::Application(func, _) => {
+                func.shape().return_type == requested_shape.return_type
+                    && func.shape().argument_types == requested_shape.argument_types
+            }
+        };
+        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter).cloned() {
+            match &mut to_mutate {
+                Term::Variable(_) => {
+                    // never reached as `filter` returns false for variables
+                    Ok(MutationResult::Skipped)
                 }
+                Term::Application(func, _) => {
+                    func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
+                    Ok(MutationResult::Mutated)
+                }
+            }
         } else {
             Ok(MutationResult::Skipped)
         }
@@ -271,7 +277,6 @@ where
         "ReplaceMatchMutator"
     }
 }
-
 
 // todo SWAP: https://github.com/Sgeo/take_mut
 
@@ -303,16 +308,16 @@ mod tests {
         let server = client.next();
         let mut trace = seed_client_attacker12(client, server);
 
-/*        write_graphviz("test_mutation.svg", "svg", trace.dot_graph(true).as_str());
-*/
+        /*        write_graphviz("test_mutation.svg", "svg", trace.dot_graph(true).as_str());
+         */
         for i in 0..10 {
             let mut trace = seed_client_attacker12(client, server);
             println!("{:?}", mutator.mutate(&mut state, &mut trace, 0).unwrap());
-/*            write_graphviz(
-                format!("test_mutation_after{}.svg", i).as_str(),
+            write_graphviz(
+                format!("mutations_preview/test_mutation_after{}.svg", i).as_str(),
                 "svg",
                 trace.dot_graph(true).as_str(),
-            );*/
+            ).unwrap();
         }
     }
 

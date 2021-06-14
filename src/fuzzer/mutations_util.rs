@@ -53,14 +53,14 @@ pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Optio
 /// Finds a term by a `type_shape` and `requested_index`.
 /// `requested_index` and `current_index` must be smaller than the amount of terms which have
 /// the type shape `type_shape`.
-pub fn find_term_mut<'a, R: Rand>(
+pub fn find_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     term: &'a mut Term,
     rand: &mut R,
     requested_index: usize,
     mut current_index: usize,
-    type_shape: &TypeShape,
+    filter: P
 ) -> (Option<&'a mut Term>, usize) {
-    let is_compatible = term.get_type_shape() == type_shape;
+    let is_compatible = filter(term);
     if is_compatible && requested_index == current_index {
         (Some(term), current_index)
     } else {
@@ -77,7 +77,7 @@ pub fn find_term_mut<'a, R: Rand>(
                         rand,
                         requested_index,
                         current_index,
-                        type_shape,
+                        filter,
                     );
 
                     current_index = new_index;
@@ -94,20 +94,20 @@ pub fn find_term_mut<'a, R: Rand>(
     }
 }
 
-pub fn choose_term_mut<'a, R: Rand>(
+pub fn choose_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     trace: &'a mut Trace,
     rand: &mut R,
-    requested_type: &TypeShape,
+    filter: P
 ) -> Option<&'a mut Term> {
     if let Some(input) = choose_input_action_mut(trace, rand) {
         let term = &mut input.recipe;
-        let length = term.length_of_type(requested_type);
+        let length = term.length_filtered(filter);
 
         if length == 0 {
             None
         } else {
             let requested_index = rand.between(0, (length - 1) as u64) as usize;
-            find_term_mut(term, rand, requested_index, 0, requested_type).0
+            find_term_mut(term, rand, requested_index, 0, filter).0
         }
     } else {
         None

@@ -45,8 +45,8 @@ impl Term {
         }
     }
 
-    pub fn length_of_type(&self, type_shape: &TypeShape) -> usize {
-        let increment = if type_shape == self.get_type_shape() {
+    pub fn length_filtered<P: Fn(&Term) -> bool + Copy>(&self, filter: P) -> usize {
+        let increment = if filter(self) {
             1
         } else {
             0
@@ -55,7 +55,7 @@ impl Term {
             Term::Variable(ref v) => increment,
             Term::Application(ref func, ref args) => {
                 args.iter()
-                    .map(|subterm| subterm.length_of_type(type_shape))
+                    .map(|subterm| subterm.length_filtered(filter))
                     .sum::<usize>()
                     + increment
             }

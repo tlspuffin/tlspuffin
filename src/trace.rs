@@ -4,7 +4,7 @@ use std::{any::TypeId, fmt::Formatter};
 use libafl::inputs::{HasLen, Input};
 use rustls::internal::msgs::message::Message;
 use rustls::internal::msgs::message::OpaqueMessage;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::agent::{AgentDescriptor};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
@@ -136,7 +136,7 @@ pub struct Trace {
 // LibAFL support
 impl Input for Trace {
     fn generate_name(&self, idx: usize) -> String {
-        format!("{id:>4}.trace", id=idx)
+        format!("{id}.trace", id=idx)
     }
 }
 
