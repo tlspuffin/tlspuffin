@@ -3,6 +3,16 @@
 # Be sure to always pass --target x86_64-unknown-linux-gnu to Cargo
 # or you’ll end up sanitizing the build scripts that Cargo runs.
 target = "x86_64-unknown-linux-gnu"
-rustflags = ["-Z", "sanitizer=address"]
-# Does not work: Does not link to compiler-rt
-#rustflags = ["-C", "link-args=-fsanitize=address"]
+#rustflags = ["-Z", "sanitizer=address"]
+
+
+#rustflags = ["-C", "link-arg=-fsanitize=address"]
+
+#rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-shared-libasan"] # : unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
+#rustflags = ["-C", "link-arg=-shared-libasan"] #   = note: cc: error: unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
+
+# Works with LD_PRELOAD=/lib/libasan.so
+rustflags = ["-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
+
+#rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-static-libasan"] #  undefined reference
+#rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
