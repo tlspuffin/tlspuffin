@@ -21,6 +21,7 @@ pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
+       RemoveAndLiftMutator<R, S>,
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -31,7 +32,8 @@ where
         RepeatMutator::new(),
         SkipMutator::new(),
         ReplaceReuseMutator::new(),
-        ReplaceMatchMutator::new()
+        ReplaceMatchMutator::new(),
+        RemoveAndLiftMutator::new(),
     )
 }
 
@@ -278,6 +280,82 @@ where
     }
 }
 
+/// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
+/// (such that types match). This only works if there is only a single child.
+#[derive(Default)]
+pub struct RemoveAndLiftMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    phantom: PhantomData<(R, S)>,
+}
+
+impl<R, S> RemoveAndLiftMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<R, S> Mutator<Trace, S> for RemoveAndLiftMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+
+        // filter for inner nodes with exactly one subterm
+        let filter = |term: &Term| match term {
+            Term::Variable(_) => false,
+            Term::Application(func, _) => {
+                func.shape().argument_types.len() == 1 &&
+                    func.shape().argument_types.first().unwrap() == &func.shape().return_type
+            }
+        };
+        if let Some(mut to_mutate) =
+            choose_term_mut(trace, rand, filter).cloned()
+        {
+
+            match &to_mutate {
+                Term::Variable(_) => {
+                    // never reached as `filter` returns false for variables
+                    Ok(MutationResult::Skipped)
+                },
+                Term::Application(func, subterms) => {
+                    let subterm = subterms.clone();
+                    to_mutate.mutate(subterm.first().unwrap());
+                    Ok(MutationResult::Mutated)
+                }
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<R, S> Named for RemoveAndLiftMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn name(&self) -> &str {
+        "RemoveAndLiftMutator"
+    }
+}
+
 // todo SWAP: https://github.com/Sgeo/take_mut
 
 #[cfg(test)]
@@ -317,7 +395,8 @@ mod tests {
                 format!("mutations_preview/test_mutation_after{}.svg", i).as_str(),
                 "svg",
                 trace.dot_graph(true).as_str(),
-            ).unwrap();
+            )
+            .unwrap();
         }
     }
 
