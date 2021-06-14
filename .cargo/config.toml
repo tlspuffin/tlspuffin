@@ -1,4 +1,7 @@
 [build]
+# https://users.rust-lang.org/t/howto-sanitize-your-rust-code/9378/11
+# Be sure to always pass --target x86_64-unknown-linux-gnu to Cargo
+# or you’ll end up sanitizing the build scripts that Cargo runs.
 target = "x86_64-unknown-linux-gnu"
 rustflags = ["-Z", "sanitizer=address"]
 # Does not work: Does not link to compiler-rt

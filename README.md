@@ -2,7 +2,7 @@
 
 ## Setup
 
-**WARNING: We depend on rust nightly right now because of [-Z sanitizer=address](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html).**
+**WARNING: We depend on rust 1.55.0-nightly right now because of [-Z sanitizer=address](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html).**
 
 Install [rustup](https://rustup.rs/) and setup a toolchain:
 

@@ -1,0 +1,4 @@
+[toolchain]
+# **WARNING: We depend on rust 1.55.0-nightly right now because of [-Z sanitizer=address](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html).**
+channel = "nightly-2021-06-14"
+targets = [ "x86_64-unknown-linux-gnu" ]

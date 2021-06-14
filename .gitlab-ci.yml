@@ -1,4 +1,4 @@
-image: "rust:1.52.1"
+image: "rustlang/rust:nightly-buster"
 
 before_script:
   - echo "Preparing run..."
