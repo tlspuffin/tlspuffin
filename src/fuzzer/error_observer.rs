@@ -77,12 +77,12 @@ where
         _input: &I,
     ) -> Result<(), Error> {
         let reporters = [
-            (&FN_ERROR, "fn error"),
-            (&TERM, "term error"),
-            (&OPENSSL, "openssl error"),
-            (&IO, "io error"),
-            (&AGENT, "agent error"),
-            (&STREAM, "stream error"),
+            (&FN_ERROR, "e-fn"),
+            (&TERM, "e-term"),
+            (&OPENSSL, "e-ssl"),
+            (&IO, "e-io"),
+            (&AGENT, "e-agent"),
+            (&STREAM, "e-stream"),
         ];
 
         for (counter, name) in reporters.iter() {
