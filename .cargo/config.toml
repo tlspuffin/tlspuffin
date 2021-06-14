@@ -1,0 +1,5 @@
+[build]
+target = "x86_64-unknown-linux-gnu"
+rustflags = ["-Z", "sanitizer=address"]
+# Does not work: Does not link to compiler-rt
+#rustflags = ["-C", "link-args=-fsanitize=address"]

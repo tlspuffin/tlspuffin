@@ -2,7 +2,7 @@
   <configuration default="false" name="Run Tests" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="test --" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <option name="channel" value="STABLE" />
+    <option name="channel" value="NIGHTLY" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="false" />

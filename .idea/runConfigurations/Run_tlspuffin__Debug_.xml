@@ -2,7 +2,7 @@
   <configuration default="false" name="Run tlspuffin (Debug)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" singleton="true">
     <option name="command" value="run --package tlspuffin --bin tlspuffin" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <option name="channel" value="STABLE" />
+    <option name="channel" value="NIGHTLY" />
     <option name="requiredFeatures" value="false" />
     <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="false" />

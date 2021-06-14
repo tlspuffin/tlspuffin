@@ -2,7 +2,7 @@
   <configuration default="false" name="Generate Corpus" type="CargoCommandRunConfiguration" factoryName="Cargo Command" singleton="false">
     <option name="command" value="run --bin tlspuffin -- seed" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <option name="channel" value="STABLE" />
+    <option name="channel" value="NIGHTLY" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="false" />
