@@ -69,7 +69,9 @@ fn main() {
                 .about("Plots a trace stored in a file")
                 .args_from_usage("<input> 'The file which stores a trace'")
                 .args_from_usage("<format> 'The format of the plot, can be svg or pdf'")
-                .args_from_usage("<output_prefix> 'The file to which the trace should be written'"),
+                .args_from_usage("<output_prefix> 'The file to which the trace should be written'")
+                .args_from_usage("--multiple 'Whether we want to output multiple views, additionally to the combined view'")
+                .args_from_usage("--tree 'Whether want to use tree mode in the combined view'"),
         ])
         .get_matches();
 
@@ -101,6 +103,9 @@ fn main() {
         let output_prefix = matches.value_of("output_prefix").unwrap();
         let input = matches.value_of("input").unwrap();
         let format = matches.value_of("format").unwrap();
+        let is_multiple = matches.is_present("multiple");
+        let is_tree = matches.is_present("tree");
+
         let mut input_file = File::open(input).unwrap();
 
         // Read trace file
@@ -112,18 +117,20 @@ fn main() {
         write_graphviz(
             format!("{}_{}.{}", output_prefix, "all", format).as_str(),
             format,
-            &trace.dot_graph(false).as_str(),
+            &trace.dot_graph(is_tree).as_str(),
         )
         .expect("Failed to generate graph.");
 
-        for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
-            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
-            write_graphviz(
-                format!("{}_{}.{}", output_prefix, i, format).as_str(),
-                format,
-                wrapped_subgraph.as_str(),
-            )
-            .expect("Failed to generate graph.");
+        if is_multiple {
+            for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
+                let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
+                write_graphviz(
+                    format!("{}_{}.{}", output_prefix, i, format).as_str(),
+                    format,
+                    wrapped_subgraph.as_str(),
+                )
+                    .expect("Failed to generate graph.");
+            }
         }
 
         println!("Created plots")
