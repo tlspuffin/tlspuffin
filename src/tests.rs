@@ -1,7 +1,7 @@
 #[cfg(test)]
 pub mod tlspuffin {
     use nix::sys::signal::Signal;
-    use nix::sys::wait::WaitStatus::Signaled;
+    use nix::sys::wait::WaitStatus::{Signaled, Exited};
     use nix::sys::wait::{waitpid, WaitPidFlag};
     use nix::unistd::{fork, ForkResult};
     use test_env_log::test;
@@ -23,6 +23,10 @@ pub mod tlspuffin {
                     if signal != Signal::SIGSEGV {
                         panic!("Trace did crash with SIGSEGV!")
                     }
+                } if let Exited(_, code) = status {
+                    if code == 0 {
+                        panic!("Trace did crash exit with non-zero code (AddressSanitizer)!")
+                    }
                 } else {
                     panic!("Trace did not signal!")
                 }
@@ -37,6 +41,7 @@ pub mod tlspuffin {
                 println!("{}", trace);
                 trace.spawn_agents(&mut ctx).unwrap();
                 trace.execute(&mut ctx).unwrap();
+                std::process::exit(0);
             }
             Err(_) => panic!("Fork failed"),
         }
