@@ -3,17 +3,32 @@ use rand::Rng;
 
 use crate::trace::{Trace, TraceContext};
 use crate::error::Error;
+use crate::fuzzer::error_observer::{increment, FN_ERROR, TERM, STREAM, OPENSSL, AGENT, IO};
 
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
 
     if let Err(err) = input.spawn_agents(&mut ctx) {
         trace!("{}", err);
+        return ExitKind::Custom(Box::new(err))
     }
 
     if let Err(err) = input.execute(&mut ctx) {
+
+        match err {
+            Error::Fn(_) => increment(&FN_ERROR),
+            Error::Term(_) => increment(&TERM),
+            Error::OpenSSL(_)=> increment(&OPENSSL),
+            Error::IO(_) => increment(&IO),
+            Error::Agent(_) => increment(&AGENT),
+            Error::Stream(_) => increment(&STREAM),
+        }
+
         trace!("{}", err);
+        return ExitKind::Custom(Box::new(err))
     }
+
+
 
     ExitKind::Ok
 }

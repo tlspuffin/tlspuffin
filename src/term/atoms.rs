@@ -62,6 +62,7 @@ pub struct Function {
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.
     pub resistant_id: u32,
+    // #[serde(flatten)] todo, not working: https://github.com/jamesmunns/postcard/issues/29
     fn_container: FnContainer,
 }
 

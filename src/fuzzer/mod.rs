@@ -25,6 +25,7 @@ mod sancov_pcguard_log;
 #[cfg(test)]
 mod sancov_dummy;
 mod mutations_util;
+mod error_observer;
 
 // Edges
 

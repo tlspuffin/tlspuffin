@@ -39,6 +39,7 @@ use crate::{
 };
 use super::{harness};
 pub use super::{EDGES_MAP, MAX_EDGES_NUM};
+use crate::fuzzer::error_observer::ErrorObserver;
 
 
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
@@ -51,6 +52,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         let edges_observer = StdMapObserver::new("edges", unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] });
         let time_observer = TimeObserver::new("time");
+        let error_observer = ErrorObserver::new("error");
 
         let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
@@ -104,7 +106,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             InProcessExecutor::new(
                 &mut harness_fn,
                 // hint: edges_observer is expensive to serialize
-                tuple_list!(edges_observer, time_observer),
+                tuple_list!(edges_observer, time_observer, error_observer),
                 &mut fuzzer,
                 &mut state,
                 &mut restarting_mgr,

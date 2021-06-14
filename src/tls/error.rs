@@ -1,7 +1,8 @@
 use std::fmt;
 use webpki::InvalidDnsNameError;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FnError {
     Message(String),
     Rustls(String),

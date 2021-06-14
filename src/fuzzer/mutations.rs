@@ -63,7 +63,7 @@ where
         }
         let step = state.rand_mut().choose(steps);
         let insert_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
-        &mut trace.steps.insert(insert_index, step.clone());
+        trace.steps.insert(insert_index, step.clone());
         Ok(MutationResult::Mutated)
     }
 }

@@ -9,6 +9,7 @@ use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::{Function, Variable};
+use crate::error::Error;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 ///
@@ -103,12 +104,12 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, FnError> {
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
-                .ok_or(FnError::Message(format!("Unable to find variable {}!", v))),
+                .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
@@ -123,7 +124,7 @@ impl Term {
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
-                result
+                result.map_err(|err| Error::Fn(err))
             }
         }
     }

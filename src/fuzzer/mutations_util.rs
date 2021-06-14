@@ -9,7 +9,7 @@ pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Opt
         P: FnMut(&T) -> bool,
 {
     // create iterator
-    let mut iter = from.into_iter().filter(filter).collect::<Vec<T>>();
+    let iter = from.into_iter().filter(filter).collect::<Vec<T>>();
     let length = iter.len();
 
     if length == 0 {
