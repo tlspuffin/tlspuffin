@@ -391,12 +391,12 @@ mod tests {
         for i in 0..10 {
             let mut trace = seed_client_attacker12(client, server);
             println!("{:?}", mutator.mutate(&mut state, &mut trace, 0).unwrap());
-            write_graphviz(
+/*            write_graphviz(
                 format!("mutations_preview/test_mutation_after{}.svg", i).as_str(),
                 "svg",
                 trace.dot_graph(true).as_str(),
             )
-            .unwrap();
+            .unwrap();*/
         }
     }
 
