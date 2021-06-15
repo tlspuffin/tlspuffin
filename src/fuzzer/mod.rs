@@ -2,13 +2,14 @@ mod tests;
 mod libafl_setup;
 mod harness;
 mod mutations;
+mod mutations_util;
+mod error_observer;
 pub mod seeds;
 
 pub use libafl_setup::start;
 
 
 // Link against correct sancov impl
-
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_libafl"))]
 compile_error!("`sancov_pcguard_log` and `sancov_libafl` features are mutually exclusive.");
 
@@ -24,10 +25,7 @@ mod sancov_pcguard_log;
 // Use dummy in tests
 #[cfg(test)]
 mod sancov_dummy;
-mod mutations_util;
-mod error_observer;
 
-// Edges
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link

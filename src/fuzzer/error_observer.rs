@@ -1,6 +1,7 @@
 use core::time::Duration;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use itertools::Itertools;
 use libafl::bolts::tuples::{MatchName, Named};
 use libafl::events::Event::UpdateUserStats;
 use libafl::events::{EventFirer, EventManager};
@@ -77,25 +78,27 @@ where
         _input: &I,
     ) -> Result<(), Error> {
         let reporters = [
-            (&FN_ERROR, "e-fn"),
-            (&TERM, "e-term"),
-            (&OPENSSL, "e-ssl"),
-/*            (&IO, "e-io"),
-            (&AGENT, "e-agent"),
-            (&STREAM, "e-stream"),*/
+            (&FN_ERROR, "fn"),
+            (&TERM, "term"),
+            (&OPENSSL, "ssl"),
+            /*            (&IO, "io"),
+            (&AGENT, "agent"),
+            (&STREAM, "stream"),*/
         ];
 
-        for (counter, name) in reporters.iter() {
-            _mgr.fire(
-                _state,
-                UpdateUserStats {
-                    name: name.to_string(),
-                    value: UserStats::Number(counter.load(Ordering::SeqCst) as u64),
-                    phantom: Default::default(),
-                },
-            )?;
-        }
+        let stats = reporters
+            .iter()
+            .map(|(counter, name)| format!("{}:{}", name, counter.load(Ordering::SeqCst)))
+            .join("|");
 
+        _mgr.fire(
+            _state,
+            UpdateUserStats {
+                name: "errors".to_string(),
+                value: UserStats::String(stats),
+                phantom: Default::default(),
+            },
+        )?;
 
         Ok(())
     }
