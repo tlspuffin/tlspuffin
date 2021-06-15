@@ -36,10 +36,11 @@ RUST_LOG=trace cargo run --bin tlspuffin -- seed
 To plot SVGs do the following:
 
 ```bash
-RUST_LOG=trace cargo run --bin tlspuffin -- plot corpus/seed_cve_2021_3449.trace svg ./plots/seed_cve_2021_3449
+RUST_LOG=trace cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.trace svg ./plots/seed_client_attacker12
 ```
 
 Note: This requires that the `dot` binary is in on your path.
+Note: The utility [tools/plot-corpus.sh](tools/plot-corpus.sh) plots a whole directory
 
 ### Tests
 
