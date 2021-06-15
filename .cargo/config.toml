@@ -3,16 +3,27 @@
 # Be sure to always pass --target x86_64-unknown-linux-gnu to Cargo
 # or you’ll end up sanitizing the build scripts that Cargo runs.
 target = "x86_64-unknown-linux-gnu"
+# Works but instruments whole executable
 #rustflags = ["-Z", "sanitizer=address"]
 
+# https://github.com/google/sanitizers/wiki/AddressSanitizerAsDso
 
+# Does nothing
 #rustflags = ["-C", "link-arg=-fsanitize=address"]
+#rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-static-libasan"] #  undefined reference
 
+
+# Not supported
 #rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-shared-libasan"] # : unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
 #rustflags = ["-C", "link-arg=-shared-libasan"] #   = note: cc: error: unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
 
-# Works with LD_PRELOAD=/lib/libasan.so
+# Works with LD_PRELOAD=/lib/libasan.so: https://stackoverflow.com/questions/42821991/how-can-i-practically-use-addresssanitizer-and-memorysanitizer
 rustflags = ["-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
-
-#rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-static-libasan"] #  undefined reference
 #rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
+
+
+# 2 Options
+# * Instrument exe + library: static asan lib or whatever -Z sanitizer=address does -> slow execution, requires nightly
+# * -lasan + LD_PRELOAD -> crashes tests shomehow, unclear whether it works
+#      *  ASAN_OPTIONS=halt_on_error=0,detect_leaks=0 LD_PRELOAD=/lib/libasan.so cargo +nightly test
+#      *  ASAN_OPTIONS=halt_on_error=1,detect_leaks=0 LD_PRELOAD=/lib/libasan.so cargo +nightly test --lib tests::test_seed_cve_2021_3449 -- --exact
