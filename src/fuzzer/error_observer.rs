@@ -81,9 +81,9 @@ where
             (&FN_ERROR, "fn"),
             (&TERM, "term"),
             (&OPENSSL, "ssl"),
-            /*            (&IO, "io"),
+            (&IO, "io"),
             (&AGENT, "agent"),
-            (&STREAM, "stream"),*/
+            (&STREAM, "stream"),
         ];
 
         let stats = reporters
