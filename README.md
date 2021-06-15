@@ -2,24 +2,17 @@
 
 ## Setup
 
-**WARNING: We depend on rust 1.55.0-nightly right now because of [-Z sanitizer=address](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html).**
+Install [rustup](https://rustup.rs/).
 
-Install [rustup](https://rustup.rs/) and setup a toolchain:
-
-```bash
-rustup install 1.52.1-x86_64-unknown-linux-gnu
-```
-
-The toolchain `1.52.1-x86_64-unknown-linux-gnu` is tested and is used for development. You may also
-use `rustup install 1.52.1` to install the toolchain for your OS.
+The toolchain will be automatically downloaded when building this project. See [./rust-toolchain.toml](./rust-toolchain.toml) for more details about the toolchain.
 
 Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optionally, also install `llvm` to have additional tools like `sancov` available.
-Also make sure that you have the usual tools for building it like `make`, `gcc` etc. installed. They are needed to build OpenSSL.
+Also make sure that you have the usual tools for building it like `make`, `gcc` etc. installed. They may be needed to build OpenSSL.
 
 Now, build the project:
 
 ```bash
-git clone git@gitlab.inria.fr:mammann/symbolic-tls-fuzzer.git
+git clone git@gitlab.inria.fr:mammann/tlspuffin.git
 git submodule update --init --recursive
 cargo build
 ```

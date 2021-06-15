@@ -2,7 +2,7 @@
   <configuration default="false" name="Benchmark" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="bench" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <option name="channel" value="NIGHTLY" />
+    <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
     <option name="emulateTerminal" value="false" />
