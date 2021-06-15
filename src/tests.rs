@@ -14,6 +14,19 @@ pub mod tlspuffin {
     };
 
     #[test]
+    fn test_seed_hearbeat() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_heartbleed(client, server);
+
+        println!("{}", trace);
+        trace.spawn_agents(&mut ctx).unwrap();
+        trace.execute(&mut ctx).unwrap();
+    }
+
+    #[test]
     fn test_seed_cve_2021_3449() {
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
@@ -21,11 +34,11 @@ pub mod tlspuffin {
 
                 if let Signaled(_, signal, _) = status {
                     if signal != Signal::SIGSEGV {
-                        panic!("Trace did crash with SIGSEGV!")
+                        panic!("Trace did not crash with SIGSEGV!")
                     }
                 } else if let Exited(_, code) = status {
                     if code == 0 {
-                        panic!("Trace did crash exit with non-zero code (AddressSanitizer)!")
+                        panic!("Trace did not crash exit with non-zero code (AddressSanitizer)!")
                     }
                 } else {
                     panic!("Trace did not signal!")
