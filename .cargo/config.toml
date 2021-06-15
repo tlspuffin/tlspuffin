@@ -1,3 +1,10 @@
+
+# By using [env] we do not need to set LD_PRELOAD before executin "cargo". If we we it before executing "cargo"
+# then cargo will crash for some weird reason.
+[env]
+#LD_PRELOAD = "/lib/libasan.so"
+#ASAN_OPTIONS = "verify_asan_link_order=1,halt_on_error=1,detect_leaks=0"
+
 [build]
 # https://users.rust-lang.org/t/howto-sanitize-your-rust-code/9378/11
 # Be sure to always pass --target x86_64-unknown-linux-gnu to Cargo
@@ -8,7 +15,7 @@ target = "x86_64-unknown-linux-gnu"
 
 # https://github.com/google/sanitizers/wiki/AddressSanitizerAsDso
 
-# Does nothing
+# Does nothing, both are the sam ein clang
 #rustflags = ["-C", "link-arg=-fsanitize=address"]
 #rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-static-libasan"] #  undefined reference
 
@@ -18,9 +25,16 @@ target = "x86_64-unknown-linux-gnu"
 #rustflags = ["-C", "link-arg=-shared-libasan"] #   = note: cc: error: unrecognized command-line option '-shared-libasan'; did you mean '-shared-libgcc'?
 
 # Works with LD_PRELOAD=/lib/libasan.so: https://stackoverflow.com/questions/42821991/how-can-i-practically-use-addresssanitizer-and-memorysanitizer
-rustflags = ["-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
+#rustflags = ["-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
 #rustflags = ["-C", "link-arg=-fsanitize=address", "-C", "link-arg=-lasan"] # ASan runtime does not come first in initial library list; you should either link runtime to your application
 
+# static fails with transtion error, you should not do this apparently :P
+#rustflags = ["-C", "link-arg=-L/home/max/projects/fuzzing/tlspuffin/static_asan", "-C", "link-arg=-lclang_rt.asan-x86_64"]
+
+
+
+# LD: LD_PRELOAD=$(clang -print-file-name=libasan.so)
+# Flags: https://github.com/google/sanitizers/wiki/AddressSanitizerFlags
 
 # 2 Options
 # * Instrument exe + library: static asan lib or whatever -Z sanitizer=address does -> slow execution, requires nightly

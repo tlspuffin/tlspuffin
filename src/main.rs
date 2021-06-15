@@ -29,7 +29,7 @@ mod variable_data;
 mod error;
 
 fn main() {
-    fn init_logger() {
+    /*fn init_logger() {
         let env = Env::default().filter("RUST_LOG");
 
         Builder::from_env(env)
@@ -144,5 +144,5 @@ fn main() {
             &PathBuf::from("./crashes"),
             1337,
         );
-    }
+    }*/
 }
