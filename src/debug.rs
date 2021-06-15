@@ -59,6 +59,7 @@ pub fn debug_message_with_info(info: &str, message: &Message) {
         }
         MessagePayload::ChangeCipherSpec(_) => "ChangeCipherSpec".to_string(),
         MessagePayload::ApplicationData(_) => "ApplicationData".to_string(),
+        MessagePayload::Heartbeat(_) => "Heartbeat".to_string(),
     };
 
     trace!(

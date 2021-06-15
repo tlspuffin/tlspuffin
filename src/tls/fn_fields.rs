@@ -2,6 +2,7 @@ use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::{Compression, NamedGroup};
 use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension, SessionID};
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
+
 use super::error::FnError;
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
@@ -38,7 +39,7 @@ pub fn fn_verify_data(
     let client_random = &[1u8; 32]; // todo see op_random()
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
-    let group = NamedGroup::X25519; // todo
+    let group = NamedGroup::secp384r1; // todo
 
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
     let server_public_key = keyshare.payload.0.as_slice();
@@ -62,7 +63,13 @@ pub fn fn_verify_data(
 // ----
 
 pub fn fn_new_cipher_suites12() -> Result<Vec<CipherSuite>, FnError> {
-    Ok(vec![CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256])
+    Ok(vec![
+/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,*/
+/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,*/
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+/*        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,*/
+    ])
 }
 
 pub fn fn_sign_transcript(

@@ -15,6 +15,7 @@ use rustls::{
         base::Payload,
         ccs::ChangeCipherSpecPayload,
         handshake::*,
+        heartbeat::HeartbeatPayload,
         message::{Message, MessagePayload},
     },
     kx, tls12, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
@@ -77,6 +78,16 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
 // ----
 
 // todo
+pub fn fn_heartbeat() -> Result<Message, FnError> {
+    Ok(Message {
+        version: ProtocolVersion::TLSv1_2,
+        payload: MessagePayload::Heartbeat(HeartbeatPayload {
+            typ: HeartbeatMessageType::Request,
+            payload: PayloadU16::new(vec![1,3]),
+            fake_length: Some(16384)
+        }),
+    })
+}
 
 // ----
 // Handshake Message constructors

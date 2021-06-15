@@ -39,9 +39,9 @@ mod macros {
            fn_client_extensions_append(
                 (fn_client_extensions_append(
                     fn_client_extensions_new,
-                    fn_x25519_support_group_extension
+                    fn_SECP384R1_support_group_extension
                 )),
-                fn_x25519_support_group_extension
+                fn_SECP384R1_support_group_extension
             )
         };
     }

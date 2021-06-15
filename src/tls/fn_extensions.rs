@@ -7,7 +7,7 @@ use rustls::internal::msgs::base::{PayloadU16, PayloadU8};
 use rustls::internal::msgs::enums::*;
 use rustls::internal::msgs::handshake::*;
 use rustls::kx::KeyExchange;
-use rustls::kx_group::X25519;
+use rustls::kx_group::SECP384R1;
 use rustls::msgs::base::Payload;
 use rustls::{ProtocolVersion, SignatureScheme};
 
@@ -129,8 +129,8 @@ nyi_fn!();
 /// CertificateType => 0x0009,
 nyi_fn!();
 /// EllipticCurves => 0x000a,
-pub fn fn_x25519_support_group_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![NamedGroup::X25519]))
+pub fn fn_SECP384R1_support_group_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::NamedGroups(vec![NamedGroup::secp384r1]))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
@@ -326,14 +326,14 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
 }
 /// KeyShare => 0x0033,
 pub fn fn_key_share_extension() -> Result<ClientExtension, FnError> {
-    let our_key_share: KeyExchange = deterministic_key_exchange(&X25519)?;
+    let our_key_share: KeyExchange = deterministic_key_exchange(&SECP384R1)?;
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: NamedGroup::X25519,
+        group: NamedGroup::secp384r1,
         payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
     }]))
 }
 pub fn fn_hello_retry_key_share_extension() -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(NamedGroup::X25519))
+    Ok(HelloRetryExtension::KeyShare(NamedGroup::secp384r1))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();

@@ -180,5 +180,8 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
         MessagePayload::ApplicationData(opaque) => {
             vec![Box::new(message.clone()), Box::new(opaque.0.clone())]
         }
+        MessagePayload::Heartbeat(_) => {
+            todo!()
+        }
     }
 }

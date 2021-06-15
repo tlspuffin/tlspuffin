@@ -43,7 +43,7 @@ fn tls13_client_handshake_traffic_secret(
 ) -> Result<(&'static SupportedCipherSuite, Prk), FnError> {
     let client_random = &[1u8; 32]; // todo see op_random()
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
-    let group = NamedGroup::X25519; // todo
+    let group = NamedGroup::secp384r1; // todo
     let mut key_schedule = tls12_key_schedule(server_public_key, suite, group)?;
 
     let key = if write {
@@ -105,7 +105,7 @@ fn tls13_get_server_key_share(
 // ----
 
 fn tls12_key_exchange(server_ecdh_params: &ServerECDHParams) -> Result<KeyExchangeResult, FnError> {
-    let group = NamedGroup::X25519; // todo
+    let group = NamedGroup::secp384r1; // todo
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or("Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
@@ -195,10 +195,11 @@ define_signature!(
     fn_supported_versions13_hello_retry_extension,
     fn_transport_parameters_draft_extension,
     fn_transport_parameters_extension,
-    fn_x25519_support_group_extension,
+    fn_SECP384R1_support_group_extension,
     fn_empty_vec_of_vec,
     fn_append_vec,
     // messages
+    fn_heartbeat,
     fn_alert_close_notify,
     fn_application_data,
     fn_certificate,

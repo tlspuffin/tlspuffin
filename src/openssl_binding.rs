@@ -16,7 +16,8 @@ use openssl::{
         X509NameBuilder, X509Ref, X509,
     },
 };
-
+use openssl::ec::EcKey;
+use openssl::nid::Nid;
 use crate::agent::TLSVersion;
 use crate::io::MemoryStream;
 use std::mem::transmute;
@@ -162,12 +163,18 @@ pub fn create_openssl_server(
     ctx_builder.set_private_key(key)?;
     ctx_builder.set_options(SslOptions::NO_TICKET); // todo remove, its here for seed_successful12
 
-    match tls_version {
+/*  todo  match tls_version {
         TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
     }
+*/
+
+    ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
+        EcKey::from_curve_name(Nid::SECP384R1)
+    });
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
+
     ssl.set_accept_state();
     SslStream::new(ssl, stream)
 }
@@ -210,11 +217,11 @@ pub fn create_openssl_client(
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     // ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    match tls_version {
+/* todo   match tls_version {
         TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
     }
-
+*/
     let mut ssl = Ssl::new(&ctx_builder.build())?;
     ssl.set_connect_state();
 

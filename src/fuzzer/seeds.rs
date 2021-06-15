@@ -78,7 +78,10 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
+                    recipe: Term::Application(
+                        Signature::new_function(&fn_change_cipher_spec),
+                        vec![],
+                    ),
                 }),
             },
             // Encrypted Extensions Server -> Client
@@ -128,7 +131,10 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
+                    recipe: Term::Application(
+                        Signature::new_function(&fn_change_cipher_spec),
+                        vec![],
+                    ),
                 }),
             },
             // Finished Client -> Server
@@ -218,7 +224,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: Term::Application(
                         Signature::new_function(&fn_certificate),
-                        vec![Term::Variable(Signature::new_var::<CertificatePayload>((1, 1)))],
+                        vec![Term::Variable(Signature::new_var::<CertificatePayload>((
+                            1, 1,
+                        )))],
                     ),
                 }),
             },
@@ -236,7 +244,10 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(Signature::new_function(&fn_server_hello_done), vec![]),
+                    recipe: Term::Application(
+                        Signature::new_function(&fn_server_hello_done),
+                        vec![],
+                    ),
                 }),
             },
             Step {
@@ -281,7 +292,10 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(Signature::new_function(&fn_change_cipher_spec), vec![]),
+                    recipe: Term::Application(
+                        Signature::new_function(&fn_change_cipher_spec),
+                        vec![],
+                    ),
                 }),
             },
             // Server Handshake Finished, Server -> Client
@@ -307,19 +321,15 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
         app_const!(fn_new_cipher_suites),
         app_const!(fn_compressions),
         app!(
-            
             fn_client_extensions_append,
             app!(
-                
                 fn_client_extensions_append,
                 app!(
-                    
                     fn_client_extensions_append,
                     app!(
-                        
                         fn_client_extensions_append,
                         app_const!(fn_client_extensions_new),
-                        app_const!(fn_x25519_support_group_extension),
+                        app_const!(fn_SECP384R1_support_group_extension),
                     ),
                     app_const!(fn_signature_algorithm_extension)
                 ),
@@ -332,7 +342,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let server_hello_transcript = app!(
         fn_append_transcript,
         app!(
-            
             fn_append_transcript,
             app_const!(fn_new_transcript),
             client_hello.clone(), // ClientHello
@@ -423,13 +432,10 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: app!(
-                        
                         fn_encrypt,
                         app!(
-                            
                             fn_finished,
                             app!(
-                                
                                 fn_verify_data,
                                 var!(Vec<ServerExtension>, (0, 0)),
                                 server_finished_transcript.clone(),
@@ -479,7 +485,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                             app!(
                                 fn_client_extensions_append,
                                 app_const!(fn_client_extensions_new),
-                                app_const!(fn_x25519_support_group_extension),
+                                app_const!(fn_SECP384R1_support_group_extension),
                             ),
                             app_const!(fn_signature_algorithm_extension)
                         ),
@@ -617,7 +623,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     app!(
                         fn_client_extensions_append,
                         app_const!(fn_client_extensions_new),
-                        app_const!(fn_x25519_support_group_extension),
+                        app_const!(fn_SECP384R1_support_group_extension),
                     ),
                     app_const!(fn_ec_point_formats_extension)
                 ),
@@ -656,6 +662,43 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         }),
     });
     */
+
+    trace
+}
+
+pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
+    let (mut trace, _) = _seed_client_attacker12(client, server);
+
+    let hearbeat = term! {
+        fn_heartbeat
+    };
+
+/*    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: hearbeat,
+        }),
+    });*/
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Output(OutputAction { id: 9 }),
+    });
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: app!(
+                fn_encrypt12,
+                hearbeat.clone(),
+                var!(Random, (0, 0)),
+                app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
+                app_const!(fn_seq_1)
+            ),
+        }),
+    });
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Output(OutputAction { id: 10 }),
+    });
 
     trace
 }
