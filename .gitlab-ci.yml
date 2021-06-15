@@ -1,4 +1,4 @@
-image: "rustlang/rust:nightly-buster"
+image: "rust:1.52.1"
 
 before_script:
   - echo "Preparing run..."
@@ -17,14 +17,8 @@ before_script:
 build:
   script:
     - rustc --version && cargo --version  # Print version info for debugging
-    - cargo test --release
-    - cargo build --release --bin tlspuffin --verbose
-
-# Test that gathering coverage works
-# todo, as this requires a rust nightly
-#test-trace-pc-guard:
-#  script:
-#    - tools/coverage.sh
+    - cargo test
+    - cargo build --bin tlspuffin --verbose
 
 pages:
   script:
