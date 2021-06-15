@@ -80,9 +80,9 @@ where
             (&FN_ERROR, "e-fn"),
             (&TERM, "e-term"),
             (&OPENSSL, "e-ssl"),
-            (&IO, "e-io"),
+/*            (&IO, "e-io"),
             (&AGENT, "e-agent"),
-            (&STREAM, "e-stream"),
+            (&STREAM, "e-stream"),*/
         ];
 
         for (counter, name) in reporters.iter() {
