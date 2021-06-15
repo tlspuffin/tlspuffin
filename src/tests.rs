@@ -23,7 +23,7 @@ pub mod tlspuffin {
                     if signal != Signal::SIGSEGV {
                         panic!("Trace did crash with SIGSEGV!")
                     }
-                } if let Exited(_, code) = status {
+                } else if let Exited(_, code) = status {
                     if code == 0 {
                         panic!("Trace did crash exit with non-zero code (AddressSanitizer)!")
                     }
