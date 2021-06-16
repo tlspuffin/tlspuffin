@@ -5,7 +5,7 @@ use ring::hmac::{Key, HMAC_SHA256};
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::seeds::*;
-use tlspuffin::term::make_dynamic;
+use tlspuffin::term::dynamic_function::make_dynamic;
 use tlspuffin::tls::fn_impl::fn_hmac256;
 use tlspuffin::trace::TraceContext;
 
