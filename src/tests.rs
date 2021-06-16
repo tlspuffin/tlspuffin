@@ -13,21 +13,7 @@ pub mod tlspuffin {
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
 
-    #[test]
-    fn test_seed_hearbeat() {
-        make_deterministic();
-        let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_heartbleed(client, server);
-
-        println!("{}", trace);
-        trace.spawn_agents(&mut ctx).unwrap();
-        trace.execute(&mut ctx).unwrap();
-    }
-
-    #[test]
-    fn test_seed_cve_2021_3449() {
+    fn expect_crash<R>(func: R)  where R: FnMut() -> () {
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
@@ -45,19 +31,41 @@ pub mod tlspuffin {
                 }
             }
             Ok(ForkResult::Child) => {
-                make_deterministic();
-                let mut ctx = TraceContext::new();
-                let client = AgentName::first();
-                let server = client.next();
-                let trace = seed_cve_2021_3449(client, server);
 
-                println!("{}", trace);
-                trace.spawn_agents(&mut ctx).unwrap();
-                trace.execute(&mut ctx).unwrap();
                 std::process::exit(0);
             }
             Err(_) => panic!("Fork failed"),
         }
+    }
+
+    #[test]
+    fn test_seed_hearbeat() {
+        expect_crash(|| {
+            make_deterministic();
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_heartbleed(client, server);
+
+            println!("{}", trace);
+            trace.spawn_agents(&mut ctx).unwrap();
+            trace.execute(&mut ctx).unwrap();
+        });
+    }
+
+    #[test]
+    fn test_seed_cve_2021_3449() {
+        expect_crash(|| {
+            make_deterministic();
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_cve_2021_3449(client, server);
+
+            println!("{}", trace);
+            trace.spawn_agents(&mut ctx).unwrap();
+            trace.execute(&mut ctx).unwrap();
+        });
     }
 
     #[test]
