@@ -53,7 +53,7 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_heartbleed(client, server);
 
-            println!("{}", trace);
+            
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
@@ -71,7 +71,7 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_cve_2021_3449(client, server);
 
-            println!("{}", trace);
+            
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
@@ -85,7 +85,7 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_client_attacker12(client, server);
 
-        println!("{}", trace);
+        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -104,7 +104,7 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_client_attacker(client, server);
 
-        println!("{}", trace);
+        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -123,7 +123,7 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful(client, server);
 
-        info!("{}", trace);
+        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -144,7 +144,7 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful12(client, server);
 
-        info!("{}", trace);
+        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
