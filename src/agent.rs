@@ -1,14 +1,15 @@
-//! *Agents* represent communication participants like Alice, Bob or Eve. Attackers are usually
-//! not represented by these *Agents*.
-//! Attackers are represented through a recipe term (see *InputAction*).
+//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually
+//! not represented by these [`Agent`]s.
+//! Attackers are represented through a recipe term (see [`InputAction`]).
 //!
-//! Each *Agent* has an *inbound* and an *outbound channel* (see [`crate::io`])
+//! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
 use serde::{Deserialize, Serialize};
 use crate::io::{OpenSSLStream, Stream};
 use crate::error::Error;
 
+/// Copyable reference to an [`Agent`]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub struct AgentName(u8);
 
@@ -36,6 +37,8 @@ impl PartialEq for AgentName {
     }
 }
 
+/// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
+/// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 #[derive(Debug, Copy, Clone, Deserialize, Serialize)]
 pub struct AgentDescriptor {
     pub name: AgentName,
@@ -49,6 +52,7 @@ pub enum TLSVersion {
     V1_2,
 }
 
+/// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
     pub stream: Box<dyn Stream>,

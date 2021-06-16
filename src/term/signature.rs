@@ -1,26 +1,25 @@
-//! Signatures are containers for types and function symbols. They hold references to the concrete
-//! implementations of functions and the types of variables.
-
 use std::collections::HashMap;
 use std::fmt;
 
 use itertools::Itertools;
 
-use crate::term::{DynamicFunction, DynamicFunctionShape};
 use crate::{
     term::{
-        dynamic_function::{make_dynamic, DescribableFunction},
-        TypeShape, Variable,
+        atoms::Variable,
+        dynamic_function::{
+            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+        },
     },
     trace::ObservedId,
 };
 
-use super::Function;
+use super::atoms::Function;
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
 /// Records a universe of functions.
-///
+/// Signatures are containers for types and function symbols. They hold references to the concrete
+/// implementations of functions and the types of variables.
 pub struct Signature {
     pub functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)>,
     pub functions: Vec<FunctionDefinition>,
@@ -93,11 +92,11 @@ macro_rules! define_signature {
     ($name_signature:ident, $($f:path),+ $(,)?) => {
         use once_cell::sync::Lazy;
         /// Signature which contains all functions defined in the `tls` module.
-        pub static $name_signature: Lazy<crate::term::Signature> = Lazy::new(|| {
+        pub static $name_signature: Lazy<crate::term::signature::Signature> = Lazy::new(|| {
             let definitions = vec![
-                $(crate::term::make_dynamic(&$f)),*
+                $(crate::term::dynamic_function::make_dynamic(&$f)),*
             ];
-            crate::term::Signature::new(definitions)
+            crate::term::signature::Signature::new(definitions)
         });
     };
 }

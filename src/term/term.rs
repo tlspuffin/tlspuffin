@@ -1,4 +1,4 @@
-//! This module provides terms as well as iterators over them.
+//! This module provides[`Term`]sas well as iterators over them.
 
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
@@ -6,11 +6,11 @@ use std::{any::Any, fmt};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::term::TypeShape;
+use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
-use super::{Function, Variable};
+use super::atoms::{Function, Variable};
 use crate::error::Error;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].

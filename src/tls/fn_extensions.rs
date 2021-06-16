@@ -129,7 +129,7 @@ nyi_fn!();
 /// CertificateType => 0x0009,
 nyi_fn!();
 /// EllipticCurves => 0x000a,
-pub fn fn_SECP384R1_support_group_extension() -> Result<ClientExtension, FnError> {
+pub fn fn_secp384r1_support_group_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::NamedGroups(vec![NamedGroup::secp384r1]))
 }
 /// ECPointFormats => 0x000b,

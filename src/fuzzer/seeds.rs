@@ -15,7 +15,7 @@ use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
-    term::{Signature, Term},
+    term::{signature::Signature, Term},
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app_const, term, var};
@@ -333,7 +333,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                     app!(
                         fn_client_extensions_append,
                         app_const!(fn_client_extensions_new),
-                        app_const!(fn_SECP384R1_support_group_extension),
+                        app_const!(fn_secp384r1_support_group_extension),
                     ),
                     app_const!(fn_signature_algorithm_extension)
                 ),
@@ -488,7 +488,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                             app!(
                                 fn_client_extensions_append,
                                 app_const!(fn_client_extensions_new),
-                                app_const!(fn_SECP384R1_support_group_extension),
+                                app_const!(fn_secp384r1_support_group_extension),
                             ),
                             app_const!(fn_signature_algorithm_extension)
                         ),
@@ -626,7 +626,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     app!(
                         fn_client_extensions_append,
                         app_const!(fn_client_extensions_new),
-                        app_const!(fn_SECP384R1_support_group_extension),
+                        app_const!(fn_secp384r1_support_group_extension),
                     ),
                     app_const!(fn_ec_point_formats_extension)
                 ),
@@ -690,7 +690,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
                             app!(
                                 fn_client_extensions_append,
                                 app_const!(fn_client_extensions_new),
-                                app_const!(fn_SECP384R1_support_group_extension),
+                                app_const!(fn_secp384r1_support_group_extension),
                             ),
                             app_const!(fn_signature_algorithm_extension)
                         ),

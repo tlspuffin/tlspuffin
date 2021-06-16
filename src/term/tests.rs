@@ -5,7 +5,7 @@ use rustls::msgs::handshake::SessionID;
 use rustls::ProtocolVersion;
 
 use crate::term;
-use crate::term::Signature;
+use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
@@ -45,9 +45,9 @@ fn test_compilation() {
        fn_client_extensions_append(
             (fn_client_extensions_append(
                 fn_client_extensions_new,
-                fn_SECP384R1_support_group_extension
+                fn_secp384r1_support_group_extension
             )),
-            fn_SECP384R1_support_group_extension
+            fn_secp384r1_support_group_extension
         )
     };
 }

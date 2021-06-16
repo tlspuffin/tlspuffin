@@ -12,9 +12,9 @@
 //! has the data you want. Or if you design it the other way around you would need to write to
 //! the buffer of the agent to which you want to send data.
 //!
-//! The *Agent* Alice can add data to the *inbound channel* of Bob.
+//! The [`Agent`] Alice can add data to the *inbound channel* of Bob.
 //! Bob can then read the data from his *inbound channel* and put data in his *outbound channel*.
-//! If Bob is an *Agent*, which has an underlying *OpenSSLStream* then OpenSSL may write into the
+//! If Bob is an [`Agent`], which has an underlying *OpenSSLStream* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
 use std::convert::TryFrom;

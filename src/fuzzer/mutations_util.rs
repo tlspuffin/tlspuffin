@@ -51,7 +51,7 @@ pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Optio
 }
 
 /// Finds a term by a `type_shape` and `requested_index`.
-/// `requested_index` and `current_index` must be smaller than the amount of terms which have
+/// `requested_index` and `current_index` must be smaller than the amount of[`Term`]swhich have
 /// the type shape `type_shape`.
 pub fn find_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     term: &'a mut Term,

@@ -1,5 +1,5 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
-//! The module offers a variety of *DynamicFunctions* which can be used in the fuzzing.
+//! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
 
 use std::convert::{TryFrom, TryInto};
 
@@ -196,7 +196,7 @@ define_signature!(
     fn_supported_versions13_hello_retry_extension,
     fn_transport_parameters_draft_extension,
     fn_transport_parameters_extension,
-    fn_SECP384R1_support_group_extension,
+    fn_secp384r1_support_group_extension,
     fn_empty_vec_of_vec,
     fn_append_vec,
     // messages

@@ -1,7 +1,7 @@
-//! The *term* module defines typed terms of the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
+//! The *term* module defines typed[`Term`]sof the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
 //! Each function like `fn_add` or `fn_square` has a shape. The variables `x` and `y` each have a
 //! type. These types allow type checks during the runtime of the fuzzer.
-//! These checks restrict how terms can be mutated in the *fuzzer* module.
+//! These checks restrict how[`Term`]scan be mutated in the *fuzzer* module.
 
 
 // Code in this directory is derived from https://github.com/joshrule/term-rewriting-rs/
@@ -29,12 +29,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pub use self::{atoms::*, dynamic_function::*, macros::*, signature::*, term::*};
+pub use self::{term::*};
 
-mod atoms;
-mod dynamic_function;
-mod macros;
-mod signature;
+pub mod atoms;
+pub mod dynamic_function;
+pub mod macros;
+pub mod signature;
 mod term;
+
 #[cfg(test)]
 mod tests;

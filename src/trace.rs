@@ -1,7 +1,7 @@
-//! This module contains *Traces* consisting of several *Steps*, of which each has either an
-//! *OutputAction* or *InputAction*. This is a declarative way of modeling communication between
-//! *Agents*. The *TraceContext* holds data, also known as *VariableData*, which is created by
-//! *Agents* during the concrete execution of the Trace. It also holds the *Agents* with
+//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an
+//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between
+//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by
+//! [`Agent`]s during the concrete execution of the Trace. It also holds the [`Agent`]s with
 //! the references to concrete PUT.
 //!
 //! # Example
@@ -68,7 +68,7 @@ use crate::io::Channel;
 use crate::io::MessageResult;
 use crate::{
     agent::{Agent, AgentName},
-    term::{Term, TypeShape},
+    term::{Term, dynamic_function::TypeShape},
     variable_data::{extract_knowledge, VariableData},
 };
 use crate::tls::error::FnError;
@@ -80,10 +80,10 @@ struct ObservedVariable {
     data: Box<dyn VariableData>,
 }
 
-/// The *TraceContext* contains a list of *VariableData*, which is known as the knowledge
-/// of the attacker. *VariableData* can contain data of various types like for example
+/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
+/// of the attacker. [`VariableData`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
-/// references to the *Agents* and the underlying streams, which contain the messages
+/// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
 pub struct TraceContext {
     /// The knowledge of the attacker
@@ -199,10 +199,10 @@ impl Input for Trace {
     }
 }
 
-/// A *Trace* consists of several *Steps*. Each has either a *OutputAction* or an *InputAction*.
-/// Each *Step* references an *Agent* by name. Furthermore, a trace also has a list of
-/// *AgentDescritptors* which act like a blueprint to spawn *Agents* with a corresponding server
-/// or client role and a specific TLs version. Essentially they are an *Agent* without a stream.
+/// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
+/// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
+/// *AgentDescritptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
+/// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl Trace {
     pub fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
@@ -249,12 +249,12 @@ pub struct Step {
     pub action: Action,
 }
 
-/// There are two action types *OutputAction* and *InputAction* differ.
-/// Both actions drive the internal state machine of an *Agent* forward by calling `next_state()`.
-/// The *OutputAction* first forwards the state machine and then extracts knowledge from the
+/// There are two action types [`OutputAction`] and [`InputAction`] differ.
+/// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
+/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
-/// The *InputAction* evaluates the recipe term and injects the newly produced message
-/// into the *inbound channel* of the *Agent* referenced through the corresponding *Step*
+/// The [`InputAction`] evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
@@ -282,7 +282,7 @@ impl fmt::Display for Action {
     }
 }
 
-/// The *OutputAction* first forwards the state machine and then extracts knowledge from the
+/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OutputAction {
@@ -339,8 +339,8 @@ impl fmt::Display for OutputAction {
     }
 }
 
-/// The *InputAction* evaluates the recipe term and injects the newly produced message
-/// into the *inbound channel* of the *Agent* referenced through the corresponding *Step*
+/// The [`InputAction`] evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {

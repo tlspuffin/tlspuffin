@@ -1,4 +1,4 @@
-//! This module provides a DLS for writing terms within Rust.
+//! This module provides a DLS for writing[`Term`]swithin Rust.
 //!
 //! # Example
 //!
@@ -41,19 +41,19 @@ macro_rules! var {
 macro_rules! term {
     // Variables
     (($step:expr, $msg:expr) / $typ:ty) => {{
-        let var = crate::term::Signature::new_var::<$typ>( ($step, $msg));
+        let var = crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
         crate::term::Term::Variable(var)
     }};
 
     // Constants
     ($func:ident) => {{
-        let func = crate::term::Signature::new_function(&$func);
+        let func = crate::term::signature::Signature::new_function(&$func);
         crate::term::Term::Application(func, vec![])
     }};
 
     // Function Applications
     ($func:ident ($($args:tt),*)) => {{
-        let func = crate::term::Signature::new_function(&$func);
+        let func = crate::term::signature::Signature::new_function(&$func);
         crate::term::Term::Application(func, vec![$(crate::term_arg!($args)),*])
     }};
 }

@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::term::atoms::fn_container::FnContainer;
 use crate::{
     term::{
-        dynamic_function::{DynamicFunction, DynamicFunctionShape},
-        TypeShape,
+        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
     },
     trace::ObservedId,
 };
@@ -19,7 +18,7 @@ use crate::term::remove_prefix;
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all terms ever created. Cloning
+    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
@@ -59,7 +58,7 @@ impl fmt::Display for Variable {
 /// A function symbol with fixed arity and fixed types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
-    /// Unique ID of this function. Uniqueness is guaranteed across all terms ever created. Cloning
+    /// Unique ID of this function. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.
@@ -125,7 +124,7 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::term::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
     use crate::tls::SIGNATURE;
 
     const NAME: &str = "name";
