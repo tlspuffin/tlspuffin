@@ -1,7 +1,7 @@
 use std::any::{Any, TypeId};
 
 use itertools::Itertools;
-use rustls::internal::msgs::handshake::SessionID;
+use rustls::msgs::handshake::SessionID;
 use rustls::ProtocolVersion;
 
 use crate::term;

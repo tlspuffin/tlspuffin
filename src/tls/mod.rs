@@ -1,10 +1,13 @@
+//! The *tls* module provides concrete implementations for the functions used in the term.
+//! The module offers a variety of *DynamicFunctions* which can be used in the fuzzing.
+
 use std::convert::{TryFrom, TryInto};
 
 use ring::hkdf::Prk;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
-use rustls::internal::msgs::enums::{ExtensionType, NamedGroup};
-use rustls::internal::msgs::handshake::{
+use rustls::msgs::enums::{ExtensionType, NamedGroup};
+use rustls::msgs::handshake::{
     HasServerExtensions, KeyShareEntry, Random, ServerECDHParams, ServerExtension,
 };
 use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
@@ -144,9 +147,6 @@ macro_rules! nyi_fn {
     () => {};
 }
 
-// ----
-// Signature
-// ----
 
 define_signature!(
     SIGNATURE,

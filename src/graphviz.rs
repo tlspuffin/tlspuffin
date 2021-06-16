@@ -1,3 +1,6 @@
+//! This module adds plotting capabilities to Terms and Traces. The output of the functions in
+//! this module can be passed to the command line utility `dot` which is part of graphviz.
+
 use std::{io, fmt};
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};

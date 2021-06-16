@@ -1,6 +1,6 @@
 use rustls::hash_hs::HandshakeHash;
-use rustls::internal::msgs::enums::{Compression, NamedGroup};
-use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension, SessionID};
+use rustls::msgs::enums::{Compression, NamedGroup};
+use rustls::msgs::handshake::{Random, ServerECDHParams, ServerExtension, SessionID};
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 
 use super::error::FnError;

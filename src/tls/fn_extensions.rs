@@ -3,9 +3,9 @@
 //!
 //! In the source code all IDs are available, but implementations are missing.
 //!
-use rustls::internal::msgs::base::{PayloadU16, PayloadU8};
-use rustls::internal::msgs::enums::*;
-use rustls::internal::msgs::handshake::*;
+use rustls::msgs::base::{PayloadU16, PayloadU8};
+use rustls::msgs::enums::*;
+use rustls::msgs::handshake::*;
 use rustls::kx::KeyExchange;
 use rustls::kx_group::SECP384R1;
 use rustls::msgs::base::Payload;

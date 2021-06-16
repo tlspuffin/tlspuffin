@@ -1,3 +1,47 @@
+//! This module provides traits for calling rust functions dynamically.
+//! All functions which implement the DynamicFunction trait can be called by passing an array of
+//! [`Any`]s to it. The return value is again of type [`Any`].
+//!
+//! Rust is a statically typed language. That means the compiler would be able to statically verify
+//! that a term evaluates without any type errors.
+//!
+//! While this is generally an advance, in the case of our fuzzer this is not very helpful.
+//! The fuzzer should be able to mutate the term trees arbitrarily. Of course, we also have
+//! to check for the types during runtime. If types are not compatible then, the evaluation
+//! of the term will fail. But this is not something that can be done during compile time.
+//! Therefore, we introduced a trait for dynamically typed functions on top of statically
+//! typed Rust functions.
+//!
+//! Each function which implements the following trait can be made into a dynamic function:
+//!
+//! ```rust
+//! Fn(A1, A2, A3) -> Result<R, FnError>)
+//! ```
+//!
+//! where `A1`, `A2`, `A3` are argument types and `R` is the return type. From these statically
+//! typed function we can generate dynamically types ones which implement the following trait:
+//!
+//! ```rust
+//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
+//! }
+//! ```
+//!
+//! Note, that both functions return a `Result` and therefore can gracefully fail.
+//!
+//! `DynamicFunctions` can be called with an array of any type. The result type is also arbitrary.
+//! Rust offers a unique ID for each type. Using this type we can check during runtime whether
+//! types are available. The types of each variable, constant and function are preserved and
+//! stored alongside the `DynamicFunction`.
+//!
+//! The following function is a simple example for a constant:
+//!
+//! ```rust
+//! pub fn fn_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
+//!     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
+//! }
+//! ```
+//!
+//! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.
 use std::{
     any::{type_name, Any, TypeId},
     collections::hash_map::DefaultHasher,
@@ -48,7 +92,7 @@ fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
+fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
     format!(
         "({})",
         anys.iter()
@@ -59,8 +103,6 @@ pub fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
             .join(",")
     )
 }
-
-// The type of dynamically typed functions is:
 
 /// Cloneable type for dynamic functions. This trait is automatically implemented for arbitrary
 /// closures and functions of the form: `Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any>`

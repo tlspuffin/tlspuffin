@@ -1,7 +1,7 @@
 use std::fmt;
 use webpki::InvalidDnsNameError;
 use serde::{Serialize, Deserialize};
-use rustls::internal::msgs::message::MessageError;
+use rustls::msgs::message::MessageError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FnError {

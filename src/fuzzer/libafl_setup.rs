@@ -38,10 +38,10 @@ use crate::{
     fuzzer::{mutations::trace_mutations},
 };
 use super::{harness};
-pub use super::{EDGES_MAP, MAX_EDGES_NUM};
+use super::{EDGES_MAP, MAX_EDGES_NUM};
 use crate::fuzzer::error_observer::ErrorObserver;
 
-
+/// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");

@@ -1,3 +1,20 @@
+//! This module provides a DLS for writing terms within Rust.
+//!
+//! # Example
+//!
+//! ```rust
+//! term! {
+//!     fn_client_hello(
+//!         ((0, 0)/ProtocolVersion),
+//!         ((0, 0)/Random),
+//!         ((0, 0)/SessionID),
+//!         ((0, 0)/Vec<CipherSuite>),
+//!         ((0, 0)/Vec<Compression>),
+//!         ((0, 0)/Vec<ClientExtension>)
+//!     )
+//! }
+//! ```
+
 #[macro_export]
 macro_rules! app_const {
     ($op:ident) => {

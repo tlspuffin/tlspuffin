@@ -1,3 +1,6 @@
+//! Signatures are containers for types and function symbols. They hold references to the concrete
+//! implementations of functions and the types of variables.
+
 use std::collections::HashMap;
 use std::fmt;
 
@@ -89,6 +92,7 @@ impl fmt::Debug for Signature {
 macro_rules! define_signature {
     ($name_signature:ident, $($f:path),+ $(,)?) => {
         use once_cell::sync::Lazy;
+        /// Signature which contains all functions defined in the `tls` module.
         pub static $name_signature: Lazy<crate::term::Signature> = Lazy::new(|| {
             let definitions = vec![
                 $(crate::term::make_dynamic(&$f)),*

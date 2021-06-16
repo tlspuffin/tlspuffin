@@ -24,6 +24,8 @@ pub static IO: AtomicUsize = AtomicUsize::new(0);
 pub static AGENT: AtomicUsize = AtomicUsize::new(0);
 // Stream(String),
 pub static STREAM: AtomicUsize = AtomicUsize::new(0);
+// Extraction(ContentType),
+pub static EXTRACTION: AtomicUsize = AtomicUsize::new(0);
 
 pub fn increment(counter: &AtomicUsize) {
     counter.fetch_add(1, Ordering::SeqCst);
@@ -84,6 +86,7 @@ where
             (&IO, "io"),
             (&AGENT, "agent"),
             (&STREAM, "stream"),
+            (&EXTRACTION, "extr"),
         ];
 
         let stats = reporters

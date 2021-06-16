@@ -5,10 +5,10 @@ use ring::hmac::Key;
 use ring::test::rand::FixedByteRandom;
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
-use rustls::internal::msgs::base::PayloadU8;
-use rustls::internal::msgs::codec::{Codec, Reader};
-use rustls::internal::msgs::handshake::{Random, ServerECDHParams, ServerExtension};
-use rustls::internal::msgs::message::{Message, OpaqueMessage};
+use rustls::msgs::base::PayloadU8;
+use rustls::msgs::codec::{Codec, Reader};
+use rustls::msgs::handshake::{Random, ServerECDHParams, ServerExtension};
+use rustls::msgs::message::{Message, OpaqueMessage};
 
 use super::error::FnError;
 

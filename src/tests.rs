@@ -240,8 +240,8 @@ pub mod rustls {
         sync::Arc,
     };
 
-    use rustls::internal::msgs::codec::Reader;
-    use rustls::internal::msgs::message::OpaqueMessage;
+    use rustls::msgs::codec::Reader;
+    use rustls::msgs::message::OpaqueMessage;
     use rustls::{
         self,
         internal::msgs::{

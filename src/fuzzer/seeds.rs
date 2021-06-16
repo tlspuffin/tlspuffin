@@ -1,4 +1,7 @@
-use rustls::internal::msgs::handshake::CertificatePayload;
+//! Implementation of  special traces. Each may represent a special TLS execution like a full
+//! handshake or an execution which crahes OpenSSL.
+
+use rustls::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{

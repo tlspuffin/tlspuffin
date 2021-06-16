@@ -1,3 +1,6 @@
+//! This module provides an enum for terms. A term can either be a Variable or a Function.
+//! This also implements the serializability of terms.
+//!
 use std::{fmt, fmt::Formatter};
 
 use serde::{Deserialize, Serialize};
@@ -13,8 +16,7 @@ use crate::{
 use rand::random;
 use crate::term::remove_prefix;
 
-/// A symbol for an unspecified term.
-///
+/// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable {
     /// Unique ID of this variable. Uniqueness is guaranteed across all terms ever created. Cloning
@@ -54,7 +56,7 @@ impl fmt::Display for Variable {
     }
 }
 
-/// A symbol with fixed arity.
+/// A function symbol with fixed arity and fixed types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
     /// Unique ID of this function. Uniqueness is guaranteed across all terms ever created. Cloning

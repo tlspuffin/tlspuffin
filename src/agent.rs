@@ -1,7 +1,11 @@
+//! *Agents* represent communication participants like Alice, Bob or Eve. Attackers are usually
+//! not represented by these *Agents*.
+//! Attackers are represented through a recipe term (see *InputAction*).
+//!
+//! Each *Agent* has an *inbound* and an *outbound channel* (see [`crate::io`])
+
 use core::fmt;
-
 use serde::{Deserialize, Serialize};
-
 use crate::io::{OpenSSLStream, Stream};
 use crate::error::Error;
 

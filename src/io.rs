@@ -1,3 +1,22 @@
+//!  These are currently implemented by using an in-memory buffer.
+//! One might ask why we want two channel There two very practical reasons
+//! for thi Note that these are advantages for the implementation and are not
+//! strictly required from a theoretical point of view.
+//!
+//! * Having two buffers resembles how networking works in reality: Each computer has an input and an
+//!   output buffer. In case of TCP the input buffer can become full and therefore the transmission
+//!   is throttled.
+//! * It is beneficial to model each agent with two buffers according to the Single-responsibility
+//!   principle. When sending or receiving data each agent only has to look at its own two buffer.
+//!   If each agent had only one buffer, then you would need to read from another agent which
+//! has the data you want. Or if you design it the other way around you would need to write to
+//! the buffer of the agent to which you want to send data.
+//!
+//! The *Agent* Alice can add data to the *inbound channel* of Bob.
+//! Bob can then read the data from his *inbound channel* and put data in his *outbound channel*.
+//! If Bob is an *Agent*, which has an underlying *OpenSSLStream* then OpenSSL may write into the
+//! *outbound channel* of Bob.
+
 use std::convert::TryFrom;
 use std::{
     io,
@@ -5,12 +24,9 @@ use std::{
 };
 
 use openssl::ssl::SslStream;
-use rustls::internal::msgs::message::{OpaqueMessage, MessagePayload};
-use rustls::internal::msgs::handshake::HandshakePayload;
-use rustls::internal::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
-
-#[allow(unused)] // used in docs
-use crate::agent::Agent;
+use rustls::msgs::message::{OpaqueMessage, MessagePayload};
+use rustls::msgs::handshake::HandshakePayload;
+use rustls::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
 use crate::agent::TLSVersion;
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
@@ -27,7 +43,7 @@ pub trait Stream: std::io::Read + std::io::Write {
     fn next_state(&mut self) -> Result<(), Error>;
 }
 
-/// Describes in- or outbound channels of an [`Agent`]. Each [`Agent`] can send and receive data.
+/// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
 /// This is modeled by two separate Channels in [`MemoryStream`]. Internally a Channel is just an
 /// in-memory seekable buffer.
 pub type Channel = io::Cursor<Vec<u8>>;
@@ -36,7 +52,7 @@ pub type Channel = io::Cursor<Vec<u8>>;
 /// * When writing to a MemoryStream its outbound channel gets filled.
 /// * When reading from a MemoryStream data is taken from the inbound channel.
 ///
-/// This makes it possible for an Agent to treat a [`MemoryStream`] like a TLS socket! By writing
+/// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS socket! By writing
 /// to this socket you are sending data out. By reading from it you receive data.
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write

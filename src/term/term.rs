@@ -1,3 +1,5 @@
+//! This module provides terms as well as iterators over them.
+
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
@@ -12,7 +14,6 @@ use super::{Function, Variable};
 use crate::error::Error;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
-///
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).

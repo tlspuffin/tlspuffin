@@ -8,14 +8,16 @@ use openssl::error::ErrorStack;
 use serde::{Serialize, Serializer};
 
 use crate::tls::error::FnError;
+use rustls::msgs::enums::ContentType;
 
-#[derive(Debug, Clone, Serialize)]
+// #[derive(Debug, Clone, Serialize)] Serialization not used right now
+#[derive(Debug, Clone)]
 pub enum Error {
     /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
     Fn(FnError),
     Term(String),
     /// OpenSSL reported an error
-    #[serde(serialize_with = "serialize_openssl_error")]
+    //#[serde(serialize_with = "serialize_openssl_error")]
     OpenSSL(ErrorStack),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
@@ -23,9 +25,10 @@ pub enum Error {
     Agent(String),
     /// Error while operating on a [`Stream`]
     Stream(String),
+    Extraction(ContentType),
 }
 
-fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
+/*fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -42,7 +45,7 @@ impl SerdeAny for Error {
     }
 }
 
-impl CustomExitKind for Error {}
+impl CustomExitKind for Error {}*/
 
 impl std::error::Error for Error {}
 
@@ -59,6 +62,7 @@ impl fmt::Display for Error {
             ),
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
+            Error::Extraction(content_type) => write!(f, "error while extracting variable data from {:?}", content_type),
         }
     }
 }

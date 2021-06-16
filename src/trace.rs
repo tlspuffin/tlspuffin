@@ -1,9 +1,63 @@
+//! This module contains *Traces* consisting of several *Steps*, of which each has either an
+//! *OutputAction* or *InputAction*. This is a declarative way of modeling communication between
+//! *Agents*. The *TraceContext* holds data, also known as *VariableData*, which is created by
+//! *Agents* during the concrete execution of the Trace. It also holds the *Agents* with
+//! the references to concrete PUT.
+//!
+//! # Example
+//!
+//! ```rust
+//!
+//! let client: AgentName = ...;
+//! let server: AgentName = ...;
+//!
+//! Trace {
+//!         descriptors: vec![
+//!             AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
+//!             AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
+//!         ],
+//!         steps: vec![
+//!             Step { agent: client, action: Action::Output(OutputAction { id: 0 })},
+//!             // Client: Hello Client -> Server
+//!             Step {
+//!                 agent: server,
+//!                 action: Action::Input(InputAction {
+//!                     recipe: Term::Application(
+//!                         new_function(&fn_client_hello),
+//!                         vec![
+//!                             Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
+//!                             Term::Variable(Signature::new_var::<Random>((0, 0))),
+//!                             Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
+//!                             Term::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
+//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
+//!                         ],
+//!                     ),
+//!                 }),
+//!             },
+//!             ...
+//!         ]
+//! }
+//! let mut ctx = TraceContext::new();
+//! trace.spawn_agents(&mut ctx)?;
+//! trace.execute(&mut ctx)?;
+//! ```
+//!
+//! ### Serializability of Traces
+//!
+//! Each trace is serializable to JSON or even binary data. This helps at reproducing discovered
+//! security vulnerabilities during fuzzing. If a trace triggers a security vulnerability we can
+//! store it on disk and replay it when investigating the case.
+//! As traces depend on concrete implementations as discussed in the next section we need to link
+//! serialized data like strings or numerical IDs to functions implemented in Rust.
+//!
+
 use core::fmt;
 use std::{any::TypeId, fmt::Formatter};
 
 use libafl::inputs::{HasLen, Input};
-use rustls::internal::msgs::message::Message;
-use rustls::internal::msgs::message::OpaqueMessage;
+use rustls::msgs::message::Message;
+use rustls::msgs::message::OpaqueMessage;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{AgentDescriptor};
@@ -15,7 +69,7 @@ use crate::io::MessageResult;
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, TypeShape},
-    variable_data::{extract_variables, VariableData},
+    variable_data::{extract_knowledge, VariableData},
 };
 use crate::tls::error::FnError;
 
@@ -26,6 +80,11 @@ struct ObservedVariable {
     data: Box<dyn VariableData>,
 }
 
+/// The *TraceContext* contains a list of *VariableData*, which is known as the knowledge
+/// of the attacker. *VariableData* can contain data of various types like for example
+/// client and server extensions, cipher suits or session ID It also holds the concrete
+/// references to the *Agents* and the underlying streams, which contain the messages
+/// which have need exchanged and are not yet processed by an output step.
 pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
@@ -62,7 +121,7 @@ impl TraceContext {
 
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            if type_id == data.as_any().type_id() && observed_id == observed.observed_id {
+            if type_id == data.type_id() && observed_id == observed.observed_id {
                 return Some(data);
             }
         }
@@ -140,12 +199,10 @@ impl Input for Trace {
     }
 }
 
-impl HasLen for Trace {
-    fn len(&self) -> usize {
-        self.steps.len()
-    }
-}
-
+/// A *Trace* consists of several *Steps*. Each has either a *OutputAction* or an *InputAction*.
+/// Each *Step* references an *Agent* by name. Furthermore, a trace also has a list of
+/// *AgentDescritptors* which act like a blueprint to spawn *Agents* with a corresponding server
+/// or client role and a specific TLs version. Essentially they are an *Agent* without a stream.
 impl Trace {
     pub fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
@@ -192,6 +249,15 @@ pub struct Step {
     pub action: Action,
 }
 
+/// There are two action types *OutputAction* and *InputAction* differ.
+/// Both actions drive the internal state machine of an *Agent* forward by calling `next_state()`.
+/// The *OutputAction* first forwards the state machine and then extracts knowledge from the
+/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
+/// The *InputAction* evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the *Agent* referenced through the corresponding *Step*
+/// by calling `add_to_inbound(...)` and then drives the state machine forward.
+/// Therefore, the difference is that one step *increases* the knowledge of the attacker,
+/// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum Action {
     Input(InputAction),
@@ -216,6 +282,8 @@ impl fmt::Display for Action {
     }
 }
 
+/// The *OutputAction* first forwards the state machine and then extracts knowledge from the
+/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OutputAction {
     pub id: u16,
@@ -240,7 +308,7 @@ impl OutputAction {
                         format!("Output message with observed id {:?}", (self.id, sub_id)).as_str(),
                         &message,
                     );
-                    let knowledge = extract_variables(&message);
+                    let knowledge = extract_knowledge(&message)?;
                     trace!("New knowledge: {:?}", knowledge.len());
                     ctx.add_variables((self.id, sub_id), knowledge);
                 }
@@ -271,6 +339,9 @@ impl fmt::Display for OutputAction {
     }
 }
 
+/// The *InputAction* evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the *Agent* referenced through the corresponding *Step*
+/// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {
     pub recipe: Term,

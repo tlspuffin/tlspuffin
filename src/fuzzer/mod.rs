@@ -1,3 +1,6 @@
+//! The fuzzer module setups the fuzzing loop. It also is responsible for gathering feedback from
+//! runs and restarting processes if they crash.
+
 #[cfg(test)]
 mod tests;
 mod libafl_setup;
@@ -30,15 +33,15 @@ mod sancov_dummy;
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
-pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM, CMP_MAP};
+pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM, CMP_MAP};
 
 #[cfg(any(test, not(feature = "sancov_libafl")))]
-pub const EDGES_MAP_SIZE: usize = 65536;
+pub(crate) const EDGES_MAP_SIZE: usize = 65536;
 #[cfg(any(test, not(feature = "sancov_libafl")))]
-pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
+pub(crate) static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
 #[cfg(any(test, not(feature = "sancov_libafl")))]
-pub static mut MAX_EDGES_NUM: usize = 0;
+pub(crate) static mut MAX_EDGES_NUM: usize = 0;
 #[cfg(any(test, not(feature = "sancov_libafl")))]
-pub const CMP_MAP_SIZE: usize = 65536;
+pub(crate) const CMP_MAP_SIZE: usize = 65536;
 #[cfg(any(test, not(feature = "sancov_libafl")))]
-pub static mut CMP_MAP: [u8; CMP_MAP_SIZE] = [0; CMP_MAP_SIZE];
+pub(crate) static mut CMP_MAP: [u8; CMP_MAP_SIZE] = [0; CMP_MAP_SIZE];

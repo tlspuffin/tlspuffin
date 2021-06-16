@@ -1,6 +1,9 @@
-use std::any::Any;
+//! Definition of the VariableData trait. A VariableData can contain any data which has a `'static`
+//! type. This is true for [`rustls::msgs::message::Message`] for example.
 
-use rustls::internal::msgs::handshake::ServerKeyExchangePayload;
+use std::any::{Any, TypeId};
+
+use rustls::msgs::handshake::ServerKeyExchangePayload;
 use rustls::{
     internal::msgs::{
         enums::Compression,
@@ -9,22 +12,16 @@ use rustls::{
     },
     CipherSuite,
 };
+use crate::error::Error;
 
-pub trait AsAny {
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: Any> AsAny for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub trait VariableData: AsAny {
+pub trait VariableData {
     fn clone_box(&self) -> Box<dyn VariableData>;
     fn clone_box_any(&self) -> Box<dyn Any>;
+    fn type_id(&self) -> TypeId;
 }
 
+/// A VariableData is cloneable and has a `'static` type. This data type is used throughout
+/// tlspuffin to handle data of dynamic size.
 impl<T: 'static> VariableData for T
 where
     T: Clone,
@@ -36,10 +33,18 @@ where
     fn clone_box_any(&self) -> Box<dyn Any> {
         Box::new(self.clone())
     }
+
+    fn type_id(&self) -> TypeId {
+        Any::type_id(self)
+    }
 }
 
-pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
-    match &message.payload {
+/// Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more
+/// knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted
+/// Heartbeet or Handhake message (TLS 1.2), then only the message itself and the binary payload is
+/// returned.
+pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
+    Ok(match &message.payload {
         MessagePayload::Alert(alert) => {
             vec![
                 Box::new(message.clone()),
@@ -106,14 +111,8 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                         .chain(server_extensions)
                         .collect::<Vec<Box<dyn VariableData>>>()
                 }
-                HandshakePayload::HelloRetryRequest(_) => {
-                    todo!()
-                }
                 HandshakePayload::Certificate(c) => {
                     vec![Box::new(message.clone()), Box::new(c.clone())]
-                }
-                HandshakePayload::CertificateTLS13(_c) => {
-                    todo!()
                 }
                 HandshakePayload::ServerKeyExchange(ske) => match ske {
                     ServerKeyExchangePayload::ECDHE(ecdhe) => {
@@ -123,23 +122,8 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                         vec![Box::new(message.clone()), Box::new(unknown.0.clone())]
                     }
                 },
-                HandshakePayload::CertificateRequest(_) => {
-                    todo!()
-                }
-                HandshakePayload::CertificateRequestTLS13(_) => {
-                    todo!()
-                }
-                HandshakePayload::CertificateVerify(_) => {
-                    todo!()
-                }
                 HandshakePayload::ServerHelloDone => {
                     vec![Box::new(message.clone())]
-                }
-                HandshakePayload::EarlyData => {
-                    todo!()
-                }
-                HandshakePayload::EndOfEarlyData => {
-                    todo!()
                 }
                 HandshakePayload::ClientKeyExchange(cke) => {
                     vec![Box::new(message.clone()), Box::new(cke.0.clone())]
@@ -151,26 +135,8 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
                         Box::new(ticket.ticket.clone()),
                     ]
                 }
-                HandshakePayload::NewSessionTicketTLS13(_) => {
-                    todo!()
-                }
-                HandshakePayload::EncryptedExtensions(_ee) => {
-                    todo!()
-                }
-                HandshakePayload::KeyUpdate(_) => {
-                    todo!()
-                }
-                HandshakePayload::Finished(_fin) => {
-                    todo!()
-                }
-                HandshakePayload::CertificateStatus(_) => {
-                    todo!()
-                }
-                HandshakePayload::MessageHash(_) => {
-                    todo!()
-                }
-                HandshakePayload::Unknown(_) => {
-                    todo!()
+                _ => {
+                    return Err(Error::Extraction(message.payload.content_type()))
                 }
             }
         }
@@ -180,8 +146,8 @@ pub fn extract_variables(message: &Message) -> Vec<Box<dyn VariableData>> {
         MessagePayload::ApplicationData(opaque) => {
             vec![Box::new(message.clone()), Box::new(opaque.0.clone())]
         }
-        MessagePayload::Heartbeat(_) => {
-            todo!()
+        MessagePayload::Heartbeat(h) => {
+            vec![Box::new(message.clone()), Box::new(h.payload.clone())]
         }
-    }
+    })
 }
