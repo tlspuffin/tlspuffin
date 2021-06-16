@@ -29,7 +29,7 @@ pub struct Variable {
 impl Clone for Variable {
     fn clone(&self) -> Self {
         Variable {
-            unique_id: random(),  // todo
+            unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
             observed_id: self.observed_id.clone()
@@ -40,8 +40,8 @@ impl Clone for Variable {
 impl Variable {
     pub fn new(type_shape: TypeShape, observed_id: ObservedId) -> Self {
         Self {
-            unique_id: random(), // todo
-            resistant_id: random(), // todo
+            unique_id: random(),
+            resistant_id: random(),
             typ: type_shape,
             observed_id,
         }
@@ -69,7 +69,7 @@ pub struct Function {
 impl Clone for Function {
     fn clone(&self) -> Self {
         Function {
-            unique_id: random(),  // todo
+            unique_id: random(),
             resistant_id: self.resistant_id,
             fn_container: self.fn_container.clone()
         }
@@ -82,8 +82,8 @@ impl Function {
         dynamic_fn: Box<dyn DynamicFunction>,
     ) -> Self {
         Self {
-            unique_id: random(), // todo
-            resistant_id: random(), // todo
+            unique_id: random(),
+            resistant_id: random(),
             fn_container: FnContainer { shape, dynamic_fn },
         }
     }
@@ -178,7 +178,7 @@ mod fn_container {
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-                    let (_shape, dynamic_fn) =
+                    let (shape, dynamic_fn) =
                         SIGNATURE
                             .functions_by_name
                             .get(name)
@@ -186,7 +186,11 @@ mod fn_container {
                                 "could not find function {}",
                                 name
                             )))?;
-                    // todo check if shape matches
+
+                    if return_type != shape.return_type || argument_types != shape.argument_types {
+                        return Err(de::Error::custom("Return types or argument types do not match!"));
+                    }
+
                     Ok(FnContainer {
                         shape: DynamicFunctionShape {
                             name: name.to_string(),
@@ -231,7 +235,7 @@ mod fn_container {
                     }
 
                     let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-                    let (_shape, dynamic_fn) =
+                    let (shape, dynamic_fn) =
                         SIGNATURE
                             .functions_by_name
                             .get(name)
@@ -239,10 +243,15 @@ mod fn_container {
                                 "Failed to link function symbol: Could not find function {}",
                                 name
                             )))?;
-                    // todo check if shape matches
+
                     let argument_types =
                         arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
                     let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
+
+                    if return_type != shape.return_type || argument_types != shape.argument_types {
+                        return Err(de::Error::custom("Return types or argument types do not match!"));
+                    }
+
                     Ok(FnContainer {
                         shape: DynamicFunctionShape {
                             name: name.to_string(),

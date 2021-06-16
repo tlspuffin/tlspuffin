@@ -2,11 +2,11 @@ use core::time::Duration;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use itertools::Itertools;
-use libafl::bolts::tuples::{MatchName, Named};
+use libafl::bolts::tuples::{Named};
 use libafl::events::Event::UpdateUserStats;
-use libafl::events::{EventFirer, EventManager};
+use libafl::events::{EventFirer};
 use libafl::inputs::Input;
-use libafl::observers::{Observer, ObserversTuple};
+use libafl::observers::{Observer};
 use libafl::state::State;
 use libafl::stats::UserStats;
 use libafl::{executors::HasExecHooks, Error};

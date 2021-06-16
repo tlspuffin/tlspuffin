@@ -14,13 +14,12 @@ use crate::{
 
 use super::Function;
 
-
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
 /// Records a universe of functions.
 ///
 pub struct Signature {
-    pub functions_by_name: HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)>,
+    pub functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)>,
     pub functions: Vec<FunctionDefinition>,
     pub types_by_name: HashMap<&'static str, TypeShape>,
 }
@@ -28,24 +27,25 @@ pub struct Signature {
 impl Signature {
     /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
-        let functions_by_name: HashMap<String, (Vec<TypeShape>, Box<dyn DynamicFunction>)> =
+        let functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)> =
             definitions
                 .clone()
                 .into_iter()
-                .map(|(shape, dynamic_fn)| {
-                    let types: Vec<crate::term::TypeShape> = shape
-                        .argument_types
-                        .iter()
-                        .copied()
-                        .chain(vec![shape.return_type])
-                        .collect::<Vec<crate::term::TypeShape>>();
-                    (shape.name, (types, dynamic_fn))
-                })
+                .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
                 .collect();
 
-        let types_by_name: HashMap<&'static str, TypeShape> = functions_by_name
-            .iter()
-            .map(|(_, (types, _))| types.clone())
+        let types_by_name: HashMap<&'static str, TypeShape> = definitions
+            .clone()
+            .into_iter()
+            .map(|(shape, dynamic_fn)| {
+                let types: Vec<TypeShape> = shape
+                    .argument_types
+                    .iter()
+                    .copied()
+                    .chain(vec![shape.return_type])
+                    .collect::<Vec<TypeShape>>();
+                types
+            })
             .unique()
             .flatten()
             .map(|typ| (typ.name, typ.clone()))
@@ -65,17 +65,12 @@ impl Signature {
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        let func = Function::new(
-            shape.clone(),
-            dynamic_fn.clone());
+        let func = Function::new(shape.clone(), dynamic_fn.clone());
         func
     }
 
     fn new_var_internal(type_shape: TypeShape, observed_id: ObservedId) -> Variable {
-        let variable = Variable::new(
-            type_shape,
-            observed_id,
-        );
+        let variable = Variable::new(type_shape, observed_id);
         variable
     }
 

@@ -16,12 +16,13 @@ use openssl::{
         X509NameBuilder, X509Ref, X509,
     },
 };
-use openssl::ec::EcKey;
-use openssl::nid::Nid;
+
+
 use crate::agent::TLSVersion;
 use crate::io::MemoryStream;
 use std::mem::transmute;
 use crate::error::Error;
+use openssl::nid::Nid;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN

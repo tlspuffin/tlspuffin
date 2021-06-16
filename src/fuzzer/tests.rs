@@ -7,15 +7,15 @@ use openssl::rand::rand_bytes;
 use crate::agent::AgentName;
 use crate::fuzzer::mutations::ReplaceReuseMutator;
 use crate::fuzzer::seeds::*;
-use crate::graphviz::write_graphviz;
+
 use crate::openssl_binding::make_deterministic;
 use crate::trace::Trace;
 
-use super::*;
+
 
 #[test]
 fn test_openssl_no_randomness() {
-    make_deterministic(); // fixme: this affects also other tests
+    make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
     let mut buf1 = [0; 2];
     rand_bytes(&mut buf1).unwrap();
     assert_eq!(buf1, [70, 100]);
@@ -24,7 +24,7 @@ fn test_openssl_no_randomness() {
 #[test]
 fn test_replace_reuse() {
     let rand = StdRand::with_seed(1235);
-    let mut corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
 
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
 
@@ -35,11 +35,11 @@ fn test_replace_reuse() {
 
     let client = AgentName::first();
     let server = client.next();
-    let mut trace = seed_client_attacker12(client, server);
+    let _trace = seed_client_attacker12(client, server);
 
     /*        write_graphviz("test_mutation.svg", "svg", trace.dot_graph(true).as_str());
      */
-    for i in 0..10 {
+    for _i in 0..10 {
         let mut trace = seed_client_attacker12(client, server);
         println!("{:?}", mutator.mutate(&mut state, &mut trace, 0).unwrap());
         /*            write_graphviz(

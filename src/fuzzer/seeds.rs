@@ -16,7 +16,7 @@ use crate::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app_const, term, var};
-use rustls::internal::msgs::message::OpaqueMessage;
+
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -472,7 +472,6 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
         // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
         app_const!(fn_new_cipher_suites12),
         app_const!(fn_compressions),
-        // todo CertificateStatusRequest Extension
         app!(
             fn_client_extensions_append,
             app!(

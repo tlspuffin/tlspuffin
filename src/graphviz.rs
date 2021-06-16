@@ -1,5 +1,5 @@
 use std::{io, fmt};
-use std::io::{BufWriter, ErrorKind, Write};
+use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use crate::trace::{Trace, Action};
 use crate::term::{Term, remove_prefix};

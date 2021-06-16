@@ -35,8 +35,8 @@ impl fmt::Display for Term {
 impl Term {
     pub fn length(&self) -> usize {
         match self {
-            Term::Variable(ref v) => 1,
-            Term::Application(ref func, ref args) => {
+            Term::Variable(_) => 1,
+            Term::Application(_, ref args) => {
                 if args.is_empty() {
                     return 1;
                 }
@@ -53,8 +53,8 @@ impl Term {
             0
         };
         match self {
-            Term::Variable(ref v) => increment,
-            Term::Application(ref func, ref args) => {
+            Term::Variable(_) => increment,
+            Term::Application(_, ref args) => {
                 args.iter()
                     .map(|subterm| subterm.length_filtered(filter))
                     .sum::<usize>()

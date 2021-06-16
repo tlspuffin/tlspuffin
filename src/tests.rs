@@ -159,38 +159,9 @@ pub mod seeds {
 
 #[cfg(test)]
 pub mod serialization {
-    use std::any::{Any, TypeId};
-    use std::borrow::Borrow;
-    use std::convert::TryFrom;
-    use std::{
-        io::{stdout, Read, Write},
-        net::TcpStream,
-        sync::Arc,
-    };
-
-    use rustls::internal::msgs::codec::Reader;
-    use rustls::internal::msgs::message::OpaqueMessage;
-    use rustls::{
-        self,
-        internal::msgs::{
-            enums::{
-                HandshakeType,
-                ProtocolVersion::{TLSv1_2, TLSv1_3},
-            },
-            handshake::{
-                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-            },
-            message::{Message, MessagePayload::Handshake},
-        },
-        Connection, ProtocolVersion, RootCertStore,
-    };
     use test_env_log::test;
-    use webpki;
-    use webpki_roots;
-
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12};
-    use crate::variable_data::AsAny;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
@@ -260,8 +231,8 @@ pub mod serialization {
 
 #[cfg(test)]
 pub mod rustls {
-    use std::any::{Any, TypeId};
-    use std::borrow::Borrow;
+    
+    
     use std::convert::TryFrom;
     use std::{
         io::{stdout, Read, Write},

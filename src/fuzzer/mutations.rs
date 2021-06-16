@@ -14,7 +14,7 @@ use libafl::{
 use crate::fuzzer::mutations_util::*;
 use crate::term::Term;
 use crate::tls::SIGNATURE;
-use crate::trace::{InputAction, Step, Trace};
+use crate::trace::{Trace};
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -334,7 +334,7 @@ where
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 },
-                Term::Application(func, subterms) => {
+                Term::Application(_func, subterms) => {
                     let subterm = subterms.clone();
                     to_mutate.mutate(subterm.first().unwrap());
                     Ok(MutationResult::Mutated)

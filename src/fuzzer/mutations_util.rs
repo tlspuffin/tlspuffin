@@ -1,5 +1,5 @@
 use crate::trace::{Trace, InputAction, Action};
-use crate::term::{Term, TypeShape};
+use crate::term::{Term};
 use libafl::bolts::rands::Rand;
 
 pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>

@@ -1,8 +1,8 @@
 use rustls::kx_group::SECP384R1;
-use rustls::msgs::handshake::ClientExtension;
+
 use test_env_log::test;
 
-use crate::tls::fn_extensions::fn_server_name_extension;
+
 use crate::tls::key_exchange::deterministic_key_exchange;
 
 #[test]
