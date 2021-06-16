@@ -23,7 +23,7 @@ build:
 pages:
   script:
   - cargo doc --lib --no-deps
-  - mv target/doc public
+  - mv target/x86_64-unknown-linux-gnu/doc public
   artifacts:
     paths:
     - public
