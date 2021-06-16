@@ -40,6 +40,9 @@ pub mod tlspuffin {
 
     #[test]
     fn test_seed_hearbeat() {
+        if !openssl_version().contains("1.0.1f") {
+            return;
+        }
         expect_crash(|| {
             make_deterministic();
             let mut ctx = TraceContext::new();
@@ -55,6 +58,9 @@ pub mod tlspuffin {
 
     #[test]
     fn test_seed_cve_2021_3449() {
+        if !openssl_version().contains("1.1.1j") {
+            return;
+        }
         expect_crash(|| {
             make_deterministic();
             let mut ctx = TraceContext::new();
