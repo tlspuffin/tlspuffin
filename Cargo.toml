@@ -56,7 +56,6 @@ criterion = "0.3"
 # Support logging in tests
 test-env-log = "0.2"
 nix = "0.21"
-tls-parser = "0.10" # For experiments with 'static types
 
 [profile.release]
 panic = "abort"

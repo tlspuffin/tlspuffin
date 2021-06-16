@@ -176,7 +176,6 @@ pub mod integration {
         Connection, ProtocolVersion, RootCertStore,
     };
     use test_env_log::test;
-    use tls_parser::{parse_tls_plaintext, TlsMessage, TlsMessageHandshake};
     use webpki;
     use webpki_roots;
 
@@ -442,45 +441,6 @@ pub mod integration {
                 .unwrap();
 
         println!("{:?}", decoded_message);
-    }
-
-    fn a<'a>(data: &'a [u8]) {
-        let message1: TlsMessage<'a> =
-            TlsMessage::Handshake(TlsMessageHandshake::CertificateVerify(data));
-        let id = TypeId::of::<TlsMessage>();
-        // let any = message1.as_any();
-        //assert_eq!(id, message1.type_id()); not possible because data is not 'static
-    }
-
-    struct StaticTlsMessage {
-        data: Vec<u8>,
-    }
-
-    trait AsTlsMessage<'a> {
-        fn as_tls_message(&'a self) -> TlsMessage<'a>;
-    }
-
-    impl<'a> AsTlsMessage<'a> for StaticTlsMessage {
-        fn as_tls_message(&'a self) -> TlsMessage<'a> {
-            let mut res = parse_tls_plaintext(self.data.as_slice()).unwrap();
-            let x = res.1.msg.pop();
-            x.unwrap()
-        }
-    }
-
-    #[test]
-    fn test_tlsparser() {
-        let message: TlsMessage<'static> =
-            TlsMessage::Handshake(TlsMessageHandshake::EndOfEarlyData);
-
-        let id = TypeId::of::<TlsMessage>();
-
-        let any = message.as_any();
-
-        let downcasted = any.downcast_ref::<TlsMessage>();
-
-        assert_eq!(&message, downcasted.unwrap());
-        assert_eq!(id, downcasted.unwrap().type_id());
     }
 
     /// This is the simplest possible client using rustls that does something useful:
