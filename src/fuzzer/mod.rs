@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod tests;
 mod libafl_setup;
 mod harness;

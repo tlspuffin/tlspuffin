@@ -138,3 +138,17 @@ impl Term {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::agent::AgentName;
+    use crate::fuzzer::seeds::seed_client_attacker12;
+
+    #[test]
+    fn test_dot_graph() {
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_client_attacker12(client, server);
+        println!("{}", trace.dot_graph(true));
+    }
+}

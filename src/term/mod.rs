@@ -30,4 +30,5 @@ mod dynamic_function;
 mod macros;
 mod signature;
 mod term;
+#[cfg(test)]
 mod tests;

@@ -25,6 +25,7 @@ pub mod fn_fields;
 pub mod fn_messages;
 pub mod fn_utils;
 mod key_exchange;
+#[cfg(test)]
 mod tests;
 
 /// This modules contains all the concrete implementations of function symbols.

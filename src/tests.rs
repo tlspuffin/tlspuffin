@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub mod tlspuffin {
+pub mod seeds {
     use nix::sys::signal::Signal;
     use nix::sys::wait::WaitStatus::{Exited, Signaled};
     use nix::sys::wait::{waitpid, WaitPidFlag};
@@ -13,7 +13,10 @@ pub mod tlspuffin {
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
 
-    fn expect_crash<R>(func: R)  where R: FnMut() -> () {
+    fn expect_crash<R>(mut func: R)
+    where
+        R: FnMut() -> (),
+    {
         match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
@@ -31,7 +34,7 @@ pub mod tlspuffin {
                 }
             }
             Ok(ForkResult::Child) => {
-
+                func();
                 std::process::exit(0);
             }
             Err(_) => panic!("Fork failed"),
@@ -113,14 +116,6 @@ pub mod tlspuffin {
     }
 
     #[test]
-    fn test_dot_graph() {
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker12(client, server);
-        println!("{}", trace.dot_graph(true));
-    }
-
-    #[test]
     fn test_seed_successful() {
         make_deterministic();
         let mut ctx = TraceContext::new();
@@ -163,7 +158,7 @@ pub mod tlspuffin {
 }
 
 #[cfg(test)]
-pub mod integration {
+pub mod serialization {
     use std::any::{Any, TypeId};
     use std::borrow::Borrow;
     use std::convert::TryFrom;
@@ -261,6 +256,36 @@ pub mod integration {
 
         assert_eq!(serialized1, serialized2);
     }
+}
+
+#[cfg(test)]
+pub mod rustls {
+    use std::any::{Any, TypeId};
+    use std::borrow::Borrow;
+    use std::convert::TryFrom;
+    use std::{
+        io::{stdout, Read, Write},
+        net::TcpStream,
+        sync::Arc,
+    };
+
+    use rustls::internal::msgs::codec::Reader;
+    use rustls::internal::msgs::message::OpaqueMessage;
+    use rustls::{
+        self,
+        internal::msgs::{
+            enums::{
+                HandshakeType,
+                ProtocolVersion::{TLSv1_2, TLSv1_3},
+            },
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+            },
+            message::{Message, MessagePayload::Handshake},
+        },
+        Connection, ProtocolVersion, RootCertStore,
+    };
+    use test_env_log::test;
 
     #[test]
     fn test_rustls_message_stability_ch() {
@@ -467,7 +492,7 @@ pub mod integration {
     /// Note that `unwrap()` is used to deal with networking errors; this is not something
     /// that is sensible outside of example code.
     //#[test] Disable for now as it can fail because of missing internet
-    fn execute_rustls() {
+    fn test_execute_rustls() {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
         let config = rustls::ConfigBuilder::with_safe_defaults()
