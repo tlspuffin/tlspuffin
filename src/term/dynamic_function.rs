@@ -140,14 +140,14 @@ macro_rules! dynamic_fn {
                            if let Some(arg_) = args.get(index)
                                     .ok_or_else(|| {
                                         let shape = Self::shape();
-                                        FnError::Message(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
+                                        FnError::Unknown(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
                                     })?
                                     .as_ref().downcast_ref::<$arg>() {
                                index = index + 1;
                                arg_
                            } else {
                                let shape = Self::shape();
-                               return Err(FnError::Message(format!(
+                               return Err(FnError::Unknown(format!(
                                     "Passed argument #{} of {} did not match the shape {}. Hashes of passed types are {}.",
                                     index + 1,
                                     shape.name,

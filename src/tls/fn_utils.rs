@@ -88,7 +88,7 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
 
 pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd).ok_or(FnError::Message(
+    ServerECDHParams::read(&mut rd).ok_or(FnError::Unknown(
         "Failed to create ServerECDHParams".to_string(),
     ))
 }

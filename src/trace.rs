@@ -307,7 +307,7 @@ impl InputAction {
                 opaque_message,
             );
         } else {
-            return Err(FnError::Message(String::from(
+            return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
             )).into());
         }

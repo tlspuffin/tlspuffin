@@ -1,10 +1,11 @@
 use std::fmt;
 use webpki::InvalidDnsNameError;
 use serde::{Serialize, Deserialize};
+use rustls::internal::msgs::message::MessageError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FnError {
-    Message(String),
+    Unknown(String),
     Rustls(String),
 }
 
@@ -18,26 +19,32 @@ impl From<rustls::error::Error> for FnError {
 
 impl From<String> for FnError {
     fn from(message: String) -> Self {
-        FnError::Message(message)
+        FnError::Unknown(message)
+    }
+}
+
+impl From<MessageError> for FnError {
+    fn from(err: MessageError) -> Self {
+        FnError::Unknown(format!("{:?}", err))
     }
 }
 
 impl From<ring::error::Unspecified> for FnError {
     fn from(err: ring::error::Unspecified) -> Self {
-        FnError::Message(err.to_string()) // Returns ring::error::Unspecified"
+        FnError::Unknown(err.to_string()) // Returns ring::error::Unspecified"
     }
 }
 
 impl From<InvalidDnsNameError> for FnError {
     fn from(err: InvalidDnsNameError) -> Self {
-        FnError::Message(err.to_string())
+        FnError::Unknown(err.to_string())
     }
 }
 
 impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FnError::Message(msg) => write!(f, "error in fn: {}", msg),
+            FnError::Unknown(msg) => write!(f, "error in fn: {}", msg),
             FnError::Rustls(msg) =>  write!(f, "error in fn from rustls: {}", msg),
         }
     }

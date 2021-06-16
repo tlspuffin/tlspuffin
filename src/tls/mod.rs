@@ -68,14 +68,14 @@ fn tls12_key_schedule(
     suite: &SupportedCipherSuite,
     group: NamedGroup,
 ) -> Result<KeyScheduleHandshake, FnError> {
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError::Message(
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError::Unknown(
         "Failed to choose group in key exchange".to_string(),
     ))?;
     // Shared Secret
     let our_key_share: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared = our_key_share
         .complete(server_public_key)
-        .ok_or(FnError::Message(
+        .ok_or(FnError::Unknown(
             "Failed to complete key exchange".to_string(),
         ))?;
 
@@ -91,12 +91,12 @@ fn tls13_get_server_key_share(
 ) -> Result<&KeyShareEntry, FnError> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
-        .ok_or(FnError::Message("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
 
     if let ServerExtension::KeyShare(keyshare) = server_extension {
         Ok(keyshare)
     } else {
-        Err(FnError::Message("KeyShare extension not found".to_string()))
+        Err(FnError::Unknown("KeyShare extension not found".to_string()))
     }
 }
 
@@ -125,7 +125,7 @@ fn tls12_new_secrets(
 
     let server_random = server_random_bytes
         .try_into()
-        .map_err(|_| FnError::Message("Server random did not have length of 32".to_string()))?;
+        .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
         we_are_client: true,
         client: [1; 32], // todo
@@ -133,7 +133,7 @@ fn tls12_new_secrets(
     };
     let kxd = tls12_key_exchange(server_ecdh_params)?;
     let suite12 = Tls12CipherSuite::try_from(suite)
-        .map_err(|_err| FnError::Message("VersionNotCompatibleError".to_string()))?;
+        .map_err(|_err| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
     Ok(secrets)
 }
