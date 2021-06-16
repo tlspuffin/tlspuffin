@@ -37,12 +37,13 @@ pub fn debug_message(message: &Message) {
 
 pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
     trace!(
-        "{}Opaque Message ({:?}): {:?}",
+        "{}Opaque Message  ({} bytes) ({:?}): {:?}",
         if info.is_empty() {
             info.to_string()
         } else {
             info.to_string() + " | "
         },
+        message.clone().encode().len(),
         message.version,
         message.typ,
     );
