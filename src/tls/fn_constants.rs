@@ -25,6 +25,10 @@ pub fn fn_seq_5() -> Result<u64, FnError> {
     Ok(5)
 }
 
+pub fn fn_large_length() -> Result<u16, FnError> {
+    Ok(16702)
+}
+
 pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
     Ok(vec![])
 }

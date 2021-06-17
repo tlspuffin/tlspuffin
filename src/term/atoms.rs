@@ -151,118 +151,124 @@ mod fn_container {
         }
     }
 
+    struct FnContainerVisitor;
+
+    impl<'de> Visitor<'de> for FnContainerVisitor {
+        type Value = FnContainer;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("struct FnContainer")
+        }
+
+        fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
+            where
+                V: SeqAccess<'de>,
+        {
+            let name: &str = seq
+                .next_element()?
+                .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+            let argument_types = seq
+                .next_element()?
+                .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+            let return_type = seq
+                .next_element()?
+                .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+
+            let (shape, dynamic_fn) =
+                SIGNATURE
+                    .functions_by_name
+                    .get(name)
+                    .ok_or_else( || {
+                        // panic!("Could not find fn: {}", name);
+                        de::Error::custom(format!(
+                            "could not find function {}",
+                            name
+                        ))
+                    })?;
+
+            if return_type != shape.return_type || argument_types != shape.argument_types {
+                // panic!("Return types or argument types do not match!");
+                return Err(de::Error::custom("Return types or argument types do not match!"));
+            }
+
+            Ok(FnContainer {
+                shape: DynamicFunctionShape {
+                    name: name.to_string(),
+                    argument_types,
+                    return_type,
+                },
+                dynamic_fn: dynamic_fn.clone(),
+            })
+        }
+
+        fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
+            where
+                V: MapAccess<'de>,
+        {
+            let mut name: Option<&'de str> = None;
+            let mut arguments: Option<Vec<TypeShape>> = None;
+            let mut ret: Option<TypeShape> = None;
+            while let Some(key) = map.next_key()? {
+                match key {
+                    NAME => {
+                        if name.is_some() {
+                            return Err(de::Error::duplicate_field(NAME));
+                        }
+                        name = Some(map.next_value()?);
+                    }
+                    ARGUMENTS => {
+                        if arguments.is_some() {
+                            return Err(de::Error::duplicate_field(ARGUMENTS));
+                        }
+                        arguments = Some(map.next_value()?);
+                    }
+                    RETURN => {
+                        if ret.is_some() {
+                            return Err(de::Error::duplicate_field(RETURN));
+                        }
+                        ret = Some(map.next_value()?);
+                    }
+                    _ => {
+                        return Err(de::Error::unknown_field(key, FIELDS));
+                    }
+                }
+            }
+
+            let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
+            let (shape, dynamic_fn) =
+                SIGNATURE
+                    .functions_by_name
+                    .get(name)
+                    .ok_or(de::Error::custom(format!(
+                        "Failed to link function symbol: Could not find function {}",
+                        name
+                    )))?;
+
+            let argument_types =
+                arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
+            let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
+
+            if return_type != shape.return_type || argument_types != shape.argument_types {
+                // panic!("Return types or argument types do not match!");
+                return Err(de::Error::custom("Return types or argument types do not match!"));
+            }
+
+            Ok(FnContainer {
+                shape: DynamicFunctionShape {
+                    name: name.to_string(),
+                    argument_types,
+                    return_type,
+                },
+                dynamic_fn: dynamic_fn.clone(),
+            })
+        }
+    }
+
     impl<'de> Deserialize<'de> for FnContainer {
         fn deserialize<D>(deserializer: D) -> Result<FnContainer, D::Error>
         where
             D: Deserializer<'de>,
         {
-            struct FnContainerVisitor;
-
-            impl<'de> Visitor<'de> for FnContainerVisitor {
-                type Value = FnContainer;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("struct FnContainer")
-                }
-
-                fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
-                where
-                    V: SeqAccess<'de>,
-                {
-                    let name: &str = seq
-                        .next_element()?
-                        .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                    let argument_types = seq
-                        .next_element()?
-                        .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                    let return_type = seq
-                        .next_element()?
-                        .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-
-                    let (shape, dynamic_fn) =
-                        SIGNATURE
-                            .functions_by_name
-                            .get(name)
-                            .ok_or(de::Error::custom(format!(
-                                "could not find function {}",
-                                name
-                            )))?;
-
-                    if return_type != shape.return_type || argument_types != shape.argument_types {
-                        return Err(de::Error::custom("Return types or argument types do not match!"));
-                    }
-
-                    Ok(FnContainer {
-                        shape: DynamicFunctionShape {
-                            name: name.to_string(),
-                            argument_types,
-                            return_type,
-                        },
-                        dynamic_fn: dynamic_fn.clone(),
-                    })
-                }
-
-                fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
-                where
-                    V: MapAccess<'de>,
-                {
-                    let mut name: Option<&'de str> = None;
-                    let mut arguments: Option<Vec<TypeShape>> = None;
-                    let mut ret: Option<TypeShape> = None;
-                    while let Some(key) = map.next_key()? {
-                        match key {
-                            NAME => {
-                                if name.is_some() {
-                                    return Err(de::Error::duplicate_field(NAME));
-                                }
-                                name = Some(map.next_value()?);
-                            }
-                            ARGUMENTS => {
-                                if arguments.is_some() {
-                                    return Err(de::Error::duplicate_field(ARGUMENTS));
-                                }
-                                arguments = Some(map.next_value()?);
-                            }
-                            RETURN => {
-                                if ret.is_some() {
-                                    return Err(de::Error::duplicate_field(RETURN));
-                                }
-                                ret = Some(map.next_value()?);
-                            }
-                            _ => {
-                                return Err(de::Error::unknown_field(key, FIELDS));
-                            }
-                        }
-                    }
-
-                    let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-                    let (shape, dynamic_fn) =
-                        SIGNATURE
-                            .functions_by_name
-                            .get(name)
-                            .ok_or(de::Error::custom(format!(
-                                "Failed to link function symbol: Could not find function {}",
-                                name
-                            )))?;
-
-                    let argument_types =
-                        arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
-                    let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
-
-                    if return_type != shape.return_type || argument_types != shape.argument_types {
-                        return Err(de::Error::custom("Return types or argument types do not match!"));
-                    }
-
-                    Ok(FnContainer {
-                        shape: DynamicFunctionShape {
-                            name: name.to_string(),
-                            argument_types,
-                            return_type,
-                        },
-                        dynamic_fn: dynamic_fn.clone(),
-                    })
-                }
-            }
             deserializer.deserialize_struct("FnContainer", FIELDS, FnContainerVisitor)
         }
     }

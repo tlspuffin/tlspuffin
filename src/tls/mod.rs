@@ -158,6 +158,7 @@ define_signature!(
     fn_seq_3,
     fn_seq_4,
     fn_seq_5,
+    fn_large_length,
     // extensions
     fn_al_protocol_negotiation,
     fn_append_preshared_keys_identity,
@@ -200,6 +201,7 @@ define_signature!(
     fn_empty_vec_of_vec,
     fn_append_vec,
     // messages
+    fn_heartbeat_fake_length,
     fn_heartbeat,
     fn_alert_close_notify,
     fn_application_data,

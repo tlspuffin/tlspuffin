@@ -161,7 +161,7 @@ pub mod seeds {
 pub mod serialization {
     use test_env_log::test;
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12};
+    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed};
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
@@ -174,7 +174,6 @@ pub mod serialization {
         let trace = seed_client_attacker(client, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-        println!("serialized = {}", serialized1);
 
         let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
         let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
@@ -189,7 +188,6 @@ pub mod serialization {
         let trace = seed_client_attacker12(client, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-        println!("serialized = {}", serialized1);
 
         let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
         let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
@@ -205,7 +203,6 @@ pub mod serialization {
         let trace = seed_successful(client, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-        println!("serialized = {}", serialized1);
 
         let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
         let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
@@ -227,6 +224,22 @@ pub mod serialization {
 
         assert_eq!(serialized1, serialized2);
     }
+
+    #[test]
+    fn test_serialisation_seed_heartbleed() {
+        let _ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_heartbleed(client, server);
+
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
 }
 
 #[cfg(test)]
