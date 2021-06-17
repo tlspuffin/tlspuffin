@@ -2,14 +2,14 @@
 extern crate log;
 
 use std::fs::File;
-use std::io::{Read};
-
+use std::io::Read;
 use std::{env, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
 use env_logger::{fmt, Builder, Env};
 use log::Level;
-
+use trace::{TraceContext, Trace};
+use agent::{AgentName};
 use fuzzer::seeds::*;
 
 use crate::fuzzer::start;
@@ -17,6 +17,7 @@ use crate::graphviz::write_graphviz;
 
 mod agent;
 mod debug;
+mod error;
 mod fuzzer;
 mod graphviz;
 mod io;
@@ -26,7 +27,6 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
-mod error;
 
 fn main() {
     fn init_logger() {
@@ -72,6 +72,9 @@ fn main() {
                 .args_from_usage("<output_prefix> 'The file to which the trace should be written'")
                 .args_from_usage("--multiple 'Whether we want to output multiple views, additionally to the combined view'")
                 .args_from_usage("--tree 'Whether want to use tree mode in the combined view'"),
+            SubCommand::with_name("execute")
+                .about("Executes a trace stored in a file")
+                .args_from_usage("<input> 'The file which stores a trace'")
         ])
         .get_matches();
 
@@ -123,17 +126,32 @@ fn main() {
 
         if is_multiple {
             for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
-                let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
+                let wrapped_subgraph =
+                    format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
                 write_graphviz(
                     format!("{}_{}.{}", output_prefix, i, format).as_str(),
                     format,
                     wrapped_subgraph.as_str(),
                 )
-                    .expect("Failed to generate graph.");
+                .expect("Failed to generate graph.");
             }
         }
 
         println!("Created plots")
+    } else if let Some(matches) = matches.subcommand_matches("execute") {
+        // Parse arguments
+        let input = matches.value_of("input").unwrap();
+
+        let mut input_file = File::open(input).unwrap();
+
+        // Read trace file
+        let mut buffer = Vec::new();
+        input_file.read_to_end(&mut buffer).unwrap();
+        let trace = postcard::from_bytes::<trace::Trace>(&buffer).unwrap();
+
+        let mut ctx = TraceContext::new();
+        trace.spawn_agents(&mut ctx);
+        trace.execute(&mut ctx);
     } else {
         let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
 

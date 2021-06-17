@@ -232,6 +232,7 @@ impl Trace {
         for i in 0..steps.len() {
             let step = &steps[i];
             step.action.execute(step, ctx)?;
+            trace!("Executing step #{}", i);
 
             execution_listener(step);
         }

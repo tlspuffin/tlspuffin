@@ -194,7 +194,7 @@ fn test_replace_reuse() {
 }
 
 // this should trigger the cve and crash soon
-#[test]
+/*#[test]
 fn test_reach_cve_through_extension_removal() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
@@ -213,7 +213,7 @@ fn test_reach_cve_through_extension_removal() {
         trace.spawn_agents(&mut ctx);
         trace.execute(&mut ctx);
     }
-}
+}*/
 
 #[test]
 fn test_rand() {
