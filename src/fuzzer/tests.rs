@@ -14,7 +14,7 @@ use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
 use crate::openssl_binding::make_deterministic;
 use crate::term::Term;
-use crate::trace::{Action, InputAction, Step, Trace};
+use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
 fn test_openssl_no_randomness() {
@@ -62,9 +62,9 @@ fn test_repeat_cve() {
     }
 }
 
-fn plot(trace: &Trace) {
+fn plot(trace: &Trace, i: u16) {
     write_graphviz(
-        format!("test_mutation.svg").as_str(),
+        format!("test_mutation{}.svg", i).as_str(),
         "svg",
         trace.dot_graph(true).as_str(),
     )
@@ -93,7 +93,7 @@ fn test_replace_match_cve() {
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
                             if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
-                                plot(&trace);
+                                plot(&trace, 0);
                                 break;
                             }
                         }
@@ -163,6 +163,39 @@ fn test_remove_lift_removes_extensions() {
 
 #[test]
 fn test_replace_reuse() {
+    let rand = StdRand::with_seed(45);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let client = AgentName::first();
+    let server = client.next();
+    let mut mutator = ReplaceReuseMutator::new();
+
+    fn count_client_hello(trace: &Trace) -> u16 {
+        count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
+    }
+
+    fn count_finished(trace: &Trace) -> u16 {
+        count_functions(trace, "tlspuffin::tls::fn_messages::fn_finished")
+    }
+
+    loop {
+        let mut trace = seed_client_attacker12(client, server);
+        //let before_mutation = count_client_hello(&trace);
+        let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if let MutationResult::Mutated = result {
+            let after_mutation = count_client_hello(&trace);
+            if after_mutation == 2 && count_finished(&trace) == 0 {
+                plot(&trace, 0);
+                break;
+            }
+        }
+    }
+}
+
+// this should trigger the cve and crash soon
+#[test]
+fn test_reach_cve_through_extension_removal() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
@@ -170,24 +203,15 @@ fn test_replace_reuse() {
     let server = client.next();
     let _trace = seed_client_attacker12(client, server);
 
-    let mut mutator = ReplaceReuseMutator::new();
-
-    fn count_client_hello(trace: &Trace) -> u16 {
-        count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
-    }
+    let mut mutator = RemoveAndLiftMutator::new();
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
-        let before_mutation = count_client_hello(&trace);
-        let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+        let mut trace = seed_almost_cve_2021_3449(client, server);
+        mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-        if let MutationResult::Mutated = result {
-            let after_mutation = count_client_hello(&trace);
-            if after_mutation > before_mutation {
-                //plot(&trace);
-                break;
-            }
-        }
+        let mut ctx = TraceContext::new();
+        trace.spawn_agents(&mut ctx);
+        trace.execute(&mut ctx);
     }
 }
 
