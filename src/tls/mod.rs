@@ -181,7 +181,6 @@ define_signature!(
     fn_preshared_keys,
     fn_psk_exchange_modes_extension,
     fn_renegotiation_info_extension,
-    fn_renegotiation_info_initial_extension,
     fn_server_extensions_append,
     fn_server_extensions_new,
     fn_server_name_extension,

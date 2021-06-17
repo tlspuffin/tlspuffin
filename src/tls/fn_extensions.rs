@@ -353,9 +353,10 @@ nyi_fn!();
 /// ChannelId => 0x754f,
 nyi_fn!();
 /// RenegotiationInfo => 0xff01,
-pub fn fn_renegotiation_info_initial_extension() -> Result<ClientExtension, FnError> {
+// todo this is rather bad as the mutator ReplaceReuse may find it easier to replace an empty byte array than an extension
+/*pub fn fn_renegotiation_info_initial_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::RenegotiationInfo(PayloadU8::empty()))
-}
+}*/
 pub fn fn_renegotiation_info_extension(data: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
         data.clone(),

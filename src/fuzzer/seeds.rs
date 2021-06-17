@@ -499,7 +499,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                 app_const!(fn_signed_certificate_timestamp)
             ),
             // Enable Renegotiation
-            app_const!(fn_renegotiation_info_initial_extension),
+            app!(fn_renegotiation_info_extension, app_const!(fn_empty_bytes_vec)),
         )
     );
 
