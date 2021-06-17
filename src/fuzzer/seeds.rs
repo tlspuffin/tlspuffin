@@ -670,6 +670,62 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
 }
 
 
+
+pub fn seed_almost_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(client, server);
+
+    let renegotiation_client_hello = app!(
+        fn_client_hello,
+        app_const!(fn_protocol_version12),
+        app_const!(fn_new_random),
+        app_const!(fn_new_session_id),
+        // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        app_const!(fn_new_cipher_suites12),
+        app_const!(fn_compressions),
+        app!(
+            fn_client_extensions_append,
+            app!(
+                fn_client_extensions_append,
+                app!(
+                    fn_client_extensions_append,
+                    app!(
+                        fn_client_extensions_append,
+                        app!(
+                            fn_client_extensions_append,
+                            app!(
+                                fn_client_extensions_append,
+                                app_const!(fn_client_extensions_new),
+                                app_const!(fn_secp384r1_support_group_extension),
+                            ),
+                            app_const!(fn_signature_algorithm_extension)
+                        ),
+                        app_const!(fn_ec_point_formats_extension)
+                    ),
+                    app_const!(fn_signature_algorithm_cert_extension)
+                ),
+                app_const!(fn_signed_certificate_timestamp)
+            ),
+            // Enable Renegotiation
+            app!(fn_renegotiation_info_extension, client_verify_data),
+        )
+    );
+
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: app!(
+                fn_encrypt12,
+                renegotiation_client_hello.clone(),
+                var!(Random, (0, 0)),
+                app!(fn_decode_ecdh_params, var!(Vec<u8>, (0, 2))), // ServerECDHParams
+                app_const!(fn_seq_1)
+            ),
+        }),
+    });
+    trace
+}
+
 pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
     let client_hello = app!(
         fn_client_hello,
