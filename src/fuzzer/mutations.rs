@@ -189,7 +189,7 @@ where
             if let Some(to_replace) = choose_term_mut(trace, rand, |term: &Term| {
                 term.get_type_shape() == replacement.get_type_shape()
             }) {
-                to_replace.mutate(&replacement);
+                to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
         }
@@ -322,21 +322,43 @@ where
         // filter for inner nodes with exactly one subterm
         let filter = |term: &Term| match term {
             Term::Variable(_) => false,
-            Term::Application(func, _) => {
-                func.shape().argument_types.len() == 1
-                    && func.shape().argument_types.first().unwrap() == &func.shape().return_type
+            Term::Application(func, subterms) => {
+                subterms.iter().find(|subterm| {
+                    match subterm {
+                        Term::Variable(_) => false,
+                        Term::Application(func, grand_subterms) => {
+                            grand_subterms.iter().find(|grand_subterm| {
+                                subterm.get_type_shape() == grand_subterm.get_type_shape()
+                            }).is_some()
+                        }
+                    }
+                }).is_some()
             }
         };
         if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
-            match &to_mutate {
+            match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 }
-                Term::Application(_func, subterms) => {
-                    let subterm = subterms.clone();
-                    to_mutate.mutate(subterm.first().unwrap());
-                    Ok(MutationResult::Mutated)
+                Term::Application(_, ref mut subterms) => {
+                   for subterm in subterms {
+                        let found_grand_subterm = match &subterm {
+                            Term::Variable(_) => None,
+                            Term::Application(_, grand_subterms) => {
+                                grand_subterms.iter().find(|grand_subterm| {
+                                    subterm.get_type_shape() == grand_subterm.get_type_shape()
+                                })
+                            }
+                        };
+                        if let Some(found) = found_grand_subterm.cloned() {
+                            // todo this lifts the first_grand_subterm found to the first subterm found
+                            //      make this more random
+                            subterm.mutate(found);
+                            return Ok(MutationResult::Mutated)
+                        }
+                    }
+                    Ok(MutationResult::Skipped)
                 }
             }
         } else {

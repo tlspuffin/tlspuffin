@@ -99,6 +99,7 @@ pub fn choose_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     rand: &mut R,
     filter: P
 ) -> Option<&'a mut Term> {
+    // todo get rid of this next line and randomly select a term over all input actions
     if let Some(input) = choose_input_action_mut(trace, rand) {
         let term = &mut input.recipe;
         let length = term.length_filtered(filter);

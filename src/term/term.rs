@@ -89,8 +89,8 @@ impl Term {
         }
     }
 
-    pub fn mutate(&mut self, other: &Term) {
-        *self = other.clone();
+    pub fn mutate(&mut self, other: Term) {
+        *self = other;
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
