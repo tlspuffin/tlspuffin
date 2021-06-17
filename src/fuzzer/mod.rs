@@ -29,6 +29,7 @@ mod sancov_pcguard_log;
 // Use dummy in tests
 #[cfg(test)]
 mod sancov_dummy;
+mod stages;
 
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]

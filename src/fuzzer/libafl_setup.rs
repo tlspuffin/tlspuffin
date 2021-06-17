@@ -40,6 +40,7 @@ use crate::{
 use super::{harness};
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 use crate::fuzzer::error_observer::ErrorObserver;
+use crate::fuzzer::stages::PuffinMutationalStage;
 
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
@@ -92,7 +93,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         // Setup a basic mutator with a mutational stage
         let mutator = StdScheduledMutator::new(trace_mutations());
-        let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        let mut stages = tuple_list!(PuffinMutationalStage::new(mutator));
 
         // A minimization+queue policy to get testcasess from the corpus
         //let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
