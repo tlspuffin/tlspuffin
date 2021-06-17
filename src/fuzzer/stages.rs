@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier.
-pub static MAX_ITERATIONS: u64 = 4;
+pub static MAX_ITERATIONS: u64 = 10;
 
 /// The default mutational stage
 #[derive(Clone, Debug)]

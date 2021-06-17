@@ -102,7 +102,7 @@ fn test_replace_match_cve() {
 }
 
 #[test]
-fn test_remove_lift_cve() {
+fn test_remove_lift_removes_extensions() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
@@ -140,7 +140,8 @@ fn test_remove_lift_cve() {
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
-            if sum_extension_appends(&trace) != before_mutation {
+            let after_mutation = sum_extension_appends(&trace);
+            if after_mutation != before_mutation {
                 break;
             }
         }
