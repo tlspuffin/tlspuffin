@@ -6,7 +6,7 @@ use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::{
     bolts::{
         current_nanos,
-        rands::{StdRand},
+        rands::StdRand,
         tuples::{tuple_list, Merge},
     },
     corpus::{
@@ -33,14 +33,14 @@ use libafl::{
     stats::{MultiStats, SimpleStats},
     Error, Evaluator,
 };
-use crate::openssl_binding::make_deterministic;
-use crate::{
-    fuzzer::{mutations::trace_mutations},
-};
-use super::{harness};
-use super::{EDGES_MAP, MAX_EDGES_NUM};
+
 use crate::fuzzer::error_observer::ErrorObserver;
+use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
+use crate::openssl_binding::make_deterministic;
+
+use super::harness;
+use super::{EDGES_MAP, MAX_EDGES_NUM};
 
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
@@ -51,7 +51,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr| {
         info!("We're a client, let's fuzz :)");
 
-        let edges_observer = StdMapObserver::new("edges", unsafe { &mut EDGES_MAP[0..MAX_EDGES_NUM] });
+        let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        }));
         let time_observer = TimeObserver::new("time");
         let error_observer = ErrorObserver::new("error");
 
@@ -62,9 +64,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
             //MaxMapFeedback::new_tracking(&edges_feedbac_k_state, &edges_observer, true, false),
-            MaxMapFeedback::new(&edges_feedback_state, &edges_observer)
-            // Time feedback, this one does not need a feedback state
-            //TimeFeedback::new_with_observer(&time_observer)
+            MaxMapFeedback::new(&edges_feedback_state, &edges_observer) // Time feedback, this one does not need a feedback state
+                                                                        //TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
