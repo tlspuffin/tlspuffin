@@ -71,9 +71,11 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
+            let seed = current_nanos();
+            warn!("Seed is {}", seed);
             StdState::new(
                 // RNG
-                StdRand::with_seed(current_nanos()),
+                StdRand::with_seed(seed),
                 // Corpus that will be evolved, we keep it in memory for performance
                 //OnDiskCorpus::new(PathBuf::from("corpus_inspection")).unwrap(),
                 InMemoryCorpus::new(),
@@ -113,7 +115,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
                 &mut restarting_mgr,
             )?,
             // 10 seconds timeout
-            Duration::new(60, 0),
+            Duration::new(2, 0),
         );
 
         // In case the corpus is empty (on first run), reset

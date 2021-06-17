@@ -1,4 +1,4 @@
-use libafl::bolts::rands::{Rand, RomuTrioRand, StdRand};
+use libafl::bolts::rands::{Rand, RomuTrioRand, StdRand, RomuDuoJrRand};
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::Mutator;
 use libafl::state::StdState;
@@ -29,7 +29,7 @@ fn test_replace_reuse() {
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
 
     let mut mutator: ReplaceReuseMutator<
-        RomuTrioRand,
+        RomuDuoJrRand,
         StdState<InMemoryCorpus<Trace>, (), _, _, InMemoryCorpus<Trace>>,
     > = ReplaceReuseMutator::new();
 
