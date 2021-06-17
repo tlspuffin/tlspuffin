@@ -7,11 +7,18 @@
 //! # Example
 //!
 //! ```rust
+//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion};
+//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction};
+//! use tlspuffin::term::{Term, signature::Signature};
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use rustls::{ProtocolVersion, CipherSuite};
+//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+//! use rustls::msgs::enums::Compression;
 //!
-//! let client: AgentName = ...;
-//! let server: AgentName = ...;
+//! let client: AgentName = AgentName::first();
+//! let server: AgentName = client.next();
 //!
-//! Trace {
+//! let trace = Trace {
 //!         descriptors: vec![
 //!             AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
 //!             AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
@@ -23,7 +30,7 @@
 //!                 agent: server,
 //!                 action: Action::Input(InputAction {
 //!                     recipe: Term::Application(
-//!                         new_function(&fn_client_hello),
+//!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
 //!                             Term::Variable(Signature::new_var::<Random>((0, 0))),
@@ -35,12 +42,12 @@
 //!                     ),
 //!                 }),
 //!             },
-//!             ...
+//!             // further steps here
 //!         ]
-//! }
+//! };
 //! let mut ctx = TraceContext::new();
-//! trace.spawn_agents(&mut ctx)?;
-//! trace.execute(&mut ctx)?;
+//! trace.spawn_agents(&mut ctx).unwrap();
+//! trace.execute(&mut ctx).unwrap();
 //! ```
 //!
 //! ### Serializability of Traces

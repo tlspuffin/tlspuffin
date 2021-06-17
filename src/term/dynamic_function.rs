@@ -15,13 +15,17 @@
 //! Each function which implements the following trait can be made into a dynamic function:
 //!
 //! ```rust
-//! Fn(A1, A2, A3) -> Result<R, FnError>)
+//! use tlspuffin::tls::error::FnError;
+//! type ConcreteFunction<A1, A2, A3, R> = dyn Fn(A1, A2, A3) -> Result<R, FnError>;
 //! ```
 //!
 //! where `A1`, `A2`, `A3` are argument types and `R` is the return type. From these statically
 //! typed function we can generate dynamically types ones which implement the following trait:
 //!
 //! ```rust
+//! use tlspuffin::tls::error::FnError;
+//! use std::any::Any;
+//!
 //! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
 //! }
 //! ```
@@ -36,6 +40,9 @@
 //! The following function is a simple example for a constant:
 //!
 //! ```rust
+//! use rustls::CipherSuite;
+//! use tlspuffin::tls::error::FnError;
+//!
 //! pub fn fn_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
 //!     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
 //! }
