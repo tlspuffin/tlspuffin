@@ -22,7 +22,6 @@ use crate::agent::TLSVersion;
 use crate::io::MemoryStream;
 use std::mem::transmute;
 use crate::error::Error;
-use openssl::nid::Nid;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -172,7 +171,7 @@ pub fn create_openssl_server(
 
     #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
-        EcKey::from_curve_name(Nid::SECP384R1)
+        openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
     });
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
