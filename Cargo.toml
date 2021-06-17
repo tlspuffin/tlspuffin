@@ -11,7 +11,9 @@ default = ["sancov_libafl", "ossl110"]
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
 sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts", "libafl_targets/sancov_cmplog"]
+# Uses OpenSSL 1.1.0 APIs
 ossl110 =[]
+# Uses only OpenSSL 1.0.1 APIs
 ossl101 =[]
 
 

@@ -82,6 +82,13 @@ impl Term {
         }
     }
 
+    pub fn name(&self) -> &str {
+        match self {
+            Term::Variable(v) => v.typ.name,
+            Term::Application(function, _) => function.name(),
+        }
+    }
+
     pub fn mutate(&mut self, other: &Term) {
         *self = other.clone();
     }

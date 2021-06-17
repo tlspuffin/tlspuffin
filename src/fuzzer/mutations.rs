@@ -14,7 +14,7 @@ use libafl::{
 use crate::fuzzer::mutations_util::*;
 use crate::term::Term;
 use crate::tls::SIGNATURE;
-use crate::trace::{Trace};
+use crate::trace::Trace;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -177,6 +177,7 @@ where
     S: HasRand<R>,
     R: Rand,
 {
+    // todo make sure that we do not replace a term with itself (performance improvement)
     fn mutate(
         &mut self,
         state: &mut S,
@@ -249,11 +250,12 @@ where
         let filter = |term: &Term| match term {
             Term::Variable(_) => false,
             Term::Application(func, _) => {
-                func.shape().return_type == requested_shape.return_type
+                func.shape().name != requested_shape.name
+                    && func.shape().return_type == requested_shape.return_type
                     && func.shape().argument_types == requested_shape.argument_types
             }
         };
-        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter).cloned() {
+        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
             match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
@@ -321,19 +323,16 @@ where
         let filter = |term: &Term| match term {
             Term::Variable(_) => false,
             Term::Application(func, _) => {
-                func.shape().argument_types.len() == 1 &&
-                    func.shape().argument_types.first().unwrap() == &func.shape().return_type
+                func.shape().argument_types.len() == 1
+                    && func.shape().argument_types.first().unwrap() == &func.shape().return_type
             }
         };
-        if let Some(mut to_mutate) =
-            choose_term_mut(trace, rand, filter).cloned()
-        {
-
+        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
             match &to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
-                },
+                }
                 Term::Application(_func, subterms) => {
                     let subterm = subterms.clone();
                     to_mutate.mutate(subterm.first().unwrap());
