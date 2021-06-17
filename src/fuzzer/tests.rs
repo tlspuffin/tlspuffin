@@ -11,6 +11,7 @@ use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
 use crate::fuzzer::seeds::*;
+use crate::graphviz::write_graphviz;
 use crate::openssl_binding::make_deterministic;
 use crate::term::Term;
 use crate::trace::{Action, InputAction, Step, Trace};
@@ -58,14 +59,16 @@ fn test_repeat_cve() {
                 }
             }
         }
-
-        /*write_graphviz(
-            format!("mutations_preview/test_mutation_after{}.svg", i).as_str(),
-            "svg",
-            trace.dot_graph(true).as_str(),
-        )
-        .unwrap();*/
     }
+}
+
+fn plot(trace: &Trace) {
+    write_graphviz(
+        format!("test_mutation.svg").as_str(),
+        "svg",
+        trace.dot_graph(true).as_str(),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -90,6 +93,7 @@ fn test_replace_match_cve() {
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
                             if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
+                                plot(&trace);
                                 break;
                             }
                         }
@@ -99,6 +103,27 @@ fn test_replace_match_cve() {
             }
         }
     }
+}
+
+fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
+    trace
+        .steps
+        .iter()
+        .map(|step| match &step.action {
+            Action::Input(input) => {
+                let mut extension_appends = 0;
+                for term in input.recipe.into_iter() {
+                    if let Term::Application(func, _) = term {
+                        if func.name() == find_name {
+                            extension_appends += 1;
+                        }
+                    }
+                }
+                extension_appends
+            }
+            Action::Output(_) => 0,
+        })
+        .sum::<u16>()
 }
 
 #[test]
@@ -114,34 +139,52 @@ fn test_remove_lift_removes_extensions() {
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
-        trace
-            .steps
-            .iter()
-            .map(|step| match &step.action {
-                Action::Input(input) => {
-                    let mut extension_appends = 0;
-                    for term in input.recipe.into_iter() {
-                        if let Term::Application(func, _) = term {
-                            if func.name() == "tlspuffin::tls::fn_extensions::fn_client_extensions_append" {
-                                extension_appends += 1;
-                            }
-                        }
-                    }
-                    extension_appends
-                }
-                Action::Output(_) => 0,
-            })
-            .sum::<u16>()
+        count_functions(
+            trace,
+            "tlspuffin::tls::fn_extensions::fn_client_extensions_append",
+        )
     }
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
         let before_mutation = sum_extension_appends(&trace);
+        //plot(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
             let after_mutation = sum_extension_appends(&trace);
-            if after_mutation != before_mutation {
+            if after_mutation < before_mutation {
+                //plot(&trace);
+                break;
+            }
+        }
+    }
+}
+
+#[test]
+fn test_replace_reuse() {
+    let rand = StdRand::with_seed(1235);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let client = AgentName::first();
+    let server = client.next();
+    let _trace = seed_client_attacker12(client, server);
+
+    let mut mutator = ReplaceReuseMutator::new();
+
+    fn count_client_hello(trace: &Trace) -> u16 {
+        count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
+    }
+
+    loop {
+        let mut trace = seed_client_attacker12(client, server);
+        let before_mutation = count_client_hello(&trace);
+        let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if let MutationResult::Mutated = result {
+            let after_mutation = count_client_hello(&trace);
+            if after_mutation > before_mutation {
+                //plot(&trace);
                 break;
             }
         }

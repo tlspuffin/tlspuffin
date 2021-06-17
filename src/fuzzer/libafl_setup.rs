@@ -62,9 +62,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
             //MaxMapFeedback::new_tracking(&edges_feedbac_k_state, &edges_observer, true, false),
-            MaxMapFeedback::new(&edges_feedback_state, &edges_observer),
+            MaxMapFeedback::new(&edges_feedback_state, &edges_observer)
             // Time feedback, this one does not need a feedback state
-            TimeFeedback::new_with_observer(&time_observer)
+            //TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
@@ -110,7 +110,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             InProcessExecutor::new(
                 &mut harness_fn,
                 // hint: edges_observer is expensive to serialize
-                tuple_list!(edges_observer, time_observer, error_observer),
+                tuple_list!(edges_observer, error_observer),
                 &mut fuzzer,
                 &mut state,
                 &mut restarting_mgr,
