@@ -726,7 +726,9 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: app_const!(fn_heartbeat),
+                    recipe: term! {
+                        fn_heartbeat_fake_length(fn_empty_bytes_vec, fn_large_length)
+                    },
                 }),
             }
         ],

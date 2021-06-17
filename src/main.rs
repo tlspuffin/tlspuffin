@@ -89,7 +89,6 @@ fn main() {
             (seed_successful12, "seed_successful12"),
             (seed_client_attacker, "seed_client_attacker"),
             (seed_client_attacker12, "seed_client_attacker12"),
-            (seed_cve_2021_3449, "seed_cve_2021_3449"),
         ];
 
         for (trace_fn, name) in traces {
