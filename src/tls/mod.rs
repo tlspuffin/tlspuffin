@@ -45,9 +45,9 @@ fn tls13_client_handshake_traffic_secret(
     transcript: &HandshakeHash,
     write: bool,
 ) -> Result<(&'static SupportedCipherSuite, Prk), FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random()
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
-    let group = NamedGroup::secp384r1; // todo
+    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let mut key_schedule = tls12_key_schedule(server_public_key, suite, group)?;
 
     let key = if write {
@@ -109,7 +109,7 @@ fn tls13_get_server_key_share(
 // ----
 
 fn tls12_key_exchange(server_ecdh_params: &ServerECDHParams) -> Result<KeyExchangeResult, FnError> {
-    let group = NamedGroup::secp384r1; // todo
+    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or("Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
@@ -121,7 +121,7 @@ fn tls12_new_secrets(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo
+    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
     let mut server_random_bytes = vec![0; 32];
 
@@ -132,7 +132,7 @@ fn tls12_new_secrets(
         .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
         we_are_client: true,
-        client: [1; 32], // todo
+        client: [1; 32], // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
         server: server_random,
     };
     let kxd = tls12_key_exchange(server_ecdh_params)?;

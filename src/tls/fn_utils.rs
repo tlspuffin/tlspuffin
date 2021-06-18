@@ -118,7 +118,7 @@ pub fn fn_encrypt12(
 // ----
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
-    // todo maybe we need a context for rng? Maybe also for hs_hash?
+    // todo maybe we need a context for rng? Maybe also for hs_hash? https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let random = FixedByteRandom { byte: 12 };
     Ok(hmac::Key::generate(hmac::HMAC_SHA256, &random)?)
 }

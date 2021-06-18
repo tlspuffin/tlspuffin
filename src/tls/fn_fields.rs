@@ -22,9 +22,16 @@ pub fn fn_new_random() -> Result<Random, FnError> {
     Ok(Random::from(random_data))
 }
 
-// todo fn_add_cipher_suite
 pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
+}
+
+// todo implement functions for all supported cipher suites as constants
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+pub fn fn_append_cipher_suite(suites: &Vec<CipherSuite>, suite: &CipherSuite) -> Result<Vec<CipherSuite>, FnError> {
+    let mut new: Vec<CipherSuite> = suites.clone();
+    new.push(suite.clone());
+    Ok(new)
 }
 
 pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
@@ -36,10 +43,10 @@ pub fn fn_verify_data(
     verify_transcript: &HandshakeHash,
     client_handshake_traffic_secret_transcript: &HandshakeHash,
 ) -> Result<Vec<u8>, FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random()
+    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
-    let group = NamedGroup::secp384r1; // todo
+    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
     let server_public_key = keyshare.payload.0.as_slice();

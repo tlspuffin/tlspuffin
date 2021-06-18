@@ -73,13 +73,17 @@ pub fn fn_cert_req_extensions_append(
 }
 
 // todo ServerExtensions
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/57
 
 // todo CertReqExtension
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/57
 
 // todo NewSessionTicketExtension
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/57
 
 // todo Unknown Extensions for
 //      ClientExtension, ServerExtension, HelloRetryExtension, NewSessionTicketExtension
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/57
 
 //
 // Actual extensions
@@ -110,6 +114,7 @@ pub fn fn_status_request_extension(
     extensions: &Vec<u8>,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::CertificateStatusRequest(
         CertificateStatusRequest::OCSP(OCSPCertificateStatusRequest {
             responder_ids: responder_ids
@@ -169,6 +174,7 @@ pub fn fn_al_protocol_negotiation(
     protocol_name_list: &Vec<Vec<u8>>,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::Protocols(
         protocol_name_list
             .iter()
@@ -222,6 +228,7 @@ pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError>
 }
 pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::SessionTicketOffer(Payload::new(ticket.clone())))
 }
 /// TLMSP => 0x0024,
@@ -255,6 +262,7 @@ pub fn fn_preshared_keys(
     binders: &Vec<Vec<u8>>,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::PresharedKey(PresharedKeyOffer {
         identities: identities.clone(),
         binders: binders
@@ -346,6 +354,7 @@ nyi_fn!();
 /// TransportParameters/quic_transport_parameters => 0x0039,
 pub fn fn_transport_parameters_extension(parameters: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::TransportParameters(parameters.clone()))
 }
 /// NextProtocolNegotiation => 0x3374,
@@ -365,5 +374,6 @@ pub fn fn_renegotiation_info_extension(data: &Vec<u8>) -> Result<ClientExtension
 /// TransportParametersDraft => 0xffa5
 pub fn fn_transport_parameters_draft_extension(parameters: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::TransportParametersDraft(parameters.clone()))
 }

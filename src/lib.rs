@@ -1,4 +1,4 @@
-//! TODO: Write intro
+//! TODO: Write intro: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/64
 //!
 //! ### Used protocol and cryptographic libraries
 //!

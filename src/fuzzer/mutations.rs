@@ -18,7 +18,7 @@ use crate::trace::Trace;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
-       // SkipMutator<R, S>, todo
+       SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
        RemoveAndLiftMutator<R, S>,
@@ -30,7 +30,7 @@ where
 {
     tuple_list!(
         RepeatMutator::new(),
-        // SkipMutator::new(), todo
+        SkipMutator::new(),
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
         RemoveAndLiftMutator::new(),
@@ -65,8 +65,8 @@ where
         }
         let insert_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
-        //(&mut trace.steps).insert(insert_index, step); todo
-        (&mut trace.steps).push( step);
+        (&mut trace.steps).insert(insert_index, step);
+        //(&mut trace.steps).push( step);
         Ok(MutationResult::Mutated)
     }
 }
@@ -379,3 +379,4 @@ where
 }
 
 // todo SWAP: https://github.com/Sgeo/take_mut
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/67
