@@ -72,7 +72,7 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::io::MessageResult;
+use crate::io::{MessageResult, Stream};
 use crate::{
     agent::{Agent, AgentName},
     term::{Term, dynamic_function::TypeShape},

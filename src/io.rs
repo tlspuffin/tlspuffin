@@ -37,10 +37,6 @@ pub trait Stream: std::io::Read + std::io::Write {
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error>;
-
-    fn describe_state(&self) -> &'static str;
-
-    fn next_state(&mut self) -> Result<(), Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
@@ -76,20 +72,6 @@ impl Stream for OpenSSLStream {
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         self.openssl_stream.get_mut().take_message_from_outbound()
     }
-
-    fn describe_state(&self) -> &'static str {
-        // Very useful for nonblocking according to docs:
-        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
-        // When using nonblocking sockets, the function call performing the handshake may return
-        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
-        // so that SSL_state_string[_long]() may be called.
-        self.openssl_stream.ssl().state_string_long()
-    }
-
-    fn next_state(&mut self) -> Result<(), Error> {
-        let stream = &mut self.openssl_stream;
-        Ok(openssl_binding::do_handshake(stream)?)
-    }
 }
 
 impl Read for OpenSSLStream {
@@ -123,6 +105,20 @@ impl OpenSSLStream {
             openssl_stream,
             server,
         })
+    }
+
+    pub fn describe_state(&self) -> &'static str {
+        // Very useful for nonblocking according to docs:
+        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
+        // When using nonblocking sockets, the function call performing the handshake may return
+        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
+        // so that SSL_state_string[_long]() may be called.
+        self.openssl_stream.ssl().state_string_long()
+    }
+
+    pub fn next_state(&mut self) -> Result<(), Error> {
+        let stream = &mut self.openssl_stream;
+        Ok(openssl_binding::do_handshake(stream)?)
     }
 }
 
@@ -214,14 +210,6 @@ impl Stream for MemoryStream {
             // Unable to deframe
             Err(Error::Stream("Failed to deframe bianry buffer".to_string()))
         }
-    }
-
-    fn describe_state(&self) -> &'static str {
-        todo!()
-    }
-
-    fn next_state(&mut self) -> Result<(), Error> {
-        todo!()
     }
 }
 

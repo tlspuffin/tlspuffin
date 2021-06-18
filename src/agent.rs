@@ -55,7 +55,7 @@ pub enum TLSVersion {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: Box<dyn Stream>,
+    pub stream: OpenSSLStream,
 }
 
 impl Agent {
@@ -66,11 +66,11 @@ impl Agent {
         )?;
         Ok(Self::from_stream(
             descriptor,
-            Box::new(openssl_stream),
+            openssl_stream,
         ))
     }
 
-    pub fn from_stream(descriptor: &AgentDescriptor, stream: Box<dyn Stream>) -> Agent {
+    pub fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
         Agent { descriptor: *descriptor, stream }
     }
 }
