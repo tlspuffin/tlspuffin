@@ -41,12 +41,20 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+pub static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
-    let stats = MultiStats::new(|s| info!("{}", s));
+
+    let stats = MultiStats::new(|s| {
+        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 400 == 0 {
+            info!("{}", s)
+        }
+    });
 
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr| {
         info!("We're a client, let's fuzz :)");
