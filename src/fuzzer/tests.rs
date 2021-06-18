@@ -93,7 +93,7 @@ fn test_replace_match_cve() {
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
                             if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
-                                plot(&trace, 0);
+                                //plot(&trace, 0);
                                 break;
                             }
                         }
@@ -186,7 +186,7 @@ fn test_replace_reuse() {
         if let MutationResult::Mutated = result {
             let after_mutation = count_client_hello(&trace);
             if after_mutation == 2 && count_finished(&trace) == 0 {
-                plot(&trace, 0);
+                //plot(&trace, 0);
                 break;
             }
         }
