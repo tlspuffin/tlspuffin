@@ -63,7 +63,7 @@ where
         if length == 0 {
             return Ok(MutationResult::Skipped);
         }
-        let insert_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
+        let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
         (&mut trace.steps).insert(insert_index, step);
         //(&mut trace.steps).push( step);
