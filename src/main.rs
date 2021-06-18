@@ -150,8 +150,8 @@ fn main() {
         let trace = postcard::from_bytes::<trace::Trace>(&buffer).unwrap();
 
         let mut ctx = TraceContext::new();
-        trace.spawn_agents(&mut ctx);
-        trace.execute(&mut ctx);
+        trace.spawn_agents(&mut ctx).unwrap();
+        trace.execute(&mut ctx).unwrap();
     } else {
         let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
 
