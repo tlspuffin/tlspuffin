@@ -40,7 +40,15 @@ RUST_LOG=trace cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.t
 ```
 
 Note: This requires that the `dot` binary is in on your path.
-Note: The utility [tools/plot-corpus.sh](tools/plot-corpus.sh) plots a whole directory
+Note: The utility [tools/plot-corpus.sh](tools/plot-crashes.sh) plots a whole directory
+
+## Analyzing Crashes
+
+Creates log files for each crash and parses ASAN crashes to group crashes together.
+
+```bash
+tools/analyze-crashes.sh
+```
 
 ### Tests
 
