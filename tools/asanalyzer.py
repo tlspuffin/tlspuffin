@@ -117,6 +117,7 @@ def main():
     for log in logs:
         print("[-] Unique stack (%s)" % (log.fname))
         print("\tDescription: %s" % log.desc)
+        print("\tStack: \t%s" % '\n\t\t'.join(log.stack))
         print("\tDuplicates (%d)" % len(log.dups))
         for dup in log.dups:
             print("\t\t%s" % dup)
