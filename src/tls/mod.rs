@@ -229,6 +229,7 @@ define_signature!(
     // fields
     fn_compressions,
     fn_new_cipher_suites,
+    fn_append_cipher_suite,
     fn_new_cipher_suites12,
     fn_new_random,
     fn_new_session_id,
