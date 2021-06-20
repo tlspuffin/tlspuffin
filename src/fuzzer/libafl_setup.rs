@@ -42,6 +42,7 @@ use crate::openssl_binding::make_deterministic;
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use libafl::corpus::LenTimeMinimizerCorpusScheduler;
 
 pub static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -105,8 +106,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let mut stages = tuple_list!(PuffinMutationalStage::new(mutator));
 
         // A minimization+queue policy to get testcasess from the corpus
-        //let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-        let scheduler = RandCorpusScheduler::new();
+        let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+        //let scheduler = RandCorpusScheduler::new();
 
         // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);

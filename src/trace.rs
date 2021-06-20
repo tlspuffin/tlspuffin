@@ -62,7 +62,6 @@
 use core::fmt;
 use std::{any::TypeId, fmt::Formatter};
 
-use libafl::inputs::{HasLen, Input};
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use serde::{Deserialize, Serialize};
@@ -197,13 +196,6 @@ impl TraceContext {
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
-}
-
-// LibAFL support
-impl Input for Trace {
-    fn generate_name(&self, idx: usize) -> String {
-        format!("{id}.trace", id=idx)
-    }
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
