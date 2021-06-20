@@ -52,7 +52,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
     let stats = MultiStats::new(|s| {
-        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 10 == 0 {
+        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 400 == 0 {
             info!("{}", s)
         }
     });
@@ -72,9 +72,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         // This one is composed by two Feedbacks in OR
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            //MaxMapFeedback::new_tracking(&edges_feedbac_k_state, &edges_observer, true, false),
-            MaxMapFeedback::new(&edges_feedback_state, &edges_observer) // Time feedback, this one does not need a feedback state
-                                                                        //TimeFeedback::new_with_observer(&time_observer)
+            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false) // todo why? new_tracking because of IndexesLenTimeMinimizerCorpusScheduler
+            //MaxMapFeedback::new(&edges_feedback_state, &edges_observer) // Time feedback, this one does not need a feedback state
+           //TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
@@ -158,7 +158,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
         //todo where should we log the output of the harness?
-        .stdout_file(Some("/dev/null"))
+        //.stdout_file(Some("/dev/null"))
         .build()
         .launch()
         .expect("Launcher failed");
