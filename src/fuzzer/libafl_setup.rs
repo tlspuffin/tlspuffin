@@ -52,7 +52,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
     let stats = MultiStats::new(|s| {
-        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 400 == 0 {
+        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 10 == 0 {
             info!("{}", s)
         }
     });
