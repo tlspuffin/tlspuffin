@@ -76,7 +76,7 @@ where
         &mut self,
         _fuzzer: &mut Z,
         _state: &mut S,
-        _mgr: &mut EM,
+        mgr: &mut EM,
         _input: &I,
     ) -> Result<(), Error> {
         let reporters = [
@@ -84,17 +84,19 @@ where
             (&TERM, "term"),
             (&OPENSSL, "ssl"),
             (&IO, "io"),
-            (&AGENT, "agent"),
-            (&STREAM, "stream"),
-            (&EXTRACTION, "extr"),
+            (&AGENT, "ag"),
+            (&STREAM, "str"),
+            (&EXTRACTION, "ext"),
         ];
 
         let stats = reporters
             .iter()
-            .map(|(counter, name)| format!("{}:{}", name, counter.load(Ordering::SeqCst)))
+            .map(|(counter, name)| {
+                format!("{}:{}", name, counter.load(Ordering::SeqCst))
+            })
             .join("|");
 
-        _mgr.fire(
+        mgr.fire(
             _state,
             UpdateUserStats {
                 name: "errors".to_string(),

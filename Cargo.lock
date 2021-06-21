@@ -1582,6 +1582,7 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "criterion",
  "dyn-clone",

@@ -22,6 +22,7 @@ use trace::{Trace, TraceContext};
 
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
+use chrono::Utc;
 
 mod agent;
 mod debug;
@@ -185,10 +186,14 @@ fn main() {
 
             let full_description = format!(
                 "# Experiment: {title}\n\
+                * OpenSSL: {openssl_version}\n\
+                * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
                 {description}\n",
                 title = &title,
+                openssl_version = openssl_binding::openssl_version(),
+                date = Utc::now().to_rfc3339(),
                 git_ref = git_ref,
                 description = description
             );

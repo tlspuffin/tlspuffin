@@ -1,8 +1,10 @@
 use core::time::Duration;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use itertools::Itertools;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
+use libafl::corpus::LenTimeMinimizerCorpusScheduler;
 use libafl::{
     bolts::{
         current_nanos,
@@ -41,8 +43,6 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use libafl::corpus::LenTimeMinimizerCorpusScheduler;
 
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
@@ -54,6 +54,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
     let stats = MultiStats::new(|s| {
         static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
         let log_count = STATS_COUNTER.fetch_add(1, Ordering::SeqCst);
+        // GLOBAL and CLIENT message
         if log_count % 400 == 0 || (log_count - 1) % 400 == 0 {
             info!("{}", s)
         }
@@ -70,13 +71,13 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
-        // Feedback to rate the interestingness of an input
-        // This one is composed by two Feedbacks in OR
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false), // todo why? new_tracking because of IndexesLenTimeMinimizerCorpusScheduler
-            //MaxMapFeedback::new(&edges_feedback_state, &edges_observer), // Time feedback, this one does not need a feedback state
-           TimeFeedback::new_with_observer(&time_observer)
+            // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
+            // Time feedback, this one does not need a feedback state
+            // needed for IndexesLenTimeMinimizerCorpusScheduler
+            TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
@@ -87,35 +88,22 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             let seed = current_nanos();
             warn!("Seed is {}", seed);
             StdState::new(
-                // RNG
                 StdRand::with_seed(seed),
-                // Corpus that will be evolved, we keep it in memory for performance
-                //OnDiskCorpus::new(PathBuf::from("corpus_inspection")).unwrap(),
                 InMemoryCorpus::new(),
-                // Corpus in which we store solutions (crashes in this example),
-                // on disk so the user can get them after stopping the fuzzer
                 OnDiskCorpus::new(objective_dir.clone()).unwrap(),
-                //InMemoryCorpus::new(),
-                // States of the feedbacks.
                 // They are the data related to the feedbacks that you want to persist in the State.
-                //tuple_list!(),
                 tuple_list!(edges_feedback_state),
             )
         });
 
-        // Setup a basic mutator with a mutational stage
         let mutator = PuffinScheduledMutator::new(trace_mutations());
         let mut stages = tuple_list!(PuffinMutationalStage::new(mutator));
 
         // A minimization+queue policy to get testcasess from the corpus
         let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
         //let scheduler = RandCorpusScheduler::new();
-
-        // A fuzzer with feedbacks and a corpus scheduler
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-        // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-        // let mut harness_fn = &mut harness::harness;
         let mut harness_fn = &mut harness::harness;
 
         let mut executor = TimeoutExecutor::new(
@@ -127,7 +115,6 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
                 &mut state,
                 &mut restarting_mgr,
             )?,
-            // 10 seconds timeout
             Duration::new(2, 0),
         );
 
