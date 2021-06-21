@@ -166,7 +166,7 @@ fn main() {
         let root = PathBuf::new().join("experiments").join(&title);
 
         if root.as_path().exists() {
-            fs::remove_dir_all(&root).unwrap();
+            panic!("Experiment already exists. Consider creating a new experiment.")
         }
         fs::create_dir_all(&root).unwrap();
 
