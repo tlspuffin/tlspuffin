@@ -72,9 +72,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         // This one is composed by two Feedbacks in OR
         let feedback = feedback_or!(
             // New maximization map feedback linked to the edges observer and the feedback state
-            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false) // todo why? new_tracking because of IndexesLenTimeMinimizerCorpusScheduler
-            //MaxMapFeedback::new(&edges_feedback_state, &edges_observer) // Time feedback, this one does not need a feedback state
-           //TimeFeedback::new_with_observer(&time_observer)
+            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false), // todo why? new_tracking because of IndexesLenTimeMinimizerCorpusScheduler
+            //MaxMapFeedback::new(&edges_feedback_state, &edges_observer), // Time feedback, this one does not need a feedback state
+           TimeFeedback::new_with_observer(&time_observer)
         );
 
         // A feedback to choose if an input is a solution or not
@@ -119,8 +119,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let mut executor = TimeoutExecutor::new(
             InProcessExecutor::new(
                 &mut harness_fn,
-                // hint: edges_observer is expensive to serialize
-                tuple_list!(edges_observer, error_observer),
+                // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
+                tuple_list!(edges_observer, time_observer, error_observer),
                 &mut fuzzer,
                 &mut state,
                 &mut restarting_mgr,
