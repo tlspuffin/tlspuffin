@@ -165,6 +165,9 @@ fn main() {
         let description = value_t!(matches, "description", String).unwrap();
         let root = PathBuf::new().join("experiments").join(&title);
 
+        if root.as_path().exists() {
+            fs::remove_dir_all(&root).unwrap();
+        }
         fs::create_dir_all(&root).unwrap();
 
         handle.set_config(create_config(&root.join("tlspuffin-log.json")));
