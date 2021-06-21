@@ -44,15 +44,15 @@ use super::{EDGES_MAP, MAX_EDGES_NUM};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use libafl::corpus::LenTimeMinimizerCorpusScheduler;
 
-pub static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
     let stats = MultiStats::new(|s| {
-        if STATS_COUNTER.fetch_add(1, Ordering::SeqCst) % 400 == 0 {
+        static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let log_count = STATS_COUNTER.fetch_add(1, Ordering::SeqCst);
+        if log_count % 400 == 0 || (log_count - 1) % 400 == 0 {
             info!("{}", s)
         }
     });
@@ -113,8 +113,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
+        // let mut harness_fn = &mut harness::harness;
         let mut harness_fn = &mut harness::harness;
-        /*let mut harness_fn = &mut harness::harness;*/
 
         let mut executor = TimeoutExecutor::new(
             InProcessExecutor::new(
