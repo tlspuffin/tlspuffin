@@ -182,10 +182,12 @@ fn main() {
             let full_description = format!(
                 "# Experiment {title}\n\
                 * Git Ref: {git_ref}\n\
-                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\
+                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n
+                {description}\
             ",
                 title = &title,
-                git_ref = git_ref
+                git_ref = git_ref,
+                description = description
             );
             file.write_all(full_description.as_bytes()).unwrap();
         }
