@@ -180,10 +180,10 @@ fn main() {
             let mut file = File::create(root.join("README.md")).unwrap();
 
             let full_description = format!(
-                "# Experiment {title}\n\
+                "# Experiment: {title}\n\
                 * Git Ref: {git_ref}\n\
-                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n
-                {description}\
+                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
+                {description}\n
             ",
                 title = &title,
                 git_ref = git_ref,
