@@ -59,6 +59,7 @@ openssl-src = { path = './openssl-src' }
 criterion = "0.3"
 # Support logging in tests
 test-env-log = "0.2"
+env_logger = "0.8"
 nix = "0.21"
 
 [profile.release]
