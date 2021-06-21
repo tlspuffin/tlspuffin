@@ -187,8 +187,7 @@ fn main() {
                 "# Experiment: {title}\n\
                 * Git Ref: {git_ref}\n\
                 * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
-                {description}\n
-            ",
+                {description}\n",
                 title = &title,
                 git_ref = git_ref,
                 description = description
