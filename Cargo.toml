@@ -35,7 +35,7 @@ libafl_targets = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "8db
 
 # Logging
 log = "0.4"
-env_logger = "0.8"
+log4rs = "1.0"
 
 # Utils
 clap = "2"

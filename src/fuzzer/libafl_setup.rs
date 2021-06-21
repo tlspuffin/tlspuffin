@@ -46,6 +46,8 @@ use libafl::corpus::LenTimeMinimizerCorpusScheduler;
 
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
+    info!("Running on {} cores", num_cores);
+
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 

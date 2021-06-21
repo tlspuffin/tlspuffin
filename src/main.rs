@@ -3,14 +3,22 @@ extern crate log;
 
 use std::fs::File;
 use std::io::Read;
-use std::{env, io::Write, path::PathBuf};
+use std::process::Command;
+use std::{env, fs, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
-use env_logger::{fmt, Builder, Env};
-use log::Level;
-use trace::{TraceContext, Trace};
-use agent::{AgentName};
+use log::{Level, LevelFilter};
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::file::FileAppender;
+use log4rs::config::runtime::ConfigErrors;
+use log4rs::config::{Appender, InitError, Logger, RawConfig, Root};
+use log4rs::encode::json::JsonEncoder;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::{Config, Handle};
+
+use agent::AgentName;
 use fuzzer::seeds::*;
+use trace::{Trace, TraceContext};
 
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
@@ -29,34 +37,29 @@ mod trace;
 mod variable_data;
 
 fn main() {
-    fn init_logger() {
-        let env = Env::default().filter("RUST_LOG");
+    fn create_config(log_path: &PathBuf) -> Config {
+        let stdout = ConsoleAppender::builder()
+            .encoder(Box::new(PatternEncoder::new(
+                "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
+            )))
+            .build();
+        let file_appender = FileAppender::builder()
+            .encoder(Box::new(JsonEncoder::new()))
+            .build(&log_path)
+            .unwrap();
 
-        Builder::from_env(env)
-            .format(|buf, record| {
-                let mut style = buf.style();
-                match record.level() {
-                    Level::Error => {
-                        style.set_color(fmt::Color::Red).set_bold(true);
-                    }
-                    Level::Warn => {
-                        style.set_color(fmt::Color::Yellow).set_bold(true);
-                    }
-                    Level::Info => {
-                        style.set_color(fmt::Color::Blue).set_bold(true);
-                    }
-                    Level::Debug => {}
-                    Level::Trace => {}
-                };
-
-                let timestamp = buf.timestamp();
-
-                writeln!(buf, "{} {}", timestamp, style.value(record.args()))
-            })
-            .init();
+        Config::builder()
+            .appender(Appender::builder().build("stdout", Box::new(stdout)))
+            .appender(Appender::builder().build("file", Box::new(file_appender)))
+            .build(
+                Root::builder()
+                    .appenders(vec!["stdout", "file"])
+                    .build(LevelFilter::Info),
+            )
+            .unwrap()
     }
 
-    init_logger();
+    let handle = log4rs::init_config(create_config(&PathBuf::from("tlspuffin-log.json"))).unwrap();
 
     let matches = App::new(crate_name!())
         .version(crate_version!())
@@ -64,6 +67,10 @@ fn main() {
         .about("Fuzzes OpenSSL on a symbolic level")
         .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
         .subcommands(vec![
+            SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
+                .args_from_usage("-t, --title=[t] 'Title of the experiment'")
+                .args_from_usage("-d, --description=[d] 'Decryption of the experiment'")
+            ,
             SubCommand::with_name("seed").about("Generates seeds to ./corpus"),
             SubCommand::with_name("plot")
                 .about("Plots a trace stored in a file")
@@ -151,10 +158,47 @@ fn main() {
         let mut ctx = TraceContext::new();
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
+    } else if let Some(matches) = matches.subcommand_matches("experiment") {
+        let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
+        let title = value_t!(matches, "title", String).unwrap();
+        let description = value_t!(matches, "description", String).unwrap();
+        let root = PathBuf::new().join("experiments").join(&title);
+
+        fs::create_dir_all(&root).unwrap();
+
+        handle.set_config(create_config(&root.join("tlspuffin-log.json")));
+
+        let git_ref = {
+            let output = Command::new("git")
+                .args(&["rev-parse", "HEAD"])
+                .output()
+                .unwrap();
+            String::from_utf8(output.stdout).unwrap()
+        };
+
+        {
+            let mut file = File::create(root.join("README.md")).unwrap();
+
+            let full_description = format!(
+                "# Experiment {title}\n\
+                * Git Ref: {git_ref}\n\
+                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\
+            ",
+                title = &title,
+                git_ref = git_ref
+            );
+            file.write_all(full_description.as_bytes()).unwrap();
+        }
+
+        start(
+            num_cores,
+            &[PathBuf::from("./corpus")],
+            &root.join("crashes"),
+            1337,
+        );
     } else {
         let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
 
-        info!("Running on {} cores", num_cores);
         start(
             num_cores,
             &[PathBuf::from("./corpus")],
