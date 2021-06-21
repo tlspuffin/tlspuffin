@@ -85,6 +85,8 @@ fn main() {
         ])
         .get_matches();
 
+    let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
+
     info!("{}", openssl_binding::openssl_version());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
@@ -159,7 +161,6 @@ fn main() {
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("experiment") {
-        let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
         let title = value_t!(matches, "title", String).unwrap();
         let description = value_t!(matches, "description", String).unwrap();
         let root = PathBuf::new().join("experiments").join(&title);
@@ -199,8 +200,6 @@ fn main() {
             1337,
         );
     } else {
-        let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
-
         start(
             num_cores,
             &[PathBuf::from("./corpus")],
