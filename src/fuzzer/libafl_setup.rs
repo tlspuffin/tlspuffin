@@ -37,7 +37,7 @@ use libafl::{
 };
 
 use crate::fuzzer::error_observer::ErrorObserver;
-use crate::fuzzer::mutations::trace_mutations;
+//use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::openssl_binding::make_deterministic;
 
@@ -96,7 +96,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             )
         });
 
-        let mutator = PuffinScheduledMutator::new(trace_mutations());
+        //let mutator = PuffinScheduledMutator::new(trace_mutations()); todo
+        let mutator = PuffinScheduledMutator::new(tuple_list!());
         let mut stages = tuple_list!(PuffinMutationalStage::new(mutator));
 
         // A minimization+queue policy to get testcasess from the corpus

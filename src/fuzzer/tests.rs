@@ -13,7 +13,7 @@ use crate::fuzzer::mutations::{
 use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
 use crate::openssl_binding::make_deterministic;
-use crate::term::Term;
+use crate::term::{Term, Symbol};
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
@@ -89,8 +89,8 @@ fn test_replace_match_cve() {
         if let Some(last) = trace.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe {
-                    Term::Variable(_) => {}
-                    Term::Application(_, subterms) => {
+                    Symbol::Variable(_) => {}
+                    Symbol::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
                             if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
                                 //plot(&trace, 0);
@@ -113,7 +113,7 @@ fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
             Action::Input(input) => {
                 let mut extension_appends = 0;
                 for term in input.recipe.into_iter() {
-                    if let Term::Application(func, _) = term {
+                    if let Symbol::Application(func, _) = term {
                         if func.name() == find_name {
                             extension_appends += 1;
                         }

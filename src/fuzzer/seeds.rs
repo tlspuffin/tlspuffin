@@ -44,15 +44,15 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe:Symbol::Application(
                         Signature::new_function(&fn_client_hello),
                         vec![
-                            Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
-                            Term::Variable(Signature::new_var::<Random>((0, 0))),
-                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-                            Term::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
-                            Term::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
-                            Term::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<Random>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<SessionID>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
+                            Symbol::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
                         ],
                     ),
                 }),
@@ -65,15 +65,15 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_server_hello),
                         vec![
-                            Term::Variable(Signature::new_var::<ProtocolVersion>((1, 0))),
-                            Term::Variable(Signature::new_var::<Random>((1, 0))),
-                            Term::Variable(Signature::new_var::<SessionID>((1, 0))),
-                            Term::Variable(Signature::new_var::<CipherSuite>((1, 0))),
-                            Term::Variable(Signature::new_var::<Compression>((1, 0))),
-                            Term::Variable(Signature::new_var::<Vec<ServerExtension>>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<ProtocolVersion>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<Random>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<SessionID>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<CipherSuite>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<Compression>((1, 0))),
+                            Symbol::Variable(Signature::new_var::<Vec<ServerExtension>>((1, 0))),
                         ],
                     ),
                 }),
@@ -82,7 +82,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_change_cipher_spec),
                         vec![],
                     ),
@@ -92,9 +92,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
                     ),
                 }),
             },
@@ -102,9 +102,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 3)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((1, 3)))],
                     ),
                 }),
             },
@@ -112,9 +112,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 4)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((1, 4)))],
                     ),
                 }),
             },
@@ -122,9 +122,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 5)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((1, 5)))],
                     ),
                 }),
             },
@@ -135,7 +135,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_change_cipher_spec),
                         vec![],
                     ),
@@ -145,9 +145,9 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 1)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((2, 1)))],
                     ),
                 }),
             },
@@ -158,18 +158,18 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 0)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((3, 0)))],
                     ),
                 }),
             },
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_application_data),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
                     ),
                 }),
             },
@@ -226,9 +226,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_certificate),
-                        vec![Term::Variable(Signature::new_var::<CertificatePayload>((
+                        vec![Symbol::Variable(Signature::new_var::<CertificatePayload>((
                             1, 1,
                         )))],
                     ),
@@ -238,9 +238,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_server_key_exchange),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((1, 2)))],
                     ),
                 }),
             },
@@ -248,7 +248,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_server_hello_done),
                         vec![],
                     ),
@@ -262,9 +262,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_client_key_exchange),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 0)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((2, 0)))],
                     ),
                 }),
             },
@@ -272,7 +272,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_change_cipher_spec).clone(),
                         vec![],
                     ),
@@ -282,9 +282,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_opaque_handshake_message),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((2, 2)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((2, 2)))],
                     ),
                 }),
             },
@@ -296,7 +296,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_change_cipher_spec),
                         vec![],
                     ),
@@ -306,9 +306,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    recipe: Term::Application(
+                    recipe: Symbol::Application(
                         Signature::new_function(&fn_opaque_handshake_message),
-                        vec![Term::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
+                        vec![Symbol::Variable(Signature::new_var::<Vec<u8>>((3, 1)))],
                     ),
                 }),
             },

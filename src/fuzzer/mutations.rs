@@ -12,7 +12,7 @@ use libafl::{
 };
 
 use crate::fuzzer::mutations_util::*;
-use crate::term::Term;
+use crate::term::{Term, Symbol};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
@@ -249,8 +249,8 @@ where
         let (requested_shape, requested_dynamic_fn) = rand.choose(&SIGNATURE.functions);
 
         let filter = |term: &Term| match term {
-            Term::Variable(_) => false,
-            Term::Application(func, _) => {
+            Symbol::Variable(_) => false,
+            Symbol::Application(func, _) => {
                 func.shape().name != requested_shape.name
                     && func.shape().return_type == requested_shape.return_type
                     && func.shape().argument_types == requested_shape.argument_types
@@ -258,11 +258,11 @@ where
         };
         if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
             match &mut to_mutate {
-                Term::Variable(_) => {
+                Symbol::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 }
-                Term::Application(func, _) => {
+                Symbol::Application(func, _) => {
                     func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
                     Ok(MutationResult::Mutated)
                 }
@@ -322,12 +322,12 @@ where
 
         // filter for inner nodes with exactly one subterm
         let filter = |term: &Term| match term {
-            Term::Variable(_) => false,
-            Term::Application(func, subterms) => {
+            Symbol::Variable(_) => false,
+            Symbol::Application(func, subterms) => {
                 subterms.iter().find(|subterm| {
                     match subterm {
-                        Term::Variable(_) => false,
-                        Term::Application(func, grand_subterms) => {
+                        Symbol::Variable(_) => false,
+                        Symbol::Application(func, grand_subterms) => {
                             grand_subterms.iter().find(|grand_subterm| {
                                 subterm.get_type_shape() == grand_subterm.get_type_shape()
                             }).is_some()
@@ -338,15 +338,15 @@ where
         };
         if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
             match &mut to_mutate {
-                Term::Variable(_) => {
+                Symbol::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 }
-                Term::Application(_, ref mut subterms) => {
+                Symbol::Application(_, ref mut subterms) => {
                    for subterm in subterms {
                         let found_grand_subterm = match &subterm {
-                            Term::Variable(_) => None,
-                            Term::Application(_, grand_subterms) => {
+                            Symbol::Variable(_) => None,
+                            Symbol::Application(_, grand_subterms) => {
                                 grand_subterms.iter().find(|grand_subterm| {
                                     subterm.get_type_shape() == grand_subterm.get_type_shape()
                                 })

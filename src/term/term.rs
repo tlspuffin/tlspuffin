@@ -6,16 +6,44 @@ use std::{any::Any, fmt};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
 use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::atoms::{Function, Variable};
-use crate::error::Error;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Term {
+    pub symbols: Vec<Symbol>,
+    pub index: Option<TermIndex>,
+}
+
+impl Term {
+/*    pub fn new() -> Self {
+        Term {
+            symbols: vec![],
+            index: None,
+        }
+    }*/
+
+    pub fn new(symbols: Vec<Symbol>, index: TermIndex) -> Self {
+        Term {
+            symbols: symbols,
+            index: Some(index),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TermIndex {
+    pub id: usize,
+    pub subterms: Vec::<TermIndex>,
+}
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum Term {
+pub enum Symbol {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
     ///
@@ -24,87 +52,71 @@ pub enum Term {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<Term>),
+    Application(Function),
 }
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display_at_depth(0))
+        write!(f, "{}", self.index.unwrap().display_at_depth(self, 0))
     }
 }
 
-impl Term {
-    pub fn length(&self) -> usize {
-        match self {
-            Term::Variable(_) => 1,
-            Term::Application(_, ref args) => {
-                if args.is_empty() {
-                    return 1;
-                }
+impl TermIndex {
+    fn length(&self) -> usize {
+        if self.subterms.is_empty() {
+            return 1;
+        }
 
-                args.iter().map(|subterm| subterm.length()).sum::<usize>() + 1
-            }
+        self.subterms
+            .iter()
+            .map(|subterm| subterm.length())
+            .sum::<usize>()
+            + 1
+    }
+
+    fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
+        let increment = if filter(term.symbols.get(self.id).unwrap()) { 1 } else { 0 };
+        self.subterms
+            .iter()
+            .map(|subterm| subterm.length_filtered(term, filter))
+            .sum::<usize>()
+            + increment
+    }
+
+    fn is_leaf(&self) -> bool {
+        self.subterms.is_empty()
+    }
+
+    fn get_type_shape<'a>(&self, term: &'a Term) -> &'a TypeShape {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(v) => &v.typ,
+            Symbol::Application(function) => &function.shape().return_type,
         }
     }
 
-    pub fn length_filtered<P: Fn(&Term) -> bool + Copy>(&self, filter: P) -> usize {
-        let increment = if filter(self) {
-            1
-        } else {
-            0
-        };
-        match self {
-            Term::Variable(_) => increment,
-            Term::Application(_, ref args) => {
-                args.iter()
-                    .map(|subterm| subterm.length_filtered(filter))
-                    .sum::<usize>()
-                    + increment
-            }
+    fn name<'a>(&self, term: &'a Term) -> &'a str {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(v) => v.typ.name,
+            Symbol::Application(function) => function.name(),
         }
     }
 
-    pub fn is_leaf(&self) -> bool {
-        match self {
-            Term::Variable(_) => {
-                true // variable
-            }
-            Term::Application(_, ref subterms) => {
-                subterms.is_empty() // constant
-            }
-        }
+    fn mutate(&mut self, other: TermIndex) {
+        // iterate over term index and add new terms
     }
 
-    pub fn get_type_shape(&self) -> &TypeShape {
-        match self {
-            Term::Variable(v) => &v.typ,
-            Term::Application(function, _) => &function.shape().return_type,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        match self {
-            Term::Variable(v) => v.typ.name,
-            Term::Application(function, _) => function.name(),
-        }
-    }
-
-    pub fn mutate(&mut self, other: Term) {
-        *self = other;
-    }
-
-    fn display_at_depth(&self, depth: usize) -> String {
+    fn display_at_depth(&self, term: &Term, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
-        match self {
-            Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
-            Term::Application(ref func, ref args) => {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
+            Symbol::Application(ref func) => {
                 let op_str = remove_prefix(func.name());
-                if args.is_empty() {
+                if self.subterms.is_empty() {
                     format!("{}{}", tabs, op_str)
                 } else {
-                    let args_str = args
+                    let args_str = self.subterms
                         .iter()
-                        .map(|arg| arg.display_at_depth(depth + 1))
+                        .map(|arg| arg.display_at_depth(term, depth + 1))
                         .join(",\n");
                     format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
                 }
@@ -112,16 +124,16 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        match self {
-            Term::Variable(v) => context
+    pub fn evaluate(&self, term: &Term, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
-            Term::Application(func, args) => {
+            Symbol::Application(func) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for term in args {
-                    match term.evaluate(context) {
+                for subterm in self.subterms {
+                    match subterm.evaluate(term, context) {
                         Ok(data) => {
                             dynamic_args.push(data);
                         }
@@ -138,29 +150,51 @@ impl Term {
     }
 }
 
-/// Having the same mutator for &'a mut Term is not possible in Rust:
-/// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
-/// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
+impl Term {
+    pub fn length(&self) -> usize {
+        self.index.unwrap().length()
+    }
+
+    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, filter: P) -> usize {
+        self.index.unwrap().length_filtered(self, filter)
+    }
+
+    pub fn is_leaf(&self, ) -> bool {
+        todo!()
+    }
+
+    pub fn get_type_shape(&self) -> &TypeShape {
+        todo!()
+    }
+
+    pub fn name(&self) -> &str {
+        todo!()
+    }
+
+    pub fn mutate(&mut self, other: Term) {
+        todo!()
+    }
+
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
+        self.index.unwrap().evaluate(self, context)
+    }
+}
+
 impl<'a> IntoIterator for &'a Term {
-    type Item = &'a Term;
-    type IntoIter = std::vec::IntoIter<&'a Term>;
+    type Item = (&'a TermIndex, &'a Symbol);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
-            match term {
-                &Term::Variable(_) => {}
-                &Term::Application(_, ref subterms) => {
-                    for subterm in subterms {
-                        append(subterm, v);
-                    }
-                }
+        fn append<'a>(term: &'a Term, index: &'a TermIndex, v: &mut Vec<(&'a TermIndex, &'a Symbol)>) {
+            for subterm in index.subterms {
+                append(term, &subterm, v);
             }
 
-            v.push(term);
+            v.push((index, term.symbols.get(index.id).unwrap()));
         }
 
         let mut result = vec![];
-        append(self, &mut result);
+        append(&self, &self.index.unwrap(), &mut result);
         result.into_iter()
     }
 }

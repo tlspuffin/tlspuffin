@@ -1,12 +1,14 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use std::{io, fmt};
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
-use crate::trace::{Trace, Action};
-use crate::term::{Term, remove_prefix};
+use std::{fmt, io};
+
 use itertools::Itertools;
+
+use crate::term::{remove_prefix, Symbol, Term, TermIndex};
+use crate::trace::{Action, Trace};
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")
@@ -63,17 +65,17 @@ impl Trace {
     }
 }
 
-impl Term {
-    fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
-        match self {
-            Term::Variable(variable) => {
+impl TermIndex {
+    fn unique_id(&self, term: &Term, tree_mode: bool, cluster_id: usize) -> String {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
                 } else {
                     format!("v_{}", variable.resistant_id)
                 }
             }
-            Term::Application(func, _) => {
+            Symbol::Application(func) => {
                 if tree_mode {
                     format!("f_{}_{}", cluster_id, func.unique_id)
                 } else {
@@ -91,23 +93,24 @@ impl Term {
     }
 
     fn collect_statements(
+        &self,
         term: &Term,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,
     ) {
-        match term {
-            Term::Variable(variable) => {
+        match term.symbols.get(self.id).unwrap() {
+            Symbol::Variable(variable) => {
                 statements.push(format!(
                     "{} {};",
-                    term.unique_id(tree_mode, cluster_id),
+                    self.unique_id(term, tree_mode, cluster_id),
                     Self::node_attributes(variable, 1, "oval")
                 ));
             }
-            Term::Application(func, subterms) => {
+            Symbol::Application(func) => {
                 statements.push(format!(
                     "{} {};",
-                    term.unique_id(tree_mode, cluster_id),
+                    self.unique_id(term, tree_mode, cluster_id),
                     Self::node_attributes(
                         remove_prefix(func.name()),
                         if func.arity() == 0 { 1 } else { 2 },
@@ -115,13 +118,13 @@ impl Term {
                     )
                 ));
 
-                for subterm in subterms {
+                for subterm in self.subterms {
                     statements.push(format!(
                         "{} -> {};",
-                        term.unique_id(tree_mode, cluster_id),
-                        subterm.unique_id(tree_mode, cluster_id)
+                        self.unique_id(term, tree_mode, cluster_id),
+                        subterm.unique_id(term, tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(subterm, tree_mode, cluster_id, statements);
+                    self.collect_statements(term, tree_mode, cluster_id, statements);
                 }
             }
         }
@@ -130,15 +133,21 @@ impl Term {
     /// If `tree_mode` is true then each subgraph is self-contained and does not reference other
     /// clusters or nodes outside of this subgraph. Therefore, only trees are generated. If it is
     /// false, then graphs are rendered.
-    pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
+    pub fn dot_subgraph(&self, term: &Term, tree_mode: bool, cluster_id: usize, label: &str) -> String {
         let mut statements = Vec::new();
-        Self::collect_statements(self, tree_mode, cluster_id, &mut statements);
+        self.collect_statements(term, tree_mode, cluster_id, &mut statements);
         format!(
             "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
             cluster_id,
             label,
             statements.iter().join("\n")
         )
+    }
+}
+
+impl Term {
+    pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
+        self.index.unwrap().dot_subgraph(self, tree_mode, cluster_id, label)
     }
 }
 

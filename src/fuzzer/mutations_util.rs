@@ -1,5 +1,5 @@
 use crate::trace::{Trace, InputAction, Action};
-use crate::term::{Term};
+use crate::term::{Term, Symbol};
 use libafl::bolts::rands::Rand;
 
 pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
@@ -70,7 +70,7 @@ pub fn find_term_by_index_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
         };
 
         match term {
-            Term::Application(_, ref mut subterms) => {
+            Symbol::Application(_, ref mut subterms) => {
                 for subterm in subterms {
                     let (selected, new_index) = find_term_by_index_mut(
                         subterm,
@@ -87,7 +87,7 @@ pub fn find_term_by_index_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
                     }
                 }
             }
-            Term::Variable(_) => {}
+            Symbol::Variable(_) => {}
         }
 
         (None, current_index)

@@ -24,51 +24,78 @@
 #[macro_export]
 macro_rules! app_const {
     ($op:ident) => {
-        Term::Application(Signature::new_function(&$op), vec![])
+        Symbol::Application(Signature::new_function(&$op), vec![])
     };
 }
 
 #[macro_export]
 macro_rules! app {
     ($op:ident, $($args:expr),*$(,)?) => {
-        Term::Application(Signature::new_function(&$op),vec![$($args,)*])
+        Symbol::Application(Signature::new_function(&$op),vec![$($args,)*])
     };
 }
 
 #[macro_export]
 macro_rules! var {
     ($typ:ty, $id:expr) => {
-        Term::Variable(Signature::new_var::<$typ>($id))
+        Symbol::Variable(Signature::new_var::<$typ>($id))
     };
 }
+
+#[macro_export]
+macro_rules! _term {
+// Variables
+            ($symbols:ident, ($step:expr, $msg:expr) / $typ:ty) => {{
+                let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
+                let symbol =  $crate::term::Symbol::Variable(var);
+
+                $symbols.push(symbol);
+                $crate::term::TermIndex {
+                    id: 0,
+                    subterms: vec![]
+                }
+            }};
+
+            // Constants
+            ($symbols:ident, $func:ident) => {{
+                let func = $crate::term::signature::Signature::new_function(&$func);
+                let symbol = $crate::term::Symbol::Application(func);
+
+                $symbols.push(symbol);
+                $crate::term::TermIndex {
+                    id: 0,
+                    subterms: vec![]
+                }
+            }};
+
+            // Function Applications
+            ($symbols:ident, $func:ident ($($args:tt),*)) => {{
+                let func = $crate::term::signature::Signature::new_function(&$func);
+                let symbol = $crate::term::Symbol::Application(func, );
+
+                $symbols.push(symbol);
+                $crate::term::TermIndex {
+                    id: 0,
+                    subterms: vec![$($crate::term_arg!($symbols, $args)),*]
+                }
+            }};
+        }
 
 // todo we could improve performance by not recreating these
 #[macro_export]
 macro_rules! term {
-    // Variables
-    (($step:expr, $msg:expr) / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
-        $crate::term::Term::Variable(var)
-    }};
+    ($($all:tt)*) => {{
+        let symbols: Vec<$crate::term::Symbol> = Vec::new();
 
-    // Constants
-    ($func:ident) => {{
-        let func = $crate::term::signature::Signature::new_function(&$func);
-        $crate::term::Term::Application(func, vec![])
-    }};
-
-    // Function Applications
-    ($func:ident ($($args:tt),*)) => {{
-        let func = $crate::term::signature::Signature::new_function(&$func);
-        $crate::term::Term::Application(func, vec![$($crate::term_arg!($args)),*])
+        $crate::term::Term::new(symbols, $crate::_term!(symbols, $($all)*))
     }};
 }
 
 #[macro_export]
 macro_rules! term_arg {
     // Somehow the following rules is very important
-    ( ( $($e:tt)* ) ) => (term!($($e)*));
+    ($symbols:ident, ( $($e:tt)* ) ) => ($crate::_term!($symbols, $($e)*));
     // not sure why I should need this
     // ( ( $e:tt ) ) => (ast!($e));
-    ($e:tt) => (term!($e));
+    ($symbols:ident, $e:tt) => ($crate::_term!($symbols, $e));
 }

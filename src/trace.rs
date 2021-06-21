@@ -29,15 +29,15 @@
 //!             Step {
 //!                 agent: server,
 //!                 action: Action::Input(InputAction {
-//!                     recipe: Term::Application(
+//!                     recipe: Symbol::Application(
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
-//!                             Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Random>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<Random>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<SessionID>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
+//!                             Symbol::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
 //!                         ],
 //!                     ),
 //!                 }),
