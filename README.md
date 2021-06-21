@@ -22,13 +22,13 @@ cargo build
 Fuzz using three clients:
 
 ```bash
-RUST_LOG=trace cargo run --bin tlspuffin -- -n 3
+cargo run --bin tlspuffin -- -n 3
 ```
 
 ## Generate Corpus Seeds
 
 ```bash
-RUST_LOG=trace cargo run --bin tlspuffin -- seed
+argo run --bin tlspuffin -- seed
 ```
 
 ## Plot traces
@@ -36,7 +36,7 @@ RUST_LOG=trace cargo run --bin tlspuffin -- seed
 To plot SVGs do the following:
 
 ```bash
-RUST_LOG=trace cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.trace svg ./plots/seed_client_attacker12
+cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.trace svg ./plots/seed_client_attacker12
 ```
 
 Note: This requires that the `dot` binary is in on your path.
