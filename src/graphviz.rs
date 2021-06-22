@@ -147,7 +147,7 @@ impl TermIndex {
 
 impl Term {
     pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
-        self.index.as_ref().unwrap().dot_subgraph(self, tree_mode, cluster_id, label)
+        self.index.dot_subgraph(self, tree_mode, cluster_id, label)
     }
 }
 

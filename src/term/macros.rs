@@ -82,7 +82,7 @@ macro_rules! _term {
 
             // Insert Term
             ($symbols:ident, @$e:expr) => {{
-                let mut new_index = $e.index.unwrap().clone();
+                let mut new_index = $e.index.clone();
                 new_index.shift_ids($symbols.len());
                 $symbols.extend($e.symbols.clone());
                 new_index

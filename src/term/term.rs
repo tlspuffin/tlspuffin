@@ -16,21 +16,14 @@ use super::atoms::{Function, Variable};
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Term {
     pub symbols: Vec<Symbol>,
-    pub index: Option<TermIndex>,
+    pub index: TermIndex,
 }
 
 impl Term {
-/*    pub fn new() -> Self {
-        Term {
-            symbols: vec![],
-            index: None,
-        }
-    }*/
-
     pub fn new(symbols: Vec<Symbol>, index: TermIndex) -> Self {
         Term {
-            symbols: symbols,
-            index: Some(index),
+            symbols,
+            index,
         }
     }
 }
@@ -57,7 +50,7 @@ pub enum Symbol {
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.index.as_ref().unwrap().display_at_depth(self, 0))
+        write!(f, "{}", self.index.display_at_depth(self, 0))
     }
 }
 
@@ -103,6 +96,7 @@ impl TermIndex {
 
     fn mutate(&mut self, other: TermIndex) {
         // iterate over term index and add new terms
+        todo!()
     }
 
     fn display_at_depth(&self, term: &Term, depth: usize) -> String {
@@ -160,11 +154,11 @@ impl TermIndex {
 
 impl Term {
     pub fn length(&self) -> usize {
-        self.index.as_ref().unwrap().length()
+        self.index.length()
     }
 
     pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, filter: P) -> usize {
-        self.index.as_ref().unwrap().length_filtered(self, filter)
+        self.index.length_filtered(self, filter)
     }
 
     pub fn is_leaf(&self, ) -> bool {
@@ -184,10 +178,11 @@ impl Term {
     }
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        self.index.as_ref().unwrap().evaluate(self, context)
+        self.index.evaluate(self, context)
     }
 }
 
+// Indexed iterating
 impl<'a> IntoIterator for &'a Term {
     type Item = (&'a TermIndex, &'a Symbol);
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -202,10 +197,29 @@ impl<'a> IntoIterator for &'a Term {
         }
 
         let mut result = vec![];
-        append(&self, self.index.as_ref().unwrap(), &mut result);
+        append(&self, &self.index, &mut result);
         result.into_iter()
     }
 }
+
+/*impl<'a> IntoIterator for &'a mut Term {
+    type Item = (&'a mut TermIndex, &'a mut Symbol);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        fn append<'a>(term: &'a mut Term, index: &'a TermIndex, v: &mut Vec<(&'a TermIndex, &'a Symbol)>) {
+            for subterm in &index.subterms {
+                append(term, &subterm, v);
+            }
+
+            v.push((index, term.symbols.get(index.id).unwrap()));
+        }
+
+        let mut result = vec![];
+        append(&self, self.index.as_ref().unwrap(), &mut result);
+        result.into_iter()
+    }
+}*/
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
