@@ -15,24 +15,23 @@ use super::atoms::{Function, Variable};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Term {
-    pub symbols: Vec<Symbol>,
-    pub index: TermIndex,
+    pub nodes: Vec<TermNode>,
+    pub root: TermIndex,
 }
 
 impl Term {
-    pub fn new(symbols: Vec<Symbol>, index: TermIndex) -> Self {
-        Term {
-            symbols,
-            index,
-        }
+    pub fn new(nodes: Vec<TermNode>, root: TermIndex) -> Self {
+        Term { nodes, root }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct TermIndex {
-    pub id: usize,
-    pub subterms: Vec::<TermIndex>,
+pub struct TermNode {
+    pub symbol: Symbol,
+    pub subterms: Vec<TermIndex>,
 }
+
+type TermIndex = usize;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -48,30 +47,45 @@ pub enum Symbol {
     Application(Function),
 }
 
-impl fmt::Display for Term {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.index.display_at_depth(self, 0))
+impl Symbol {
+    pub fn get_type_shape(&self) -> &TypeShape {
+        match self {
+            Symbol::Variable(v) => &v.typ,
+            Symbol::Application(function) => &function.shape().return_type,
+        }
     }
 }
 
-impl TermIndex {
-    fn length(&self) -> usize {
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.root_node().display_at_depth(self, 0))
+    }
+}
+
+impl TermNode {
+    fn length(&self, term: &Term) -> usize {
         if self.subterms.is_empty() {
             return 1;
         }
 
         self.subterms
             .iter()
-            .map(|subterm| subterm.length())
+            .map(|subterm_id| {
+                let subterm = term.node_at(subterm_id);
+                subterm.length(term)
+            })
             .sum::<usize>()
             + 1
     }
 
     fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
-        let increment = if filter(term.symbols.get(self.id).unwrap()) { 1 } else { 0 };
+        let increment = if filter(&self.symbol) { 1 } else { 0 };
         self.subterms
             .iter()
-            .map(|subterm| subterm.length_filtered(term, filter))
+            .map(|subterm_id| {
+                let subterm = term.node_at(subterm_id);
+                subterm.length_filtered(term, filter)
+            })
             .sum::<usize>()
             + increment
     }
@@ -80,15 +94,12 @@ impl TermIndex {
         self.subterms.is_empty()
     }
 
-    fn get_type_shape<'a>(&self, term: &'a Term) -> &'a TypeShape {
-        match term.symbols.get(self.id).unwrap() {
-            Symbol::Variable(v) => &v.typ,
-            Symbol::Application(function) => &function.shape().return_type,
-        }
+    fn get_type_shape(&self) -> &TypeShape {
+        &self.symbol.get_type_shape()
     }
 
-    fn name<'a>(&self, term: &'a Term) -> &'a str {
-        match term.symbols.get(self.id).unwrap() {
+    fn name(&self) -> &str {
+        match &self.symbol {
             Symbol::Variable(v) => v.typ.name,
             Symbol::Application(function) => function.name(),
         }
@@ -101,16 +112,20 @@ impl TermIndex {
 
     fn display_at_depth(&self, term: &Term, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
-        match term.symbols.get(self.id).unwrap() {
+        match &self.symbol {
             Symbol::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
             Symbol::Application(ref func) => {
                 let op_str = remove_prefix(func.name());
                 if self.subterms.is_empty() {
                     format!("{}{}", tabs, op_str)
                 } else {
-                    let args_str = self.subterms
+                    let args_str = self
+                        .subterms
                         .iter()
-                        .map(|arg| arg.display_at_depth(term, depth + 1))
+                        .map(|subterm_id| {
+                            let subterm = term.node_at(subterm_id);
+                            subterm.display_at_depth(term, depth + 1)
+                        })
                         .join(",\n");
                     format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
                 }
@@ -119,14 +134,15 @@ impl TermIndex {
     }
 
     pub fn evaluate(&self, term: &Term, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        match term.symbols.get(self.id).unwrap() {
+        match &self.symbol {
             Symbol::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
             Symbol::Application(func) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for subterm in &self.subterms {
+                for subterm_id in &self.subterms {
+                    let subterm = term.node_at(subterm_id);
                     match subterm.evaluate(term, context) {
                         Ok(data) => {
                             dynamic_args.push(data);
@@ -142,26 +158,18 @@ impl TermIndex {
             }
         }
     }
-
-    pub fn shift_ids(&mut self, increment: usize) {
-        self.id += increment;
-
-        for subterm in self.subterms.iter_mut() {
-            subterm.shift_ids(increment);
-        }
-    }
 }
 
 impl Term {
-    pub fn length(&self) -> usize {
-        self.index.length()
+    pub fn length(&self, term: &Term) -> usize {
+        self.root_node().length(term)
     }
 
-    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, filter: P) -> usize {
-        self.index.length_filtered(self, filter)
+    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
+        self.root_node().length_filtered(term, filter)
     }
 
-    pub fn is_leaf(&self, ) -> bool {
+    pub fn is_leaf(&self) -> bool {
         todo!()
     }
 
@@ -178,48 +186,50 @@ impl Term {
     }
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        self.index.evaluate(self, context)
+        self.root_node().evaluate(self, context)
+    }
+
+    pub fn root_node(&self) -> &TermNode {
+        &self.nodes[self.root] // todo error check
+    }
+
+    pub fn node_at(&self, index: &TermIndex) -> &TermNode {
+        &self.nodes[*index] // todo error check
+    }
+
+    pub fn node_at_mut(&mut self, index: &TermIndex) -> &mut TermNode {
+        &mut self.nodes[*index] // todo error check
+    }
+
+    /// This function clones all nodes of this term into the `output` vector. It changes all the TermIndices
+    /// such that the ids of the subterms are still valid. The return index is valid in the output nodes array.
+    pub fn extend_vec(&self, output: &mut Vec<TermNode>) -> TermIndex {
+        let next_id = output.len();
+        for node in &self.nodes {
+            let new_node = TermNode {
+                symbol: node.symbol.clone(),
+                subterms: node
+                    .subterms
+                    .iter()
+                    .map(|subterm_id| next_id + subterm_id)
+                    .collect(),
+            };
+            output.push(new_node);
+        }
+
+        next_id + self.root
     }
 }
 
 // Indexed iterating
-impl<'a> IntoIterator for &'a Term {
-    type Item = (&'a TermIndex, &'a Symbol);
+impl IntoIterator for Term {
+    type Item = TermNode;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        fn append<'a>(term: &'a Term, index: &'a TermIndex, v: &mut Vec<(&'a TermIndex, &'a Symbol)>) {
-            for subterm in &index.subterms {
-                append(term, &subterm, v);
-            }
-
-            v.push((index, term.symbols.get(index.id).unwrap()));
-        }
-
-        let mut result = vec![];
-        append(&self, &self.index, &mut result);
-        result.into_iter()
+        self.nodes.into_iter()
     }
 }
-
-/*impl<'a> IntoIterator for &'a mut Term {
-    type Item = (&'a mut TermIndex, &'a mut Symbol);
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        fn append<'a>(term: &'a mut Term, index: &'a TermIndex, v: &mut Vec<(&'a TermIndex, &'a Symbol)>) {
-            for subterm in &index.subterms {
-                append(term, &subterm, v);
-            }
-
-            v.push((index, term.symbols.get(index.id).unwrap()));
-        }
-
-        let mut result = vec![];
-        append(&self, self.index.as_ref().unwrap(), &mut result);
-        result.into_iter()
-    }
-}*/
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`

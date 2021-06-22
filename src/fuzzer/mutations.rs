@@ -15,13 +15,15 @@ use crate::fuzzer::mutations_util::*;
 use crate::term::{Term, Symbol};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use std::any::Any;
+use crate::variable_data::VariableData;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
        SkipMutator<R, S>,
-       ReplaceReuseMutator<R, S>,
+       ReplaceReuseMutator<R, S>/*,
        ReplaceMatchMutator<R, S>,
-       RemoveAndLiftMutator<R, S>,
+       RemoveAndLiftMutator<R, S>,*/
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -31,9 +33,9 @@ where
     tuple_list!(
         RepeatMutator::new(),
         SkipMutator::new(),
-        ReplaceReuseMutator::new(),
+        ReplaceReuseMutator::new()/*,
         ReplaceMatchMutator::new(),
-        RemoveAndLiftMutator::new(),
+        RemoveAndLiftMutator::new(),*/
     )
 }
 
@@ -186,11 +188,12 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some(replacement) = choose_term(trace, rand).cloned() {
-            if let Some(to_replace) = choose_term_mut(trace, rand, |term: &Term| {
-                term.get_type_shape() == replacement.get_type_shape()
+        if let Some((index, replacement)) = choose_term(trace, rand) {
+            if let Some((to_replace, mut_term)) = choose_term_mut(trace, rand, |symbol| {
+                symbol.get_type_shape() == replacement.get_type_shape()
             }) {
-                to_replace.mutate(replacement);
+                std::mem::replace(&mut mut_term.nodes[to_replace.term_id()], replacement);
+
                 return Ok(MutationResult::Mutated);
             }
         }
@@ -208,7 +211,7 @@ where
         "ReplaceReuseMutator"
     }
 }
-
+/*
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
 /// An example would be to replace a constant with another constant or the binary function
 /// fn_add with fn_sub.
@@ -250,19 +253,21 @@ where
 
         let filter = |term: &Term| match term {
             Symbol::Variable(_) => false,
-            Symbol::Application(func, _) => {
+            Symbol::Application(func) => {
                 func.shape().name != requested_shape.name
                     && func.shape().return_type == requested_shape.return_type
                     && func.shape().argument_types == requested_shape.argument_types
             }
         };
+
+        // Works only on symbol
         if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
             match &mut to_mutate {
                 Symbol::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 }
-                Symbol::Application(func, _) => {
+                Symbol::Application(func) => {
                     func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
                     Ok(MutationResult::Mutated)
                 }
@@ -377,6 +382,6 @@ where
         "RemoveAndLiftMutator"
     }
 }
-
+*/
 // todo SWAP: https://github.com/Sgeo/take_mut
 //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/67

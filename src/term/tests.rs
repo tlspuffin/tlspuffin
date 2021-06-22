@@ -100,7 +100,7 @@ fn playground() {
             .downcast_ref::<u16>()
             .unwrap()
     );
-    println!("{}", Signature::new_function(&example_op_c).shape());
+    println!("{}", Signature::new_function( &example_op_c).shape());
 
     let constructed_term = term! {
         fn_heartbeat_fake_length(example_op_c, fn_large_length)

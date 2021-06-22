@@ -105,7 +105,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_client_attacker(client, server);
 
-        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 

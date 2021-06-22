@@ -8,12 +8,12 @@ use openssl::rand::rand_bytes;
 
 use crate::agent::AgentName;
 use crate::fuzzer::mutations::{
-    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+    RepeatMutator, ReplaceReuseMutator,
 };
 use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
 use crate::openssl_binding::make_deterministic;
-use crate::term::{Term, Symbol};
+use crate::term::{Symbol, Term};
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
@@ -70,7 +70,7 @@ fn plot(trace: &Trace, i: u16) {
     )
     .unwrap();
 }
-
+/*
 #[test]
 fn test_replace_match_cve() {
     let rand = StdRand::with_seed(1235);
@@ -88,44 +88,44 @@ fn test_replace_match_cve() {
 
         if let Some(last) = trace.steps.iter().last() {
             match &last.action {
-                Action::Input(input) => match &input.recipe {
-                    Symbol::Variable(_) => {}
-                    Symbol::Application(_, subterms) => {
-                        if let Some(last_subterm) = subterms.iter().last() {
-                            if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
-                                //plot(&trace, 0);
-                                break;
-                            }
-                        }
+                Action::Input(input) => {
+                    if count_functions_term(
+                        &input.recipe,
+                        "tlspuffin::tls::fn_constants::fn_seq_0",
+                    ) == 0 {
+                        break;
                     }
-                },
+                }
+
                 Action::Output(_) => {}
             }
         }
     }
-}
+}*/
 
 fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
     trace
         .steps
         .iter()
         .map(|step| match &step.action {
-            Action::Input(input) => {
-                let mut extension_appends = 0;
-                for term in input.recipe.into_iter() {
-                    if let Symbol::Application(func, _) = term {
-                        if func.name() == find_name {
-                            extension_appends += 1;
-                        }
-                    }
-                }
-                extension_appends
-            }
+            Action::Input(input) => count_functions_term(&input.recipe, find_name),
             Action::Output(_) => 0,
         })
         .sum::<u16>()
 }
 
+fn count_functions_term(term: &Term, find_name: &'static str) -> u16 {
+    let mut extension_appends = 0;
+    for node in term.into_iter() {
+        if let Symbol::Application(func) = node.symbol {
+            if func.name() == find_name {
+                extension_appends += 1;
+            }
+        }
+    }
+    extension_appends
+}
+/*
 #[test]
 fn test_remove_lift_removes_extensions() {
     let rand = StdRand::with_seed(1235);
@@ -160,7 +160,7 @@ fn test_remove_lift_removes_extensions() {
         }
     }
 }
-
+*/
 #[test]
 fn test_replace_reuse() {
     let rand = StdRand::with_seed(45);

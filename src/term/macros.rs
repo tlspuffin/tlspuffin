@@ -45,47 +45,53 @@ macro_rules! var {
 #[macro_export]
 macro_rules! _term {
 // Variables
-            ($symbols:ident, ($step:expr, $msg:expr) / $typ:ty) => {{
-                let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
-                let symbol =  $crate::term::Symbol::Variable(var);
+            ($nodes:ident, ($step:expr, $msg:expr) / $typ:ty) => {{
+                let id = $nodes.len();
+                let var = $crate::term::signature::Signature::new_var::<$typ>(($step, $msg));
+                let symbol = $crate::term::Symbol::Variable(var);
 
-                $symbols.push(symbol);
-                $crate::term::TermIndex {
-                    id: $symbols.len() - 1,
+                let node = $crate::term::TermNode {
+                    symbol,
                     subterms: vec![]
-                }
+                };
+
+                $nodes.push(node);
+                id
             }};
 
             // Constants
-            ($symbols:ident, $func:ident) => {{
+            ($nodes:ident, $func:ident) => {{
+                let id = $nodes.len();
                 let func = $crate::term::signature::Signature::new_function(&$func);
                 let symbol = $crate::term::Symbol::Application(func);
 
-                $symbols.push(symbol);
-                $crate::term::TermIndex {
-                    id: $symbols.len() - 1,
+                let node = $crate::term::TermNode {
+                    symbol,
                     subterms: vec![]
-                }
+                };
+
+                $nodes.push(node);
+                id
             }};
 
             // Function Applications
-            ($symbols:ident, $func:ident ($($args:tt),*)) => {{
+            ($nodes:ident, $func:ident ($($args:tt),*)) => {{
                 let func = $crate::term::signature::Signature::new_function(&$func);
                 let symbol = $crate::term::Symbol::Application(func);
 
-                $symbols.push(symbol);
-                $crate::term::TermIndex {
-                    id: $symbols.len() - 1,
-                    subterms: vec![$($crate::term_arg!($symbols, $args)),*]
-                }
+                let node = $crate::term::TermNode {
+                    symbol,
+                    subterms: vec![$($crate::term_arg!($nodes, $args)),*]
+                };
+
+                let id = $nodes.len();
+                $nodes.push(node);
+                id
             }};
 
             // Insert Term
-            ($symbols:ident, @$e:expr) => {{
-                let mut new_index = $e.index.clone();
-                new_index.shift_ids($symbols.len());
-                $symbols.extend($e.symbols.clone());
-                new_index
+            ($nodes:ident, @$e:expr) => {{
+                $e.extend_vec(&mut $nodes)
             }};
         }
 
@@ -93,9 +99,9 @@ macro_rules! _term {
 #[macro_export]
 macro_rules! term {
     ($($all:tt)*) => {{
-        let mut symbols: Vec<$crate::term::Symbol> = Vec::new();
-        let index = $crate::_term!(symbols, $($all)*);
-        $crate::term::Term::new(symbols, index)
+        let mut nodes: Vec<$crate::term::TermNode> = Vec::new();
+        let root = $crate::_term!(nodes, $($all)*);
+        $crate::term::Term::new(nodes, root)
     }};
 }
 

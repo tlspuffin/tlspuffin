@@ -71,7 +71,10 @@ impl Signature {
         func
     }
 
-    fn new_var_internal(type_shape: TypeShape, observed_id: ObservedId) -> Variable {
+    fn new_var_internal(
+        type_shape: TypeShape,
+        observed_id: ObservedId,
+    ) -> Variable {
         let variable = Variable::new(type_shape, observed_id);
         variable
     }

@@ -1,12 +1,12 @@
 //! The fuzzer module setups the fuzzing loop. It also is responsible for gathering feedback from
 //! runs and restarting processes if they crash.
 
-//#[cfg(test)]
+#[cfg(test)]
 //mod tests;
 mod libafl_setup;
 mod harness;
-//mod mutations;
-//mod mutations_util;
+// mod mutations;
+mod mutations_util;
 mod error_observer;
 pub mod seeds;
 

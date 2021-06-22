@@ -7,7 +7,7 @@ use std::{fmt, io};
 
 use itertools::Itertools;
 
-use crate::term::{remove_prefix, Symbol, Term, TermIndex};
+use crate::term::{remove_prefix, Symbol, Term, TermNode};
 use crate::trace::{Action, Trace};
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -65,9 +65,9 @@ impl Trace {
     }
 }
 
-impl TermIndex {
+impl TermNode {
     fn unique_id(&self, term: &Term, tree_mode: bool, cluster_id: usize) -> String {
-        match term.symbols.get(self.id).unwrap() {
+        match &self.symbol {
             Symbol::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
@@ -99,7 +99,7 @@ impl TermIndex {
         cluster_id: usize,
         statements: &mut Vec<String>,
     ) {
-        match term.symbols.get(self.id).unwrap() {
+        match &self.symbol {
             Symbol::Variable(variable) => {
                 statements.push(format!(
                     "{} {};",
@@ -118,7 +118,8 @@ impl TermIndex {
                     )
                 ));
 
-                for subterm in &self.subterms {
+                for subterm_id in &self.subterms {
+                    let subterm = term.node_at(subterm_id);
                     statements.push(format!(
                         "{} -> {};",
                         self.unique_id(term, tree_mode, cluster_id),
@@ -147,7 +148,7 @@ impl TermIndex {
 
 impl Term {
     pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
-        self.index.dot_subgraph(self, tree_mode, cluster_id, label)
+        self.root_node().dot_subgraph(self, tree_mode, cluster_id, label)
     }
 }
 

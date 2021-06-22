@@ -80,7 +80,7 @@ impl Clone for Function {
 impl Function {
     pub fn new(
         shape: DynamicFunctionShape,
-        dynamic_fn: Box<dyn DynamicFunction>,
+        dynamic_fn: Box<dyn DynamicFunction>
     ) -> Self {
         Self {
             unique_id: random(),
