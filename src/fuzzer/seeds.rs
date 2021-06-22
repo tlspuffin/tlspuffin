@@ -600,7 +600,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: app_const!(fn_change_cipher_spec),
+                    recipe: term! { fn_change_cipher_spec },
                 }),
             },
             Step {
@@ -611,8 +611,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                             (fn_finished((@client_verify_data.clone()))),
                             ((0, 0)/Random),
                             (fn_decode_ecdh_params(
-                                ((0, 2)/Vec<u8>), // ServerECDHParams
-                                (@client_key_exchange_transcript.clone())
+                                ((0, 2)/Vec<u8>) // ServerECDHParams
                             )),
                             fn_seq_0
                         )
@@ -667,8 +666,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     (@renegotiation_client_hello.clone()),
                     ((0, 0)/Random),
                     (fn_decode_ecdh_params(
-                        ((0, 2)/Vec<u8>), // ServerECDHParams
-                        (@client_key_exchange_transcript.clone())
+                        ((0, 2)/Vec<u8>) // ServerECDHParams
                     )),
                     fn_seq_1
                 )
@@ -676,8 +674,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         }),
     });
 
-
-/*    trace.stepSignature::push(Step {
+    /*    trace.stepSignature::push(Step {
         agent: server,
         action: Action::Input(InputAction {
             recipe: term! {
@@ -685,15 +682,13 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     fn_alert_close_notify,
                     ((0, 0)/Random),
                     (fn_decode_ecdh_params(
-                        ((0, 2)/Vec<u8>), // ServerECDHParams
-                        (@client_key_exchange_transcript.clone())
+                        ((0, 2)/Vec<u8>) // ServerECDHParams
                     )),
                     fn_seq_1
                 )
             },
         }),
     });*/
-
 
     trace
 }
