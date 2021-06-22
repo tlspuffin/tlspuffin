@@ -79,6 +79,12 @@ macro_rules! _term {
                     subterms: vec![$($crate::term_arg!($symbols, $args)),*]
                 }
             }};
+
+            // Insert Term
+            ($symbols:ident, @$e:expr) => {{
+                $symbols.extend($e.symbols);
+                $e.index.unwrap()
+            }};
         }
 
 // todo we could improve performance by not recreating these
