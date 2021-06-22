@@ -142,10 +142,18 @@ impl TermIndex {
                         }
                     }
                 }
-                let dynamic_fn = &func.dynamic_fn();
+                let dynamic_fn = func.dynamic_fn();
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(|err| Error::Fn(err))
             }
+        }
+    }
+
+    pub fn shift_ids(&mut self, increment: usize) {
+        self.id += increment;
+
+        for subterm in self.subterms.iter_mut() {
+            subterm.shift_ids(increment);
         }
     }
 }

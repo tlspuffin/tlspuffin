@@ -51,7 +51,7 @@ macro_rules! _term {
 
                 $symbols.push(symbol);
                 $crate::term::TermIndex {
-                    id: 0,
+                    id: $symbols.len() - 1,
                     subterms: vec![]
                 }
             }};
@@ -63,7 +63,7 @@ macro_rules! _term {
 
                 $symbols.push(symbol);
                 $crate::term::TermIndex {
-                    id: 0,
+                    id: $symbols.len() - 1,
                     subterms: vec![]
                 }
             }};
@@ -71,19 +71,21 @@ macro_rules! _term {
             // Function Applications
             ($symbols:ident, $func:ident ($($args:tt),*)) => {{
                 let func = $crate::term::signature::Signature::new_function(&$func);
-                let symbol = $crate::term::Symbol::Application(func, );
+                let symbol = $crate::term::Symbol::Application(func);
 
                 $symbols.push(symbol);
                 $crate::term::TermIndex {
-                    id: 0,
+                    id: $symbols.len() - 1,
                     subterms: vec![$($crate::term_arg!($symbols, $args)),*]
                 }
             }};
 
             // Insert Term
             ($symbols:ident, @$e:expr) => {{
-                $symbols.extend($e.symbols);
-                $e.index.unwrap()
+                let mut new_index = $e.index.unwrap().clone();
+                new_index.shift_ids($symbols.len());
+                $symbols.extend($e.symbols.clone());
+                new_index
             }};
         }
 

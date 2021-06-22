@@ -64,7 +64,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_client_hello(
+                        fn_server_hello(
                             ((1, 0)/ProtocolVersion),
                             ((1, 0)/Random),
                             ((1, 0)/SessionID),
@@ -330,9 +330,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                fn_client_extensions_new
-                            )),
+                            fn_client_extensions_new,
                             fn_secp384r1_support_group_extension
                         )),
                         fn_signature_algorithm_extension
@@ -490,9 +488,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
-                                    (fn_client_extensions_append(
-                                        fn_client_extensions_new
-                                    )),
+                                    fn_client_extensions_new,
                                     fn_secp384r1_support_group_extension
                                 )),
                                 fn_signature_algorithm_extension
@@ -543,9 +539,10 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
 
     let client_key_exchange = term! {
         fn_client_key_exchange(
-            fn_new_pubkey12,
-            (fn_decode_ecdh_params(
-                ((0,2)/Vec<u8>)
+            (fn_new_pubkey12(
+                (fn_decode_ecdh_params(
+                    ((0,2)/Vec<u8>)
+                ))
             ))
         )
     };
@@ -561,9 +558,9 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
         fn_sign_transcript(
             ((0, 0)/Random),
             (fn_decode_ecdh_params(
-                ((0, 2)/Vec<u8>), // ServerECDHParams
-                (@client_key_exchange_transcript.clone())
-            ))
+                ((0, 2)/Vec<u8>) // ServerECDHParams
+            )),
+            (@client_key_exchange_transcript.clone())
         )
     };
 
@@ -640,9 +637,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    fn_client_extensions_new
-                                )),
+                                fn_client_extensions_new,
                                 fn_secp384r1_support_group_extension
                             )),
                             fn_ec_point_formats_extension
@@ -705,9 +700,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            fn_client_extensions_new
-                        )),
+                        fn_client_extensions_new,
                         fn_secp384r1_support_group_extension
                     )),
                     fn_ec_point_formats_extension

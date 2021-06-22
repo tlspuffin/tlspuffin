@@ -124,7 +124,7 @@ impl TermIndex {
                         self.unique_id(term, tree_mode, cluster_id),
                         subterm.unique_id(term, tree_mode, cluster_id)
                     ));
-                    self.collect_statements(term, tree_mode, cluster_id, statements);
+                    subterm.collect_statements(term, tree_mode, cluster_id, statements);
                 }
             }
         }
