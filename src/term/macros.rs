@@ -91,9 +91,9 @@ macro_rules! _term {
 #[macro_export]
 macro_rules! term {
     ($($all:tt)*) => {{
-        let symbols: Vec<$crate::term::Symbol> = Vec::new();
-
-        $crate::term::Term::new(symbols, $crate::_term!(symbols, $($all)*))
+        let mut symbols: Vec<$crate::term::Symbol> = Vec::new();
+        let index = $crate::_term!(symbols, $($all)*);
+        $crate::term::Term::new(symbols, index)
     }};
 }
 

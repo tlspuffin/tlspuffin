@@ -118,7 +118,7 @@ impl TermIndex {
                     )
                 ));
 
-                for subterm in self.subterms {
+                for subterm in &self.subterms {
                     statements.push(format!(
                         "{} -> {};",
                         self.unique_id(term, tree_mode, cluster_id),
@@ -147,7 +147,7 @@ impl TermIndex {
 
 impl Term {
     pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
-        self.index.unwrap().dot_subgraph(self, tree_mode, cluster_id, label)
+        self.index.as_ref().unwrap().dot_subgraph(self, tree_mode, cluster_id, label)
     }
 }
 

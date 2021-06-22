@@ -57,7 +57,7 @@ pub enum Symbol {
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.index.unwrap().display_at_depth(self, 0))
+        write!(f, "{}", self.index.as_ref().unwrap().display_at_depth(self, 0))
     }
 }
 
@@ -132,7 +132,7 @@ impl TermIndex {
                 .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
             Symbol::Application(func) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for subterm in self.subterms {
+                for subterm in &self.subterms {
                     match subterm.evaluate(term, context) {
                         Ok(data) => {
                             dynamic_args.push(data);
@@ -152,11 +152,11 @@ impl TermIndex {
 
 impl Term {
     pub fn length(&self) -> usize {
-        self.index.unwrap().length()
+        self.index.as_ref().unwrap().length()
     }
 
     pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, filter: P) -> usize {
-        self.index.unwrap().length_filtered(self, filter)
+        self.index.as_ref().unwrap().length_filtered(self, filter)
     }
 
     pub fn is_leaf(&self, ) -> bool {
@@ -176,7 +176,7 @@ impl Term {
     }
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        self.index.unwrap().evaluate(self, context)
+        self.index.as_ref().unwrap().evaluate(self, context)
     }
 }
 
@@ -186,7 +186,7 @@ impl<'a> IntoIterator for &'a Term {
 
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a Term, index: &'a TermIndex, v: &mut Vec<(&'a TermIndex, &'a Symbol)>) {
-            for subterm in index.subterms {
+            for subterm in &index.subterms {
                 append(term, &subterm, v);
             }
 
@@ -194,7 +194,7 @@ impl<'a> IntoIterator for &'a Term {
         }
 
         let mut result = vec![];
-        append(&self, &self.index.unwrap(), &mut result);
+        append(&self, self.index.as_ref().unwrap(), &mut result);
         result.into_iter()
     }
 }
