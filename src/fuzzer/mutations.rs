@@ -15,6 +15,7 @@ use crate::fuzzer::mutations_util::*;
 use crate::term::Term;
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use std::ops::Deref;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -325,7 +326,7 @@ where
             Term::Variable(_) => false,
             Term::Application(func, subterms) => {
                 subterms.iter().find(|subterm| {
-                    match subterm {
+                    match &***subterm {
                         Term::Variable(_) => false,
                         Term::Application(func, grand_subterms) => {
                             grand_subterms.iter().find(|grand_subterm| {
@@ -344,7 +345,7 @@ where
                 }
                 Term::Application(_, ref mut subterms) => {
                    for subterm in subterms {
-                        let found_grand_subterm = match &subterm {
+                        let found_grand_subterm = match &**subterm {
                             Term::Variable(_) => None,
                             Term::Application(_, grand_subterms) => {
                                 grand_subterms.iter().find(|grand_subterm| {
@@ -355,7 +356,7 @@ where
                         if let Some(found) = found_grand_subterm.cloned() {
                             // todo this lifts the first_grand_subterm found to the first subterm found
                             //      make this more random
-                            subterm.mutate(found);
+                            subterm.mutate(*found);
                             return Ok(MutationResult::Mutated)
                         }
                     }

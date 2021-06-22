@@ -78,6 +78,7 @@ use crate::{
     variable_data::{extract_knowledge, VariableData},
 };
 use crate::tls::error::FnError;
+use std::rc::Rc;
 
 pub type ObservedId = (u16, u16);
 
@@ -344,13 +345,13 @@ impl fmt::Display for OutputAction {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {
-    pub recipe: Term,
+    pub recipe: Rc<Term>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl InputAction {
-    pub fn new_step(agent: AgentName, recipe: Term) -> Step {
+    pub fn new_step(agent: AgentName, recipe: Rc<Term>) -> Step {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),

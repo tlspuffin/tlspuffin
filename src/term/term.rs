@@ -12,6 +12,7 @@ use crate::trace::TraceContext;
 
 use super::atoms::{Function, Variable};
 use crate::error::Error;
+use std::rc::Rc;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -24,7 +25,7 @@ pub enum Term {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<Term>),
+    Application(Function, Vec<Rc<Term>>),
 }
 
 impl fmt::Display for Term {
@@ -46,7 +47,7 @@ impl Term {
             }
         }
     }
-
+/*
     pub fn length_filtered<P: Fn(&Term) -> bool + Copy>(&self, filter: P) -> usize {
         let increment = if filter(self) {
             1
@@ -62,7 +63,7 @@ impl Term {
                     + increment
             }
         }
-    }
+    }*/
 
     pub fn is_leaf(&self) -> bool {
         match self {
@@ -152,6 +153,32 @@ impl<'a> IntoIterator for &'a Term {
                 &Term::Application(_, ref subterms) => {
                     for subterm in subterms {
                         append(subterm, v);
+                    }
+                }
+            }
+
+            v.push(term);
+        }
+
+        let mut result = vec![];
+        append(self, &mut result);
+        result.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Term {
+    type Item = &'a mut Term;
+    type IntoIter = std::vec::IntoIter<&'a mut Term>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        fn append<'a>(term: &'a mut Term, v: &mut Vec<&'a mut Term>) {
+            match term {
+                &mut Term::Variable(_) => {}
+                &mut Term::Application(_, ref mut subterms) => {
+                    for subterm in subterms.iter_mut() {
+                        // can we be sure that get_mut succeeds?
+                        // still very similar, just that the check is moved to runtime!
+                        append(Rc::<Term>::get_mut(subterm).unwrap(), v);
                     }
                 }
             }

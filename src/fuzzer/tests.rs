@@ -88,7 +88,7 @@ fn test_replace_match_cve() {
 
         if let Some(last) = trace.steps.iter().last() {
             match &last.action {
-                Action::Input(input) => match &input.recipe {
+                Action::Input(input) => match &*input.recipe {
                     Term::Variable(_) => {}
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {

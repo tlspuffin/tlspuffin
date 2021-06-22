@@ -4,11 +4,11 @@ use itertools::Itertools;
 use rustls::msgs::handshake::SessionID;
 use rustls::ProtocolVersion;
 
-use crate::term;
 use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
+use crate::{term};
 use crate::{term::Term, trace::TraceContext};
 
 fn test_compilation() {
@@ -58,23 +58,13 @@ fn example_op_c(a: &u8) -> Result<u16, FnError> {
 
 #[test]
 fn example() {
-    let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
-    let hmac256 = Signature::new_function(&fn_hmac256);
-    let _client_hello = Signature::new_function(&fn_client_hello);
-
     let data = "hello".as_bytes().to_vec();
 
     println!("TypeId of vec array {:?}", data.type_id());
 
-    let variable = Signature::new_var::<Vec<u8>>((0, 0));
-
-    let generated_term = Term::Application(
-        hmac256,
-        vec![
-            Term::Application(hmac256_new_key, vec![]),
-            Term::Variable(variable),
-        ],
-    );
+    let generated_term = term! {
+        fn_hmac256((fn_hmac256_new_key), ((0,0)/Vec<u8>))
+    };
 
     println!("{}", generated_term);
     let mut context = TraceContext::new();
@@ -109,39 +99,11 @@ fn playground() {
             .downcast_ref::<u16>()
             .unwrap()
     );
-    println!("{}", Signature::new_function(&example_op_c).shape());
+    println!("{}", Signature::new_function( &example_op_c).shape());
 
-    let constructed_term = Term::Application(
-        Signature::new_function(&example_op_c),
-        vec![
-            Term::Application(
-                Signature::new_function(&example_op_c),
-                vec![
-                    Term::Application(
-                        Signature::new_function(&example_op_c),
-                        vec![
-                            Term::Application(Signature::new_function(&example_op_c), vec![]),
-                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-                        ],
-                    ),
-                    Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-                ],
-            ),
-            Term::Application(
-                Signature::new_function(&example_op_c),
-                vec![
-                    Term::Application(
-                        Signature::new_function(&example_op_c),
-                        vec![
-                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-                            Term::Application(Signature::new_function(&example_op_c), vec![]),
-                        ],
-                    ),
-                    Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-                ],
-            ),
-        ],
-    );
+    let constructed_term = term! {
+        fn_heartbeat_fake_length(example_op_c, fn_large_length)
+    };
 
     println!("{}", constructed_term);
     println!("{}", constructed_term.dot_subgraph(true, 0, "test"));

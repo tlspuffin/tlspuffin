@@ -48,19 +48,23 @@ macro_rules! term {
     // Variables
     (($step:expr, $msg:expr) / $typ:ty) => {{
         let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
-        $crate::term::Term::Variable(var)
+         std::rc::Rc::new($crate::term::Term::Variable(var))
     }};
 
     // Constants
     ($func:ident) => {{
         let func = $crate::term::signature::Signature::new_function(&$func);
-        $crate::term::Term::Application(func, vec![])
+        std::rc::Rc::new($crate::term::Term::Application(func, vec![]))
     }};
 
     // Function Applications
     ($func:ident ($($args:tt),*)) => {{
         let func = $crate::term::signature::Signature::new_function(&$func);
-        $crate::term::Term::Application(func, vec![$($crate::term_arg!($args)),*])
+        std::rc::Rc::new($crate::term::Term::Application(func, vec![$($crate::term_arg!($args)),*]))
+    }};
+
+    (@$e:expr) => {{
+        $e
     }};
 }
 

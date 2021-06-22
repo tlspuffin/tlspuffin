@@ -50,50 +50,6 @@ pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Optio
         })
 }
 
-/// Finds a term by a `type_shape` and `requested_index`.
-/// `requested_index` and `current_index` must be smaller than the amount of[`Term`]swhich have
-/// the type shape `type_shape`.
-pub fn find_term_by_index_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-    term: &'a mut Term,
-    rand: &mut R,
-    requested_index: usize,
-    mut current_index: usize,
-    filter: P
-) -> (Option<&'a mut Term>, usize) {
-    let is_compatible = filter(term);
-    if is_compatible && requested_index == current_index {
-        (Some(term), current_index)
-    } else {
-        if is_compatible {
-            // increment only if the term is relevant
-            current_index += 1;
-        };
-
-        match term {
-            Term::Application(_, ref mut subterms) => {
-                for subterm in subterms {
-                    let (selected, new_index) = find_term_by_index_mut(
-                        subterm,
-                        rand,
-                        requested_index,
-                        current_index,
-                        filter,
-                    );
-
-                    current_index = new_index;
-
-                    if let Some(selected) = selected {
-                        return (Some(selected), new_index);
-                    }
-                }
-            }
-            Term::Variable(_) => {}
-        }
-
-        (None, current_index)
-    }
-}
-
 pub fn choose_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     trace: &'a mut Trace,
     rand: &mut R,
