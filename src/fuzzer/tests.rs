@@ -38,7 +38,7 @@ fn test_repeat_cve() {
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
-            if input.recipe.name() == "tlspuffin::tls::fn_utils::fn_encrypt12" {
+            if input.recipe.root_node().name() == "tlspuffin::tls::fn_utils::fn_encrypt12" {
                 return true;
             }
         }

@@ -15,23 +15,23 @@ use super::atoms::{Function, Variable};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Term {
-    pub nodes: Vec<TermNode>,
-    pub root: TermIndex,
+    pub nodes: Vec<TermNode>, // todo make private
+    pub root: TermId, // todo make private
 }
 
 impl Term {
-    pub fn new(nodes: Vec<TermNode>, root: TermIndex) -> Self {
+    pub fn new(nodes: Vec<TermNode>, root: TermId) -> Self {
         Term { nodes, root }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TermNode {
-    pub symbol: Symbol,
-    pub subterms: Vec<TermIndex>,
+    pub symbol: Symbol, // todo make private
+    pub subterms: Vec<TermId>, // todo make private
 }
 
-type TermIndex = usize;
+type TermId = usize;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -63,7 +63,7 @@ impl fmt::Display for Term {
 }
 
 impl TermNode {
-    fn length(&self, term: &Term) -> usize {
+    pub fn length(&self, term: &Term) -> usize {
         if self.subterms.is_empty() {
             return 1;
         }
@@ -78,7 +78,7 @@ impl TermNode {
             + 1
     }
 
-    fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
+    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
         let increment = if filter(&self.symbol) { 1 } else { 0 };
         self.subterms
             .iter()
@@ -90,24 +90,19 @@ impl TermNode {
             + increment
     }
 
-    fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.subterms.is_empty()
     }
 
-    fn get_type_shape(&self) -> &TypeShape {
+    pub fn get_symbol_shape(&self) -> &TypeShape {
         &self.symbol.get_type_shape()
     }
 
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         match &self.symbol {
             Symbol::Variable(v) => v.typ.name,
             Symbol::Application(function) => function.name(),
         }
-    }
-
-    fn mutate(&mut self, other: TermIndex) {
-        // iterate over term index and add new terms
-        todo!()
     }
 
     fn display_at_depth(&self, term: &Term, depth: usize) -> String {
@@ -169,22 +164,6 @@ impl Term {
         self.root_node().length_filtered(term, filter)
     }
 
-    pub fn is_leaf(&self) -> bool {
-        todo!()
-    }
-
-    pub fn get_type_shape(&self) -> &TypeShape {
-        todo!()
-    }
-
-    pub fn name(&self) -> &str {
-        todo!()
-    }
-
-    pub fn mutate(&mut self, other: Term) {
-        todo!()
-    }
-
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         self.root_node().evaluate(self, context)
     }
@@ -193,17 +172,17 @@ impl Term {
         &self.nodes[self.root] // todo error check
     }
 
-    pub fn node_at(&self, index: &TermIndex) -> &TermNode {
+    pub fn node_at(&self, index: &TermId) -> &TermNode {
         &self.nodes[*index] // todo error check
     }
 
-    pub fn node_at_mut(&mut self, index: &TermIndex) -> &mut TermNode {
+    pub fn node_at_mut(&mut self, index: &TermId) -> &mut TermNode {
         &mut self.nodes[*index] // todo error check
     }
 
     /// This function clones all nodes of this term into the `output` vector. It changes all the TermIndices
     /// such that the ids of the subterms are still valid. The return index is valid in the output nodes array.
-    pub fn extend_vec(&self, output: &mut Vec<TermNode>) -> TermIndex {
+    pub fn extend_vec(&self, output: &mut Vec<TermNode>) -> TermId {
         let next_id = output.len();
         for node in &self.nodes {
             let new_node = TermNode {

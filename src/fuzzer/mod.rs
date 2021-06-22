@@ -2,10 +2,10 @@
 //! runs and restarting processes if they crash.
 
 #[cfg(test)]
-//mod tests;
+mod tests;
 mod libafl_setup;
 mod harness;
-// mod mutations;
+mod mutations;
 mod mutations_util;
 mod error_observer;
 pub mod seeds;

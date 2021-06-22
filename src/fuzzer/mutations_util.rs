@@ -55,21 +55,21 @@ pub fn choose_term_mut<'a, R: Rand, P: Fn(&&mut TermNode) -> bool + Copy>(
     trace: &'a mut Trace,
     rand: &mut R,
     filter: P,
-) -> Option<&'a mut TermNode> {
+) -> Option<(&'a mut TermNode, &'a Term)> {
     // todo get rid of this next line and randomly select a term over all input actions
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/66
     if let Some(input) = choose_input_action_mut(trace, rand) {
         let term = &mut input.recipe;
-        choose_iter(&mut term.nodes, filter, rand)
+        Some((choose_iter(&mut term.nodes, filter, rand).unwrap(), term))
     } else {
         None
     }
 }
 
-pub fn choose_term<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a TermNode> {
+pub fn choose_term_id<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<(&'a TermNode, &'a Term)> {
     if let Some(input) = choose_input_action(trace, rand) {
         let term = &input.recipe;
-        choose_iter(&term.nodes, |node| true, rand)
+        Some((choose_iter(&term.nodes, |node| true, rand).unwrap(), term))
     } else {
         None
     }

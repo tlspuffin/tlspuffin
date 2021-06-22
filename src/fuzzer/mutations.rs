@@ -188,11 +188,11 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some((index, replacement)) = choose_term(trace, rand) {
-            if let Some((to_replace, mut_term)) = choose_term_mut(trace, rand, |symbol| {
-                symbol.get_type_shape() == replacement.get_type_shape()
+        if let Some((replacement_node, replacement_term)) = choose_term(trace, rand).clone() {
+            if let Some(to_mutate) = choose_term_mut(trace, rand, |node| {
+                node.get_symbol_shape() == replacement_node.get_symbol_shape()
             }) {
-                std::mem::replace(&mut mut_term.nodes[to_replace.term_id()], replacement);
+                //std::mem::replace(&mut mut_term.nodes[to_replace.term_id()], replacement);
 
                 return Ok(MutationResult::Mutated);
             }
