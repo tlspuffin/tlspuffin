@@ -1,6 +1,7 @@
 use crate::trace::{Trace, InputAction, Action};
 use crate::term::{Term};
 use libafl::bolts::rands::Rand;
+use std::rc::Rc;
 
 pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
     where
@@ -59,14 +60,13 @@ pub fn choose_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/66
     if let Some(input) = choose_input_action_mut(trace, rand) {
         let term = &mut input.recipe;
-        let length = term.length_filtered(filter);
+        let size = term.length();
 
-        if length == 0 {
-            None
-        } else {
-            let requested_index = rand.between(0, (length - 1) as u64) as usize;
-            find_term_by_index_mut(term, rand, requested_index, 0, filter).0
-        }
+        let index = rand.between(0, (size - 1) as u64) as usize;
+
+        let x: &mut Term = Rc::make_mut(term).into_iter().nth(index).unwrap();
+
+        None
     } else {
         None
     }

@@ -47,20 +47,35 @@ macro_rules! var {
 macro_rules! term {
     // Variables
     (($step:expr, $msg:expr) / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
-         std::rc::Rc::new($crate::term::Term::Variable(var))
+        use std::rc::Rc;
+        use std::cell::RefCell;
+        use $crate::term::Term;
+        use $crate::term::signature::Signature;
+
+        let var = Signature::new_var::<$typ>( ($step, $msg));
+        Rc::new(RefCell::new(Term::Variable(var)))
     }};
 
     // Constants
     ($func:ident) => {{
-        let func = $crate::term::signature::Signature::new_function(&$func);
-        std::rc::Rc::new($crate::term::Term::Application(func, vec![]))
+        use std::rc::Rc;
+        use std::cell::RefCell;
+        use $crate::term::Term;
+        use $crate::term::signature::Signature;
+
+        let func = Signature::new_function(&$func);
+        Rc::new(RefCell::new(Term::Application(func, vec![])))
     }};
 
     // Function Applications
     ($func:ident ($($args:tt),*)) => {{
-        let func = $crate::term::signature::Signature::new_function(&$func);
-        std::rc::Rc::new($crate::term::Term::Application(func, vec![$($crate::term_arg!($args)),*]))
+        use std::rc::Rc;
+        use std::cell::RefCell;
+        use $crate::term::Term;
+        use $crate::term::signature::Signature;
+
+        let func = Signature::new_function(&$func);
+        Rc::new(RefCell::new(Term::Application(func, vec![$($crate::term_arg!($args)),*])))
     }};
 
     (@$e:expr) => {{

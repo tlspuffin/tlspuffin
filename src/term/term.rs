@@ -13,6 +13,7 @@ use crate::trace::TraceContext;
 use super::atoms::{Function, Variable};
 use crate::error::Error;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -25,7 +26,7 @@ pub enum Term {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<Rc<Term>>),
+    Application(Function, Vec<Rc<RefCell<Term>>>),
 }
 
 impl fmt::Display for Term {
@@ -172,18 +173,19 @@ impl<'a> IntoIterator for &'a mut Term {
 
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a mut Term, v: &mut Vec<&'a mut Term>) {
+            v.push(term);
             match term {
-                &mut Term::Variable(_) => {}
-                &mut Term::Application(_, ref mut subterms) => {
-                    for subterm in subterms.iter_mut() {
+                &Term::Variable(_) => {}
+                &Term::Application(_, ref subterms) => {
+                    for subterm in subterms.iter() {
                         // can we be sure that get_mut succeeds?
                         // still very similar, just that the check is moved to runtime!
-                        append(Rc::<Term>::get_mut(subterm).unwrap(), v);
+                        append(Rc::<Term>::make_mut(subterm), v);
                     }
                 }
             }
 
-            v.push(term);
+
         }
 
         let mut result = vec![];

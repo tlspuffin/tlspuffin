@@ -20,6 +20,7 @@ use crate::{
 };
 use crate::{app, app_const, term, var};
 use std::rc::Rc;
+use std::cell::RefCell;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -342,7 +343,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             ))
         )
     };
-    println!("{}", client_hello);
 
     let server_hello_transcript = term! {
         fn_append_transcript(
@@ -475,7 +475,7 @@ pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
     _seed_client_attacker12(client, server).0
 }
 
-fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Rc<Term>) {
+fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Rc<RefCell<Term>>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -566,17 +566,6 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Rc<T
         )
     };
 
-    let term1 = term! {
-                        fn_encrypt12(
-                            (fn_finished((@client_verify_data.clone()))),
-                            ((0, 0)/Random),
-                            (fn_decode_ecdh_params(
-                                ((0, 2)/Vec<u8>) // ServerECDHParams
-                            )),
-                            fn_seq_0
-                        )
-                    };
-    println!("{}", term1);
     let trace = Trace {
         descriptors: vec![
             AgentDescriptor {
@@ -616,7 +605,16 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Rc<T
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: term1,
+                    recipe: term! {
+                        fn_encrypt12(
+                            (fn_finished((@client_verify_data.clone()))),
+                            ((0, 0)/Random),
+                            (fn_decode_ecdh_params(
+                                ((0, 2)/Vec<u8>) // ServerECDHParams
+                            )),
+                            fn_seq_0
+                        )
+                    },
                 }),
             },
         ],

@@ -7,6 +7,8 @@ use std::process::{Command, Stdio};
 use crate::trace::{Trace, Action};
 use crate::term::{Term, remove_prefix};
 use itertools::Itertools;
+use std::ops::Deref;
+use std::borrow::Borrow;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")
@@ -45,6 +47,8 @@ impl Trace {
                         "{}",
                         input
                             .recipe
+                            .deref()
+                            .borrow()
                             .dot_subgraph(tree_mode, i, subgraph_name.as_str())
                     )
                 }
@@ -121,7 +125,7 @@ impl Term {
                         term.unique_id(tree_mode, cluster_id),
                         subterm.unique_id(tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(subterm, tree_mode, cluster_id, statements);
+                    Self::collect_statements(&subterm.deref().borrow(), tree_mode, cluster_id, statements);
                 }
             }
         }

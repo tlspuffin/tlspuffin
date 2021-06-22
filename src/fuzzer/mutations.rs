@@ -16,6 +16,7 @@ use crate::term::Term;
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 use std::ops::Deref;
+use std::rc::Rc;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -356,7 +357,7 @@ where
                         if let Some(found) = found_grand_subterm.cloned() {
                             // todo this lifts the first_grand_subterm found to the first subterm found
                             //      make this more random
-                            subterm.mutate(*found);
+                            to_mutate.mutate(*found);
                             return Ok(MutationResult::Mutated)
                         }
                     }

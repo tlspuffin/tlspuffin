@@ -60,25 +60,27 @@
 //!
 
 use core::fmt;
+use std::cell::RefCell;
+use std::ops::Deref;
+use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentDescriptor};
+use crate::agent::AgentDescriptor;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
+use crate::tls::error::FnError;
 use crate::{
     agent::{Agent, AgentName},
-    term::{Term, dynamic_function::TypeShape},
+    term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::tls::error::FnError;
-use std::rc::Rc;
 
 pub type ObservedId = (u16, u16);
 
@@ -157,9 +159,7 @@ impl TraceContext {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        Ok(agent
-            .stream
-            .take_message_from_outbound()?)
+        Ok(agent.stream.take_message_from_outbound()?)
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -345,13 +345,13 @@ impl fmt::Display for OutputAction {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InputAction {
-    pub recipe: Rc<Term>,
+    pub recipe: Rc<RefCell<Term>>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl InputAction {
-    pub fn new_step(agent: AgentName, recipe: Rc<Term>) -> Step {
+    pub fn new_step(agent: AgentName, recipe: Rc<RefCell<Term>>) -> Step {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
@@ -360,9 +360,7 @@ impl InputAction {
 
     fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         // message controlled by the attacker
-        let evaluated = self
-            .recipe
-            .evaluate(ctx)?;
+        let evaluated = self.recipe.deref().borrow().evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
@@ -381,7 +379,8 @@ impl InputAction {
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
-            )).into());
+            ))
+            .into());
         }
 
         ctx.next_state(step.agent)
@@ -390,6 +389,6 @@ impl InputAction {
 
 impl fmt::Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "recipe: {}", self.recipe)
+        write!(f, "recipe: {}", self.recipe.deref().borrow())
     }
 }
