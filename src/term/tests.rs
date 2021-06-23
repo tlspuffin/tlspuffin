@@ -187,7 +187,7 @@ fn test_replace_tree_at() {
     clone.remove_node(node.unwrap().clone(), RemoveBehavior::DropChildren);
 
     let at = find_node_id(&tree, &"2".to_string()).unwrap().clone();
-    term::replace_tree_at(&mut tree, &at, &clone).unwrap();
+    term::replace_subtree_at_with_whole_tree(&mut tree, &at, &clone).unwrap();
 
     print_tree(&tree);
 }
@@ -203,7 +203,7 @@ fn test_replace_tree_at_root() {
     clone.remove_node(two.unwrap().clone(), RemoveBehavior::DropChildren);
 
     let at = tree.root_node_id().unwrap().clone();
-    term::replace_tree_at( &mut tree, &at,&clone).unwrap();
+    term::replace_subtree_at_with_whole_tree( &mut tree, &at,&clone).unwrap();
 
     print_tree(&tree);
 }

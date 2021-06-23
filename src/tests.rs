@@ -35,7 +35,6 @@ pub mod seeds {
             }
             Ok(ForkResult::Child) => {
                 func();
-                std::process::exit(0);
             }
             Err(_) => panic!("Fork failed"),
         }

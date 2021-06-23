@@ -80,11 +80,11 @@ macro_rules! _term {
 #[macro_export]
 macro_rules! term {
     ($($all_tokens:tt)*) => {{
-        use $crate::term::Symbol;
+        use $crate::term::{Symbol, TermTree};
         use $crate::error::Error;
         use id_tree::{Tree, TreeBuilder, Node, InsertBehavior};
 
-        let mut tree: Tree<Symbol> = TreeBuilder::new()
+        let mut tree: TermTree = TreeBuilder::new()
             .with_node_capacity(30)
             .with_swap_capacity(10)
             .build();

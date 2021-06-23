@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::marker::PhantomData;
 
 use libafl::{
@@ -12,10 +13,9 @@ use libafl::{
 };
 
 use crate::fuzzer::mutations_util::*;
-use crate::term::{Term, Symbol};
+use crate::term::{Symbol, Term};
 use crate::tls::SIGNATURE;
-use crate::trace::Trace;
-use std::any::Any;
+use crate::trace::{Action, Trace};
 use crate::variable_data::VariableData;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
@@ -33,9 +33,9 @@ where
     tuple_list!(
         RepeatMutator::new(),
         SkipMutator::new(),
-        ReplaceReuseMutator::new()/*,
-        ReplaceMatchMutator::new(),
-        RemoveAndLiftMutator::new(),*/
+        ReplaceReuseMutator::new() /*,
+                                   ReplaceMatchMutator::new(),
+                                   RemoveAndLiftMutator::new(),*/
     )
 }
 
@@ -188,12 +188,37 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some((replacement_node, replacement_term)) = choose_term(trace, rand).clone() {
-            if let Some(to_mutate) = choose_term_mut(trace, rand, |node| {
-                node.get_symbol_shape() == replacement_node.get_symbol_shape()
-            }) {
-                //std::mem::replace(&mut mut_term.nodes[to_replace.term_id()], replacement);
+        if let Some((replacement, replacement_step)) = choose_term(trace, rand) {
+            let replacement_term =
+                if let Action::Input(input) = &trace.steps[replacement_step].action {
+                    Some(&input.recipe)
+                } else {
+                    None
+                }
+                .unwrap();
 
+            let replacement_node = replacement_term.node_at(&replacement).unwrap();
+
+            if let Some((mutate, mutate_step)) = choose_term_filtered(trace, rand, |id, step| {
+                let term = if let Action::Input(input) = &trace.steps[step].action {
+                    Some(&input.recipe)
+                } else {
+                    None
+                }
+                .unwrap();
+
+                let node = term.node_at(&id).unwrap();
+                node.data().symbol_shape() == replacement_node.data().symbol_shape()
+            }) {
+                let mutate_term =
+                    if let Action::Input(input) = &mut trace.steps[mutate_step].action {
+                        Some(&mut input.recipe)
+                    } else {
+                        None
+                    }
+                    .unwrap();
+
+                mutate_term.replace_subterm_at(&mutate, replacement_term, &replacement);
                 return Ok(MutationResult::Mutated);
             }
         }

@@ -38,7 +38,7 @@ fn test_repeat_cve() {
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
-            if input.recipe.root_node().name() == "tlspuffin::tls::fn_utils::fn_encrypt12" {
+            if input.recipe.root_node().unwrap().data().name() == "tlspuffin::tls::fn_utils::fn_encrypt12" {
                 return true;
             }
         }
@@ -116,8 +116,8 @@ fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
 
 fn count_functions_term(term: &Term, find_name: &'static str) -> u16 {
     let mut extension_appends = 0;
-    for node in term.into_iter() {
-        if let Symbol::Application(func) = node.symbol {
+    for node in term.traverse_from_root().unwrap() {
+        if let Symbol::Application(func) = node.data() {
             if func.name() == find_name {
                 extension_appends += 1;
             }

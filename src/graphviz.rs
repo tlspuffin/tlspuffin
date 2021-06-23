@@ -4,11 +4,9 @@
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
-
-use id_tree::{Node, NodeId};
 use itertools::Itertools;
 
-use crate::term::{remove_prefix, Symbol, Term};
+use crate::term::{remove_prefix, Symbol, Term, TermNode};
 use crate::trace::{Action, Trace};
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -67,7 +65,7 @@ impl Trace {
 }
 
 impl Term {
-    fn unique_id(&self, node: &Node<Symbol>, tree_mode: bool, cluster_id: usize) -> String {
+    fn unique_id(&self, node: &TermNode, tree_mode: bool, cluster_id: usize) -> String {
         match node.data() {
             Symbol::Variable(variable) => {
                 if tree_mode {
