@@ -3,6 +3,7 @@
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
+use id_tree::{InsertBehavior, Node, NodeId, NodeIdError, RemoveBehavior, Tree};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -15,23 +16,14 @@ use super::atoms::{Function, Variable};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Term {
-    pub nodes: Vec<TermNode>, // todo make private
-    pub root: TermId, // todo make private
+    pub tree: Tree<Symbol>,
 }
 
 impl Term {
-    pub fn new(nodes: Vec<TermNode>, root: TermId) -> Self {
-        Term { nodes, root }
+    pub fn new(tree: Tree<Symbol>) -> Self {
+        Term { tree }
     }
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct TermNode {
-    pub symbol: Symbol, // todo make private
-    pub subterms: Vec<TermId>, // todo make private
-}
-
-type TermId = usize;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -54,91 +46,72 @@ impl Symbol {
             Symbol::Application(function) => &function.shape().return_type,
         }
     }
-}
-
-impl fmt::Display for Term {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.root_node().display_at_depth(self, 0))
-    }
-}
-
-impl TermNode {
-    pub fn length(&self, term: &Term) -> usize {
-        if self.subterms.is_empty() {
-            return 1;
-        }
-
-        self.subterms
-            .iter()
-            .map(|subterm_id| {
-                let subterm = term.node_at(subterm_id);
-                subterm.length(term)
-            })
-            .sum::<usize>()
-            + 1
-    }
-
-    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
-        let increment = if filter(&self.symbol) { 1 } else { 0 };
-        self.subterms
-            .iter()
-            .map(|subterm_id| {
-                let subterm = term.node_at(subterm_id);
-                subterm.length_filtered(term, filter)
-            })
-            .sum::<usize>()
-            + increment
-    }
-
-    pub fn is_leaf(&self) -> bool {
-        self.subterms.is_empty()
-    }
 
     pub fn get_symbol_shape(&self) -> &TypeShape {
-        &self.symbol.get_type_shape()
+        &self.get_type_shape()
     }
 
     pub fn name(&self) -> &str {
-        match &self.symbol {
+        match self {
             Symbol::Variable(v) => v.typ.name,
             Symbol::Application(function) => function.name(),
         }
     }
+}
 
-    fn display_at_depth(&self, term: &Term, depth: usize) -> String {
-        let tabs = "\t".repeat(depth);
-        match &self.symbol {
-            Symbol::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
-            Symbol::Application(ref func) => {
-                let op_str = remove_prefix(func.name());
-                if self.subterms.is_empty() {
-                    format!("{}{}", tabs, op_str)
-                } else {
-                    let args_str = self
-                        .subterms
-                        .iter()
-                        .map(|subterm_id| {
-                            let subterm = term.node_at(subterm_id);
-                            subterm.display_at_depth(term, depth + 1)
-                        })
-                        .join(",\n");
-                    format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
-                }
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.tree.write_formatted(f)
+    }
+}
+
+impl Term {
+    pub fn length(&self) -> usize {
+        if let Some(len) = self.tree.root_node_id() {
+            if let Ok(it) = self.tree.traverse_pre_order(len) {
+                return it.count();
             }
         }
+        0
     }
 
-    pub fn evaluate(&self, term: &Term, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        match &self.symbol {
+    pub fn length_filtered<P: Fn(&&Node<Symbol>) -> bool + Copy>(&self, filter: P) -> usize {
+        if let Some(len) = self.tree.root_node_id() {
+            if let Ok(it) = self.tree.traverse_pre_order(len) {
+                return it.filter(filter).count();
+            }
+        }
+        0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tree.height() == 0
+    }
+
+    pub fn term_height(&self) -> usize {
+        self.tree.height()
+    }
+
+    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
+        let root = self.root_node()?;
+        self.evaluate_subterm(root, context)
+    }
+
+    pub fn evaluate_subterm(
+        &self,
+        node: &Node<Symbol>,
+        context: &TraceContext,
+    ) -> Result<Box<dyn Any>, Error> {
+        match &node.data() {
             Symbol::Variable(v) => context
                 .get_variable_by_type_id(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
             Symbol::Application(func) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for subterm_id in &self.subterms {
-                    let subterm = term.node_at(subterm_id);
-                    match subterm.evaluate(term, context) {
+                for subterm_id in node.children() {
+                    let subterm = self.node_at(subterm_id)?;
+                    match self.evaluate_subterm(subterm, context) {
                         Ok(data) => {
                             dynamic_args.push(data);
                         }
@@ -153,60 +126,26 @@ impl TermNode {
             }
         }
     }
-}
 
-impl Term {
-    pub fn length(&self, term: &Term) -> usize {
-        self.root_node().length(term)
+    pub fn root_node(&self) -> Result<&Node<Symbol>, Error> {
+        let root_id = self
+            .tree
+            .root_node_id()
+            .ok_or_else(|| Error::Term("Failed to get root!".to_string()))?;
+        self.node_at(root_id)
     }
 
-    pub fn length_filtered<P: Fn(&Symbol) -> bool + Copy>(&self, term: &Term, filter: P) -> usize {
-        self.root_node().length_filtered(term, filter)
+    pub fn node_at(&self, id: &NodeId) -> Result<&Node<Symbol>, Error> {
+        Ok(self.tree.get(id)?)
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
-        self.root_node().evaluate(self, context)
+    pub fn node_at_mut(&mut self, id: &NodeId) -> Result<&mut Node<Symbol>, Error> {
+        Ok(self.tree.get_mut(id)?)
     }
 
-    pub fn root_node(&self) -> &TermNode {
-        &self.nodes[self.root] // todo error check
-    }
-
-    pub fn node_at(&self, index: &TermId) -> &TermNode {
-        &self.nodes[*index] // todo error check
-    }
-
-    pub fn node_at_mut(&mut self, index: &TermId) -> &mut TermNode {
-        &mut self.nodes[*index] // todo error check
-    }
-
-    /// This function clones all nodes of this term into the `output` vector. It changes all the TermIndices
-    /// such that the ids of the subterms are still valid. The return index is valid in the output nodes array.
-    pub fn extend_vec(&self, output: &mut Vec<TermNode>) -> TermId {
-        let next_id = output.len();
-        for node in &self.nodes {
-            let new_node = TermNode {
-                symbol: node.symbol.clone(),
-                subterms: node
-                    .subterms
-                    .iter()
-                    .map(|subterm_id| next_id + subterm_id)
-                    .collect(),
-            };
-            output.push(new_node);
-        }
-
-        next_id + self.root
-    }
-}
-
-// Indexed iterating
-impl IntoIterator for Term {
-    type Item = TermNode;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.nodes.into_iter()
+    /// `insert_at` must be part of `self`
+    pub fn replace_term_at(&mut self, insert_at: &NodeId, to_insert: &Term) -> Result<(), Error> {
+        Ok(replace_tree_at(&mut self.tree, insert_at, &to_insert.tree)?)
     }
 }
 
@@ -221,11 +160,91 @@ pub(crate) fn remove_prefix(str: &str) -> String {
         } else {
             non_generic.to_string() + generic
         }
+    } else if let Some(pos) = str.rfind("::") {
+        str[pos + 2..].to_string()
     } else {
-        if let Some(pos) = str.rfind("::") {
-            str[pos + 2..].to_string()
-        } else {
-            str.to_string()
+        str.to_string()
+    }
+}
+
+/// Replaces a subtree at `insert_at` with the complete tree `to_insert`.
+///
+/// `insert_at` must be part of `tree`
+pub(crate) fn replace_tree_at<T: Clone>(
+    tree: &mut Tree<T>,
+    replace_at: &NodeId,
+    replacement: &Tree<T>,
+) -> Result<(), NodeIdError> {
+    // check if tree is empty
+    if let Some(node_id) = replacement.root_node_id() {
+        // Remove root_at node and set at to the node to which we append
+        let mut at: Option<NodeId> = tree.get(replace_at)?.parent().cloned();
+        tree.remove_node(replace_at.clone(), RemoveBehavior::DropChildren)?;
+        at = at.or_else(|| tree.root_node_id().cloned());
+
+        let mut stack = vec![(node_id, at)];
+
+        while let Some((node_id, at)) = stack.pop() {
+            let node = replacement
+                .get(node_id)
+                .expect("getting node of existing node ref id");
+
+            let cloned_node = Node::new(node.data().clone());
+
+            let new_at = if let Some(at) = at {
+                // Insert below node
+                tree.insert(cloned_node, InsertBehavior::UnderNode(&at))?
+            } else {
+                // Tree seems empty as we did not have a root to insert below
+                tree.insert(cloned_node, InsertBehavior::AsRoot)?
+            };
+
+            let children = node.children().iter().rev();
+            for child_id in children {
+                stack.push((child_id, Some(new_at.clone())));
+            }
         }
     }
+
+    Ok(())
+}
+
+pub(crate) fn insert_tree_at<T: Clone>(
+    tree: &mut Tree<T>,
+    insert_at: InsertBehavior,
+    to_insert: &Tree<T>,
+) -> Result<(), NodeIdError> {
+    // check if tree is empty
+    if let Some(node_id) = to_insert.root_node_id() {
+        let mut stack = vec![(
+            node_id,
+            if let InsertBehavior::UnderNode(at) = insert_at {
+                Some(at.clone())
+            } else {
+                None
+            },
+        )];
+
+        while let Some((node_id, at)) = stack.pop() {
+            let node = to_insert
+                .get(node_id)
+                .expect("getting node of existing node ref id");
+
+            let cloned_node = Node::new(node.data().clone());
+            let new_at = if let Some(at) = at {
+                // Insert below node
+                tree.insert(cloned_node, InsertBehavior::UnderNode(&at))?
+            } else {
+                // Tree seems empty as we did not have a root to insert below
+                tree.insert(cloned_node, InsertBehavior::AsRoot)?
+            };
+
+            let children = node.children().iter().rev();
+            for child_id in children {
+                stack.push((child_id, Some(new_at.clone())));
+            }
+        }
+    }
+
+    Ok(())
 }

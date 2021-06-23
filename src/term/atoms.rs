@@ -56,7 +56,7 @@ impl fmt::Display for Variable {
 }
 
 /// A function symbol with fixed arity and fixed types.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Function {
     /// Unique ID of this function. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
@@ -114,6 +114,12 @@ impl Function {
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.fn_container.shape.fmt(f)
+    }
+}
+
+impl fmt::Debug for Function {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 

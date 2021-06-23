@@ -21,95 +21,91 @@
 //! };
 //! ```
 
-#[macro_export]
-macro_rules! app_const {
-    ($op:ident) => {
-        Symbol::Application(Signature::new_function(&$op), vec![])
-    };
-}
 
-#[macro_export]
-macro_rules! app {
-    ($op:ident, $($args:expr),*$(,)?) => {
-        Symbol::Application(Signature::new_function(&$op),vec![$($args,)*])
-    };
-}
 
-#[macro_export]
-macro_rules! var {
-    ($typ:ty, $id:expr) => {
-        Symbol::Variable(Signature::new_var::<$typ>($id))
-    };
-}
+
 
 #[macro_export]
 macro_rules! _term {
-// Variables
-            ($nodes:ident, ($step:expr, $msg:expr) / $typ:ty) => {{
-                let id = $nodes.len();
-                let var = $crate::term::signature::Signature::new_var::<$typ>(($step, $msg));
-                let symbol = $crate::term::Symbol::Variable(var);
+    // Variables
+    ([$tree:ident, $behaviour:ident], ($step:expr, $msg:expr) / $typ:ty) => {{
+        use $crate::term::signature::Signature;
+        use $crate::term::Symbol;
+        use id_tree::{Node, InsertBehavior};
 
-                let node = $crate::term::TermNode {
-                    symbol,
-                    subterms: vec![]
-                };
+        let var = Signature::new_var::<$typ>(($step, $msg));
+        let symbol = Symbol::Variable(var);
 
-                $nodes.push(node);
-                id
-            }};
+        $tree.insert(Node::new(symbol), $behaviour)?
+    }};
 
-            // Constants
-            ($nodes:ident, $func:ident) => {{
-                let id = $nodes.len();
-                let func = $crate::term::signature::Signature::new_function(&$func);
-                let symbol = $crate::term::Symbol::Application(func);
+    // Constants
+    ([$tree:ident, $behaviour:ident], $func:ident) => {{
+        use $crate::term::signature::Signature;
+        use $crate::term::Symbol;
+        use id_tree::{Node, InsertBehavior};
 
-                let node = $crate::term::TermNode {
-                    symbol,
-                    subterms: vec![]
-                };
+        let func = Signature::new_function(&$func);
+        let symbol = Symbol::Application(func);
 
-                $nodes.push(node);
-                id
-            }};
 
-            // Function Applications
-            ($nodes:ident, $func:ident ($($args:tt),*)) => {{
-                let func = $crate::term::signature::Signature::new_function(&$func);
-                let symbol = $crate::term::Symbol::Application(func);
+        $tree.insert(Node::new(symbol), $behaviour)?
+    }};
 
-                let node = $crate::term::TermNode {
-                    symbol,
-                    subterms: vec![$($crate::term_arg!($nodes, $args)),*]
-                };
+    // Function Applications
+    ([$tree:ident, $behaviour:ident], $func:ident ($($args:tt),*)) => {{
+        use $crate::term::signature::Signature;
+        use $crate::term::Symbol;
+        use id_tree::{Node, InsertBehavior};
 
-                let id = $nodes.len();
-                $nodes.push(node);
-                id
-            }};
+        let func = Signature::new_function(&$func);
+        let symbol = Symbol::Application(func);
 
-            // Insert Term
-            ($nodes:ident, @$e:expr) => {{
-                $e.extend_vec(&mut $nodes)
-            }};
-        }
+        let node_id = $tree.insert(Node::new(symbol), $behaviour)?;
 
-// todo we could improve performance by not recreating these
+        $(
+            let behaviour = InsertBehavior::UnderNode(&node_id);
+            $crate::term_arg!([$tree, behaviour], $args);
+        )*
+
+        node_id
+    }};
+
+    // Insert Term
+    ([$tree:ident, $behaviour:ident], @$e:expr) => {{
+        $crate::term::insert_tree_at(&mut $tree, $behaviour, &$e.tree)?
+    }};
+}
+
 #[macro_export]
 macro_rules! term {
-    ($($all:tt)*) => {{
-        let mut nodes: Vec<$crate::term::TermNode> = Vec::new();
-        let root = $crate::_term!(nodes, $($all)*);
-        $crate::term::Term::new(nodes, root)
+    ($($all_tokens:tt)*) => {{
+        use $crate::term::Symbol;
+        use $crate::error::Error;
+        use id_tree::{Tree, TreeBuilder, Node, InsertBehavior};
+
+        let mut tree: Tree<Symbol> = TreeBuilder::new()
+            .with_node_capacity(30)
+            .with_swap_capacity(10)
+            .build();
+        let behaviour = InsertBehavior::AsRoot;
+
+        let build_tree = || -> Result<(), Error> {
+            $crate::_term!([tree, behaviour], $($all_tokens)*);
+            Ok(())
+        };
+
+        build_tree().unwrap();
+
+        $crate::term::Term::new(tree)
     }};
 }
 
 #[macro_export]
 macro_rules! term_arg {
     // Somehow the following rules is very important
-    ($symbols:ident, ( $($e:tt)* ) ) => ($crate::_term!($symbols, $($e)*));
+    ([$tree:ident, $behaviour:ident], ( $($e:tt)* ) ) => ($crate::_term!([$tree, $behaviour], $($e)*));
     // not sure why I should need this
     // ( ( $e:tt ) ) => (ast!($e));
-    ($symbols:ident, $e:tt) => ($crate::_term!($symbols, $e));
+    ([$tree:ident, $behaviour:ident], $e:tt) => ($crate::_term!([$tree, $behaviour], $e));
 }

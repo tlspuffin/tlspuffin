@@ -9,6 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::tls::error::FnError;
 use rustls::msgs::enums::ContentType;
+use id_tree::NodeIdError;
 
 // #[derive(Debug, Clone, Serialize)] Serialization not used right now
 #[derive(Debug, Clone)]
@@ -82,5 +83,11 @@ impl From<FnError> for Error {
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
         Error::IO(err.to_string())
+    }
+}
+
+impl From<NodeIdError> for Error {
+    fn from(err: NodeIdError) -> Self {
+        Error::Term(err.to_string())
     }
 }

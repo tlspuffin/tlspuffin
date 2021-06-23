@@ -1,5 +1,8 @@
 use std::any::{Any, TypeId};
+use std::fmt;
 
+use id_tree::InsertBehavior::*;
+use id_tree::*;
 use itertools::Itertools;
 use rustls::msgs::handshake::SessionID;
 use rustls::ProtocolVersion;
@@ -128,4 +131,79 @@ fn test_static_functions() {
             .map(|tuple| tuple.0.to_string())
             .join("\n")
     );
+}
+
+fn create_test_tree() -> Tree<String> {
+    let mut tree: Tree<String> = TreeBuilder::new().with_node_capacity(1).build();
+
+    let root_id: NodeId = tree.insert(Node::new("root".to_string()), AsRoot).unwrap();
+    let left: NodeId = tree
+        .insert(Node::new("a".to_string()), UnderNode(&root_id))
+        .unwrap();
+    let right = tree
+        .insert(Node::new("b".to_string()), UnderNode(&root_id))
+        .unwrap();
+    tree.insert(Node::new("1".to_string()), UnderNode(&left))
+        .unwrap();
+    tree.insert(Node::new("2".to_string()), UnderNode(&left))
+        .unwrap();
+    tree.insert(Node::new("3".to_string()), UnderNode(&right))
+        .unwrap();
+    tree.insert(Node::new("4".to_string()), UnderNode(&right))
+        .unwrap();
+
+    tree
+}
+
+fn print_tree<T: fmt::Debug>(tree: &Tree<T>) {
+    let mut s = String::new();
+    tree.write_formatted(&mut s).unwrap();
+    println!("{}", s);
+}
+
+fn find_node_id<T: Eq>(tree: &Tree<T>, data: &T) -> Option<NodeId> {
+    let mut ret = None;
+    for node in tree
+        .traverse_level_order_ids(&tree.root_node_id().unwrap())
+        .unwrap()
+    {
+        if tree.get(&node).unwrap().data() == data {
+            ret = Some(node);
+            break;
+        }
+    }
+    ret
+}
+
+#[test]
+fn test_replace_tree_at() {
+    let mut tree = create_test_tree();
+    let mut clone = create_test_tree();
+
+    print_tree(&tree);
+
+    let node: Option<NodeId> = find_node_id(&clone, &"2".to_string());
+
+    clone.remove_node(node.unwrap().clone(), RemoveBehavior::DropChildren);
+
+    let at = find_node_id(&tree, &"2".to_string()).unwrap().clone();
+    term::replace_tree_at(&mut tree, &at, &clone).unwrap();
+
+    print_tree(&tree);
+}
+
+#[test]
+fn test_replace_tree_at_root() {
+    let mut tree = create_test_tree();
+    let mut clone = create_test_tree();
+
+    print_tree(&tree);
+
+    let two: Option<NodeId> = find_node_id(&clone, &"2".to_string());
+    clone.remove_node(two.unwrap().clone(), RemoveBehavior::DropChildren);
+
+    let at = tree.root_node_id().unwrap().clone();
+    term::replace_tree_at( &mut tree, &at,&clone).unwrap();
+
+    print_tree(&tree);
 }

@@ -15,10 +15,10 @@ use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
-    term::{signature::Signature, Term},
+    term::{Term},
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
-use crate::{app, app_const, term, var};
+use crate::{term};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -352,6 +352,8 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             ((0, 0)/Message) // plaintext ServerHello
         )
     };
+
+    println!("{}", server_hello_transcript);
 
     let encrypted_extensions = term! {
         fn_decrypt(

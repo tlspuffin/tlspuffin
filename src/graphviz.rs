@@ -5,9 +5,10 @@ use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
 
+use id_tree::{Node, NodeId};
 use itertools::Itertools;
 
-use crate::term::{remove_prefix, Symbol, Term, TermNode};
+use crate::term::{remove_prefix, Symbol, Term};
 use crate::trace::{Action, Trace};
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -65,9 +66,9 @@ impl Trace {
     }
 }
 
-impl TermNode {
-    fn unique_id(&self, term: &Term, tree_mode: bool, cluster_id: usize) -> String {
-        match &self.symbol {
+impl Term {
+    fn unique_id(&self, node: &Node<Symbol>, tree_mode: bool, cluster_id: usize) -> String {
+        match node.data() {
             Symbol::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
@@ -92,51 +93,56 @@ impl TermNode {
         )
     }
 
-    fn collect_statements(
-        &self,
-        term: &Term,
-        tree_mode: bool,
-        cluster_id: usize,
-        statements: &mut Vec<String>,
-    ) {
-        match &self.symbol {
-            Symbol::Variable(variable) => {
-                statements.push(format!(
-                    "{} {};",
-                    self.unique_id(term, tree_mode, cluster_id),
-                    Self::node_attributes(variable, 1, "oval")
-                ));
-            }
-            Symbol::Application(func) => {
-                statements.push(format!(
-                    "{} {};",
-                    self.unique_id(term, tree_mode, cluster_id),
-                    Self::node_attributes(
-                        remove_prefix(func.name()),
-                        if func.arity() == 0 { 1 } else { 2 },
-                        "box"
-                    )
-                ));
-
-                for subterm_id in &self.subterms {
-                    let subterm = term.node_at(subterm_id);
+    fn collect_statements(&self, tree_mode: bool, cluster_id: usize) -> Vec::<String> {
+        let mut statements = Vec::new();
+        for node in self
+            .tree
+            .traverse_pre_order(self.tree.root_node_id().unwrap())
+            .unwrap()
+        {
+            match node.data() {
+                Symbol::Variable(variable) => {
                     statements.push(format!(
-                        "{} -> {};",
-                        self.unique_id(term, tree_mode, cluster_id),
-                        subterm.unique_id(term, tree_mode, cluster_id)
+                        "{} {};",
+                        self.unique_id(node, tree_mode, cluster_id),
+                        Self::node_attributes(variable, 1, "oval")
                     ));
-                    subterm.collect_statements(term, tree_mode, cluster_id, statements);
+                }
+                Symbol::Application(func) => {
+                    statements.push(format!(
+                        "{} {};",
+                        self.unique_id(node, tree_mode, cluster_id),
+                        Self::node_attributes(
+                            remove_prefix(func.name()),
+                            if func.arity() == 0 { 1 } else { 2 },
+                            "box"
+                        )
+                    ));
+
+                    for subterm_id in node.children() {
+                        let subterm = self.node_at(subterm_id).unwrap();
+                        statements.push(format!(
+                            "{} -> {};",
+                            self.unique_id(node, tree_mode, cluster_id),
+                            self.unique_id(subterm, tree_mode, cluster_id)
+                        ));
+                    }
                 }
             }
         }
+        statements
     }
 
     /// If `tree_mode` is true then each subgraph is self-contained and does not reference other
     /// clusters or nodes outside of this subgraph. Therefore, only trees are generated. If it is
     /// false, then graphs are rendered.
-    pub fn dot_subgraph(&self, term: &Term, tree_mode: bool, cluster_id: usize, label: &str) -> String {
-        let mut statements = Vec::new();
-        self.collect_statements(term, tree_mode, cluster_id, &mut statements);
+    pub fn dot_subgraph(
+        &self,
+        tree_mode: bool,
+        cluster_id: usize,
+        label: &str,
+    ) -> String {
+        let statements = self.collect_statements(tree_mode, cluster_id);
         format!(
             "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
             cluster_id,
@@ -146,11 +152,12 @@ impl TermNode {
     }
 }
 
-impl Term {
+/*impl Term {
     pub fn dot_subgraph(&self, tree_mode: bool, cluster_id: usize, label: &str) -> String {
-        self.root_node().dot_subgraph(self, tree_mode, cluster_id, label)
+        self.root_node()
+            .dot_subgraph(self, tree_mode, cluster_id, label)
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {
