@@ -67,6 +67,22 @@ pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Optio
 
 pub type StepIndex = usize;
 
+pub fn get_input_action(trace: &Trace, index: StepIndex) -> Option<&Term> {
+    if let Action::Input(input) = &trace.steps[index].action {
+        Some(&input.recipe)
+    } else {
+        None
+    }
+}
+
+pub fn get_step_by_index_mut(trace: &mut Trace, index: StepIndex) -> Option<&mut Term> {
+    if let Action::Input(input) = &mut trace.steps[index].action {
+        Some(&mut input.recipe)
+    } else {
+        None
+    }
+}
+
 pub fn choose_term<R: Rand>(trace: &mut Trace, rand: &mut R) -> Option<(TermId, StepIndex)> {
     choose_term_filtered(trace, rand, |_, _| true)
 }
@@ -78,7 +94,7 @@ pub fn choose_term_filtered<R: Rand, P: Fn(&TermId, StepIndex) -> bool + Copy>(
 ) -> Option<(TermId, StepIndex)> {
     let mut ids: Vec::<(TermId, StepIndex)> = Vec::new();
 
-    for (i, step) in trace.steps.iter().enumerate() {
+    for (step_index, step) in trace.steps.iter().enumerate() {
         match &step.action {
             Action::Input(input) => {
                 let term = &input.recipe;
@@ -87,8 +103,8 @@ pub fn choose_term_filtered<R: Rand, P: Fn(&TermId, StepIndex) -> bool + Copy>(
                 ids.extend(
                     term.traverse_ids_from_root()
                         .unwrap()
-                        .filter(|node| filter(node, i))
-                        .map(|node| (node, i)),
+                        .filter(|node| filter(node, step_index))
+                        .map(|node| (node, step_index)),
                 );
             }
             Action::Output(_) => {}

@@ -279,3 +279,46 @@ pub(crate) fn recursive_insert<'a, T: Clone>(
     }
     Ok(())
 }
+
+
+
+/*pub(crate) fn replace_subtree_at_experiment<T: Clone>(
+    tree: &mut Tree<T>,
+    at: &TermId,
+
+) -> Result<(), NodeIdError> {
+    // Remove root_at node and set at to the node to which we append
+    let mut start_at: Option<TermId> = tree.get(at)?.parent().cloned();
+    tree.remove_node(at.clone(), RemoveBehavior::DropChildren)?;
+    start_at = start_at.or_else(|| tree.root_node_id().cloned());
+
+
+
+    Ok(())
+}
+
+
+pub(crate) fn create_stack_experiment<'a, T: Clone>(
+    replacement: &Tree<T>,
+    replacement_at: &TermId,
+) -> Result<(), NodeIdError> {
+
+    let mut stack = vec![(replacement_at, start_at)];
+
+
+    let prev_len = 0;
+
+    while stack.len() != prev_len {
+        let node = replacement
+            .get(node_id)
+            .expect("getting node of existing node ref id");
+
+
+        let children = node.children().iter().rev();
+        for child_id in children {
+            stack.push((child_id, Some(new_at.clone())));
+        }
+    }
+    Ok(())
+}
+*/

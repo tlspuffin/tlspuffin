@@ -189,36 +189,17 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some((replacement, replacement_step)) = choose_term(trace, rand) {
-            let replacement_term =
-                if let Action::Input(input) = &trace.steps[replacement_step].action {
-                    Some(&input.recipe)
-                } else {
-                    None
-                }
-                .unwrap();
-
+            let replacement_term = get_input_action(trace, replacement_step).unwrap().clone(); // todo we do not need to clone the whole term here actually
             let replacement_node = replacement_term.node_at(&replacement).unwrap();
 
             if let Some((mutate, mutate_step)) = choose_term_filtered(trace, rand, |id, step| {
-                let term = if let Action::Input(input) = &trace.steps[step].action {
-                    Some(&input.recipe)
-                } else {
-                    None
-                }
-                .unwrap();
-
+                let term = get_input_action(trace, step).unwrap();
                 let node = term.node_at(&id).unwrap();
                 node.data().symbol_shape() == replacement_node.data().symbol_shape()
             }) {
-                let mutate_term =
-                    if let Action::Input(input) = &mut trace.steps[mutate_step].action {
-                        Some(&mut input.recipe)
-                    } else {
-                        None
-                    }
-                    .unwrap();
+                let mutate_term = get_step_by_index_mut(trace, mutate_step).unwrap();
 
-                mutate_term.replace_subterm_at(&mutate, replacement_term, &replacement);
+                mutate_term.replace_subterm_at(&mutate, &replacement_term, &replacement);
                 return Ok(MutationResult::Mutated);
             }
         }
@@ -444,7 +425,7 @@ where
         trace: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-/*       let rand = state.rand_mut();
+        /*       let rand = state.rand_mut();
         if let Some(term_a) = choose_term_mut(trace, rand, |term: &Term| true) {
             if let Some(term_b) = choose_term_mut(trace, rand, |term: &Term| {
                 term.get_type_shape() == term_a.get_type_shape()
