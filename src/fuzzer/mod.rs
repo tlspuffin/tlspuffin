@@ -30,6 +30,7 @@ mod sancov_pcguard_log;
 #[cfg(test)]
 mod sancov_dummy;
 mod stages;
+mod macros;
 
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]

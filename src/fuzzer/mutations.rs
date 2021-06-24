@@ -17,6 +17,7 @@ use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use crate::mutator;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -24,6 +25,7 @@ pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
        RemoveAndLiftMutator<R, S>,
+       SwapMutator<R,S>
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -36,151 +38,14 @@ where
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
         RemoveAndLiftMutator::new(),
+        SwapMutator::new(),
     )
 }
 
-/// REPEAT: Repeats an input which is already part of the trace
-#[derive(Default)]
-pub struct RepeatMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> Mutator<Trace, S> for RepeatMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let steps = &trace.steps;
-        let length = steps.len();
-        if length == 0 {
-            return Ok(MutationResult::Skipped);
-        }
-        let insert_index = state.rand_mut().between(0, length as u64) as usize;
-        let step = state.rand_mut().choose(steps).clone();
-        (&mut trace.steps).insert(insert_index, step);
-        //(&mut trace.steps).push( step);
-        Ok(MutationResult::Mutated)
-    }
-}
-
-impl<R, S> Named for RepeatMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "RepeatMutator"
-    }
-}
-
-impl<R, S> RepeatMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-/// SKIP:  Removes an input step
-#[derive(Default)]
-pub struct SkipMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> Mutator<Trace, S> for SkipMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let steps = &mut trace.steps;
-        let length = steps.len();
-        if length == 0 {
-            return Ok(MutationResult::Skipped);
-        }
-        let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
-        steps.remove(remove_index);
-        Ok(MutationResult::Mutated)
-    }
-}
-
-impl<R, S> Named for SkipMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "SkipMutator"
-    }
-}
-
-impl<R, S> SkipMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-/// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
-/// (such that types match). The new sub-term could come from another step which has a different recipe term.
-#[derive(Default)]
-pub struct ReplaceReuseMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> ReplaceReuseMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<R, S> Mutator<Trace, S> for ReplaceReuseMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    // todo make sure that we do not replace a term with itself (performance improvement)
+mutator! {
+    /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
+    /// (such that types match).
+    SwapMutator,
     fn mutate(
         &mut self,
         state: &mut S,
@@ -188,11 +53,22 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some(replacement) = choose_term(trace, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(trace, rand, |term: &Term| {
-                term.get_type_shape() == replacement.get_type_shape()
-            }) {
-                to_replace.mutate(replacement);
+
+        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
+            if let Some(trace_path_b) = choose_term_path_filtered(
+                trace,
+                |term: &Term| term.get_type_shape() == term_a.get_type_shape(),
+                rand,
+            ) {
+                let term_a_cloned = term_a.clone();
+
+                let term_b = find_term_mut(trace, &trace_path_b).unwrap();
+                let term_b_cloned = term_b.clone();
+                term_b.mutate(term_a_cloned);
+
+                let trace_a_mut = find_term_mut(trace, &trace_path_a).unwrap();
+                trace_a_mut.mutate(term_b_cloned);
+
                 return Ok(MutationResult::Mutated);
             }
         }
@@ -201,125 +77,11 @@ where
     }
 }
 
-impl<R, S> Named for ReplaceReuseMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "ReplaceReuseMutator"
-    }
-}
-
-/// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-/// An example would be to replace a constant with another constant or the binary function
-/// fn_add with fn_sub.
-#[derive(Default)]
-pub struct ReplaceMatchMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> ReplaceMatchMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<R, S> Mutator<Trace, S> for ReplaceMatchMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let rand = state.rand_mut();
-
-        if let Some(mut to_mutate) =
-            choose_term_filtered_mut(trace, rand, |term| matches!(term, Term::Application(_, _)))
-        {
-            match &mut to_mutate {
-                Term::Variable(_) => {
-                    // never reached as `filter` returns false for variables
-                    Ok(MutationResult::Skipped)
-                }
-                Term::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = choose_iter_filtered(
-                        &SIGNATURE.functions,
-                        |(shape, dynamic_fn)| {
-                            func_mut.shape() != shape // do not mutate if we change the same funciton
-                                && func_mut.shape().return_type == shape.return_type
-                                && func_mut.shape().argument_types == shape.argument_types
-                        },
-                        rand,
-                    ) {
-                        func_mut.change_function(shape.clone(), dynamic_fn.clone());
-                        Ok(MutationResult::Mutated)
-                    } else {
-                        Ok(MutationResult::Skipped)
-                    }
-                }
-            }
-        } else {
-            Ok(MutationResult::Skipped)
-        }
-    }
-}
-
-impl<R, S> Named for ReplaceMatchMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "ReplaceMatchMutator"
-    }
-}
-
-/// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
-/// (such that types match). This only works if there is only a single child.
-#[derive(Default)]
-pub struct RemoveAndLiftMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> RemoveAndLiftMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<R, S> Mutator<Trace, S> for RemoveAndLiftMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn mutate(
+mutator! {
+    /// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
+    /// (such that types match). This only works if there is only a single child.
+    RemoveAndLiftMutator,
+     fn mutate(
         &mut self,
         state: &mut S,
         trace: &mut Trace,
@@ -367,45 +129,11 @@ where
     }
 }
 
-impl<R, S> Named for RemoveAndLiftMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "RemoveAndLiftMutator"
-    }
-}
-
-/// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
-/// (such that types match).
-#[derive(Default)]
-pub struct SwapMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    phantom: PhantomData<(R, S)>,
-}
-
-impl<R, S> SwapMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<R, S> Mutator<Trace, S> for SwapMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
+mutator! {
+    /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
+    /// An example would be to replace a constant with another constant or the binary function
+    /// fn_add with fn_sub.
+    ReplaceMatchMutator,
     fn mutate(
         &mut self,
         state: &mut S,
@@ -414,21 +142,54 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
-            if let Some(trace_path_b) = choose_term_path_filtered(
-                trace,
-                |term: &Term| term.get_type_shape() == term_a.get_type_shape(),
-                rand,
-            ) {
-                let term_a_cloned = term_a.clone();
+        if let Some(mut to_mutate) =
+            choose_term_filtered_mut(trace, rand, |term| matches!(term, Term::Application(_, _)))
+        {
+            match &mut to_mutate {
+                Term::Variable(_) => {
+                    // never reached as `filter` returns false for variables
+                    Ok(MutationResult::Skipped)
+                }
+                Term::Application(func_mut, _) => {
+                    if let Some((shape, dynamic_fn)) = choose_iter_filtered(
+                        &SIGNATURE.functions,
+                        |(shape, dynamic_fn)| {
+                            func_mut.shape() != shape // do not mutate if we change the same funciton
+                                && func_mut.shape().return_type == shape.return_type
+                                && func_mut.shape().argument_types == shape.argument_types
+                        },
+                        rand,
+                    ) {
+                        func_mut.change_function(shape.clone(), dynamic_fn.clone());
+                        Ok(MutationResult::Mutated)
+                    } else {
+                        Ok(MutationResult::Skipped)
+                    }
+                }
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
 
-                let term_b = find_term_mut(trace, &trace_path_b).unwrap();
-                let term_b_cloned = term_b.clone();
-                term_b.mutate(term_a_cloned);
-
-                let trace_a_mut = find_term_mut(trace, &trace_path_a).unwrap();
-                trace_a_mut.mutate(term_b_cloned);
-
+mutator! {
+    /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
+    /// (such that types match). The new sub-term could come from another step which has a different recipe term.
+    ReplaceReuseMutator,
+    // todo make sure that we do not replace a term with itself (performance improvement)
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(replacement) = choose_term(trace, rand).cloned() {
+            if let Some(to_replace) = choose_term_filtered_mut(trace, rand, |term: &Term| {
+                term.get_type_shape() == replacement.get_type_shape()
+            }) {
+                to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
         }
@@ -437,12 +198,43 @@ where
     }
 }
 
-impl<R, S> Named for SwapMutator<R, S>
-where
-    S: HasRand<R>,
-    R: Rand,
-{
-    fn name(&self) -> &str {
-        "SwapMutator"
+mutator! {
+    /// SKIP:  Removes an input step
+    SkipMutator,
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let steps = &mut trace.steps;
+        let length = steps.len();
+        if length == 0 {
+            return Ok(MutationResult::Skipped);
+        }
+        let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
+        steps.remove(remove_index);
+        Ok(MutationResult::Mutated)
+    }
+}
+
+mutator! {
+    /// REPEAT: Repeats an input which is already part of the trace
+    RepeatMutator,
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let steps = &trace.steps;
+        let length = steps.len();
+        if length == 0 {
+            return Ok(MutationResult::Skipped);
+        }
+        let insert_index = state.rand_mut().between(0, length as u64) as usize;
+        let step = state.rand_mut().choose(steps).clone();
+        (&mut trace.steps).insert(insert_index, step);
+        Ok(MutationResult::Mutated)
     }
 }
