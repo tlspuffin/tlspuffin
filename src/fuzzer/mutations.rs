@@ -339,13 +339,14 @@ where
                     Ok(MutationResult::Skipped)
                 }
                 Term::Application(_, ref mut subterms) => {
-                    if let Some(found) = choose_iter(
+                    if let Some(((subterm_index, _), grand_subterm)) = choose_iter(
                         subterms.filter_grand_subterms(|subterm, grand_subterm| {
                             subterm.get_type_shape() == grand_subterm.get_type_shape()
                         }),
                         rand,
                     ) {
-                        found.0.mutate(found.1.clone());
+                        subterms.push(grand_subterm.clone());
+                        subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }
 

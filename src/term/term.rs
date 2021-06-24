@@ -168,26 +168,34 @@ pub trait Subterms {
     fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, filter: P) -> Option<&Term>;
 
     fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
-        &mut self,
+        &self,
         predicate: P,
-    ) -> Vec<(&mut Term, &Term)>;
+    ) -> Vec<((usize, &Term), &Term)>;
 }
 
 impl Subterms for Vec<Term> {
+    /// Finds a subterm with the same type as `term`
     fn find_subterm_same_shape(&self, term: &Term) -> Option<&Term> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
     }
 
+    /// Finds a subterm in this vector
     fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, predicate: P) -> Option<&Term> {
         self.iter().find(predicate)
     }
 
+    /// Finds all grand children/subterms which match the predicate.
+    ///
+    /// A grand subterm is defined as a subterm of a term in `self`.
+    ///
+    /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
     fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
-        &mut self,
+        &self,
         predicate: P,
-    ) -> Vec<(&mut Term, &Term)> {
+    ) -> Vec<((usize, &Term), &Term)> {
         let mut found_grand_subterms = vec![];
-        for subterm in self {
+
+        for (i, subterm) in self.iter().enumerate() {
             match &subterm {
                 Term::Variable(_) => {}
                 Term::Application(_, grand_subterms) => {
@@ -195,7 +203,7 @@ impl Subterms for Vec<Term> {
                         grand_subterms
                             .iter()
                             .filter(|grand_subterm| predicate(subterm, grand_subterm))
-                            .map(|grand_subterm| (subterm, grand_subterm)),
+                            .map(|grand_subterm| ((i, subterm), grand_subterm)),
                     );
                 }
             };
