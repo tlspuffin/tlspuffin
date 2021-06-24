@@ -413,20 +413,21 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
-            let term_a_cloned = term_a.clone();
 
+        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
-                |term: &Term| term.get_type_shape() == term_a_cloned.get_type_shape(),
+                |term: &Term| term.get_type_shape() == term_a.get_type_shape(),
                 rand,
             ) {
-                let trace_b = find_term_mut(trace, &trace_path_b).unwrap();
-                let trace_b_cloned = trace_b.clone();
-                trace_b.mutate(term_a_cloned);
+                let term_a_cloned = term_a.clone();
+
+                let term_b = find_term_mut(trace, &trace_path_b).unwrap();
+                let term_b_cloned = term_b.clone();
+                term_b.mutate(term_a_cloned);
 
                 let trace_a_mut = find_term_mut(trace, &trace_path_a).unwrap();
-                trace_a_mut.mutate(trace_b_cloned);
+                trace_a_mut.mutate(term_b_cloned);
 
                 return Ok(MutationResult::Mutated);
             }
