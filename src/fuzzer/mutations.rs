@@ -12,6 +12,8 @@ use libafl::{
 };
 
 use crate::fuzzer::mutations_util::*;
+use crate::term::dynamic_function::DynamicFunction;
+use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
@@ -246,25 +248,30 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        let (requested_shape, requested_dynamic_fn) = rand.choose(&SIGNATURE.functions);
 
-        let filter = |term: &Term| match term {
-            Term::Variable(_) => false,
-            Term::Application(func, _) => {
-                func.shape().name != requested_shape.name
-                    && func.shape().return_type == requested_shape.return_type
-                    && func.shape().argument_types == requested_shape.argument_types
-            }
-        };
-        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, rand, filter) {
+        if let Some(mut to_mutate) =
+            choose_term_filtered_mut(trace, rand, |term| matches!(term, Term::Application(_, _)))
+        {
             match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
                     Ok(MutationResult::Skipped)
                 }
-                Term::Application(func, _) => {
-                    func.change_function(requested_shape.clone(), requested_dynamic_fn.clone());
-                    Ok(MutationResult::Mutated)
+                Term::Application(func_mut, _) => {
+                    if let Some((shape, dynamic_fn)) = choose_iter_filtered(
+                        &SIGNATURE.functions,
+                        |(shape, dynamic_fn)| {
+                            func_mut.shape() != shape // do not mutate if we change the same funciton
+                                && func_mut.shape().return_type == shape.return_type
+                                && func_mut.shape().argument_types == shape.argument_types
+                        },
+                        rand,
+                    ) {
+                        func_mut.change_function(shape.clone(), dynamic_fn.clone());
+                        Ok(MutationResult::Mutated)
+                    } else {
+                        Ok(MutationResult::Skipped)
+                    }
                 }
             }
         } else {
@@ -320,7 +327,8 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        // filter for inner nodes with exactly one subterm
+        // Check whether there are grand_subterms with the same shape as a subterm.
+        // If we find such a term, then we can remove the subterm and lift the children to the `term`.
         let filter = |term: &Term| match term {
             Term::Variable(_) => false,
             Term::Application(_, subterms) => subterms
@@ -369,9 +377,8 @@ where
     }
 }
 
-// todo SWAP: https://github.com/Sgeo/take_mut
-//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/67
-
+/// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
+/// (such that types match).
 #[derive(Default)]
 pub struct SwapMutator<R, S>
 where
@@ -408,6 +415,7 @@ where
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, rand) {
             let term_a_cloned = term_a.clone();
+
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &Term| term.get_type_shape() == term_a_cloned.get_type_shape(),

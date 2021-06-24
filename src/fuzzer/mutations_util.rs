@@ -25,9 +25,9 @@ where
 }
 
 pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
-    where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>
+where
+    I: IntoIterator<Item = T, IntoIter = E>,
+    E: ExactSizeIterator + Iterator<Item = T>,
 {
     // create iterator
     let iter = from.into_iter();
@@ -186,7 +186,18 @@ pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
     }
 }
 
-pub fn choose<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<(&'a Term, (usize, TermPath))> {
+pub fn choose_term_mut<'a, R: Rand>(trace: &'a mut Trace, rand: &mut R) -> Option<&'a mut Term> {
+    if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, rand) {
+        find_term_mut(trace, &trace_path)
+    } else {
+        None
+    }
+}
+
+pub fn choose<'a, R: Rand>(
+    trace: &'a Trace,
+    rand: &mut R,
+) -> Option<(&'a Term, (usize, TermPath))> {
     reservoir_sample(trace, rand, |_| true)
 }
 

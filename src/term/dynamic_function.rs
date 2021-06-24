@@ -60,7 +60,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::{SIGNATURE, error::FnError};
+use crate::tls::{error::FnError, SIGNATURE};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -68,6 +68,14 @@ pub struct DynamicFunctionShape {
     pub name: String,
     pub argument_types: Vec<TypeShape>,
     pub return_type: TypeShape,
+}
+
+impl Eq for DynamicFunctionShape {}
+
+impl PartialEq for DynamicFunctionShape {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.eq(&other.name) // name is unique
+    }
 }
 
 impl DynamicFunctionShape {
@@ -119,13 +127,15 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Send + Sync {
+pub trait DynamicFunction:
+    Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Send + Sync
+{
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<T> DynamicFunction for T
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) ->  Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
+    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -299,7 +309,8 @@ impl<'de> Deserialize<'de> for TypeShape {
             where
                 E: de::Error,
             {
-                let typ = SIGNATURE.types_by_name
+                let typ = SIGNATURE
+                    .types_by_name
                     .get(v)
                     .ok_or(de::Error::missing_field("could not find type"))?;
                 Ok(typ.clone())
