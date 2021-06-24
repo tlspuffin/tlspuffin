@@ -3,7 +3,7 @@ use libafl::bolts::rands::Rand;
 use crate::term::Term;
 use crate::trace::{Action, InputAction, Step, Trace};
 
-pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
+pub fn choose_iter_filtered<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
 where
     I: IntoIterator<Item = T, IntoIter = E>,
     E: ExactSizeIterator + Iterator<Item = T>,
@@ -24,11 +24,31 @@ where
     }
 }
 
+pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
+    where
+        I: IntoIterator<Item = T, IntoIter = E>,
+        E: ExactSizeIterator + Iterator<Item = T>
+{
+    // create iterator
+    let iter = from.into_iter();
+    let length = iter.len();
+
+    if length == 0 {
+        None
+    } else {
+        // pick a random, valid index
+        let index = rand.below(length as u64) as usize;
+
+        // return the item chosen
+        iter.into_iter().nth(index)
+    }
+}
+
 pub fn choose_input_action_mut<'a, R: Rand>(
     trace: &'a mut Trace,
     rand: &mut R,
 ) -> Option<&'a mut InputAction> {
-    choose_iter(
+    choose_iter_filtered(
         &mut trace.steps,
         |step| matches!(step.action, Action::Input(_)),
         rand,
@@ -40,7 +60,7 @@ pub fn choose_input_action_mut<'a, R: Rand>(
 }
 
 pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a InputAction> {
-    choose_iter(
+    choose_iter_filtered(
         &trace.steps,
         |step| matches!(step.action, Action::Input(_)),
         rand,

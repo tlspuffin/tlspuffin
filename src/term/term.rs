@@ -1,17 +1,18 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
+use core::iter;
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
 use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
 use crate::trace::TraceContext;
 
 use super::atoms::{Function, Variable};
-use crate::error::Error;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -48,11 +49,7 @@ impl Term {
     }
 
     pub fn length_filtered<P: Fn(&Term) -> bool + Copy>(&self, filter: P) -> usize {
-        let increment = if filter(self) {
-            1
-        } else {
-            0
-        };
+        let increment = if filter(self) { 1 } else { 0 };
         match self {
             Term::Variable(_) => increment,
             Term::Application(_, ref args) => {
@@ -162,6 +159,49 @@ impl<'a> IntoIterator for &'a Term {
         let mut result = vec![];
         append(self, &mut result);
         result.into_iter()
+    }
+}
+
+pub trait Subterms {
+    fn find_subterm_same_shape(&self, term: &Term) -> Option<&Term>;
+
+    fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, filter: P) -> Option<&Term>;
+
+    fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
+        &mut self,
+        predicate: P,
+    ) -> Vec<(&mut Term, &Term)>;
+}
+
+impl Subterms for Vec<Term> {
+    fn find_subterm_same_shape(&self, term: &Term) -> Option<&Term> {
+        self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
+    }
+
+    fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, predicate: P) -> Option<&Term> {
+        self.iter().find(predicate)
+    }
+
+    fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
+        &mut self,
+        predicate: P,
+    ) -> Vec<(&mut Term, &Term)> {
+        let mut found_grand_subterms = vec![];
+        for subterm in self {
+            match &subterm {
+                Term::Variable(_) => {}
+                Term::Application(_, grand_subterms) => {
+                    found_grand_subterms.extend(
+                        grand_subterms
+                            .iter()
+                            .filter(|grand_subterm| predicate(subterm, grand_subterm))
+                            .map(|grand_subterm| (subterm, grand_subterm)),
+                    );
+                }
+            };
+        }
+
+        found_grand_subterms
     }
 }
 

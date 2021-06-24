@@ -12,7 +12,7 @@ use libafl::{
 };
 
 use crate::fuzzer::mutations_util::*;
-use crate::term::Term;
+use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
@@ -190,7 +190,6 @@ where
             if let Some(to_replace) = choose_term_filtered_mut(trace, rand, |term: &Term| {
                 term.get_type_shape() == replacement.get_type_shape()
             }) {
-
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -324,16 +323,12 @@ where
         // filter for inner nodes with exactly one subterm
         let filter = |term: &Term| match term {
             Term::Variable(_) => false,
-            Term::Application(func, subterms) => subterms
-                .iter()
-                .find(|subterm| match subterm {
+            Term::Application(_, subterms) => subterms
+                .find_subterm(|subterm| match subterm {
                     Term::Variable(_) => false,
-                    Term::Application(func, grand_subterms) => grand_subterms
-                        .iter()
-                        .find(|grand_subterm| {
-                            subterm.get_type_shape() == grand_subterm.get_type_shape()
-                        })
-                        .is_some(),
+                    Term::Application(_, grand_subterms) => {
+                        grand_subterms.find_subterm_same_shape(subterm).is_some()
+                    }
                 })
                 .is_some(),
         };
@@ -344,22 +339,16 @@ where
                     Ok(MutationResult::Skipped)
                 }
                 Term::Application(_, ref mut subterms) => {
-                    for subterm in subterms {
-                        let found_grand_subterm = match &subterm {
-                            Term::Variable(_) => None,
-                            Term::Application(_, grand_subterms) => {
-                                grand_subterms.iter().find(|grand_subterm| {
-                                    subterm.get_type_shape() == grand_subterm.get_type_shape()
-                                })
-                            }
-                        };
-                        if let Some(found) = found_grand_subterm.cloned() {
-                            // todo this lifts the first_grand_subterm found to the first subterm found
-                            //      make this more random
-                            subterm.mutate(found);
-                            return Ok(MutationResult::Mutated);
-                        }
+                    if let Some(found) = choose_iter(
+                        subterms.filter_grand_subterms(|subterm, grand_subterm| {
+                            subterm.get_type_shape() == grand_subterm.get_type_shape()
+                        }),
+                        rand,
+                    ) {
+                        found.0.mutate(found.1.clone());
+                        return Ok(MutationResult::Mutated);
                     }
+
                     Ok(MutationResult::Skipped)
                 }
             }
@@ -415,12 +404,14 @@ where
         trace: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-       let rand = state.rand_mut();
+        let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, rand) {
             let term_a_cloned = term_a.clone();
-            if let Some(trace_path_b) = choose_term_path_filtered(trace, |term: &Term| {
-                term.get_type_shape() == term_a_cloned.get_type_shape()
-            }, rand) {
+            if let Some(trace_path_b) = choose_term_path_filtered(
+                trace,
+                |term: &Term| term.get_type_shape() == term_a_cloned.get_type_shape(),
+                rand,
+            ) {
                 let trace_b = find_term_mut(trace, &trace_path_b).unwrap();
                 let trace_b_cloned = trace_b.clone();
                 trace_b.mutate(term_a_cloned);
