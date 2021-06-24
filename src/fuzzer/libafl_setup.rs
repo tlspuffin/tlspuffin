@@ -60,7 +60,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         static STATS_COUNTER: AtomicUsize = AtomicUsize::new(0);
         let log_count = STATS_COUNTER.fetch_add(1, Ordering::SeqCst);
         // GLOBAL and CLIENT message
-        if log_count % 400 == 0 || (log_count - 1) % 400 == 0 {
+        if log_count % 1000 == 0 || (log_count - 1) % 1000 == 0 {
             info!("{}", s)
         }
     });
