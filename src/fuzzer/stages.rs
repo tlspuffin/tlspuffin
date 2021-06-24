@@ -9,10 +9,7 @@ use std::marker::PhantomData;
 use std::fmt;
 use std::fmt::Debug;
 
-/// Default value, how many iterations each stage gets, as an upper bound
-/// It may randomly continue earlier. Each iteration works on a different Input from the corpus
-pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
-pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
+
 
 
 /// The default mutational stage
@@ -29,6 +26,7 @@ pub struct PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
     mutator: M,
     #[allow(clippy::type_complexity)]
     phantom: PhantomData<(C, E, EM, I, R, S, Z)>,
+    max_iterations_per_stage: u64
 }
 
 impl<C, E, EM, I, M, R, S, Z> MutationalStage<C, E, EM, I, M, S, Z>
@@ -55,7 +53,7 @@ for PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
 
     /// Gets the number of iterations as a random number
     fn iterations(&self, state: &mut S) -> usize {
-        1 + state.rand_mut().below(MAX_ITERATIONS_PER_STAGE) as usize
+        1 + state.rand_mut().below(self.max_iterations_per_stage) as usize
     }
 }
 
@@ -97,10 +95,11 @@ impl<C, E, EM, I, M, R, S, Z> PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
         Z: Evaluator<E, EM, I, S>,
 {
     /// Creates a new default mutational stage
-    pub fn new(mutator: M) -> Self {
+    pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
         Self {
             mutator,
             phantom: PhantomData,
+            max_iterations_per_stage
         }
     }
 }
@@ -118,6 +117,7 @@ pub struct PuffinScheduledMutator<I, MT, R, S>
 {
     mutations: MT,
     phantom: PhantomData<(I, R, S)>,
+    max_mutations_per_iteration: u64,
 }
 
 impl<I, MT, R, S> Debug for PuffinScheduledMutator<I, MT, R, S>
@@ -184,7 +184,7 @@ impl<I, MT, R, S> ScheduledMutator<I, MT, S> for PuffinScheduledMutator<I, MT, R
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        state.rand_mut().below(MAX_MUTATIONS_PER_ITERATION)
+        state.rand_mut().below(self.max_mutations_per_iteration)
     }
 
     /// Get the next mutation to apply
@@ -202,10 +202,11 @@ impl<I, MT, R, S> PuffinScheduledMutator<I, MT, R, S>
         S: HasRand<R>,
 {
     /// Create a new [`StdScheduledMutator`] instance specifying mutations
-    pub fn new(mutations: MT) -> Self {
+    pub fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {
         PuffinScheduledMutator {
             mutations,
             phantom: PhantomData,
+            max_mutations_per_iteration
         }
     }
 }

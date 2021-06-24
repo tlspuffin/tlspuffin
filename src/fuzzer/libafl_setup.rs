@@ -44,6 +44,11 @@ use crate::openssl_binding::make_deterministic;
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 
+/// Default value, how many iterations each stage gets, as an upper bound
+/// It may randomly continue earlier. Each iteration works on a different Input from the corpus
+pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
+pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
+
 /// Starts the fuzzing loop
 pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf, broker_port: u16) {
     info!("Running on {} cores", num_cores);
@@ -96,8 +101,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             )
         });
 
-        let mutator = PuffinScheduledMutator::new(trace_mutations());
-        let mut stages = tuple_list!(PuffinMutationalStage::new(mutator));
+        let mutator = PuffinScheduledMutator::new(trace_mutations(), MAX_MUTATIONS_PER_ITERATION);
+        let mut stages = tuple_list!(PuffinMutationalStage::new(mutator), MAX_ITERATIONS_PER_STAGE);
 
         // A minimization+queue policy to get testcasess from the corpus
         let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
