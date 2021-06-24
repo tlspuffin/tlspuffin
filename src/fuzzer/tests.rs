@@ -180,40 +180,19 @@ fn test_replace_reuse() {
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
-        //let before_mutation = count_client_hello(&trace);
+        let before_mutation = count_client_hello(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
             let after_mutation = count_client_hello(&trace);
-            if after_mutation == 2 && count_finished(&trace) == 0 {
+            let count_fin = count_finished(&trace);
+            if after_mutation == 2 && count_fin == 0 {
                 //plot(&trace, 0);
                 break;
             }
         }
     }
 }
-
-// this should trigger the cve and crash soon
-/*#[test]
-fn test_reach_cve_through_extension_removal() {
-    let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
-    let _trace = seed_client_attacker12(client, server);
-
-    let mut mutator = RemoveAndLiftMutator::new();
-
-    loop {
-        let mut trace = seed_almost_cve_2021_3449(client, server);
-        mutator.mutate(&mut state, &mut trace, 0).unwrap();
-
-        let mut ctx = TraceContext::new();
-        trace.spawn_agents(&mut ctx);
-        trace.execute(&mut ctx);
-    }
-}*/
 
 #[test]
 fn test_rand() {

@@ -1,12 +1,13 @@
-use crate::trace::{Trace, InputAction, Action};
-use crate::term::{Term};
 use libafl::bolts::rands::Rand;
 
+use crate::term::Term;
+use crate::trace::{Action, InputAction, Step, Trace};
+
 pub fn choose_iter<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
-    where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>,
-        P: FnMut(&T) -> bool,
+where
+    I: IntoIterator<Item = T, IntoIter = E>,
+    E: ExactSizeIterator + Iterator<Item = T>,
+    P: FnMut(&T) -> bool,
 {
     // create iterator
     let iter = from.into_iter().filter(filter).collect::<Vec<T>>();
@@ -32,10 +33,10 @@ pub fn choose_input_action_mut<'a, R: Rand>(
         |step| matches!(step.action, Action::Input(_)),
         rand,
     )
-        .and_then(|step| match &mut step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
+    .and_then(|step| match &mut step.action {
+        Action::Input(input) => Some(input),
+        Action::Output(_) => None,
+    })
 }
 
 pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a InputAction> {
@@ -44,87 +45,143 @@ pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Optio
         |step| matches!(step.action, Action::Input(_)),
         rand,
     )
-        .and_then(|step| match &step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
+    .and_then(|step| match &step.action {
+        Action::Input(input) => Some(input),
+        Action::Output(_) => None,
+    })
 }
 
-/// Finds a term by a `type_shape` and `requested_index`.
-/// `requested_index` and `current_index` must be smaller than the amount of[`Term`]swhich have
-/// the type shape `type_shape`.
-pub fn find_term_by_index_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-    term: &'a mut Term,
+type StepIndex = usize;
+type TermPath = Vec<usize>;
+type TracePath = (StepIndex, TermPath);
+
+/// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
+pub fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    trace: &'a Trace,
     rand: &mut R,
-    requested_index: usize,
-    mut current_index: usize,
-    filter: P
-) -> (Option<&'a mut Term>, usize) {
-    let is_compatible = filter(term);
-    if is_compatible && requested_index == current_index {
-        (Some(term), current_index)
-    } else {
-        if is_compatible {
-            // increment only if the term is relevant
-            current_index += 1;
-        };
+    filter: P,
+) -> Option<(&'a Term, TracePath)> {
+    let mut reservoir: Option<(&'a Term, TracePath)> = None;
+    let mut visited = 0;
 
-        match term {
-            Term::Application(_, ref mut subterms) => {
-                for subterm in subterms {
-                    let (selected, new_index) = find_term_by_index_mut(
-                        subterm,
-                        rand,
-                        requested_index,
-                        current_index,
-                        filter,
-                    );
+    for (step_index, step) in trace.steps.iter().enumerate() {
+        match &step.action {
+            Action::Input(input) => {
+                let term = &input.recipe;
 
-                    current_index = new_index;
+                let mut stack: Vec<(&Term, TracePath)> = vec![(term, (step_index, Vec::new()))];
 
-                    if let Some(selected) = selected {
-                        return (Some(selected), new_index);
+                while let Some((term, path)) = stack.pop() {
+                    // push next terms onto stack
+                    match term {
+                        Term::Variable(_) => {
+                            // reached leaf
+                        }
+                        Term::Application(_, subterms) => {
+                            // inner node, recursively continue
+                            for (path_index, subterm) in subterms.iter().enumerate() {
+                                let mut new_path = path.clone();
+                                new_path.1.push(path_index); // invert because of .iter().rev()
+                                stack.push((subterm, new_path));
+                            }
+                        }
+                    }
+
+                    // sample
+                    if filter(term) {
+                        // consider in sampling
+                        if let None = reservoir {
+                            // fill initial reservoir
+                            reservoir = Some((term, path)); // todo Rust 1.53 use insert
+                        } else {
+                            // `1/visited` chance of overwriting
+                            // replace elements with gradually decreasing probability
+                            if rand.between(1, visited) == 1 {
+                                reservoir = Some((term, path)); // todo Rust 1.53 use insert
+                            }
+                        }
+
+                        visited += 1;
                     }
                 }
             }
-            Term::Variable(_) => {}
+            Action::Output(_) => {
+                // no term -> skip
+            }
         }
+    }
 
-        (None, current_index)
+    println!("sdf");
+
+    reservoir
+}
+
+fn find_term_by_term_path_mut<'a>(
+    term: &'a mut Term,
+    term_path: &mut TermPath,
+) -> Option<&'a mut Term> {
+    if term_path.is_empty() {
+        return Some(term);
+    }
+
+    let subterm_index = term_path.remove(0);
+
+    match term {
+        Term::Variable(_) => None,
+        Term::Application(_, subterms) => {
+            if let Some(subterm) = subterms.get_mut(subterm_index) {
+                find_term_by_term_path_mut(subterm, term_path)
+            } else {
+                None
+            }
+        }
     }
 }
 
-pub fn choose_term_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-    trace: &'a mut Trace,
-    rand: &mut R,
-    filter: P
-) -> Option<&'a mut Term> {
-    // todo get rid of this next line and randomly select a term over all input actions
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/66
-    if let Some(input) = choose_input_action_mut(trace, rand) {
-        let term = &mut input.recipe;
-        let length = term.length_filtered(filter);
+pub fn find_term_mut<'a>(trace: &'a mut Trace, trace_path: &TracePath) -> Option<&'a mut Term> {
+    let (step_index, term_path) = trace_path;
 
-        if length == 0 {
-            None
-        } else {
-            let requested_index = rand.between(0, (length - 1) as u64) as usize;
-            find_term_by_index_mut(term, rand, requested_index, 0, filter).0
+    let step: Option<&mut Step> = trace.steps.get_mut(*step_index);
+    if let Some(step) = step {
+        match &mut step.action {
+            Action::Input(input) => {
+                find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+            }
+            Action::Output(_) => None,
         }
     } else {
         None
     }
+}
+
+pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    trace: &'a mut Trace,
+    rand: &mut R,
+    filter: P,
+) -> Option<&'a mut Term> {
+    if let Some(trace_path) = choose_term_path_filtered(trace, filter, rand) {
+        find_term_mut(trace, &trace_path)
+    } else {
+        None
+    }
+}
+
+pub fn choose<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<(&'a Term, (usize, TermPath))> {
+    reservoir_sample(trace, rand, |_| true)
 }
 
 pub fn choose_term<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
-    if let Some(input) = choose_input_action(trace, rand) {
-        let term = &input.recipe;
-        let size = term.length();
+    reservoir_sample(trace, rand, |_| true).map(|ret| ret.0)
+}
 
-        let index = rand.between(0, (size - 1) as u64) as usize;
+pub fn choose_term_path<'a, R: Rand>(trace: &Trace, rand: &mut R) -> Option<TracePath> {
+    choose_term_path_filtered(trace, |_| true, rand)
+}
 
-        term.into_iter().nth(index)
-    } else {
-        None
-    }
+pub fn choose_term_path_filtered<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    trace: &Trace,
+    filter: P,
+    rand: &mut R,
+) -> Option<TracePath> {
+    reservoir_sample(trace, rand, filter).map(|ret| ret.1)
 }

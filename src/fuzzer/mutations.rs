@@ -187,9 +187,10 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(replacement) = choose_term(trace, rand).cloned() {
-            if let Some(to_replace) = choose_term_mut(trace, rand, |term: &Term| {
+            if let Some(to_replace) = choose_term_filtered_mut(trace, rand, |term: &Term| {
                 term.get_type_shape() == replacement.get_type_shape()
             }) {
+
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -256,7 +257,7 @@ where
                     && func.shape().argument_types == requested_shape.argument_types
             }
         };
-        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
+        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, rand, filter) {
             match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
@@ -336,7 +337,7 @@ where
                 })
                 .is_some(),
         };
-        if let Some(mut to_mutate) = choose_term_mut(trace, rand, filter) {
+        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, rand, filter) {
             match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
@@ -414,18 +415,22 @@ where
         trace: &mut Trace,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-/*       let rand = state.rand_mut();
-        if let Some(term_a) = choose_term_mut(trace, rand, |term: &Term| true) {
-            if let Some(term_b) = choose_term_mut(trace, rand, |term: &Term| {
-                term.get_type_shape() == term_a.get_type_shape()
-            }) {
-                let term1 = term_b.clone();
+       let rand = state.rand_mut();
+        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
+            let term_a_cloned = term_a.clone();
+            if let Some(trace_path_b) = choose_term_path_filtered(trace, |term: &Term| {
+                term.get_type_shape() == term_a_cloned.get_type_shape()
+            }, rand) {
+                let trace_b = find_term_mut(trace, &trace_path_b).unwrap();
+                let trace_b_cloned = trace_b.clone();
+                trace_b.mutate(term_a_cloned);
 
-                term_a.mutate(term_b.clone());
+                let trace_a_mut = find_term_mut(trace, &trace_path_a).unwrap();
+                trace_a_mut.mutate(trace_b_cloned);
 
                 return Ok(MutationResult::Mutated);
             }
-        }*/
+        }
 
         Ok(MutationResult::Skipped)
     }
