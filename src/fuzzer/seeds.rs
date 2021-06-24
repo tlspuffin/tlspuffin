@@ -341,33 +341,30 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             ))
         )
     };
-    println!("{}", client_hello);
 
     let server_hello_transcript = term! {
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
-                (@client_hello.clone()) // ClientHello
+                (@client_hello) // ClientHello
             )),
             ((0, 0)/Message) // plaintext ServerHello
         )
     };
 
-    println!("{}", server_hello_transcript);
-
     let encrypted_extensions = term! {
         fn_decrypt(
             ((0, 2)/Message), // Encrypted Extensions
             ((0, 0)/Vec<ServerExtension>),
-            (@server_hello_transcript.clone()),
+            (@server_hello_transcript),
             fn_seq_0  // sequence 0
         )
     };
 
     let encrypted_extension_transcript = term! {
         fn_append_transcript(
-            (@server_hello_transcript.clone()),
-            (@encrypted_extensions.clone()) // plaintext Encrypted Extensions
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext Encrypted Extensions
         )
     };
 
@@ -375,15 +372,15 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
         fn_decrypt(
             ((0, 3)/Message),// Server Certificate
             ((0, 0)/Vec<ServerExtension>),
-            (@server_hello_transcript.clone()),
+            (@server_hello_transcript),
             fn_seq_1 // sequence 1
         )
     };
 
     let server_certificate_transcript = term! {
         fn_append_transcript(
-            (@encrypted_extension_transcript.clone()),
-            (@server_certificate.clone()) // plaintext Server Certificate
+            (@encrypted_extension_transcript),
+            (@server_certificate) // plaintext Server Certificate
         )
     };
 
@@ -391,15 +388,15 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
         fn_decrypt(
             ((0, 4)/Message), // Server Certificate Verify
             ((0, 0)/Vec<ServerExtension>),
-            (@server_hello_transcript.clone()),
+            (@server_hello_transcript),
             fn_seq_2 // sequence 2
         )
     };
 
     let server_certificate_verify_transcript = term! {
         fn_append_transcript(
-            (@server_certificate_transcript.clone()),
-            (@server_certificate_verify.clone()) // plaintext Server Certificate Verify
+            (@server_certificate_transcript),
+            (@server_certificate_verify) // plaintext Server Certificate Verify
         )
     };
 
@@ -407,15 +404,15 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
         fn_decrypt(
             ((0, 5)/Message), // Server Handshake Finished
             ((0, 0)/Vec<ServerExtension>),
-            (@server_hello_transcript.clone()),
+            (@server_hello_transcript),
             fn_seq_3 // sequence 3
         )
     };
 
     let server_finished_transcript = term! {
         fn_append_transcript(
-            (@server_certificate_verify_transcript.clone()),
-            (@server_finished.clone()) // plaintext Server Handshake Finished
+            (@server_certificate_verify_transcript),
+            (@server_finished) // plaintext Server Handshake Finished
         )
     };
 
@@ -436,7 +433,9 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: client_hello.clone(),
+                    recipe: term! {
+                        @client_hello
+                    },
                 }),
             },
             Step {
@@ -451,12 +450,12 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
                             (fn_finished(
                                 (fn_verify_data(
                                     ((0, 0)/Vec<ServerExtension>),
-                                    (@server_finished_transcript.clone()),
-                                    (@server_hello_transcript.clone())
+                                    (@server_finished_transcript),
+                                    (@server_hello_transcript)
                                 ))
                             )),
                             ((0, 0)/Vec<ServerExtension>),
-                            (@server_hello_transcript.clone()),
+                            (@server_hello_transcript),
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -513,7 +512,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript12,
-                (@client_hello.clone()) // ClientHello
+                (@client_hello) // ClientHello
             )),
             ((0, 0)/Message) // plaintext ServerHello
         )
@@ -521,21 +520,21 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
 
     let certificate_transcript = term! {
         fn_append_transcript(
-            (@server_hello_transcript.clone()),
+            (@server_hello_transcript),
             ((0, 1)/Message) // Certificate
         )
     };
 
     let server_key_exchange_transcript = term! {
       fn_append_transcript(
-            (@certificate_transcript.clone()),
+            (@certificate_transcript),
             ((0, 2)/Message) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript = term! {
       fn_append_transcript(
-            (@server_key_exchange_transcript.clone()),
+            (@server_key_exchange_transcript),
             ((0, 3)/Message) // ServerHelloDone
         )
     };
@@ -552,8 +551,8 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
 
     let client_key_exchange_transcript = term! {
       fn_append_transcript(
-            (@server_hello_done_transcript.clone()),
-            (@client_key_exchange.clone())
+            (@server_hello_done_transcript),
+            (@client_key_exchange)
         )
     };
 
@@ -563,7 +562,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             (fn_decode_ecdh_params(
                 ((0, 2)/Vec<u8>) // ServerECDHParams
             )),
-            (@client_key_exchange_transcript.clone())
+            (@client_key_exchange_transcript)
         )
     };
 
@@ -595,7 +594,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: client_hello.clone(),
+                    recipe: client_hello,
                 }),
             },
             Step {
@@ -605,7 +604,7 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: client_key_exchange.clone(),
+                    recipe: client_key_exchange,
                 }),
             },
             Step {
@@ -617,7 +616,16 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
-                    recipe: term1,
+                    recipe: term! {
+                        fn_encrypt12(
+                            (fn_finished((@client_verify_data))),
+                            ((0, 0)/Random),
+                            (fn_decode_ecdh_params(
+                                ((0, 2)/Vec<u8>) // ServerECDHParams
+                            )),
+                            fn_seq_0
+                        )
+                    },
                 }),
             },
         ],
@@ -663,7 +671,7 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_encrypt12(
-                    (@renegotiation_client_hello.clone()),
+                    (@renegotiation_client_hello),
                     ((0, 0)/Random),
                     (fn_decode_ecdh_params(
                         ((0, 2)/Vec<u8>) // ServerECDHParams

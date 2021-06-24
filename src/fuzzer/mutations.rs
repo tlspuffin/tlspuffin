@@ -386,7 +386,7 @@ where
                             // todo this lifts the first_grand_subterm found to the first subterm found
                             //      make this more random
                             subterm.mutate(found);
-                            return Ok(MutationResult::Mutated)
+                            return Ok(MutationResult::Mutated);
                         }
                     }
                     Ok(MutationResult::Skipped)
@@ -410,3 +410,63 @@ where
 */
 // todo SWAP: https://github.com/Sgeo/take_mut
 //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/67
+
+#[derive(Default)]
+pub struct SwapMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    phantom: PhantomData<(R, S)>,
+}
+
+impl<R, S> SwapMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<R, S> Mutator<Trace, S> for SwapMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+/*       let rand = state.rand_mut();
+        if let Some(term_a) = choose_term_mut(trace, rand, |term: &Term| true) {
+            if let Some(term_b) = choose_term_mut(trace, rand, |term: &Term| {
+                term.get_type_shape() == term_a.get_type_shape()
+            }) {
+                let term1 = term_b.clone();
+
+                term_a.mutate(term_b.clone());
+
+                return Ok(MutationResult::Mutated);
+            }
+        }*/
+
+        Ok(MutationResult::Skipped)
+    }
+}
+
+impl<R, S> Named for SwapMutator<R, S>
+where
+    S: HasRand<R>,
+    R: Rand,
+{
+    fn name(&self) -> &str {
+        "SwapMutator"
+    }
+}

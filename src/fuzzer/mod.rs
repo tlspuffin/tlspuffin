@@ -5,7 +5,7 @@
 mod tests;
 mod libafl_setup;
 mod harness;
-mod mutations;
+pub mod mutations;
 mod mutations_util;
 mod error_observer;
 pub mod seeds;
