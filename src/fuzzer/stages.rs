@@ -11,7 +11,9 @@ use std::fmt::Debug;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
-pub static MAX_ITERATIONS: u64 = 256;
+pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
+pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
+
 
 /// The default mutational stage
 #[derive(Clone, Debug)]
@@ -53,7 +55,7 @@ for PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
 
     /// Gets the number of iterations as a random number
     fn iterations(&self, state: &mut S) -> usize {
-        1 + state.rand_mut().below(MAX_ITERATIONS) as usize
+        1 + state.rand_mut().below(MAX_ITERATIONS_PER_STAGE) as usize
     }
 }
 
@@ -182,7 +184,7 @@ impl<I, MT, R, S> ScheduledMutator<I, MT, S> for PuffinScheduledMutator<I, MT, R
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        state.rand_mut().below(16)
+        state.rand_mut().below(MAX_MUTATIONS_PER_ITERATION)
     }
 
     /// Get the next mutation to apply
