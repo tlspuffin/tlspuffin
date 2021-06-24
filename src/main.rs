@@ -55,7 +55,7 @@ fn main() {
             .build(
                 Root::builder()
                     .appenders(vec!["stdout", "file"])
-                    .build(LevelFilter::Info),
+                    .build(LevelFilter::Trace),
             )
             .unwrap()
     }

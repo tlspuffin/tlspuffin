@@ -12,12 +12,13 @@ use libafl::{
 };
 
 use util::*;
+
+use crate::mutator;
 use crate::term::dynamic_function::DynamicFunction;
 use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
-use crate::mutator;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -38,7 +39,7 @@ where
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
         RemoveAndLiftMutator::new(),
-        SwapMutator::new(),
+        SwapMutator::new()
     )
 }
 
@@ -62,14 +63,16 @@ mutator! {
             ) {
                 let term_a_cloned = term_a.clone();
 
-                let term_b = find_term_mut(trace, &trace_path_b).unwrap();
-                let term_b_cloned = term_b.clone();
-                term_b.mutate(term_a_cloned);
+                if let Some(term_b) = find_term_mut(trace, &trace_path_b) {
+                    let term_b_cloned = term_b.clone();
+                    term_b.mutate(term_a_cloned);
 
-                let trace_a_mut = find_term_mut(trace, &trace_path_a).unwrap();
-                trace_a_mut.mutate(term_b_cloned);
+                    if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
+                        trace_a_mut.mutate(term_b_cloned);
+                    }
 
-                return Ok(MutationResult::Mutated);
+                    return Ok(MutationResult::Mutated);
+                }
             }
         }
 
@@ -239,7 +242,6 @@ mutator! {
     }
 }
 
-
 mod util {
     use libafl::bolts::rands::Rand;
 
@@ -247,10 +249,10 @@ mod util {
     use crate::trace::{Action, InputAction, Step, Trace};
 
     pub fn choose_iter_filtered<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
-        where
-            I: IntoIterator<Item = T, IntoIter = E>,
-            E: ExactSizeIterator + Iterator<Item = T>,
-            P: FnMut(&T) -> bool,
+    where
+        I: IntoIterator<Item = T, IntoIter = E>,
+        E: ExactSizeIterator + Iterator<Item = T>,
+        P: FnMut(&T) -> bool,
     {
         // create iterator
         let iter = from.into_iter().filter(filter).collect::<Vec<T>>();
@@ -268,9 +270,9 @@ mod util {
     }
 
     pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
-        where
-            I: IntoIterator<Item = T, IntoIter = E>,
-            E: ExactSizeIterator + Iterator<Item = T>,
+    where
+        I: IntoIterator<Item = T, IntoIter = E>,
+        E: ExactSizeIterator + Iterator<Item = T>,
     {
         // create iterator
         let iter = from.into_iter();
@@ -296,22 +298,25 @@ mod util {
             |step| matches!(step.action, Action::Input(_)),
             rand,
         )
-            .and_then(|step| match &mut step.action {
-                Action::Input(input) => Some(input),
-                Action::Output(_) => None,
-            })
+        .and_then(|step| match &mut step.action {
+            Action::Input(input) => Some(input),
+            Action::Output(_) => None,
+        })
     }
 
-    pub fn choose_input_action<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a InputAction> {
+    pub fn choose_input_action<'a, R: Rand>(
+        trace: &'a Trace,
+        rand: &mut R,
+    ) -> Option<&'a InputAction> {
         choose_iter_filtered(
             &trace.steps,
             |step| matches!(step.action, Action::Input(_)),
             rand,
         )
-            .and_then(|step| match &step.action {
-                Action::Input(input) => Some(input),
-                Action::Output(_) => None,
-            })
+        .and_then(|step| match &step.action {
+            Action::Input(input) => Some(input),
+            Action::Output(_) => None,
+        })
     }
 
     type StepIndex = usize;
@@ -429,7 +434,10 @@ mod util {
         }
     }
 
-    pub fn choose_term_mut<'a, R: Rand>(trace: &'a mut Trace, rand: &mut R) -> Option<&'a mut Term> {
+    pub fn choose_term_mut<'a, R: Rand>(
+        trace: &'a mut Trace,
+        rand: &mut R,
+    ) -> Option<&'a mut Term> {
         if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, rand) {
             find_term_mut(trace, &trace_path)
         } else {
