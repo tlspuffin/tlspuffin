@@ -21,27 +21,6 @@
 //! };
 //! ```
 
-#[macro_export]
-macro_rules! app_const {
-    ($op:ident) => {
-        Term::Application(Signature::new_function(&$op), vec![])
-    };
-}
-
-#[macro_export]
-macro_rules! app {
-    ($op:ident, $($args:expr),*$(,)?) => {
-        Term::Application(Signature::new_function(&$op),vec![$($args,)*])
-    };
-}
-
-#[macro_export]
-macro_rules! var {
-    ($typ:ty, $id:expr) => {
-        Term::Variable(Signature::new_var::<$typ>($id))
-    };
-}
-
 // todo we could improve performance by not recreating these
 #[macro_export]
 macro_rules! term {
@@ -61,6 +40,12 @@ macro_rules! term {
     ($func:ident ($($args:tt),*)) => {{
         let func = $crate::term::signature::Signature::new_function(&$func);
         $crate::term::Term::Application(func, vec![$($crate::term_arg!($args)),*])
+    }};
+
+    // Function Applications
+    (@$e:ident) => {{
+        let subterm: &$crate::term::Term = &$e;
+        subterm.clone()
     }};
 }
 
