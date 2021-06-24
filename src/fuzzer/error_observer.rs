@@ -33,8 +33,7 @@ pub fn increment(counter: &AtomicUsize) {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ErrorObserver {
-    name: String,
-    last_runtime: Option<Duration>,
+    name: String
 }
 
 impl ErrorObserver {
@@ -42,15 +41,8 @@ impl ErrorObserver {
     #[must_use]
     pub fn new(name: &'static str) -> Self {
         Self {
-            name: name.to_string(),
-            last_runtime: None,
+            name: name.to_string()
         }
-    }
-
-    /// Gets the runtime for the last execution of this target.
-    #[must_use]
-    pub fn last_runtime(&self) -> &Option<Duration> {
-        &self.last_runtime
     }
 }
 

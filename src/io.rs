@@ -60,8 +60,7 @@ pub struct MemoryStream {
 
 /// A MemoryStream which wraps an SslStream.
 pub struct OpenSSLStream {
-    openssl_stream: SslStream<MemoryStream>,
-    server: bool,
+    openssl_stream: SslStream<MemoryStream>
 }
 
 impl Stream for OpenSSLStream {
@@ -102,8 +101,7 @@ impl OpenSSLStream {
         };
 
         Ok(OpenSSLStream {
-            openssl_stream,
-            server,
+            openssl_stream
         })
     }
 
