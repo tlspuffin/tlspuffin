@@ -43,6 +43,7 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
+use libafl::events::LlmpRestartingEventManager;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -66,7 +67,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         }
     });
 
-    let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr| {
+    let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>| {
         info!("We're a client, let's fuzz :)");
 
         let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
@@ -91,7 +92,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
-            let seed = current_nanos();
+            let seed = restarting_mgr.sender().id as u64 * 42;
             warn!("Seed is {}", seed);
             StdState::new(
                 StdRand::with_seed(seed),
