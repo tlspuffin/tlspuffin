@@ -95,11 +95,11 @@ def main():
     parser = OptionParser(usage=usage)
     parser.add_option('-d', '--depth', dest='depth', type='int', default=5, help='backtrace comparison depth')
     (opts, args) = parser.parse_args()
-    if len(args) != 1:
+    if len(args) <= 1:
         parser.print_help()
         exit()
 
-    files = glob(args[0])
+    files = args
     logs  = []
     for f in files:
         found_stack = False
