@@ -1,14 +1,11 @@
-use std::marker::PhantomData;
+
 
 use libafl::{
     bolts::{
-        rands::Rand,
-        tuples::{tuple_list, tuple_list_type, Named},
+        tuples::{tuple_list, tuple_list_type},
     },
-    corpus::Corpus,
-    mutators::{MutationResult, Mutator},
-    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
-    Error,
+    mutators::{MutationResult},
+    Error
 };
 
 use util::*;
@@ -19,6 +16,9 @@ use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use libafl::state::{HasCorpus, HasMetadata, HasMaxSize, HasRand};
+use libafl::corpus::Corpus;
+use libafl::bolts::rands::Rand;
 
 pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        RepeatMutator<R, S>,
@@ -47,6 +47,7 @@ mutator! {
     /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
     /// (such that types match).
     SwapMutator,
+    Trace,
     fn mutate(
         &mut self,
         state: &mut S,
@@ -84,6 +85,7 @@ mutator! {
     /// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
     /// (such that types match). This only works if there is only a single child.
     RemoveAndLiftMutator,
+    Trace,
      fn mutate(
         &mut self,
         state: &mut S,
@@ -137,6 +139,7 @@ mutator! {
     /// An example would be to replace a constant with another constant or the binary function
     /// fn_add with fn_sub.
     ReplaceMatchMutator,
+    Trace,
     fn mutate(
         &mut self,
         state: &mut S,
@@ -180,6 +183,7 @@ mutator! {
     /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
     /// (such that types match). The new sub-term could come from another step which has a different recipe term.
     ReplaceReuseMutator,
+    Trace,
     // todo make sure that we do not replace a term with itself (performance improvement)
     fn mutate(
         &mut self,
@@ -204,6 +208,7 @@ mutator! {
 mutator! {
     /// SKIP:  Removes an input step
     SkipMutator,
+    Trace,
     fn mutate(
         &mut self,
         state: &mut S,
@@ -224,6 +229,7 @@ mutator! {
 mutator! {
     /// REPEAT: Repeats an input which is already part of the trace
     RepeatMutator,
+    Trace,
     fn mutate(
         &mut self,
         state: &mut S,
