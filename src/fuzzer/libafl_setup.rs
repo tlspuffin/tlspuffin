@@ -104,7 +104,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         });
 
         let mutator = PuffinScheduledMutator::new(trace_mutations(), MAX_MUTATIONS_PER_ITERATION);
-        let mut stages = tuple_list!(PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE));
+        let mut stages = tuple_list!(
+             PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE)
+        );
 
         // A minimization+queue policy to get testcasess from the corpus
         let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
@@ -154,7 +156,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
         //todo where should we log the output of the harness?
-        .stdout_file(Some("/dev/null"))
+        /*.stdout_file(Some("/dev/null"))*/
         .build()
         .launch()
         .expect("Launcher failed");

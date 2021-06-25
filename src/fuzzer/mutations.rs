@@ -120,7 +120,8 @@ mutator! {
                         }),
                         rand,
                     ) {
-                        subterms.push(grand_subterm.clone());
+                        let grand_subterm_cloned = grand_subterm.clone();
+                        subterms.push(grand_subterm_cloned);
                         subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }

@@ -1,11 +1,7 @@
-use std::any::Any;
 use std::fmt::Formatter;
 use std::{fmt, io};
 
-use libafl::bolts::serdeany::SerdeAny;
-use libafl::executors::CustomExitKind;
 use openssl::error::ErrorStack;
-use serde::{Serialize, Serializer};
 
 use crate::tls::error::FnError;
 use rustls::msgs::enums::ContentType;
