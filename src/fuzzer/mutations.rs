@@ -385,8 +385,6 @@ mod util {
             }
         }
 
-        println!("sdf");
-
         reservoir
     }
 
