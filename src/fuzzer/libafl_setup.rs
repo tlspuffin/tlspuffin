@@ -44,6 +44,7 @@ use crate::openssl_binding::make_deterministic;
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 use libafl::events::LlmpRestartingEventManager;
+use crate::fuzzer::terminal_stats::TerminalStats;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -66,6 +67,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             info!("{}", s)
         }
     });
+
+/*    let stats = TerminalStats::new();*/
 
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>| {
         info!("We're a client, let's fuzz :)");
