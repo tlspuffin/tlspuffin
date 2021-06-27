@@ -25,8 +25,8 @@ pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
-       RemoveAndLiftMutator<R, S>,
-       SwapMutator<R,S>
+       RemoveAndLiftMutator<R, S>/*,
+       SwapMutator<R,S>*/
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -38,8 +38,8 @@ where
         SkipMutator::new(),
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
-        RemoveAndLiftMutator::new(),
-        SwapMutator::new()
+        RemoveAndLiftMutator::new()/*,
+        SwapMutator::new()*/
     )
 }
 
