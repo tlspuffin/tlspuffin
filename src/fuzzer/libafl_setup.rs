@@ -95,8 +95,10 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
 
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
-            let seed = restarting_mgr.sender().id as u64 * 42;
-            warn!("Seed is {}", seed);
+            //let seed = restarting_mgr.sender().id as u64 * 42;
+            // todo does not work right now: https://github.com/AFLplusplus/LibAFL/pull/190#issuecomment-869175308
+            let seed = current_nanos();
+            info!("Seed is {}", seed);
             StdState::new(
                 StdRand::with_seed(seed),
                 InMemoryCorpus::new(),
