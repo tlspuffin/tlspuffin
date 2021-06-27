@@ -8,7 +8,7 @@ use openssl::rand::rand_bytes;
 
 use crate::agent::AgentName;
 use crate::fuzzer::mutations::{
-    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
 };
 use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
@@ -26,7 +26,7 @@ fn test_openssl_no_randomness() {
 
 /// Checks whether repeat can repeat the last step
 #[test]
-fn test_repeat_cve() {
+fn test_repeat_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
@@ -62,23 +62,13 @@ fn test_repeat_cve() {
     }
 }
 
-fn plot(trace: &Trace, i: u16) {
-    write_graphviz(
-        format!("test_mutation{}.svg", i).as_str(),
-        "svg",
-        trace.dot_graph(true).as_str(),
-    )
-    .unwrap();
-}
-
 #[test]
-fn test_replace_match_cve() {
+fn test_replace_match_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let _trace = seed_client_attacker12(client, server);
 
     let mut mutator = ReplaceMatchMutator::new();
 
@@ -92,8 +82,7 @@ fn test_replace_match_cve() {
                     Term::Variable(_) => {}
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
-                            if last_subterm.name() != "tlspuffin::tls::fn_constants::fn_seq_0" {
-                                //plot(&trace, 0);
+                            if last_subterm.name() == "tlspuffin::tls::fn_constants::fn_seq_1" {
                                 break;
                             }
                         }
@@ -105,41 +94,19 @@ fn test_replace_match_cve() {
     }
 }
 
-fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
-    trace
-        .steps
-        .iter()
-        .map(|step| match &step.action {
-            Action::Input(input) => {
-                let mut extension_appends = 0;
-                for term in input.recipe.into_iter() {
-                    if let Term::Application(func, _) = term {
-                        if func.name() == find_name {
-                            extension_appends += 1;
-                        }
-                    }
-                }
-                extension_appends
-            }
-            Action::Output(_) => 0,
-        })
-        .sum::<u16>()
-}
-
 #[test]
-fn test_remove_lift_removes_extensions() {
+fn test_remove_lift_mutator() {
+    // Should remove an extension
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let _trace = seed_client_attacker12(client, server);
-
     let mut mutator = RemoveAndLiftMutator::new();
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
-        count_functions(
+        util::count_functions(
             trace,
             "tlspuffin::tls::fn_extensions::fn_client_extensions_append",
         )
@@ -148,13 +115,12 @@ fn test_remove_lift_removes_extensions() {
     loop {
         let mut trace = seed_client_attacker12(client, server);
         let before_mutation = sum_extension_appends(&trace);
-        //plot(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
             let after_mutation = sum_extension_appends(&trace);
             if after_mutation < before_mutation {
-                //plot(&trace);
+                // extension removed
                 break;
             }
         }
@@ -162,7 +128,7 @@ fn test_remove_lift_removes_extensions() {
 }
 
 #[test]
-fn test_replace_reuse() {
+fn test_replace_reuse_mutator() {
     let rand = StdRand::with_seed(45);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
@@ -171,23 +137,22 @@ fn test_replace_reuse() {
     let mut mutator = ReplaceReuseMutator::new();
 
     fn count_client_hello(trace: &Trace) -> u16 {
-        count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
+        util::count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
     }
 
     fn count_finished(trace: &Trace) -> u16 {
-        count_functions(trace, "tlspuffin::tls::fn_messages::fn_finished")
+        util::count_functions(trace, "tlspuffin::tls::fn_messages::fn_finished")
     }
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
-        let before_mutation = count_client_hello(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
-            let after_mutation = count_client_hello(&trace);
-            let count_fin = count_finished(&trace);
-            if after_mutation == 2 && count_fin == 0 {
-                //plot(&trace, 0);
+            let client_hellos = count_client_hello(&trace);
+            let finishes = count_finished(&trace);
+            if client_hellos == 2 && finishes == 0 {
+                // finished replaced by client_hello
                 break;
             }
         }
@@ -195,7 +160,57 @@ fn test_replace_reuse() {
 }
 
 #[test]
-fn test_rand() {
-    let mut rand = RomuDuoJrRand::with_seed(1337);
-    assert_ne!(rand.between(0, 1), rand.between(0, 1))
+fn test_skip_mutator() {
+    let rand = StdRand::with_seed(45);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let client = AgentName::first();
+    let server = client.next();
+    let mut mutator = SkipMutator::new();
+
+    loop {
+        let mut trace = seed_client_attacker12(client, server);
+        let before_len = trace.steps.len();
+        mutator.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if before_len - 1 == trace.steps.len() {
+            break;
+        }
+    }
+}
+
+mod util {
+    use crate::graphviz::write_graphviz;
+    use crate::term::Term;
+    use crate::trace::{Action, Trace};
+
+    pub(crate) fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
+        trace
+            .steps
+            .iter()
+            .map(|step| match &step.action {
+                Action::Input(input) => {
+                    let mut extension_appends = 0;
+                    for term in input.recipe.into_iter() {
+                        if let Term::Application(func, _) = term {
+                            if func.name() == find_name {
+                                extension_appends += 1;
+                            }
+                        }
+                    }
+                    extension_appends
+                }
+                Action::Output(_) => 0,
+            })
+            .sum::<u16>()
+    }
+
+    fn plot(trace: &Trace, i: u16) {
+        write_graphviz(
+            format!("test_mutation{}.svg", i).as_str(),
+            "svg",
+            trace.dot_graph(true).as_str(),
+        )
+        .unwrap();
+    }
 }
