@@ -154,7 +154,7 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         Ok(())
     };
 
-    libafl::bolts::launcher::Launcher::builder()
+    if let Err(error) = libafl::bolts::launcher::Launcher::builder()
         .shmem_provider(shmem_provider)
         .stats(stats)
         .run_client(&mut run_client)
@@ -164,5 +164,14 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         /*.stdout_file(Some("/dev/null"))*/
         .build()
         .launch()
-        .expect("Launcher failed");
+    {
+        match error {
+            Error::ShuttingDown => {
+                // ignore
+            }
+            _ => {
+                panic!("{}", error)
+            }
+        }
+    }
 }
