@@ -1,5 +1,8 @@
 [build]
 target = "x86_64-unknown-linux-gnu"
+# Enable sanitizer for whole project, you should disable the sanitization in OpenSSL
+# before using this
+#rustflags = ["-Z", "sanitizer=address"]
 
 [env]
 ASAN_OPTIONS = "verify_asan_link_order=1,detect_leaks=0"
