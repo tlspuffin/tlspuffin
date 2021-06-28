@@ -23,8 +23,8 @@ pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
        SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
-       RemoveAndLiftMutator<R, S>/*,
-       SwapMutator<R,S>*/
+       RemoveAndLiftMutator<R, S>,
+       SwapMutator<R,S>
    )
 where
     S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
@@ -36,8 +36,8 @@ where
         SkipMutator::new(),
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
-        RemoveAndLiftMutator::new()/*,
-        SwapMutator::new()*/
+        RemoveAndLiftMutator::new(),
+        SwapMutator::new()
     )
 }
 
@@ -62,9 +62,9 @@ mutator! {
             ) {
                 let term_a_cloned = term_a.clone();
 
-                if let Some(term_b) = find_term_mut(trace, &trace_path_b) {
-                    let term_b_cloned = term_b.clone();
-                    term_b.mutate(term_a_cloned);
+                if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
+                    let term_b_cloned = term_b_mut.clone();
+                    term_b_mut.mutate(term_a_cloned);
 
                     if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
                         trace_a_mut.mutate(term_b_cloned);

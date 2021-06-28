@@ -8,8 +8,10 @@ use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
 use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
+use crate::fuzzer::mutations::util::TracePath;
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
+    SwapMutator,
 };
 use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
@@ -19,7 +21,6 @@ use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
-use crate::fuzzer::mutations::util::TracePath;
 
 #[test]
 fn test_openssl_no_randomness() {
@@ -111,7 +112,7 @@ fn test_remove_lift_mutator() {
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
-        util::count_functions(trace, fn_client_extensions_append.name())
+        util::count_functions_trace(trace, fn_client_extensions_append.name())
     }
 
     loop {
@@ -139,11 +140,11 @@ fn test_replace_reuse_mutator() {
     let mut mutator = ReplaceReuseMutator::new();
 
     fn count_client_hello(trace: &Trace) -> u16 {
-        util::count_functions(trace, fn_client_hello.name())
+        util::count_functions_trace(trace, fn_client_hello.name())
     }
 
     fn count_finished(trace: &Trace) -> u16 {
-        util::count_functions(trace, fn_finished.name())
+        util::count_functions_trace(trace, fn_finished.name())
     }
 
     loop {
@@ -182,7 +183,54 @@ fn test_skip_mutator() {
 }
 
 #[test]
-fn test_find() {
+fn test_swap_mutator() {
+    let rand = StdRand::with_seed(45);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let client = AgentName::first();
+    let server = client.next();
+    let mut mutator = SwapMutator::new();
+
+    loop {
+        let mut trace = seed_client_attacker12(client, server);
+        mutator.mutate(&mut state, &mut trace, 0).unwrap();
+
+        let last = if let Some(last) = trace.steps.iter().last() {
+            match &last.action {
+                Action::Input(input) => {
+                   Some(input.recipe.name() != fn_encrypt12.name())
+                }
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let first = if let Some(first) = trace.steps.iter().nth(0) {
+            match &first.action {
+                Action::Input(input) => {
+                    Some(input.recipe.name() != fn_client_hello.name())
+                }
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(first) = first {
+            if let Some(last) = last {
+                if first  {
+                    if last {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_find_term() {
     let mut rand = StdRand::with_seed(45);
     let (client_hello, mut trace) = util::setup_simple_trace();
 
@@ -304,33 +352,33 @@ mod util {
                 }],
                 steps: vec![Step {
                     agent: server,
-                    action: Action::Input(InputAction {
-                        recipe: cloned,
-                    }),
+                    action: Action::Input(InputAction { recipe: cloned }),
                 }],
             },
         )
     }
 
-    pub(crate) fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
+    pub(crate) fn count_functions_trace(trace: &Trace, find_name: &'static str) -> u16 {
         trace
             .steps
             .iter()
             .map(|step| match &step.action {
-                Action::Input(input) => {
-                    let mut extension_appends = 0;
-                    for term in input.recipe.into_iter() {
-                        if let Term::Application(func, _) = term {
-                            if func.name() == find_name {
-                                extension_appends += 1;
-                            }
-                        }
-                    }
-                    extension_appends
-                }
+                Action::Input(input) => count_functions_term(&input.recipe, find_name),
                 Action::Output(_) => 0,
             })
             .sum::<u16>()
+    }
+
+    pub(crate) fn count_functions_term(term: &Term, find_name: &'static str) -> u16 {
+        let mut found = 0;
+        for term in term.into_iter() {
+            if let Term::Application(func, _) = term {
+                if func.name() == find_name {
+                    found += 1;
+                }
+            }
+        }
+        found
     }
 
     fn plot(trace: &Trace, i: u16) {
