@@ -189,19 +189,27 @@ fn main() {
             1337,
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
-        let title = get_git_ref().unwrap();
+        let git_ref = get_git_ref().unwrap();
         let description = "No Description, because this is a quick experiment.";
         let experiments_root = PathBuf::from("experiments");
+
+        let title = format!(
+            "{date}-{title}",
+            date = Utc::now().to_rfc3339(),
+            title = git_ref,
+        );
+
         let mut experiment_path = experiments_root.join(&title);
 
         let mut i = 1;
         while experiment_path.as_path().exists() {
-            experiment_path = experiments_root.join(format!(
+            let title = format!(
                 "{date}-{title}-{index}",
                 date = Utc::now().to_rfc3339(),
-                title = title,
+                title = git_ref,
                 index = i
-            ));
+            );
+            experiment_path = experiments_root.join(title);
             i += 1;
         }
 
