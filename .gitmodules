@@ -1,5 +1,5 @@
 [submodule "openssl-src"]
-	path = openssl-src
+	path = rust-openssl-src
 	url = git@github.com:maxammann/openssl-src-rs.git
 [submodule "rust-openssl"]
 	path = rust-openssl
