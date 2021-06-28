@@ -67,7 +67,7 @@ where
     fn post_exec(
         &mut self,
         _fuzzer: &mut Z,
-        _state: &mut S,
+        state: &mut S,
         mgr: &mut EM,
         _input: &I,
     ) -> Result<(), Error> {
@@ -81,21 +81,16 @@ where
             (&EXTRACTION, "ext"),
         ];
 
-        let stats = reporters
-            .iter()
-            .map(|(counter, name)| {
-                format!("{}:{}", name, counter.load(Ordering::SeqCst))
-            })
-            .join("|");
-
-        mgr.fire(
-            _state,
-            UpdateUserStats {
-                name: "errors".to_string(),
-                value: UserStats::String(stats),
-                phantom: Default::default(),
-            },
-        )?;
+        for (counter, name) in &reporters {
+            mgr.fire(
+                state,
+                UpdateUserStats {
+                    name: name.to_string(),
+                    value: UserStats::Number(counter.load(Ordering::SeqCst) as u64),
+                    phantom: Default::default(),
+                },
+            )?;
+        }
 
         Ok(())
     }

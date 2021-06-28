@@ -38,32 +38,20 @@ impl Clone for TerminalStats {
 }
 
 impl Stats for TerminalStats {
-    /// the client stats, mutable
     fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
         &mut self.client_stats
     }
-
-    /// the client stats
     fn client_stats(&self) -> &[ClientStats] {
         &self.client_stats
     }
-
-    /// Time this fuzzing run stated
     fn start_time(&mut self) -> time::Duration {
         self.start_time
     }
 
-    fn display(&mut self, event_msg: String, sender_id: u32) {
-        let sender = format!("#{}", sender_id);
-        let pad = if event_msg.len() + sender.len() < 13 {
-            " ".repeat(13 - event_msg.len() - sender.len())
-        } else {
-            String::new()
-        };
-        let head = format!("{}{} {}", event_msg, pad, sender);
+    fn display(&mut self, event_msg: String, _sender_id: u32) {
         let global_fmt = format!(
-            "[{}]  (GLOBAL) clients: {}, corpus: {}, objectives: {}, executions: {}, exec/sec: {}",
-            head,
+            "[{}] (GLOBAL) clients: {}, corpus: {}, objectives: {}, executions: {}, exec/sec: {}",
+            event_msg,
             self.client_stats().len(),
             self.corpus_size(),
             self.objective_size(),
@@ -74,10 +62,9 @@ impl Stats for TerminalStats {
         self.terminal
             .draw(|f| {
                 let size = f.size();
-                /*                let block = Block::default().title("Block").borders(Borders::ALL);
-                 */
+
                 let p = Paragraph::new(global_fmt)
-                    .block(Block::default().title("Paragraph").borders(Borders::ALL))
+                    .block(Block::default().title("Stats").borders(Borders::ALL))
                     .style(Style::default().fg(Color::White).bg(Color::Black))
                     .alignment(Alignment::Center)
                     .wrap(Wrap { trim: true });
@@ -87,8 +74,6 @@ impl Stats for TerminalStats {
             .unwrap();
 
         // Handle input
-
-        // this is repsonsible for not stopping on sigint
         if let Ok(event) = self.events.next() {
             if let Event::Input(input) = event {
                 match input {
@@ -100,26 +85,10 @@ impl Stats for TerminalStats {
                 }
             }
         }
-
-
-/*        let client = self.client_stats_mut_for(sender_id);
-        let cur_time = current_time();
-        let exec_sec = client.execs_per_sec(cur_time);
-
-        let pad = " ".repeat(head.len());
-        let mut fmt = format!(
-            " {}   (CLIENT) corpus: {}, objectives: {}, executions: {}, exec/sec: {}",
-            pad, client.corpus_size, client.objective_size, client.executions, exec_sec
-        );
-        for (key, val) in &client.user_stats {
-            fmt += &format!(", {}: {}", key, val);
-        }
-        (self.print_fn)(fmt);*/
     }
 }
 
 impl TerminalStats {
-    /// Creates the stats, using the `current_time` as `start_time`.
     pub fn new() -> Self {
         let stdout = io::stdout().into_raw_mode().unwrap();
         let backend = TermionBackend::new(stdout);

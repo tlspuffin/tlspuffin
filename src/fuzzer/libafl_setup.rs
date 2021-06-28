@@ -45,6 +45,7 @@ use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 use libafl::events::LlmpRestartingEventManager;
 use crate::fuzzer::terminal_stats::TerminalStats;
+use crate::fuzzer::stats::PuffinStats;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -60,15 +61,19 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
-    let stats = MultiStats::new(|s| {
+/*    let stats = MultiStats::new(|s| {
         let log_count = STATS_COUNTER.fetch_add(1, Ordering::SeqCst);
         // GLOBAL and CLIENT message
         if log_count % 1000 == 0 || (log_count - 1) % 1000 == 0 {
             info!("{}", s)
         }
-    });
+    });*/
 
 /*    let stats = TerminalStats::new();*/
+
+    let stats = PuffinStats::new(|s| {
+        info!("{}", s);
+    });
 
     let mut run_client = |state: Option<StdState<_, _, _, _, _>>, mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>| {
         info!("We're a client, let's fuzz :)");
@@ -93,6 +98,9 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         // A feedback to choose if an input is a solution or not
         let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
+        let sender_id = restarting_mgr.sender().id;
+        info!("Sender ID is {}", sender_id);
+
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
             //let seed = restarting_mgr.sender().id as u64 * 42;
@@ -108,7 +116,8 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
             )
         });
 
-        let mutator = PuffinScheduledMutator::new(trace_mutations(), MAX_MUTATIONS_PER_ITERATION);
+        let mutations = trace_mutations();
+        let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
         let mut stages = tuple_list!(
              PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE)
         );
