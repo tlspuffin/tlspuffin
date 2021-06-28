@@ -1,28 +1,29 @@
 #[macro_use]
 extern crate log;
 
+use std::{env, fs, io::Write, path::PathBuf};
 use std::fs::File;
 use std::io::Read;
 use std::process::Command;
-use std::{env, fs, io::Write, path::PathBuf};
 
-use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
+use chrono::Utc;
+use clap::{App, crate_authors, crate_name, crate_version, SubCommand, value_t};
 use log::{Level, LevelFilter};
+use log4rs::{Config, Handle};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-use log4rs::config::runtime::ConfigErrors;
 use log4rs::config::{Appender, InitError, Logger, RawConfig, Root};
+use log4rs::config::runtime::ConfigErrors;
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::{Config, Handle};
 
 use agent::AgentName;
 use fuzzer::seeds::*;
 use trace::{Trace, TraceContext};
 
+use crate::experiment::*;
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
-use chrono::Utc;
 
 mod agent;
 mod debug;
@@ -36,6 +37,7 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
+mod experiment;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {
@@ -68,6 +70,7 @@ fn main() {
         .about("Fuzzes OpenSSL on a symbolic level")
         .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
         .subcommands(vec![
+            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
             SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
                 .args_from_usage("-t, --title=[t] 'Title of the experiment'")
                 .args_from_usage("-d, --description=[d] 'Decryption of the experiment'")
@@ -173,37 +176,33 @@ fn main() {
 
         handle.set_config(create_config(&root.join("tlspuffin-log.json")));
 
-        let git_ref = {
-            let output = Command::new("git")
-                .args(&["rev-parse", "HEAD"])
-                .output()
-                .unwrap();
-            String::from_utf8(output.stdout).unwrap()
-        };
-
-        {
-            let mut file = File::create(root.join("README.md")).unwrap();
-
-            let full_description = format!(
-                "# Experiment: {title}\n\
-                * OpenSSL: {openssl_version}\n\
-                * Date: {date}\n\
-                * Git Ref: {git_ref}\n\
-                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
-                {description}\n",
-                title = &title,
-                openssl_version = openssl_binding::openssl_version(),
-                date = Utc::now().to_rfc3339(),
-                git_ref = git_ref,
-                description = description
-            );
-            file.write_all(full_description.as_bytes()).unwrap();
-        }
-
+        write_experiment_markdown(&root, title, description).unwrap();
         start(
             num_cores,
             &[PathBuf::from("./corpus")],
             &root.join("crashes"),
+            1337,
+        );
+    } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
+        let title = get_git_ref().unwrap();
+        let description = "No Description, because this is a quick experiment.";
+        let experiments_root = PathBuf::from("experiments");
+        let mut experiment_path = experiments_root.join(&title);
+
+        let mut i = 0;
+        while experiment_path.as_path().exists() {
+            experiment_path = experiments_root.join(format!("{title}-{index}", title = title, index = i));
+            i+= 1;
+        }
+        fs::create_dir_all(&experiment_path).unwrap();
+
+        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
+
+        write_experiment_markdown(&experiment_path, title, description).unwrap();
+        start(
+            num_cores,
+            &[PathBuf::from("./corpus")],
+            &experiment_path.join("crashes"),
             1337,
         );
     } else {
