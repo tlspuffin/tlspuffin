@@ -13,10 +13,16 @@ pub fn harness(input: &Trace) -> ExitKind {
     }
 
     if let Err(err) = input.execute(&mut ctx) {
-        match err {
-            Error::Fn(_) => increment(&FN_ERROR),
-            Error::Term(_) => increment(&TERM),
-            Error::OpenSSL(_)=> increment(&OPENSSL),
+        match &err {
+            Error::Fn(_) => {
+                increment(&FN_ERROR)
+            },
+            Error::Term(e) => {
+                increment(&TERM)
+            },
+            Error::OpenSSL(_)=>  {
+                increment(&OPENSSL)
+            },
             Error::IO(_) => increment(&IO),
             Error::Agent(_) => increment(&AGENT),
             Error::Stream(_) => increment(&STREAM),
