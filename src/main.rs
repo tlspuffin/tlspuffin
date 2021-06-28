@@ -70,6 +70,7 @@ fn main() {
         .about("Fuzzes OpenSSL on a symbolic level")
         .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
         .args_from_usage("-s, --seed=[n] '(experimental) provide a seed for all clients'")
+        .args_from_usage("-p, --port=[n] 'Port of the broker'")
         .subcommands(vec![
             SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
             SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
@@ -91,6 +92,7 @@ fn main() {
         .get_matches();
 
     let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
+    let port = value_t!(matches, "port", u16).unwrap_or(1337);
     let static_seed = value_t!(matches, "seed", u64).ok();
 
     info!("{}", openssl_binding::openssl_version());
@@ -189,7 +191,7 @@ fn main() {
             &experiment_path.join("stats.json"),
             &[PathBuf::from("./corpus")],
             &experiment_path.join("crashes"),
-            1337,
+            port,
             static_seed,
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
@@ -227,7 +229,7 @@ fn main() {
             &experiment_path.join("stats.json"),
             &[PathBuf::from("./corpus")],
             &experiment_path.join("crashes"),
-            1337,
+            port,
             static_seed
         );
     } else {
@@ -236,7 +238,7 @@ fn main() {
             &PathBuf::from("stats.json"),
             &[PathBuf::from("corpus")],
             &PathBuf::from("crashes"),
-            1337,
+            port,
             static_seed
         );
     }
