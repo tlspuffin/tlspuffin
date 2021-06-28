@@ -195,7 +195,7 @@ fn main() {
 
         let title = format!(
             "{date}-{title}",
-            date = Utc::now().to_rfc3339(),
+            date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
             title = git_ref,
         );
 
@@ -205,7 +205,7 @@ fn main() {
         while experiment_path.as_path().exists() {
             let title = format!(
                 "{date}-{title}-{index}",
-                date = Utc::now().to_rfc3339(),
+                date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
                 title = git_ref,
                 index = i
             );
