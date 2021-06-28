@@ -16,7 +16,7 @@ pub fn get_git_ref() -> Result<String, io::Error> {
 }
 
 pub fn get_git_msg() -> Result<String, io::Error> {
-    let output = Command::new("git").args(&["log", "-i", "--pretty=%B"]).output()?;
+    let output = Command::new("git").args(&["log", "-1", "--pretty=%B"]).output()?;
     Ok(String::from_utf8(output.stdout).unwrap_or("unknown".to_string()).trim().to_string())
 }
 
