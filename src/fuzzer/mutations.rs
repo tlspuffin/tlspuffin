@@ -1,5 +1,3 @@
-
-
 use libafl::{
     bolts::{
         tuples::{tuple_list, tuple_list_type},
@@ -161,7 +159,7 @@ mutator! {
                     if let Some((shape, dynamic_fn)) = choose_iter_filtered(
                         &SIGNATURE.functions,
                         |(shape, dynamic_fn)| {
-                            func_mut.shape() != shape // do not mutate if we change the same funciton
+                            func_mut.shape() != shape // do not mutate if we change the same function
                                 && func_mut.shape().return_type == shape.return_type
                                 && func_mut.shape().argument_types == shape.argument_types
                         },
@@ -249,7 +247,7 @@ mutator! {
     }
 }
 
-mod util {
+pub mod util {
     use libafl::bolts::rands::Rand;
 
     use crate::term::Term;
@@ -282,7 +280,7 @@ mod util {
         E: ExactSizeIterator + Iterator<Item = T>,
     {
         // create iterator
-        let iter = from.into_iter();
+        let mut iter = from.into_iter();
         let length = iter.len();
 
         if length == 0 {
@@ -292,38 +290,8 @@ mod util {
             let index = rand.below(length as u64) as usize;
 
             // return the item chosen
-            iter.into_iter().nth(index)
+            iter.nth(index)
         }
-    }
-
-    pub fn choose_input_action_mut<'a, R: Rand>(
-        trace: &'a mut Trace,
-        rand: &mut R,
-    ) -> Option<&'a mut InputAction> {
-        choose_iter_filtered(
-            &mut trace.steps,
-            |step| matches!(step.action, Action::Input(_)),
-            rand,
-        )
-        .and_then(|step| match &mut step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
-    }
-
-    pub fn choose_input_action<'a, R: Rand>(
-        trace: &'a Trace,
-        rand: &mut R,
-    ) -> Option<&'a InputAction> {
-        choose_iter_filtered(
-            &trace.steps,
-            |step| matches!(step.action, Action::Input(_)),
-            rand,
-        )
-        .and_then(|step| match &step.action {
-            Action::Input(input) => Some(input),
-            Action::Output(_) => None,
-        })
     }
 
     type StepIndex = usize;
@@ -331,7 +299,7 @@ mod util {
     type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    pub fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &'a Trace,
         rand: &mut R,
         filter: P,
@@ -364,6 +332,8 @@ mod util {
 
                         // sample
                         if filter(term) {
+                            visited += 1;
+
                             // consider in sampling
                             if let None = reservoir {
                                 // fill initial reservoir
@@ -375,8 +345,6 @@ mod util {
                                     reservoir = Some((term, path)); // todo Rust 1.53 use insert
                                 }
                             }
-
-                            visited += 1;
                         }
                     }
                 }
@@ -389,29 +357,30 @@ mod util {
         reservoir
     }
 
-    fn find_term_by_term_path_mut<'a>(
-        term: &'a mut Term,
-        term_path: &mut TermPath,
-    ) -> Option<&'a mut Term> {
-        if term_path.is_empty() {
-            return Some(term);
-        }
+    pub fn find_term_mut<'a>(trace: &'a mut Trace, trace_path: &TracePath) -> Option<&'a mut Term> {
 
-        let subterm_index = term_path.remove(0);
+        fn find_term_by_term_path_mut<'a>(
+            term: &'a mut Term,
+            term_path: &mut TermPath,
+        ) -> Option<&'a mut Term> {
+            if term_path.is_empty() {
+                return Some(term);
+            }
 
-        match term {
-            Term::Variable(_) => None,
-            Term::Application(_, subterms) => {
-                if let Some(subterm) = subterms.get_mut(subterm_index) {
-                    find_term_by_term_path_mut(subterm, term_path)
-                } else {
-                    None
+            let subterm_index = term_path.remove(0);
+
+            match term {
+                Term::Variable(_) => None,
+                Term::Application(_, subterms) => {
+                    if let Some(subterm) = subterms.get_mut(subterm_index) {
+                        find_term_by_term_path_mut(subterm, term_path)
+                    } else {
+                        None
+                    }
                 }
             }
         }
-    }
 
-    pub fn find_term_mut<'a>(trace: &'a mut Trace, trace_path: &TracePath) -> Option<&'a mut Term> {
         let (step_index, term_path) = trace_path;
 
         let step: Option<&mut Step> = trace.steps.get_mut(*step_index);
@@ -427,16 +396,15 @@ mod util {
         }
     }
 
-    pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-        trace: &'a mut Trace,
+    pub fn choose<'a, R: Rand>(
+        trace: &'a Trace,
         rand: &mut R,
-        filter: P,
-    ) -> Option<&'a mut Term> {
-        if let Some(trace_path) = choose_term_path_filtered(trace, filter, rand) {
-            find_term_mut(trace, &trace_path)
-        } else {
-            None
-        }
+    ) -> Option<(&'a Term, (usize, TermPath))> {
+        reservoir_sample(trace, rand, |_| true)
+    }
+
+    pub fn choose_term<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
+        reservoir_sample(trace, rand, |_| true).map(|ret| ret.0)
     }
 
     pub fn choose_term_mut<'a, R: Rand>(
@@ -450,15 +418,16 @@ mod util {
         }
     }
 
-    pub fn choose<'a, R: Rand>(
-        trace: &'a Trace,
+    pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+        trace: &'a mut Trace,
         rand: &mut R,
-    ) -> Option<(&'a Term, (usize, TermPath))> {
-        reservoir_sample(trace, rand, |_| true)
-    }
-
-    pub fn choose_term<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
-        reservoir_sample(trace, rand, |_| true).map(|ret| ret.0)
+        filter: P,
+    ) -> Option<&'a mut Term> {
+        if let Some(trace_path) = choose_term_path_filtered(trace, filter, rand) {
+            find_term_mut(trace, &trace_path)
+        } else {
+            None
+        }
     }
 
     pub fn choose_term_path<'a, R: Rand>(trace: &Trace, rand: &mut R) -> Option<TracePath> {

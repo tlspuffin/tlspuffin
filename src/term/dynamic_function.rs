@@ -166,6 +166,7 @@ impl Clone for Box<dyn DynamicFunction> {
 ///
 /// Adapted from https://jsdw.me/posts/rust-fn-traits/ but using type ids
 pub trait DescribableFunction<Types> {
+    fn name(&'static self) -> &'static str;
     fn shape() -> DynamicFunctionShape;
     fn make_dynamic(&'static self) -> Box<dyn DynamicFunction>;
 }
@@ -185,6 +186,10 @@ macro_rules! dynamic_fn {
                 argument_types: vec![$(TypeShape::of::<$arg>()),*],
                 return_type: TypeShape::of::<$res>(),
             }
+        }
+
+        fn name(&'static self) -> &'static str {
+            std::any::type_name::<F>()
         }
 
         fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {

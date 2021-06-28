@@ -35,6 +35,13 @@ impl fmt::Display for Term {
 }
 
 impl Term {
+    pub fn resistant_id(&self) -> u32 {
+        match self {
+            Term::Variable(v) => v.resistant_id,
+            Term::Application(f, _)=> f.resistant_id
+        }
+    }
+
     pub fn length(&self) -> usize {
         match self {
             Term::Variable(_) => 1,

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::Deref;
 
 use libafl::bolts::rands::{Rand, RomuDuoJrRand, RomuTrioRand, StdRand};
@@ -6,14 +7,17 @@ use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
-use crate::agent::AgentName;
+use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
 };
 use crate::fuzzer::seeds::*;
 use crate::graphviz::write_graphviz;
 use crate::openssl_binding::make_deterministic;
+use crate::term;
+use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
+use crate::tls::fn_impl::*;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
@@ -38,7 +42,7 @@ fn test_repeat_mutator() {
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
-            if input.recipe.name() == "tlspuffin::tls::fn_utils::fn_encrypt12" {
+            if input.recipe.name() == fn_encrypt12.name() {
                 return true;
             }
         }
@@ -82,7 +86,7 @@ fn test_replace_match_mutator() {
                     Term::Variable(_) => {}
                     Term::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms.iter().last() {
-                            if last_subterm.name() == "tlspuffin::tls::fn_constants::fn_seq_1" {
+                            if last_subterm.name() == fn_seq_1.name() {
                                 break;
                             }
                         }
@@ -106,10 +110,7 @@ fn test_remove_lift_mutator() {
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
-        util::count_functions(
-            trace,
-            "tlspuffin::tls::fn_extensions::fn_client_extensions_append",
-        )
+        util::count_functions(trace, fn_client_extensions_append.name())
     }
 
     loop {
@@ -137,11 +138,11 @@ fn test_replace_reuse_mutator() {
     let mut mutator = ReplaceReuseMutator::new();
 
     fn count_client_hello(trace: &Trace) -> u16 {
-        util::count_functions(trace, "tlspuffin::tls::fn_messages::fn_client_hello")
+        util::count_functions(trace, fn_client_hello.name())
     }
 
     fn count_finished(trace: &Trace) -> u16 {
-        util::count_functions(trace, "tlspuffin::tls::fn_messages::fn_finished")
+        util::count_functions(trace, fn_finished.name())
     }
 
     loop {
@@ -177,6 +178,102 @@ fn test_skip_mutator() {
             break;
         }
     }
+}
+
+#[test]
+fn test_reservoir_sample_randomness() {
+    /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
+    fn std_deviation(data: &[u32]) -> Option<f32> {
+        fn mean(data: &[u32]) -> Option<f32> {
+            let sum = data.iter().sum::<u32>() as f32;
+            let count = data.len();
+
+            match count {
+                positive if positive > 0 => Some(sum / count as f32),
+                _ => None,
+            }
+        }
+
+
+        match (mean(data), data.len()) {
+            (Some(data_mean), count) if count > 0 => {
+                let variance = data.iter().map(|value| {
+                    let diff = data_mean - (*value as f32);
+
+                    diff * diff
+                }).sum::<f32>() / count as f32;
+
+                Some(variance.sqrt())
+            },
+            _ => None
+        }
+    }
+
+    let server = AgentName::first();
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+            fn_new_cipher_suites12,
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    fn_secp384r1_support_group_extension
+                                )),
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_ec_point_formats_extension
+                        )),
+                        fn_signed_certificate_timestamp
+                    )),
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                )),
+                // Add signature cert extension
+                fn_signature_algorithm_cert_extension
+            ))
+        )
+    };
+
+    let trace = Trace {
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_2,
+            server: true,
+        }],
+        steps: vec![Step {
+            agent: server,
+            action: Action::Input(InputAction {
+                recipe: client_hello.clone(),
+            }),
+        }],
+    };
+
+    let mut rand = StdRand::with_seed(45);
+    let mut stats: HashMap<u32, u32> = HashMap::new();
+
+    for i in 0..10000 {
+        let term = crate::fuzzer::mutations::util::choose(&trace, &mut rand).unwrap();
+
+        let id = term.0.resistant_id();
+
+        let count: &u32 = stats.get(&id).unwrap_or(&0);
+        stats.insert(id, count + 1);
+    }
+
+    let std_dev = std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
+    println!("{:?}", std_dev);
+    println!("{:?}", stats);
+
+    assert!(std_dev < 30.0);
+    assert_eq!(client_hello.length(), stats.len());
 }
 
 mod util {
