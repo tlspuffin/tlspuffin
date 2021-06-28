@@ -25,6 +25,12 @@ Fuzz using three clients:
 cargo run --bin tlspuffin -- -n 3
 ```
 
+### Running with asan
+
+```bash
+cargo run --bin tlspuffin --features asan -- -n1
+```
+
 ## Generate Corpus Seeds
 
 ```bash
