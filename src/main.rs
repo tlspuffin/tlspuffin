@@ -186,10 +186,11 @@ fn main() {
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
             num_cores,
+            &experiment_path.join("stats.json"),
             &[PathBuf::from("./corpus")],
             &experiment_path.join("crashes"),
             1337,
-            static_seed
+            static_seed,
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
         let git_ref = get_git_ref().unwrap();
@@ -223,6 +224,7 @@ fn main() {
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
             num_cores,
+            &experiment_path.join("stats.json"),
             &[PathBuf::from("./corpus")],
             &experiment_path.join("crashes"),
             1337,
@@ -231,8 +233,9 @@ fn main() {
     } else {
         start(
             num_cores,
-            &[PathBuf::from("./corpus")],
-            &PathBuf::from("./crashes"),
+            &PathBuf::from("stats.json"),
+            &[PathBuf::from("corpus")],
+            &PathBuf::from("crashes"),
             1337,
             static_seed
         );

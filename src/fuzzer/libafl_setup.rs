@@ -55,6 +55,7 @@ pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
 /// Starts the fuzzing loop
 pub fn start(
     num_cores: usize,
+    stats_file: &PathBuf,
     corpus_dirs: &[PathBuf],
     objective_dir: &PathBuf,
     broker_port: u16,
@@ -69,7 +70,7 @@ pub fn start(
 
     let stats = PuffinStats::new(|s| {
         info!("{}", s);
-    });
+    }, stats_file.clone()).unwrap();
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,

@@ -4,3 +4,6 @@
 
 experiments/
 tlspuffin-log.json
+
+venv
+stats.json
