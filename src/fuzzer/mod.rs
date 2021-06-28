@@ -31,7 +31,6 @@ mod sancov_dummy;
 mod stages;
 mod macros;
 mod terminal_stats;
-mod mutations_util;
 mod stats;
 
 
