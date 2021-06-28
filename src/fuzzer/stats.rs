@@ -101,6 +101,9 @@ where
             "[{}] (CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
             event_msg, client.corpus_size, client.objective_size, client.executions, exec_sec
         );
+        for (key, val) in &client.user_stats {
+            fmt += &format!(", {}: {}", key, val);
+        }
 
         (self.print_fn)(fmt);
     }
