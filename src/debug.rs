@@ -58,6 +58,7 @@ pub fn debug_message_with_info(info: &str, message: &Message) {
         MessagePayload::Handshake(payload) => {
             format!("{:?}", payload.payload)
         }
+        MessagePayload::TLS12EncryptedHandshake(_) => "TLS12EncryptedHandshake".to_string(),
         MessagePayload::ChangeCipherSpec(_) => "ChangeCipherSpec".to_string(),
         MessagePayload::ApplicationData(_) => "ApplicationData".to_string(),
         MessagePayload::Heartbeat(_) => "Heartbeat".to_string(),

@@ -272,6 +272,8 @@ pub mod rustls {
         Connection, ProtocolVersion, RootCertStore,
     };
     use test_env_log::test;
+    use rustls::msgs::base::Payload;
+    use rustls::internal::msgs::enums::ContentType;
 
     #[test]
     fn test_rustls_message_stability_ch() {
@@ -437,6 +439,17 @@ pub mod rustls {
         // Required for choosing the correct parsing function
         opaque_message.version = TLSv1_3;
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
+    }
+
+    #[test]
+    fn test_encrypted_tls12_into_message() {
+        let opaque = OpaqueMessage {
+            typ: ContentType::Handshake,
+            version: ProtocolVersion::TLSv1_2,
+            payload: Payload::new(vec![1,2,3]),
+        };
+
+        println!("{:?}", Message::try_from(opaque).unwrap());
     }
 
     #[test]

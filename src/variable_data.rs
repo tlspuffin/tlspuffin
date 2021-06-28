@@ -149,5 +149,8 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
         MessagePayload::Heartbeat(h) => {
             vec![Box::new(message.clone()), Box::new(h.payload.clone())]
         }
+        MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
+            vec![Box::new(message.clone()), Box::new(tls12encrypted.0.clone())]
+        }
     })
 }

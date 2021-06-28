@@ -177,23 +177,7 @@ impl Stream for MemoryStream {
 
                 Ok(Some(match Message::try_from(opaque_message.clone()) {
                     Ok(message) => {
-
-                        match &message.payload {
-                            // this check is for TLS 1.2 encrypted handshake messages,
-                            // the current parser will return a Handshake of
-                            // type HandshakePayload::Unknown.
-                            // https://github.com/maxammann/rustls/blob/8f85f586686acf3fbd9ee8315d49a7fbcef2e127/rustls/src/msgs/handshake.rs#L2199
-                            MessagePayload::Handshake(hs)  => {
-                                if matches!(&hs.payload, HandshakePayload::Unknown(_)) {
-                                    MessageResult::OpaqueMessage(opaque_message)
-                                } else {
-                                    MessageResult::Message(message)
-                                }
-                            }
-                            _ => {
-                                MessageResult::Message(message)
-                            }
-                        }
+                        MessageResult::Message(message)
                     },
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}: {}", err, hex::encode(opaque_message.clone().encode()));
@@ -206,7 +190,7 @@ impl Stream for MemoryStream {
             }
         } else {
             // Unable to deframe
-            Err(Error::Stream("Failed to deframe bianry buffer".to_string()))
+            Err(Error::Stream("Failed to deframe binary buffer".to_string()))
         }
     }
 }

@@ -31,11 +31,10 @@ use crate::nyi_fn;
 use super::error::FnError;
 
 /// Used in TLS 1.2 as is has encrypted handshake messages
-pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<OpaqueMessage, FnError> {
-    Ok(OpaqueMessage {
-        typ: ContentType::Handshake,
+pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<Message, FnError> {
+    Ok(Message {
         version: ProtocolVersion::TLSv1_2,
-        payload: Payload::new(data.clone()),
+        payload: MessagePayload::TLS12EncryptedHandshake(Payload::new(data.clone()))
     })
 }
 

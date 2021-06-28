@@ -106,11 +106,12 @@ pub fn fn_encrypt12(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
     sequence: &u64,
-) -> Result<OpaqueMessage, FnError> {
+) -> Result<Message, FnError> {
     let secrets = super::tls12_new_secrets(server_random, server_ecdh_params)?;
 
     let (_decrypter, encrypter) = new_tls12(&secrets);
-    Ok(encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?)
+    let encrypted = encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?;
+    Ok(Message::try_from(encrypted)?)
 }
 
 // ----
