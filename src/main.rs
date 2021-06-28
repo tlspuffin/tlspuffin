@@ -1,21 +1,21 @@
 #[macro_use]
 extern crate log;
 
-use std::{env, fs, io::Write, path::PathBuf};
 use std::fs::File;
 use std::io::Read;
 use std::process::Command;
+use std::{env, fs, io::Write, path::PathBuf};
 
-use chrono::Utc;
-use clap::{App, crate_authors, crate_name, crate_version, SubCommand, value_t};
+use chrono::{Utc, SecondsFormat};
+use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
 use log::{Level, LevelFilter};
-use log4rs::{Config, Handle};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, InitError, Logger, RawConfig, Root};
 use log4rs::config::runtime::ConfigErrors;
+use log4rs::config::{Appender, InitError, Logger, RawConfig, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
+use log4rs::{Config, Handle};
 
 use agent::AgentName;
 use fuzzer::seeds::*;
@@ -28,6 +28,7 @@ use crate::graphviz::write_graphviz;
 mod agent;
 mod debug;
 mod error;
+mod experiment;
 mod fuzzer;
 mod graphviz;
 mod io;
@@ -37,7 +38,6 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
-mod experiment;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {
@@ -167,20 +167,25 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("experiment") {
         let title = value_t!(matches, "title", String).unwrap();
         let description = value_t!(matches, "description", String).unwrap();
-        let root = PathBuf::new().join("experiments").join(&title);
+        let experiments_root = PathBuf::new().join("experiments");
+        let experiment_path = experiments_root.join(format!(
+            "{date}-{title}",
+            date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+            title = title
+        ));
 
-        if root.as_path().exists() {
+        if experiment_path.as_path().exists() {
             panic!("Experiment already exists. Consider creating a new experiment.")
         }
-        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&experiment_path).unwrap();
 
-        handle.set_config(create_config(&root.join("tlspuffin-log.json")));
+        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
 
-        write_experiment_markdown(&root, title, description).unwrap();
+        write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
             num_cores,
             &[PathBuf::from("./corpus")],
-            &root.join("crashes"),
+            &experiment_path.join("crashes"),
             1337,
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
@@ -189,11 +194,17 @@ fn main() {
         let experiments_root = PathBuf::from("experiments");
         let mut experiment_path = experiments_root.join(&title);
 
-        let mut i = 0;
+        let mut i = 1;
         while experiment_path.as_path().exists() {
-            experiment_path = experiments_root.join(format!("{title}-{index}", title = title, index = i));
-            i+= 1;
+            experiment_path = experiments_root.join(format!(
+                "{date}-{title}-{index}",
+                date = Utc::now().to_rfc3339(),
+                title = title,
+                index = i
+            ));
+            i += 1;
         }
+
         fs::create_dir_all(&experiment_path).unwrap();
 
         handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
