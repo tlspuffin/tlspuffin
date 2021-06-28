@@ -122,8 +122,11 @@ pub fn start(num_cores: usize, corpus_dirs: &[PathBuf], objective_dir: &PathBuf,
         );
 
         // A minimization+queue policy to get testcasess from the corpus
+        #[cfg(feature = "minimizer")]
         let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-        //let scheduler = RandCorpusScheduler::new();
+        #[cfg(not(feature = "minimizer"))]
+        let scheduler = RandCorpusScheduler::new();
+
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
         let mut harness_fn = &mut harness::harness;
