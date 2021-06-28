@@ -294,9 +294,9 @@ pub mod util {
         }
     }
 
-    type StepIndex = usize;
-    type TermPath = Vec<usize>;
-    type TracePath = (StepIndex, TermPath);
+    pub type StepIndex = usize;
+    pub type TermPath = Vec<usize>;
+    pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
     fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(

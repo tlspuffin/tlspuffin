@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 
 use libafl::bolts::rands::{Rand, RomuDuoJrRand, RomuTrioRand, StdRand};
@@ -19,6 +19,7 @@ use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
+use crate::fuzzer::mutations::util::TracePath;
 
 #[test]
 fn test_openssl_no_randomness() {
@@ -181,6 +182,22 @@ fn test_skip_mutator() {
 }
 
 #[test]
+fn test_find() {
+    let mut rand = StdRand::with_seed(45);
+    let (client_hello, mut trace) = util::setup_simple_trace();
+
+    let mut stats: HashSet<TracePath> = HashSet::new();
+
+    for _ in 0..10000 {
+        let path = crate::fuzzer::mutations::util::choose_term_path(&trace, &mut rand).unwrap();
+        crate::fuzzer::mutations::util::find_term_mut(&mut trace, &path).unwrap();
+        stats.insert(path);
+    }
+
+    assert_eq!(client_hello.length(), stats.len());
+}
+
+#[test]
 fn test_reservoir_sample_randomness() {
     /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
     fn std_deviation(data: &[u32]) -> Option<f32> {
@@ -194,72 +211,30 @@ fn test_reservoir_sample_randomness() {
             }
         }
 
-
         match (mean(data), data.len()) {
             (Some(data_mean), count) if count > 0 => {
-                let variance = data.iter().map(|value| {
-                    let diff = data_mean - (*value as f32);
+                let variance = data
+                    .iter()
+                    .map(|value| {
+                        let diff = data_mean - (*value as f32);
 
-                    diff * diff
-                }).sum::<f32>() / count as f32;
+                        diff * diff
+                    })
+                    .sum::<f32>()
+                    / count as f32;
 
                 Some(variance.sqrt())
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 
-    let server = AgentName::first();
-    let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
-            fn_compressions,
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
-                                )),
-                                fn_signature_algorithm_extension
-                            )),
-                            fn_ec_point_formats_extension
-                        )),
-                        fn_signed_certificate_timestamp
-                    )),
-                     // Enable Renegotiation
-                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
-                )),
-                // Add signature cert extension
-                fn_signature_algorithm_cert_extension
-            ))
-        )
-    };
-
-    let trace = Trace {
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_2,
-            server: true,
-        }],
-        steps: vec![Step {
-            agent: server,
-            action: Action::Input(InputAction {
-                recipe: client_hello.clone(),
-            }),
-        }],
-    };
+    let (client_hello, trace) = util::setup_simple_trace();
 
     let mut rand = StdRand::with_seed(45);
     let mut stats: HashMap<u32, u32> = HashMap::new();
 
-    for i in 0..10000 {
+    for _ in 0..10000 {
         let term = crate::fuzzer::mutations::util::choose(&trace, &mut rand).unwrap();
 
         let id = term.0.resistant_id();
@@ -277,9 +252,65 @@ fn test_reservoir_sample_randomness() {
 }
 
 mod util {
+    use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
     use crate::graphviz::write_graphviz;
+    use crate::term;
     use crate::term::Term;
-    use crate::trace::{Action, Trace};
+    use crate::tls::fn_impl::*;
+    use crate::trace::{Action, InputAction, Step, Trace};
+
+    pub fn setup_simple_trace() -> (Term, Trace) {
+        let server = AgentName::first();
+        let client_hello = term! {
+              fn_client_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                fn_new_session_id,
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_new_cipher_suites12,
+                fn_compressions,
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    (fn_client_extensions_append(
+                                        fn_client_extensions_new,
+                                        fn_secp384r1_support_group_extension
+                                    )),
+                                    fn_signature_algorithm_extension
+                                )),
+                                fn_ec_point_formats_extension
+                            )),
+                            fn_signed_certificate_timestamp
+                        )),
+                         // Enable Renegotiation
+                        (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                    )),
+                    // Add signature cert extension
+                    fn_signature_algorithm_cert_extension
+                ))
+            )
+        };
+
+        let cloned = client_hello.clone();
+        (
+            client_hello,
+            Trace {
+                descriptors: vec![AgentDescriptor {
+                    name: server,
+                    tls_version: TLSVersion::V1_2,
+                    server: true,
+                }],
+                steps: vec![Step {
+                    agent: server,
+                    action: Action::Input(InputAction {
+                        recipe: cloned,
+                    }),
+                }],
+            },
+        )
+    }
 
     pub(crate) fn count_functions(trace: &Trace, find_name: &'static str) -> u16 {
         trace
