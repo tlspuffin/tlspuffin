@@ -73,8 +73,8 @@ where
         let corpus_size = client.corpus_size;
         let objective_size = client.objective_size;
         let mut fmt = format!(
-            "[{}] (CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}, errors: {}",
-            event_msg, corpus_size, objective_size, total_execs, exec_sec, error_counter
+            "[{}] (CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+            event_msg, corpus_size, objective_size, total_execs, exec_sec
         );
 
         // log edges
@@ -112,22 +112,15 @@ where
 
     fn global(&mut self, event_msg: &String) {
         let total_execs = self.total_execs();
-        let mut error_counter = ErrorStatistics::new(total_execs);
-
-        // Summarize errors
-        for client_stats in &self.client_stats {
-            error_counter.count(client_stats);
-        }
 
         let global_fmt = format!(
-            "[{}] (GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}, errors: {}",
+            "[{}] (GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
             event_msg,
             self.client_stats().len(),
             self.corpus_size(),
             self.objective_size(),
             total_execs,
-            self.execs_per_sec(),
-            error_counter
+            self.execs_per_sec()
         );
         (self.print_fn)(global_fmt);
     }
@@ -262,22 +255,6 @@ impl TraceStatistics {
             }
 
         trace_stats
-    }
-}
-
-impl fmt::Display for ErrorStatistics {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "fn:{:.2}|term:{:.2}|ssl:{:.2}|io:{:.2}|ag:{:.2}|str:{:.2}|ext:{:.2}",
-            self.fn_error as f32 / self.total_execs as f32,
-            self.term_error as f32 / self.total_execs as f32,
-            self.ssl_error as f32 / self.total_execs as f32,
-            self.io_error as f32 / self.total_execs as f32,
-            self.ag_error as f32 / self.total_execs as f32,
-            self.str_error as f32 / self.total_execs as f32,
-            self.ext_error as f32 / self.total_execs as f32,
-        )
     }
 }
 
