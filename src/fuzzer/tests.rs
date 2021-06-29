@@ -242,7 +242,7 @@ fn test_find_term() {
         stats.insert(path);
     }
 
-    assert_eq!(client_hello.length(), stats.len());
+    assert_eq!(client_hello.size(), stats.len());
 }
 
 #[test]
@@ -296,7 +296,7 @@ fn test_reservoir_sample_randomness() {
     println!("{:?}", stats);
 
     assert!(std_dev < 30.0);
-    assert_eq!(client_hello.length(), stats.len());
+    assert_eq!(client_hello.size(), stats.len());
 }
 
 mod util {

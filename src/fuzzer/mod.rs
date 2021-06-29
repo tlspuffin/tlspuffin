@@ -6,7 +6,7 @@ mod tests;
 mod libafl_setup;
 mod harness;
 pub mod mutations;
-mod error_observer;
+mod stats_observer;
 pub mod seeds;
 
 pub use libafl_setup::start;

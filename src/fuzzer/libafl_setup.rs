@@ -37,7 +37,7 @@ use libafl::{
     Error, Evaluator,
 };
 
-use crate::fuzzer::error_observer::ErrorObserver;
+use crate::fuzzer::stats_observer::ErrorObserver;
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;

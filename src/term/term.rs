@@ -42,7 +42,7 @@ impl Term {
         }
     }
 
-    pub fn length(&self) -> usize {
+    pub fn size(&self) -> usize {
         match self {
             Term::Variable(_) => 1,
             Term::Application(_, ref args) => {
@@ -50,7 +50,7 @@ impl Term {
                     return 1;
                 }
 
-                args.iter().map(|subterm| subterm.length()).sum::<usize>() + 1
+                args.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
             }
         }
     }
