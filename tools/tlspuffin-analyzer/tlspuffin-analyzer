@@ -5,7 +5,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 from jsonslicer import JsonSlicer
-
+from itertools import groupby
+from operator import itemgetter
 
 def flatten(d):
     out = {}
@@ -18,7 +19,7 @@ def flatten(d):
     return out
 
 
-def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False):
+def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=None):
     if key not in data[0] or key_other not in data[0]:
         ax.set_ylabel("Data not available")
         return
@@ -29,8 +30,8 @@ def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False)
     inner_ax = ax.twinx()
     y = [row[key] for row in data]
 
-    if smooth:
-        kernel_size = min(len(y), 3000)
+    if smooth and smooth < len(y):
+        kernel_size = smooth
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
     inner_ax.plot(times[:len(y)], y, label=key, color='red')
@@ -39,33 +40,27 @@ def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False)
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-parser = argparse.ArgumentParser(description='Plots statistics')
-parser.add_argument('experiment', type=str,
-                    help='Name of the experiment')
-args = parser.parse_args()
-
-stats_path = "%s/stats.json" % args.experiment  # "experiments/2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
-
-with open(stats_path) as stats:
+def plot_client_stats(client_stats):
     times = []
     data = []
     keys = None
     start_date = None
-
-    for client_stats in JsonSlicer(stats, (), yajl_allow_multiple_values=True):
-        # Sats data
-        flat_stats = flatten(client_stats)
-        data.append(flat_stats)
-
+    for client_stats in client_stats:
         time = datetime.fromtimestamp(client_stats['time']['secs_since_epoch'])
 
         # Initial loop
         if not start_date:
-            keys = flat_stats.keys() # Start date
-            start_date = time
+            start_date = time # Start date
 
         times.append(time - start_date)
         del client_stats['time']
+
+        # Sats data
+        flat_stats = flatten(client_stats)
+        data.append(flat_stats)
+
+        if not keys:
+            keys = flat_stats.keys()
 
     times = [t.total_seconds() / 60 for t in times]
 
@@ -83,12 +78,28 @@ with open(stats_path) as stats:
     # Coverage
     plot_with_other(ax5, times, data, "coverage_discovered")
     # Performance
-    plot_with_other(ax6, times, data, "exec_per_sec", smooth=True)
+    plot_with_other(ax6, times, data, "exec_per_sec", smooth=3000)
     # Traces and Terms
     plot_with_other(ax7, times, data, "trace_max_trace_length")
-    plot_with_other(ax8, times, data, "trace_mean_trace_length")
+    plot_with_other(ax8, times, data, "trace_mean_trace_length", smooth=50)
     plot_with_other(ax9, times, data, "trace_max_term_size")
-    plot_with_other(ax10, times, data, "trace_mean_term_size")
+    plot_with_other(ax10, times, data, "trace_mean_term_size", smooth=50)
 
     fig.tight_layout(pad=0.005)
+
+
+parser = argparse.ArgumentParser(description='Plots statistics')
+parser.add_argument('experiment', type=str,
+                    help='Name of the experiment')
+args = parser.parse_args()
+
+stats_path = "%s/stats.json" % args.experiment  # "experiments/2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
+
+with open(stats_path) as stats:
+    all = JsonSlicer(stats, (), yajl_allow_multiple_values=True)
+
+    sortkeyfn = itemgetter("id")
+    for key, group in groupby(sorted(all, key=sortkeyfn), key=sortkeyfn):
+        plot_client_stats(group)
+
     plt.show()
