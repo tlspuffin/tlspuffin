@@ -30,7 +30,7 @@ def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False)
     y = [row[key] for row in data]
 
     if smooth:
-        kernel_size = 3000
+        kernel_size = min(len(y), 3000)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
     inner_ax.plot(times[:len(y)], y, label=key, color='red')
@@ -44,7 +44,7 @@ parser.add_argument('experiment', type=str,
                     help='Name of the experiment')
 args = parser.parse_args()
 
-stats_path = "experiments/%s/stats.json" % args.experiment  # "2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
+stats_path = "%s/stats.json" % args.experiment  # "experiments/2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
 
 with open(stats_path) as stats:
     times = []
@@ -53,18 +53,19 @@ with open(stats_path) as stats:
     start_date = None
 
     for client_stats in JsonSlicer(stats, (), yajl_allow_multiple_values=True):
-        time = datetime.fromtimestamp(client_stats['time']['secs_since_epoch'])
-        if not start_date:
-            start_date = time
-
-        times.append(time - start_date)
-
-        del client_stats['time']
-
+        # Sats data
         flat_stats = flatten(client_stats)
         data.append(flat_stats)
 
-        keys = flat_stats.keys()
+        time = datetime.fromtimestamp(client_stats['time']['secs_since_epoch'])
+
+        # Initial loop
+        if not start_date:
+            keys = flat_stats.keys() # Start date
+            start_date = time
+
+        times.append(time - start_date)
+        del client_stats['time']
 
     times = [t.total_seconds() / 60 for t in times]
 
