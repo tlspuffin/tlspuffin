@@ -2,7 +2,11 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/openssl-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/openssl-src/openssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/boringssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/krb5" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/pyca-cryptography" vcs="Git" />
   </component>
 </project>

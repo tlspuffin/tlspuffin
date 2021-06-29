@@ -1,0 +1,7 @@
+#!/bin/env python
+
+from jsonslicer import JsonSlicer
+
+with open('stats.json') as stats:
+    for object in JsonSlicer(stats, (), yajl_allow_multiple_values=True):
+        print(object)
