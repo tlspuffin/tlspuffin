@@ -40,18 +40,12 @@ def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=None):
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def plot_client_stats(client_stats):
+def plot_client_stats(start_date, client_stats):
     times = []
     data = []
-    keys = None
-    start_date = None
+
     for client_stats in client_stats:
         time = datetime.fromtimestamp(client_stats['time']['secs_since_epoch'])
-
-        # Initial loop
-        if not start_date:
-            start_date = time # Start date
-
         times.append(time - start_date)
         del client_stats['time']
 
@@ -59,12 +53,7 @@ def plot_client_stats(client_stats):
         flat_stats = flatten(client_stats)
         data.append(flat_stats)
 
-        if not keys:
-            keys = flat_stats.keys()
-
     times = [t.total_seconds() / 60 for t in times]
-
-    print("Available keys: %s" % keys)
 
     fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10)) = plt.subplots(5, 2, sharex="all")
 
@@ -88,18 +77,26 @@ def plot_client_stats(client_stats):
     fig.tight_layout(pad=0.005)
 
 
-parser = argparse.ArgumentParser(description='Plots statistics')
-parser.add_argument('experiment', type=str,
-                    help='Name of the experiment')
-args = parser.parse_args()
+def main():
+    parser = argparse.ArgumentParser(description='Plots statistics')
+    parser.add_argument('experiment', type=str,
+                        help='Name of the experiment')
+    args = parser.parse_args()
 
-stats_path = "%s/stats.json" % args.experiment  # "experiments/2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
+    stats_path = "%s/stats.json" % args.experiment  # "experiments/2021-06-28T17:18:22Z-e29788aec4ed9a6237194ecce45017133ae708b0"
 
-with open(stats_path) as stats:
-    all = JsonSlicer(stats, (), yajl_allow_multiple_values=True)
+    with open(stats_path) as stats:
+        all_stats = list(JsonSlicer(stats, (), yajl_allow_multiple_values=True))
 
-    sortkeyfn = itemgetter("id")
-    for key, group in groupby(sorted(all, key=sortkeyfn), key=sortkeyfn):
-        plot_client_stats(group)
+        start_date = datetime.fromtimestamp(all_stats[0]['time']['secs_since_epoch'])
+        keys = flatten(all_stats[0]).keys()
+        print("Available keys: %s" % keys)
 
-    plt.show()
+        sortkeyfn = itemgetter("id")
+        for key, group in groupby(sorted(all_stats, key=sortkeyfn), key=sortkeyfn):
+            plot_client_stats(start_date, group)
+
+        plt.show()
+
+
+main()
