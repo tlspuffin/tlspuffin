@@ -6,7 +6,6 @@ use std::io::Read;
 use std::process::Command;
 use std::{env, fs, io::Write, path::PathBuf};
 
-use chrono::{Utc, SecondsFormat};
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
 use log::{Level, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
@@ -172,12 +171,7 @@ fn main() {
         let title = value_t!(matches, "title", String).unwrap();
         let description = value_t!(matches, "description", String).unwrap();
         let experiments_root = PathBuf::new().join("experiments");
-        let experiment_path = experiments_root.join(format!(
-            "{date}-{title}",
-            date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-            title = title
-        ));
-
+        let experiment_path = experiments_root.join(format_title(Some(&title), None));
         if experiment_path.as_path().exists() {
             panic!("Experiment already exists. Consider creating a new experiment.")
         }
@@ -199,22 +193,13 @@ fn main() {
         let description = "No Description, because this is a quick experiment.";
         let experiments_root = PathBuf::from("experiments");
 
-        let title = format!(
-            "{date}-{title}",
-            date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-            title = git_ref,
-        );
+        let title = format_title(None, None);
 
         let mut experiment_path = experiments_root.join(&title);
 
         let mut i = 1;
         while experiment_path.as_path().exists() {
-            let title = format!(
-                "{date}-{title}-{index}",
-                date = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-                title = git_ref,
-                index = i
-            );
+            let title = format_title(None, Some(i));
             experiment_path = experiments_root.join(title);
             i += 1;
         }
@@ -230,7 +215,7 @@ fn main() {
             &[PathBuf::from("./corpus")],
             &experiment_path.join("crashes"),
             port,
-            static_seed
+            static_seed,
         );
     } else {
         start(
@@ -239,7 +224,7 @@ fn main() {
             &[PathBuf::from("corpus")],
             &PathBuf::from("crashes"),
             port,
-            static_seed
+            static_seed,
         );
     }
 }

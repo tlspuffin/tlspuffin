@@ -6,9 +6,19 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::string::FromUtf8Error;
 
-use chrono::Utc;
+use chrono::{SecondsFormat, Local};
 
 use crate::openssl_binding;
+
+pub fn format_title(title: Option<&String>, index: Option<usize>) -> String {
+    let date = Local::now().format("%Y-%m-%d-%H%M%S");
+    format!(
+        "{date}-{title}-{index}",
+        date = date,
+        title = title.cloned().unwrap_or_else(|| get_git_ref().unwrap()),
+        index = index.unwrap_or(0)
+    )
+}
 
 pub fn get_git_ref() -> Result<String, io::Error> {
     let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
@@ -37,7 +47,7 @@ pub fn write_experiment_markdown(
                 {description}\n",
         title = &title,
         openssl_version = openssl_binding::openssl_version(),
-        date = Utc::now().to_rfc3339(),
+        date = Local::now().to_rfc3339(),
         git_ref = git_ref,
         git_msg = git_msg,
         description = description_text
