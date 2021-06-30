@@ -1,23 +1,23 @@
 //! Stats to disply both cumulative and per-client stats
 
 use core::{time, time::Duration};
-use std::{fmt, io};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::time::SystemTime;
+use std::{fmt, io};
 
+use libafl::stats::UserStats;
 use libafl::{
     bolts::current_time,
     stats::{ClientStats, Stats},
 };
-use libafl::stats::UserStats;
 use serde::ser::SerializeSeq;
 use serde::Serialize;
 use serde::Serializer;
-use serde_json::{Serializer as JSONSerializer, to_value, to_writer};
+use serde_json::{to_value, to_writer, Serializer as JSONSerializer};
 
 use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
 
@@ -94,6 +94,12 @@ where
         };
 
         (self.print_fn)(fmt);
+
+        #[cfg(feature = "introspection")]
+        {
+            let stats = client.introspection_stats;
+            stats.to_string()
+        }
 
         ClientStatistics {
             id: sender_id,
@@ -178,24 +184,12 @@ impl ErrorStatistics {
     pub fn count(&mut self, client_stats: &ClientStats) {
         for stat_definition in &STATS {
             match stat_definition {
-                RuntimeStats::FnError(c) => {
-                    self.fn_error += get_number(client_stats, c.name)
-                }
-                RuntimeStats::TermError(c) => {
-                    self.term_error += get_number(client_stats, c.name)
-                }
-                RuntimeStats::OpenSSLError(c) => {
-                    self.ssl_error += get_number(client_stats, c.name)
-                }
-                RuntimeStats::IOError(c) => {
-                    self.io_error += get_number(client_stats, c.name)
-                }
-                RuntimeStats::AgentError(c) => {
-                    self.ag_error += get_number(client_stats, c.name)
-                }
-                RuntimeStats::StreamError(c) => {
-                    self.str_error += get_number(client_stats, c.name)
-                }
+                RuntimeStats::FnError(c) => self.fn_error += get_number(client_stats, c.name),
+                RuntimeStats::TermError(c) => self.term_error += get_number(client_stats, c.name),
+                RuntimeStats::OpenSSLError(c) => self.ssl_error += get_number(client_stats, c.name),
+                RuntimeStats::IOError(c) => self.io_error += get_number(client_stats, c.name),
+                RuntimeStats::AgentError(c) => self.ag_error += get_number(client_stats, c.name),
+                RuntimeStats::StreamError(c) => self.str_error += get_number(client_stats, c.name),
                 RuntimeStats::ExtractionError(c) => {
                     self.ext_error += get_number(client_stats, c.name)
                 }
@@ -239,20 +233,26 @@ impl TraceStatistics {
         };
 
         for stat_definition in &STATS {
-                match stat_definition {
-                    RuntimeStats::TraceLength(mmm) => {
-                        trace_stats.min_trace_length += get_number(user_stats, &(mmm.name.to_owned() + "-min"));
-                        trace_stats.max_trace_length += get_number(user_stats, &(mmm.name.to_owned() + "-max"));
-                        trace_stats.mean_trace_length += get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
-                    }
-                    RuntimeStats::TermSize(mmm) => {
-                        trace_stats.min_term_size += get_number(user_stats, &(mmm.name.to_owned() + "-min"));
-                        trace_stats.max_term_size += get_number(user_stats, &(mmm.name.to_owned() + "-max"));
-                        trace_stats.mean_term_size += get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
-                    }
-                    _ => {}
+            match stat_definition {
+                RuntimeStats::TraceLength(mmm) => {
+                    trace_stats.min_trace_length +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-min"));
+                    trace_stats.max_trace_length +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-max"));
+                    trace_stats.mean_trace_length +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
                 }
+                RuntimeStats::TermSize(mmm) => {
+                    trace_stats.min_term_size +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-min"));
+                    trace_stats.max_term_size +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-max"));
+                    trace_stats.mean_term_size +=
+                        get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
+                }
+                _ => {}
             }
+        }
 
         trace_stats
     }
