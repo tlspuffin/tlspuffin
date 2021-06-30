@@ -110,7 +110,7 @@ def plot_client_stats(start_date, client_stats):
 
     times = [t.total_seconds() / 60 for t in times]
 
-    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10)) = plt.subplots(5, 2, sharex="all")
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12)) = plt.subplots(6, 2, sharex="all")
 
     # Corpi
     plot_with_other(ax1, times, data, "objective_size")
@@ -125,9 +125,13 @@ def plot_client_stats(start_date, client_stats):
     plot_with_other(ax6, times, data, "exec_per_sec", smooth=3000)
     # Traces and Terms
     plot_with_other(ax7, times, data, "trace_max_trace_length")
-    plot_with_other(ax8, times, data, "trace_mean_trace_length", smooth=50)
-    plot_with_other(ax9, times, data, "trace_max_term_size")
+    plot_with_other(ax8, times, data, "trace_max_term_size")
+
+    plot_with_other(ax9, times, data, "trace_mean_trace_length", smooth=50)
     plot_with_other(ax10, times, data, "trace_mean_term_size", smooth=50)
+
+    plot_with_other(ax11, times, data, "trace_min_trace_length", smooth=50)
+    plot_with_other(ax12, times, data, "trace_min_term_size", smooth=50)
 
     return fig
 
