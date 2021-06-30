@@ -48,7 +48,7 @@ def load_json_slurpy_ssh(host, base_path, experiment, user="mammann"):
 
 def load_json_slurpy(json_path):
     with open(json_path) as stats:
-        return list(JsonSlicer(stats, (), yajl_allow_multiple_values=True))
+        return list(JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True))
 
 
 def get_start_date(all_stats):
@@ -75,7 +75,7 @@ def group_by_id(all_stats):
     return map(lambda t: t[1], groupby(sorted(all_stats, key=sortkeyfn), key=sortkeyfn))
 
 
-def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=None):
+def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False):
     if key not in data[0] or key_other not in data[0]:
         ax.set_ylabel("Data not available")
         return
@@ -86,8 +86,8 @@ def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=None):
     inner_ax = ax.twinx()
     y = [row[key] for row in data]
 
-    if smooth and smooth < len(y):
-        kernel_size = smooth
+    if smooth:
+        kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
     inner_ax.plot(times[:len(y)], y, label=key, color='red')
@@ -122,16 +122,16 @@ def plot_client_stats(start_date, client_stats):
     # Coverage
     plot_with_other(ax5, times, data, "coverage_discovered")
     # Performance
-    plot_with_other(ax6, times, data, "exec_per_sec", smooth=3000)
+    plot_with_other(ax6, times, data, "exec_per_sec", smooth=True)
     # Traces and Terms
     plot_with_other(ax7, times, data, "trace_max_trace_length")
     plot_with_other(ax8, times, data, "trace_max_term_size")
 
-    plot_with_other(ax9, times, data, "trace_mean_trace_length", smooth=50)
-    plot_with_other(ax10, times, data, "trace_mean_term_size", smooth=50)
+    plot_with_other(ax9, times, data, "trace_mean_trace_length", smooth=True)
+    plot_with_other(ax10, times, data, "trace_mean_term_size", smooth=True)
 
-    plot_with_other(ax11, times, data, "trace_min_trace_length", smooth=50)
-    plot_with_other(ax12, times, data, "trace_min_term_size", smooth=50)
+    plot_with_other(ax11, times, data, "trace_min_trace_length")
+    plot_with_other(ax12, times, data, "trace_min_term_size")
 
     return fig
 
