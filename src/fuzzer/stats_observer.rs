@@ -122,7 +122,7 @@ impl MinMaxMean {
     const fn new(name: &'static str) -> MinMaxMean {
         Self {
             name,
-            min: AtomicUsize::new(0),
+            min: AtomicUsize::new(usize::MAX),
             max: AtomicUsize::new(0),
             mean: AtomicUsize::new(0),
         }
