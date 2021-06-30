@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name='tlspuffin-analyzer',
     version='0.1',
-    packages=['analyzer'],
+    packages=['tlspuffin_analyzer'],
     url='',
     license='',
     author='max',
@@ -14,5 +14,6 @@ setup(
         'jsonslicer',
         'matplotlib',
         'numpy',
+        'paramiko'
     ],
 )
