@@ -3,6 +3,7 @@
 /crashes
 
 experiments/
+experiments*/
 tlspuffin-log.json
 
 venv
