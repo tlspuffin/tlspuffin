@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{fmt, io};
 
-use libafl::stats::UserStats;
+use libafl::stats::{PerfFeature, UserStats};
 use libafl::{
     bolts::current_time,
     stats::{ClientStats, Stats},
@@ -61,6 +61,43 @@ where
 {
     fn client(&mut self, event_msg: &String, sender_id: u32) {
         let client = self.client_stats_mut_for(sender_id);
+
+        #[cfg(feature = "introspection")]
+            let introspect_feature = {
+            let intro_stats = &client.introspection_stats;
+            let elapsed_cycles = intro_stats.elapsed_cycles();
+            let elapsed = elapsed_cycles as f32;
+
+            let mut introspect_features = IntrospectFeatures::new();
+
+            for (_, features) in intro_stats.used_stages() {
+                for (feature_index, feature) in features.iter().enumerate() {
+                    // Calculate this current stage's percentage
+                    let feature_percent = *feature as f32 / elapsed;
+
+                    // Ignore this feature if it isn't used
+                    if feature_percent == 0.0 {
+                        continue;
+                    }
+
+                    // Get the actual feature from the feature index for printing its name
+                    let feature: PerfFeature = feature_index.into();
+
+                    // Write the percentage for this feature
+                    introspect_features.record(&feature, feature_percent);
+                }
+
+                // todo measure self.feedbacks()
+            }
+
+            IntrospectStatistics {
+                scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
+                manager: intro_stats.manager_cycles() as f32 / elapsed,
+                elapsed_cycles,
+                introspect_features,
+            }
+        };
+
         let cur_time = current_time();
         let exec_sec = client.execs_per_sec(cur_time);
         let total_execs = client.executions;
@@ -95,17 +132,13 @@ where
 
         (self.print_fn)(fmt);
 
-        #[cfg(feature = "introspection")]
-        {
-            let stats = client.introspection_stats;
-            stats.to_string()
-        }
-
         ClientStatistics {
             id: sender_id,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
+            #[cfg(feature = "introspection")]
+            intro: introspect_feature,
             coverage,
             corpus_size,
             objective_size,
@@ -139,12 +172,91 @@ struct Coverage {
 }
 
 #[derive(Serialize)]
+struct IntrospectStatistics {
+    scheduler: f32,
+    manager: f32,
+    elapsed_cycles: u64,
+    introspect_features: IntrospectFeatures,
+}
+
+#[derive(Serialize)]
+struct IntrospectFeatures {
+    get_input_from_corpus: f32,
+    mutate: f32,
+    mutate_post_exec: f32,
+    target_execution: f32,
+    pre_exec: f32,
+    post_exec: f32,
+    pre_exec_observers: f32,
+    post_exec_observers: f32,
+    get_feedback_interesting_all: f32,
+    get_objectives_interesting_all: f32,
+}
+
+impl IntrospectFeatures {
+    pub fn new() -> Self {
+        Self {
+            get_input_from_corpus: 0.0,
+            mutate: 0.0,
+            mutate_post_exec: 0.0,
+            target_execution: 0.0,
+            pre_exec: 0.0,
+            post_exec: 0.0,
+            pre_exec_observers: 0.0,
+            post_exec_observers: 0.0,
+            get_feedback_interesting_all: 0.0,
+            get_objectives_interesting_all: 0.0,
+        }
+    }
+
+    fn make_mean(value: &mut f32, new_value: f32) {
+        if *value == 0.0 {
+            *value = new_value
+        } else {
+            *value = (*value + new_value) / 2 as f32
+        }
+    }
+
+    pub fn record(&mut self, feature: &PerfFeature, relative_cycles: f32) {
+        match feature {
+            PerfFeature::GetInputFromCorpus => {
+                Self::make_mean(&mut self.get_input_from_corpus, relative_cycles)
+            }
+            PerfFeature::Mutate => Self::make_mean(&mut self.mutate, relative_cycles),
+            PerfFeature::MutatePostExec => {
+                Self::make_mean(&mut self.mutate_post_exec, relative_cycles)
+            }
+            PerfFeature::TargetExecution => {
+                Self::make_mean(&mut self.target_execution, relative_cycles)
+            }
+            PerfFeature::PreExec => Self::make_mean(&mut self.pre_exec, relative_cycles),
+            PerfFeature::PostExec => Self::make_mean(&mut self.post_exec, relative_cycles),
+            PerfFeature::PreExecObservers => {
+                Self::make_mean(&mut self.pre_exec_observers, relative_cycles)
+            }
+            PerfFeature::PostExecObservers => {
+                Self::make_mean(&mut self.post_exec_observers, relative_cycles)
+            }
+            PerfFeature::GetFeedbackInterestingAll => {
+                Self::make_mean(&mut self.get_feedback_interesting_all, relative_cycles)
+            }
+            PerfFeature::GetObjectivesInterestingAll => {
+                Self::make_mean(&mut self.get_objectives_interesting_all, relative_cycles)
+            }
+            PerfFeature::Count => {}
+        }
+    }
+}
+
+#[derive(Serialize)]
 struct ClientStatistics {
     /// Some log file unique id
     id: u32,
     time: SystemTime,
     errors: ErrorStatistics,
     trace: TraceStatistics,
+    #[cfg(feature = "introspection")]
+    intro: IntrospectStatistics,
     coverage: Option<Coverage>,
 
     corpus_size: u64,
