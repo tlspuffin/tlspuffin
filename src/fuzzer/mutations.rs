@@ -1,9 +1,10 @@
+use libafl::bolts::rands::Rand;
+use libafl::corpus::Corpus;
+use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
 use libafl::{
-    bolts::{
-        tuples::{tuple_list, tuple_list_type},
-    },
-    mutators::{MutationResult},
-    Error
+    bolts::tuples::{tuple_list, tuple_list_type},
+    mutators::MutationResult,
+    Error,
 };
 
 use util::*;
@@ -14,11 +15,11 @@ use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
-use libafl::state::{HasCorpus, HasMetadata, HasMaxSize, HasRand};
-use libafl::corpus::Corpus;
-use libafl::bolts::rands::Rand;
 
-pub fn trace_mutations<R, C, S>() -> tuple_list_type!(
+pub fn trace_mutations<R, C, S>(
+    min_trace_length: usize,
+    max_trace_length: usize,
+) -> tuple_list_type!(
        RepeatMutator<R, S>,
        SkipMutator<R, S>,
        ReplaceReuseMutator<R, S>,
@@ -32,8 +33,8 @@ where
     R: Rand,
 {
     tuple_list!(
-        RepeatMutator::new(),
-        SkipMutator::new(),
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
         ReplaceReuseMutator::new(),
         ReplaceMatchMutator::new(),
         RemoveAndLiftMutator::new(),
@@ -76,7 +77,7 @@ mutator! {
         }
 
         Ok(MutationResult::Skipped)
-    }
+    },
 }
 
 mutator! {
@@ -130,7 +131,7 @@ mutator! {
         } else {
             Ok(MutationResult::Skipped)
         }
-    }
+    },
 }
 
 mutator! {
@@ -175,7 +176,7 @@ mutator! {
         } else {
             Ok(MutationResult::Skipped)
         }
-    }
+    },
 }
 
 mutator! {
@@ -201,7 +202,7 @@ mutator! {
         }
 
         Ok(MutationResult::Skipped)
-    }
+    },
 }
 
 mutator! {
@@ -216,13 +217,20 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let steps = &mut trace.steps;
         let length = steps.len();
+
+        if length <= self.min_trace_length {
+            // reached min step length
+            return Ok(MutationResult::Skipped);
+        }
+
         if length == 0 {
             return Ok(MutationResult::Skipped);
         }
         let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
-    }
+    },
+    min_trace_length: usize
 }
 
 mutator! {
@@ -237,14 +245,22 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let steps = &trace.steps;
         let length = steps.len();
+
+        if length >= self.max_trace_length {
+            // reached max step length
+            return Ok(MutationResult::Skipped);
+        }
+
         if length == 0 {
             return Ok(MutationResult::Skipped);
         }
+
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
         (&mut trace.steps).insert(insert_index, step);
         Ok(MutationResult::Mutated)
-    }
+    },
+    max_trace_length: usize
 }
 
 pub mod util {
@@ -358,7 +374,6 @@ pub mod util {
     }
 
     pub fn find_term_mut<'a>(trace: &'a mut Trace, trace_path: &TracePath) -> Option<&'a mut Term> {
-
         fn find_term_by_term_path_mut<'a>(
             term: &'a mut Term,
             term_path: &mut TermPath,

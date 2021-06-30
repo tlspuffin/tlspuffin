@@ -1,7 +1,7 @@
 
 #[macro_export]
 macro_rules! mutator {
-    ($(#[$attr:meta])* $name:ident, $input_type:ident, $impl:item) => {
+    ($(#[$attr:meta])* $name:ident, $input_type:ident, $impl:item, $($arg_name: ident:$arg_type: ty)*) => {
         #[derive(Default)]
         $(#[$attr])*
         pub struct $name<R, S>
@@ -9,6 +9,7 @@ macro_rules! mutator {
             S: libafl::state::HasRand<R>,
             R: libafl::bolts::rands::Rand,
         {
+            $($arg_name: $arg_type,),*
             phantom: std::marker::PhantomData<(R, S)>,
         }
 
@@ -18,8 +19,9 @@ macro_rules! mutator {
             R: libafl::bolts::rands::Rand,
         {
             #[must_use]
-            pub fn new() -> Self {
+            pub fn new($($arg_name: $arg_type,),*) -> Self {
                 Self {
+                    $($arg_name,),*
                     phantom: std::marker::PhantomData,
                 }
             }

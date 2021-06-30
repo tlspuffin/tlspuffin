@@ -51,6 +51,8 @@ use super::{EDGES_MAP, MAX_EDGES_NUM};
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
 pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
 pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
+pub static MAX_TRACE_LENGTH: usize = 15;
+pub static MIN_TRACE_LENGTH: usize = 5;
 
 /// Starts the fuzzing loop
 pub fn start(
@@ -115,7 +117,7 @@ pub fn start(
                 )
             });
 
-            let mutations = trace_mutations();
+            let mutations = trace_mutations(MIN_TRACE_LENGTH, MAX_TRACE_LENGTH);
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
             let mut stages = tuple_list!(PuffinMutationalStage::new(
                 mutator,
