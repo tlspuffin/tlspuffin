@@ -10,3 +10,5 @@ venv
 stats.json
 
 experiments.ipynb
+
+.gdb_history
