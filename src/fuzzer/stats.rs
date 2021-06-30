@@ -68,6 +68,7 @@ where
             let elapsed_cycles = intro_stats.elapsed_cycles();
             let elapsed = elapsed_cycles as f32;
 
+            // calculate mean across all used stages in `introspect_features`
             let mut introspect_features = IntrospectFeatures::new();
 
             for (_, features) in intro_stats.used_stages() {
