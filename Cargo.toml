@@ -46,9 +46,6 @@ tui = "0.15"
 nix = "0.21"
 termion = "1.5"
 
-# Stats
-flate2 = "1.0"
-
 # Utils
 clap = "2"
 hexdump = "*"
