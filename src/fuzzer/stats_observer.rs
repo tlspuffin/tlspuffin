@@ -138,7 +138,7 @@ impl MinMaxMean {
         self.mean
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |mean| {
                 if mean == 0 {
-                    Some(mean)
+                    Some(value)
                 } else {
                     Some((mean + value) / 2)
                 }
