@@ -1,13 +1,15 @@
 from binascii import hexlify
 from datetime import datetime
-from io import StringIO, BytesIO
+from io import BytesIO
 from itertools import groupby
 from operator import itemgetter
+from typing import Callable, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import paramiko as paramiko
 from jsonslicer import JsonSlicer
+from tlspuffin_analyzer.stats_type import ClientStatistics
 
 
 def agent_auth(transport, username):
@@ -75,63 +77,77 @@ def group_by_id(all_stats):
     return map(lambda t: t[1], groupby(sorted(all_stats, key=sortkeyfn), key=sortkeyfn))
 
 
-def plot_with_other(ax, times, data, key, key_other='total_execs', smooth=False):
-    if key not in data[0] or key_other not in data[0]:
-        ax.set_ylabel("Data not available")
-        return
+def call_selector_safe(stat: ClientStatistics, selector: Callable[[ClientStatistics], Union[int, float]], ):
+    try:
+        return selector(stat)
+    except AttributeError:
+        return 0
 
-    ax.plot(times, [row[key_other] for row in data], label=key_other)
-    ax.set_ylabel(key_other)
+
+def plot_with_other(ax, times, data: list[ClientStatistics],
+                    selector_a: Callable[[ClientStatistics], Union[int, float]],
+                    name_a: str,
+                    selector_b: Callable[[ClientStatistics], Union[int, float]] = lambda stats: stats.total_execs,
+                    name_b: str = 'Total Execs',
+                    smooth=False):
+
+    ax.plot(times, [call_selector_safe(row, selector_b) for row in data], label=name_b)
+    ax.set_ylabel(name_b)
 
     inner_ax = ax.twinx()
-    y = [row[key] for row in data]
+    y = [call_selector_safe(row, selector_a) for row in data]
 
     if smooth:
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
-    inner_ax.plot(times[:len(y)], y, label=key, color='red')
-    inner_ax.set_ylabel(key)
+    inner_ax.plot(times[:len(y)], y, label=name_a, color='red')
+    inner_ax.set_ylabel(name_a)
 
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def plot_client_stats(start_date, client_stats):
+def plot_client_stats(start_date, client_stats: list[dict]):
     times = []
     data = []
 
-    for client_stats in client_stats:
-        time = datetime.fromtimestamp(client_stats['time']['secs_since_epoch'])
+    for client_stat in client_stats:
+        mapped = ClientStatistics.from_dict(client_stat)
+        time = datetime.fromtimestamp(mapped.time.secs_since_epoch)
         times.append(time - start_date)
-
-        # Sats data
-        flat_stats = flatten(client_stats)
-        data.append(flat_stats)
+        data.append(mapped)
 
     times = [t.total_seconds() / 60 for t in times]
 
-    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12)) = plt.subplots(6, 2, sharex="all")
+    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12), (ax13, ax14),
+          (ax15, ax16)) = plt.subplots(8, 2, sharex="all")
 
     # Corpi
-    plot_with_other(ax1, times, data, "objective_size")
-    plot_with_other(ax2, times, data, "corpus_size")
+    plot_with_other(ax1, times, data, lambda stats: stats.objective_size, "Objectives")
+    plot_with_other(ax2, times, data, lambda stats: stats.corpus_size, "Corpus Size")
     # Errors
-    plot_with_other(ax3, times, data, "errors_ssl_error")
+    plot_with_other(ax3, times, data, lambda stats: stats.errors.ssl_error, "SSL Errors")
     # Corpus vs Errors
-    plot_with_other(ax4, times, data, "objective_size", key_other="errors_ssl_error")
+    plot_with_other(ax4, times, data, lambda stats: stats.objective_size, "Objectives",
+                    lambda stats: stats.errors.ssl_error, "SSL Errors")
     # Coverage
-    plot_with_other(ax5, times, data, "coverage_discovered")
+    plot_with_other(ax5, times, data, lambda stats: stats.coverage.discovered, "Coverage")
     # Performance
-    plot_with_other(ax6, times, data, "exec_per_sec", smooth=True)
+    plot_with_other(ax6, times, data, lambda stats: stats.exec_per_sec, "Execs/s", smooth=True)
     # Traces and Terms
-    plot_with_other(ax7, times, data, "trace_max_trace_length")
-    plot_with_other(ax8, times, data, "trace_max_term_size")
+    plot_with_other(ax7, times, data, lambda stats: stats.trace.max_trace_length, "Max Trace Length")
+    plot_with_other(ax8, times, data, lambda stats: stats.trace.max_term_size, "Max Term Size")
 
-    plot_with_other(ax9, times, data, "trace_mean_trace_length", smooth=True)
-    plot_with_other(ax10, times, data, "trace_mean_term_size", smooth=True)
+    plot_with_other(ax9, times, data, lambda stats: stats.trace.mean_trace_length, "Mean Trace Length", smooth=True)
+    plot_with_other(ax10, times, data, lambda stats: stats.trace.mean_term_size, "Mean Term Size", smooth=True)
 
-    plot_with_other(ax11, times, data, "trace_min_trace_length")
-    plot_with_other(ax12, times, data, "trace_min_term_size")
+    plot_with_other(ax11, times, data, lambda stats: stats.trace.min_trace_length, "Min Trace Length")
+    plot_with_other(ax12, times, data, lambda stats: stats.trace.min_term_size, "Min Tern Size")
+
+    plot_with_other(ax13, times, data, lambda stats: stats.intro.scheduler, "Scheduler Perf Share")
+    plot_with_other(ax14, times, data, lambda stats: stats.intro.elapsed_cycles, "Elapsed Cycles")
+
+    plot_with_other(ax15, times, data, lambda stats: stats.intro.introspect_features.mutate, "Mutation Perf Share")
+    plot_with_other(ax16, times, data, lambda stats: stats.intro.introspect_features.target_execution, "PUT Perf Share")
 
     return fig
-
