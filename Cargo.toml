@@ -6,7 +6,7 @@ edition = "2018"
 resolver = "2"
 
 [features]
-default = ["sancov_libafl", "ossl110", "minimizer", "introspection"]
+default = ["sancov_libafl", "ossl110", "introspection"]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
@@ -15,8 +15,8 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts", "libafl_targets/sanc
 ossl110 =[]
 # Uses only OpenSSL 1.0.1 APIs
 ossl101 = []
-# If enabled, fuzzer uses a minimizer
-minimizer = []
+# Uses a random scheduler instead of minimizer
+no-minimizer = []
 # Enables ASAN
 asan = ["openssl/asan"]
 introspection = ["libafl/introspection"]

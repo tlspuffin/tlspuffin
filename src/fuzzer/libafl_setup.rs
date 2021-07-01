@@ -125,10 +125,10 @@ pub fn start(
             ));
 
             // A minimization+queue policy to get testcasess from the corpus
-            #[cfg(feature = "minimizer")]
+            #[cfg(not(feature = "no-minimizer"))]
             let scheduler =
                 IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-            #[cfg(not(feature = "minimizer"))]
+            #[cfg(feature = "no-minimizer")]
             let scheduler = RandCorpusScheduler::new();
 
             let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);

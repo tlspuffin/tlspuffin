@@ -79,7 +79,7 @@ impl<C, E, EM, I, M, R, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<C, E,
         let ret = self.perform_mutational(fuzzer, executor, state, manager, corpus_idx);
 
         #[cfg(feature = "introspection")]
-            state.introspection_stats_mut().finish_stage();
+        state.introspection_stats_mut().finish_stage();
 
         ret
     }
