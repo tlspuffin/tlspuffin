@@ -77,11 +77,12 @@ def group_by_id(all_stats):
     return map(lambda t: t[1], groupby(sorted(all_stats, key=sortkeyfn), key=sortkeyfn))
 
 
-def call_selector_safe(stat: ClientStatistics, selector: Callable[[ClientStatistics], Union[int, float]], ):
+def is_available(stat: ClientStatistics, selector: Callable[[ClientStatistics], Union[int, float]]):
     try:
-        return selector(stat)
+        selector(stat)
+        return True
     except AttributeError:
-        return 0
+        return False
 
 
 def plot_with_other(ax, times, data: list[ClientStatistics],
@@ -90,12 +91,15 @@ def plot_with_other(ax, times, data: list[ClientStatistics],
                     selector_b: Callable[[ClientStatistics], Union[int, float]] = lambda stats: stats.total_execs,
                     name_b: str = 'Total Execs',
                     smooth=False):
+    if not is_available(data[0], selector_a) or not is_available(data[0], selector_b):
+        ax.set_ylabel("Data not available")
+        return
 
-    ax.plot(times, [call_selector_safe(row, selector_b) for row in data], label=name_b)
+    ax.plot(times, [selector_b(row) for row in data], label=name_b)
     ax.set_ylabel(name_b)
 
     inner_ax = ax.twinx()
-    y = [call_selector_safe(row, selector_a) for row in data]
+    y = [selector_a(row) for row in data]
 
     if smooth:
         kernel_size = int(len(y) / 50)
