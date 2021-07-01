@@ -63,10 +63,14 @@ where
         let client = self.client_stats_mut_for(sender_id);
 
         #[cfg(feature = "introspection")]
-            let introspect_feature = {
+        let introspect_feature = {
             let intro_stats = &client.introspection_stats;
             let elapsed_cycles = intro_stats.elapsed_cycles();
-            let elapsed = elapsed_cycles as f32;
+            let elapsed = if elapsed_cycles == 0 {
+                1.0
+            } else {
+                elapsed_cycles as f32
+            };
 
             // calculate mean across all used stages in `introspect_features`
             let mut introspect_features = IntrospectFeatures::new();
@@ -120,7 +124,7 @@ where
             fmt += &format!(", {}: {}", "edges", edges);
 
             if let UserStats::Ratio(a, b) = edges {
-                Some(Coverage {
+                Some(CoverageStatistics {
                     discovered: *a,
                     max: *b,
                 })
@@ -167,7 +171,24 @@ where
 }
 
 #[derive(Serialize)]
-struct Coverage {
+struct ClientStatistics {
+    /// Some log file unique id
+    id: u32,
+    time: SystemTime,
+    errors: ErrorStatistics,
+    trace: TraceStatistics,
+    #[cfg(feature = "introspection")]
+    intro: IntrospectStatistics,
+    coverage: Option<CoverageStatistics>,
+
+    corpus_size: u64,
+    objective_size: u64,
+    total_execs: u64,
+    exec_per_sec: u64,
+}
+
+#[derive(Serialize)]
+struct CoverageStatistics {
     discovered: u64,
     max: u64,
 }
@@ -192,6 +213,31 @@ struct IntrospectFeatures {
     post_exec_observers: f32,
     get_feedback_interesting_all: f32,
     get_objectives_interesting_all: f32,
+}
+
+#[derive(Serialize)]
+struct ErrorStatistics {
+    #[serde(skip)]
+    total_execs: u64,
+
+    fn_error: u64,
+    term_error: u64,
+    ssl_error: u64,
+    io_error: u64,
+    ag_error: u64,
+    str_error: u64,
+    ext_error: u64,
+}
+
+#[derive(Serialize)]
+struct TraceStatistics {
+    min_trace_length: u64,
+    max_trace_length: u64,
+    mean_trace_length: u64,
+
+    min_term_size: u64,
+    max_term_size: u64,
+    mean_term_size: u64,
 }
 
 impl IntrospectFeatures {
@@ -249,37 +295,6 @@ impl IntrospectFeatures {
     }
 }
 
-#[derive(Serialize)]
-struct ClientStatistics {
-    /// Some log file unique id
-    id: u32,
-    time: SystemTime,
-    errors: ErrorStatistics,
-    trace: TraceStatistics,
-    #[cfg(feature = "introspection")]
-    intro: IntrospectStatistics,
-    coverage: Option<Coverage>,
-
-    corpus_size: u64,
-    objective_size: u64,
-    total_execs: u64,
-    exec_per_sec: u64,
-}
-
-#[derive(Serialize)]
-struct ErrorStatistics {
-    #[serde(skip)]
-    total_execs: u64,
-
-    fn_error: u64,
-    term_error: u64,
-    ssl_error: u64,
-    io_error: u64,
-    ag_error: u64,
-    str_error: u64,
-    ext_error: u64,
-}
-
 impl ErrorStatistics {
     pub fn new(total_execs: u64) -> Self {
         Self {
@@ -321,17 +336,6 @@ fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
     } else {
         0u64
     }
-}
-
-#[derive(Serialize)]
-struct TraceStatistics {
-    min_trace_length: u64,
-    max_trace_length: u64,
-    mean_trace_length: u64,
-
-    min_term_size: u64,
-    max_term_size: u64,
-    mean_term_size: u64,
 }
 
 impl TraceStatistics {
