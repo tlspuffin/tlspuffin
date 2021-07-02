@@ -92,6 +92,8 @@ pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::generate(2048)?;
     let pkey = PKey::from_rsa(rsa)?;
 
+
+
     let mut x509_name = X509NameBuilder::new()?;
     x509_name.append_entry_by_text("C", "US")?;
     x509_name.append_entry_by_text("ST", "TX")?;
@@ -172,6 +174,11 @@ pub fn create_openssl_server(
     #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
         openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
+    });
+
+    #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
+        ctx_builder.set_tmp_rsa_callback(|_, is_export, keylength| {
+        openssl::rsa::Rsa::generate(keylength)
     });
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
