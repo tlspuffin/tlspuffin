@@ -324,7 +324,7 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            fn_new_cipher_suites,
+            fn_cipher_suites13,
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -745,4 +745,152 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
     };
 
     trace
+}
+
+
+
+pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
+    Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_2,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_2,
+                server: true,
+            },
+        ],
+        steps: vec![
+            OutputAction::new_step(client, 0),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((0, 0)/ProtocolVersion),
+                        ((0, 0)/Random),
+                        ((0, 0)/SessionID),
+                        (fn_append_cipher_suite(
+                            (fn_new_cipher_suites()),
+                            fn_weak_export_cipher_suite
+                        )),
+                        ((0, 0)/Vec<Compression>),
+                        ((0, 0)/Vec<ClientExtension>)
+                    )
+                },
+            ),
+            OutputAction::new_step(server, 1),
+            // Server Hello, Server -> Client -> Change cipher suite to export
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((1, 0)/ProtocolVersion),
+                            ((1, 0)/Random),
+                            ((1, 0)/SessionID),
+                            fn_secure_rsa_cipher_suite,
+/*                            (fn_cipher_suite_from_list(
+                                ((0, 0)/Vec<CipherSuite>)
+                            )),*/
+                            ((1, 0)/Compression),
+                            ((1, 0)/Vec<ServerExtension>)
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_certificate(
+                            ((1, 1)/CertificatePayload)
+                        )
+                    },
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_key_exchange(
+                            ((1, 2)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello_done
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Output(OutputAction { id: 2 }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_key_exchange(
+                            ((2, 0)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // todo encrypted from here
+/*            // Client Handshake Finished, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_opaque_handshake_message(
+                            ((2, 2)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction { id: 3 }),
+            },
+            // Server Change Cipher Spec, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Server Handshake Finished, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_opaque_handshake_message(
+                            ((3, 1)/Vec<u8>)
+                        )
+                    },
+                }),
+            },*/
+        ],
+    }
 }
