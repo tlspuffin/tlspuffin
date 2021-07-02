@@ -22,13 +22,20 @@ pub fn fn_new_random() -> Result<Random, FnError> {
     Ok(Random::from(random_data))
 }
 
-pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
+pub fn fn_cipher_suites13() -> Result<Vec<CipherSuite>, FnError> {
     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
+}
+
+pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
+    Ok(vec![])
 }
 
 // todo implement functions for all supported cipher suites as constants
 //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-pub fn fn_append_cipher_suite(suites: &Vec<CipherSuite>, suite: &CipherSuite) -> Result<Vec<CipherSuite>, FnError> {
+pub fn fn_append_cipher_suite(
+    suites: &Vec<CipherSuite>,
+    suite: &CipherSuite,
+) -> Result<Vec<CipherSuite>, FnError> {
     let mut new: Vec<CipherSuite> = suites.clone();
     new.push(suite.clone());
     Ok(new)
@@ -71,11 +78,11 @@ pub fn fn_verify_data(
 
 pub fn fn_new_cipher_suites12() -> Result<Vec<CipherSuite>, FnError> {
     Ok(vec![
-/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,*/
-/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,*/
+        /*        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+                CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,*/
+        /*        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,*/
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-/*        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,*/
+        /*        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,*/
     ])
 }
 
