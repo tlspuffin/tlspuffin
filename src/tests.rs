@@ -157,6 +157,25 @@ pub mod seeds {
         assert!(client_state.contains("SSL negotiation finished successfully"));
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
+
+    #[test]
+    fn test_seed_freak() {
+        println!("{}", openssl_version());
+
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_freak(client, server);
+
+
+        trace.spawn_agents(&mut ctx).unwrap();
+        trace.execute(&mut ctx).unwrap();
+
+        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", client_state);
+        println!("{}", server_state);
+    }
 }
 
 #[cfg(test)]
