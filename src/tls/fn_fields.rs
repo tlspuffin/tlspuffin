@@ -96,3 +96,18 @@ pub fn fn_sign_transcript(
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
 }
+
+pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
+}
+
+pub fn fn_secure_rsa_cipher_suite() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
+}
+
+
+/*pub fn fn_cipher_suite_from_list(suites: &Vec<CipherSuite>) -> Result<CipherSuite, FnError> {
+    suites.first().cloned().ok_or(FnError::Unknown(
+        "Could not get a cipher suite from list, as it is empty".to_string(),
+    ))
+}*/
