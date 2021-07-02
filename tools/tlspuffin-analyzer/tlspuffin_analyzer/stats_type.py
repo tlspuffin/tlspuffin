@@ -39,9 +39,6 @@ class SystemTime(DataclassFromDict):
 
 @dataclass
 class ErrorStatistics(DataclassFromDict):
-    # Skipped in serialization
-    # total_execs: int = field_from_dict()
-
     fn_error: int = field_from_dict()
     term_error: int = field_from_dict()
     ssl_error: int = field_from_dict()
@@ -53,13 +50,13 @@ class ErrorStatistics(DataclassFromDict):
 
 @dataclass
 class TraceStatistics(DataclassFromDict):
-    min_trace_length: int = field_from_dict()
-    max_trace_length: int = field_from_dict()
-    mean_trace_length: int = field_from_dict()
+    min_trace_length: Optional[int] = field_from_dict()
+    max_trace_length: Optional[int] = field_from_dict()
+    mean_trace_length: Optional[int] = field_from_dict()
 
-    min_term_size: int = field_from_dict()
-    max_term_size: int = field_from_dict()
-    mean_term_size: int = field_from_dict()
+    min_term_size: Optional[int] = field_from_dict()
+    max_term_size: Optional[int] = field_from_dict()
+    mean_term_size: Optional[int] = field_from_dict()
 
 
 @dataclass
@@ -74,8 +71,7 @@ class ClientStatistics(DataclassFromDict):
     total_execs: int = field_from_dict()
     exec_per_sec: int = field_from_dict()
 
-    # May not be available in old stats.json
+    # May not be available in old stats.json, therefore can be None
     intro: Optional[IntrospectStatistics] = field_from_dict(default_factory=lambda: None)
-    # May not be available in old stats.json
     trace: Optional[TraceStatistics] = field_from_dict(default_factory=lambda: None)
 

@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use itertools::Itertools;
 use libafl::bolts::tuples::Named;
@@ -113,8 +113,11 @@ impl Fire for Counter {
 
 pub struct MinMaxMean {
     pub name: &'static str,
+    min_set: AtomicBool,
     min: AtomicUsize,
+    max_set: AtomicBool,
     max: AtomicUsize,
+    mean_set: AtomicBool,
     mean: AtomicUsize,
 }
 
@@ -122,8 +125,11 @@ impl MinMaxMean {
     const fn new(name: &'static str) -> MinMaxMean {
         Self {
             name,
+            min_set: AtomicBool::new(false),
             min: AtomicUsize::new(usize::MAX),
+            max_set: AtomicBool::new(false),
             max: AtomicUsize::new(0),
+            mean_set: AtomicBool::new(false),
             mean: AtomicUsize::new(0),
         }
     }
@@ -137,7 +143,7 @@ impl MinMaxMean {
     fn mean(&self, value: usize) {
         self.mean
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |mean| {
-                if mean == 0 {
+                if !self.mean_set.fetch_or(true, Ordering::SeqCst) {
                     Some(value)
                 } else {
                     Some((mean + value) / 2)
@@ -147,10 +153,12 @@ impl MinMaxMean {
     }
 
     fn max(&self, value: usize) {
+        self.max_set.fetch_or(true, Ordering::SeqCst);
         self.max.fetch_max(value, Ordering::SeqCst);
     }
 
     fn min(&self, value: usize) {
+        self.min_set.fetch_or(true, Ordering::SeqCst);
         self.min.fetch_min(value, Ordering::SeqCst);
     }
 }
@@ -160,18 +168,25 @@ impl Fire for MinMaxMean {
         &self,
         consume: &mut dyn FnMut(String, UserStats) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        consume(
-            self.name.to_string() + "-min",
-            UserStats::Number(self.min.load(Ordering::SeqCst) as u64),
-        )?;
-        consume(
-            self.name.to_string() + "-max",
-            UserStats::Number(self.max.load(Ordering::SeqCst) as u64),
-        )?;
-        consume(
-            self.name.to_string() + "-mean",
-            UserStats::Number(self.mean.load(Ordering::SeqCst) as u64),
-        )
+        if self.min_set.load(Ordering::SeqCst) {
+            consume(
+                self.name.to_string() + "-min",
+                UserStats::Number(self.min.load(Ordering::SeqCst) as u64),
+            )?;
+        }
+        if self.max_set.load(Ordering::SeqCst) {
+            consume(
+                self.name.to_string() + "-max",
+                UserStats::Number(self.max.load(Ordering::SeqCst) as u64),
+            )?;
+        }
+        if self.mean_set.load(Ordering::SeqCst) {
+            consume(
+                self.name.to_string() + "-mean",
+                UserStats::Number(self.mean.load(Ordering::SeqCst) as u64),
+            )?;
+        }
+        Ok(())
     }
 }
 

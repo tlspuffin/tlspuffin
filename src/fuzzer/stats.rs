@@ -231,13 +231,13 @@ struct ErrorStatistics {
 
 #[derive(Serialize)]
 struct TraceStatistics {
-    min_trace_length: u64,
-    max_trace_length: u64,
-    mean_trace_length: u64,
+    min_trace_length: Option<u64>,
+    max_trace_length: Option<u64>,
+    mean_trace_length: Option<u64>,
 
-    min_term_size: u64,
-    max_term_size: u64,
-    mean_term_size: u64,
+    min_term_size: Option<u64>,
+    max_term_size: Option<u64>,
+    mean_term_size: Option<u64>,
 }
 
 impl IntrospectFeatures {
@@ -341,31 +341,38 @@ fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
 impl TraceStatistics {
     pub fn new(user_stats: &ClientStats) -> TraceStatistics {
         let mut trace_stats = Self {
-            min_trace_length: 0,
-            max_trace_length: 0,
-            mean_trace_length: 0,
-            min_term_size: 0,
-            max_term_size: 0,
-            mean_term_size: 0,
+            min_trace_length: None,
+            max_trace_length: None,
+            mean_trace_length: None,
+            min_term_size: None,
+            max_term_size: None,
+            mean_term_size: None,
         };
 
+        // Sum for all TraceLength and TermSize
         for stat_definition in &STATS {
             match stat_definition {
                 RuntimeStats::TraceLength(mmm) => {
-                    trace_stats.min_trace_length +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-min"));
-                    trace_stats.max_trace_length +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-max"));
-                    trace_stats.mean_trace_length +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
+                    trace_stats
+                        .min_trace_length
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats
+                        .max_trace_length
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats
+                        .mean_trace_length
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 RuntimeStats::TermSize(mmm) => {
-                    trace_stats.min_term_size +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-min"));
-                    trace_stats.max_term_size +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-max"));
-                    trace_stats.mean_term_size +=
-                        get_number(user_stats, &(mmm.name.to_owned() + "-mean"));
+                    trace_stats
+                        .min_term_size
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats
+                        .max_term_size
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats
+                        .mean_term_size
+                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}
             }
