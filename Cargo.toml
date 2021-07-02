@@ -14,7 +14,7 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts", "libafl_targets/sanc
 # Uses OpenSSL 1.1.0 APIs
 ossl110 =[]
 # Uses only OpenSSL 1.0.1 APIs
-ossl101 = []
+ossl101 = ["openssl/weak-crypto"] # We want to allow weak-crypto for FREAK
 # Uses a random scheduler instead of minimizer
 no-minimizer = []
 # Enables ASAN
