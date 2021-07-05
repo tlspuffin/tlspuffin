@@ -82,6 +82,10 @@ impl DynamicFunctionShape {
     pub fn arity(&self) -> u16 {
         self.argument_types.len() as u16
     }
+
+    pub fn is_constant(&self) -> bool {
+        self.arity() == 0
+    }
 }
 
 impl fmt::Display for DynamicFunctionShape {

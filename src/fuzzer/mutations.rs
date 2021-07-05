@@ -122,6 +122,7 @@ mutator! {
                     ) {
                         let grand_subterm_cloned = grand_subterm.clone();
                         subterms.push(grand_subterm_cloned);
+                        // move last item to the position of the item we removed
                         subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }
@@ -157,7 +158,7 @@ mutator! {
                     if let Some((shape, dynamic_fn)) = choose_iter_filtered(
                         &SIGNATURE.functions,
                         |(shape, _)| {
-                            variable.typ == shape.return_type && shape.arity() == 0
+                            variable.typ == shape.return_type && shape.is_constant()
                         },
                         rand,
                     ) {
