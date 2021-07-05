@@ -22,8 +22,8 @@ pub mod seeds {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
 
                 if let Signaled(_, signal, _) = status {
-                    if signal != Signal::SIGSEGV {
-                        panic!("Trace did not crash with SIGSEGV!")
+                    if signal != Signal::SIGSEGV && signal != Signal::SIGABRT {
+                        panic!("Trace did not crash with SIGSEGV/SIGABRT!")
                     }
                 } else if let Exited(_, code) = status {
                     if code == 0 {
@@ -160,21 +160,22 @@ pub mod seeds {
 
     #[test]
     fn test_seed_freak() {
-        println!("{}", openssl_version());
+        if !openssl_version().contains("1.0.1j") {
+            return;
+        }
+        expect_crash(|| {
+            make_deterministic();
+            println!("{}", openssl_version());
 
-        let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_freak(client, server);
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_freak(client, server);
 
 
-        trace.spawn_agents(&mut ctx).unwrap();
-        trace.execute(&mut ctx).unwrap();
-
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        println!("{}", client_state);
-        println!("{}", server_state);
+            trace.spawn_agents(&mut ctx).unwrap();
+            trace.execute(&mut ctx).unwrap();
+        });
     }
 }
 
