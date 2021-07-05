@@ -13,6 +13,7 @@ use crate::mutator;
 use crate::term::dynamic_function::DynamicFunction;
 use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
+use crate::term::atoms::{Function};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
@@ -138,6 +139,7 @@ mutator! {
     /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
     /// An example would be to replace a constant with another constant or the binary function
     /// fn_add with fn_sub.
+    /// It can also replace any variable with a constant.
     ReplaceMatchMutator,
     Trace,
     fn mutate(
@@ -148,18 +150,28 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        if let Some(mut to_mutate) =
-            choose_term_filtered_mut(trace, rand, |term| matches!(term, Term::Application(_, _)))
-        {
+        if let Some(mut to_mutate) = choose_term_mut(trace, rand) {
             match &mut to_mutate {
-                Term::Variable(_) => {
-                    // never reached as `filter` returns false for variables
-                    Ok(MutationResult::Skipped)
+                Term::Variable(variable) => {
+                    // Replace variable with constant
+                    if let Some((shape, dynamic_fn)) = choose_iter_filtered(
+                        &SIGNATURE.functions,
+                        |(shape, _)| {
+                            variable.typ == shape.return_type && shape.arity() == 0
+                        },
+                        rand,
+                    ) {
+                        to_mutate.mutate(Term::Application(
+                            Function::new(shape.clone(), dynamic_fn.clone()), vec![]));
+                        Ok(MutationResult::Mutated)
+                    } else {
+                        Ok(MutationResult::Skipped)
+                    }
                 }
                 Term::Application(func_mut, _) => {
                     if let Some((shape, dynamic_fn)) = choose_iter_filtered(
                         &SIGNATURE.functions,
-                        |(shape, dynamic_fn)| {
+                        |(shape, _)| {
                             func_mut.shape() != shape // do not mutate if we change the same function
                                 && func_mut.shape().return_type == shape.return_type
                                 && func_mut.shape().argument_types == shape.argument_types
