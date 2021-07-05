@@ -1,5 +1,5 @@
 /target
-/target-nightly
+/target-*
 /crashes
 
 experiments/
@@ -12,3 +12,5 @@ stats.json
 experiments.ipynb
 
 .gdb_history
+
+plot*.svg

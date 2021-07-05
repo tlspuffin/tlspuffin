@@ -48,6 +48,17 @@ cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.trace svg ./plot
 Note: This requires that the `dot` binary is in on your path.
 Note: The utility [tools/plot-corpus.sh](tools/plot-crashes.sh) plots a whole directory
 
+## Execute a trace with ASAN
+
+To analyze crashes you can also execute a trace which crashes the testing harness using ASAN:
+
+```bash
+cargo rustc --bin tlspuffin --target-dir "target-asan" --features asan
+export ASAN_OPTIONS=detect_leaks=0
+target-asan/x86_64-unknown-linux-gnu/debug/tlspuffin execute test.trace
+```
+
+
 ## Analyzing Crashes
 
 Creates log files for each crash and parses ASAN crashes to group crashes together.
