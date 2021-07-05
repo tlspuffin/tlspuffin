@@ -240,6 +240,7 @@ define_signature!(
     fn_sign_transcript,
     fn_verify_data,
     fn_weak_export_cipher_suite,
+    fn_weak_export_cipher_suites_remove_me,
     // utils
     fn_append_transcript,
     fn_arbitrary_to_key,

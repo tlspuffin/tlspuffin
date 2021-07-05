@@ -795,7 +795,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 },
             ),
             OutputAction::new_step(server, 1),
-            // Server Hello, Server -> Client -> Change cipher suite to export
+            // Server Hello, Server -> Client
             InputAction::new_step(
                 client,
                 term! {
@@ -864,42 +864,6 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                     },
                 }),
             },
-            // todo encrypted from here
-/*            // Client Handshake Finished, Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_opaque_handshake_message(
-                            ((2, 2)/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 3 }),
-            },
-            // Server Change Cipher Spec, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_change_cipher_spec
-                    },
-                }),
-            },
-            // Server Handshake Finished, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_opaque_handshake_message(
-                            ((3, 1)/Vec<u8>)
-                        )
-                    },
-                }),
-            },*/
         ],
     }
 }

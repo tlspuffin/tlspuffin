@@ -105,6 +105,11 @@ pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
 }
 
+// todo should be removed because it returns the ready vec instead of a single one
+pub fn fn_weak_export_cipher_suites_remove_me() -> Result<Vec<CipherSuite>, FnError> {
+    Ok(vec![CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA])
+}
+
 pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
 }
