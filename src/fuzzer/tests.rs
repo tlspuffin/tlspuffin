@@ -314,8 +314,11 @@ mod util {
                 fn_protocol_version12,
                 fn_new_random,
                 fn_new_session_id,
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_new_cipher_suites12,
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                    fn_cipher_suite12
+                )),
                 fn_compressions,
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(

@@ -324,7 +324,10 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            fn_cipher_suites13,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -481,8 +484,11 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -631,8 +637,11 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -696,8 +705,11 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -791,10 +803,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                             ((1, 0)/ProtocolVersion),
                             ((1, 0)/Random),
                             ((1, 0)/SessionID),
-                            fn_secure_rsa_cipher_suite,
-/*                            (fn_cipher_suite_from_list(
-                                ((0, 0)/Vec<CipherSuite>)
-                            )),*/
+                            fn_secure_rsa_cipher_suite12,
                             ((1, 0)/Compression),
                             ((1, 0)/Vec<ServerExtension>)
                         )
