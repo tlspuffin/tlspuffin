@@ -22,18 +22,6 @@ pub fn fn_new_random() -> Result<Random, FnError> {
     Ok(Random::from(random_data))
 }
 
-pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
-    Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
-}
-
-// todo implement functions for all supported cipher suites as constants
-//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-pub fn fn_append_cipher_suite(suites: &Vec<CipherSuite>, suite: &CipherSuite) -> Result<Vec<CipherSuite>, FnError> {
-    let mut new: Vec<CipherSuite> = suites.clone();
-    new.push(suite.clone());
-    Ok(new)
-}
-
 pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
     Ok(vec![Compression::Null])
 }
@@ -69,16 +57,6 @@ pub fn fn_verify_data(
 // seed_client_attacker12()
 // ----
 
-pub fn fn_new_cipher_suites12() -> Result<Vec<CipherSuite>, FnError> {
-    Ok(vec![
-/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,*/
-/*        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,*/
-        CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-/*        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,*/
-    ])
-}
-
 pub fn fn_sign_transcript(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
@@ -88,4 +66,50 @@ pub fn fn_sign_transcript(
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
+}
+
+// ----
+// Cipher Suites
+// ----
+
+pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
+    Ok(vec![])
+}
+
+// todo implement functions for all supported cipher suites as constants
+//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+pub fn fn_append_cipher_suite(
+    suites: &Vec<CipherSuite>,
+    suite: &CipherSuite,
+) -> Result<Vec<CipherSuite>, FnError> {
+    let mut new: Vec<CipherSuite> = suites.clone();
+    new.push(suite.clone());
+    Ok(new)
+}
+
+pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
+    Ok(
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        /*CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
+        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256*/
+    )
+}
+
+pub fn fn_cipher_suite13() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS13_AES_128_GCM_SHA256)
+}
+
+pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
+}
+
+// todo should be removed because it returns the ready vec instead of a single one
+pub fn fn_weak_export_cipher_suites_remove_me() -> Result<Vec<CipherSuite>, FnError> {
+    Ok(vec![CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA])
+}
+
+pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
 }

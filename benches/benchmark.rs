@@ -70,7 +70,7 @@ fn benchmark_trace(c: &mut Criterion) {
                 fn_protocol_version12,
                 fn_new_random,
                 fn_new_session_id,
-                fn_new_cipher_suites,
+                fn_cipher_suites13,
                 fn_compressions,
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(

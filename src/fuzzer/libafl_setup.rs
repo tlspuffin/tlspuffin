@@ -46,6 +46,7 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
+use crate::fuzzer::mutations::util::TermConstraints;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -53,6 +54,12 @@ pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
 pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
 pub static MAX_TRACE_LENGTH: usize = 15;
 pub static MIN_TRACE_LENGTH: usize = 5;
+
+/// Below this term size we no longer mutate. Note that it is possible to reach
+/// smaller terms by having a mutation which removes all symbols in a single mutation.
+pub static MIN_TERM_SIZE: usize = 0;
+/// Above this term size we no longer mutate.
+pub static MAX_TERM_SIZE: usize = 300;
 
 /// Starts the fuzzing loop
 pub fn start(
@@ -117,7 +124,10 @@ pub fn start(
                 )
             });
 
-            let mutations = trace_mutations(MIN_TRACE_LENGTH, MAX_TRACE_LENGTH);
+            let mutations = trace_mutations(MIN_TRACE_LENGTH, MAX_TRACE_LENGTH, TermConstraints {
+                min_term_size: MIN_TERM_SIZE,
+                max_term_size: MAX_TERM_SIZE
+            });
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
             let mut stages = tuple_list!(PuffinMutationalStage::new(
                 mutator,

@@ -9,6 +9,7 @@ pub mod seeds {
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::*;
     use crate::openssl_binding::{make_deterministic, openssl_version};
+    use crate::trace::Action;
     use crate::{
         fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
     };
@@ -22,8 +23,8 @@ pub mod seeds {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
 
                 if let Signaled(_, signal, _) = status {
-                    if signal != Signal::SIGSEGV {
-                        panic!("Trace did not crash with SIGSEGV!")
+                    if signal != Signal::SIGSEGV && signal != Signal::SIGABRT {
+                        panic!("Trace did not crash with SIGSEGV/SIGABRT!")
                     }
                 } else if let Exited(_, code) = status {
                     if code == 0 {
@@ -53,7 +54,6 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_heartbleed(client, server);
 
-            
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
@@ -71,7 +71,6 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_cve_2021_3449(client, server);
 
-            
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
@@ -85,7 +84,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_client_attacker12(client, server);
 
-        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -105,7 +103,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_client_attacker(client, server);
 
-        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -125,7 +122,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful(client, server);
 
-        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -146,7 +142,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful12(client, server);
 
-        
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
@@ -157,11 +152,56 @@ pub mod seeds {
         assert!(client_state.contains("SSL negotiation finished successfully"));
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
+
+    #[test]
+    fn test_seed_freak() {
+        if !openssl_version().contains("1.0.1j") {
+            return;
+        }
+        expect_crash(|| {
+            make_deterministic();
+            println!("{}", openssl_version());
+
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_freak(client, server);
+
+            trace.spawn_agents(&mut ctx).unwrap();
+            trace.execute(&mut ctx).unwrap();
+        });
+    }
+
+    #[test]
+    fn test_term_sizes() {
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+
+        for trace in [
+            seed_successful12(client, server),
+            seed_successful(client, server),
+            seed_client_attacker12(client, server),
+            seed_cve_2021_3449(client, server),
+            seed_client_attacker(client, server),
+        ] {
+            for step in &trace.steps {
+                match &step.action {
+                    Action::Input(input) => {
+                        // should be below 200, else we should increase MAX_TERM_SIZE in fuzzer setup
+                        assert!(input.recipe.size() < 200);
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 pub mod serialization {
     use test_env_log::test;
+
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed};
     use crate::{
@@ -241,13 +281,10 @@ pub mod serialization {
 
         assert_eq!(serialized1, serialized2);
     }
-
 }
 
 #[cfg(test)]
 pub mod rustls {
-    
-    
     use std::convert::TryFrom;
     use std::{
         io::{stdout, Read, Write},
@@ -255,6 +292,8 @@ pub mod rustls {
         sync::Arc,
     };
 
+    use rustls::internal::msgs::enums::ContentType;
+    use rustls::msgs::base::Payload;
     use rustls::msgs::codec::Reader;
     use rustls::msgs::message::OpaqueMessage;
     use rustls::{
@@ -272,8 +311,6 @@ pub mod rustls {
         Connection, ProtocolVersion, RootCertStore,
     };
     use test_env_log::test;
-    use rustls::msgs::base::Payload;
-    use rustls::internal::msgs::enums::ContentType;
 
     #[test]
     fn test_rustls_message_stability_ch() {
@@ -446,7 +483,7 @@ pub mod rustls {
         let opaque = OpaqueMessage {
             typ: ContentType::Handshake,
             version: ProtocolVersion::TLSv1_2,
-            payload: Payload::new(vec![1,2,3]),
+            payload: Payload::new(vec![1, 2, 3]),
         };
 
         println!("{:?}", Message::try_from(opaque).unwrap());

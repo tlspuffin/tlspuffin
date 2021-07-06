@@ -93,6 +93,10 @@ impl Function {
         self.fn_container.shape.arity()
     }
 
+    pub fn is_constant(&self) -> bool {
+        self.is_constant()
+    }
+
     pub fn name(&self) -> &str {
         self.fn_container.shape.name.as_str()
     }
@@ -130,7 +134,7 @@ mod fn_container {
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";
     const RETURN: &str = "return";
-    const FIELDS: &[&str] = &["name", "arguments", "return"];
+    const FIELDS: &[&str] = &[NAME, ARGUMENTS, RETURN];
 
     #[derive(Clone, Debug)]
     pub struct FnContainer {

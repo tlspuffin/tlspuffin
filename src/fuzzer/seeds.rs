@@ -324,7 +324,10 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            fn_new_cipher_suites,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -481,8 +484,11 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -631,8 +637,11 @@ pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -696,8 +705,11 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-            fn_new_cipher_suites12,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
             fn_compressions,
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
@@ -745,4 +757,113 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
     };
 
     trace
+}
+
+
+
+pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
+    Trace {
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_2,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_2,
+                server: true,
+            },
+        ],
+        steps: vec![
+            OutputAction::new_step(client, 0),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((0, 0)/ProtocolVersion),
+                        ((0, 0)/Random),
+                        ((0, 0)/SessionID),
+                        (fn_append_cipher_suite(
+                            (fn_new_cipher_suites()),
+                            fn_weak_export_cipher_suite
+                        )),
+                        ((0, 0)/Vec<Compression>),
+                        ((0, 0)/Vec<ClientExtension>)
+                    )
+                },
+            ),
+            OutputAction::new_step(server, 1),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((1, 0)/ProtocolVersion),
+                            ((1, 0)/Random),
+                            ((1, 0)/SessionID),
+                            ((1, 0)/CipherSuite), // todo: add alternative freak: fn_secure_rsa_cipher_suite12,
+                            ((1, 0)/Compression),
+                            ((1, 0)/Vec<ServerExtension>)
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_certificate(
+                            ((1, 1)/CertificatePayload)
+                        )
+                    },
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_key_exchange(
+                            ((1, 2)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello_done
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Output(OutputAction { id: 2 }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_key_exchange(
+                            ((2, 0)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+        ],
+    }
 }

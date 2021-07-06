@@ -8,17 +8,21 @@ use libafl::{
 };
 
 use util::*;
+use util::Choosable;
 
 use crate::mutator;
+use crate::term::atoms::Function;
 use crate::term::dynamic_function::DynamicFunction;
 use crate::term::signature::FunctionDefinition;
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use std::ops::Deref;
 
 pub fn trace_mutations<R, C, S>(
     min_trace_length: usize,
     max_trace_length: usize,
+    constraints: TermConstraints,
 ) -> tuple_list_type!(
        RepeatMutator<R, S>,
        SkipMutator<R, S>,
@@ -33,12 +37,12 @@ where
     R: Rand,
 {
     tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(),
-        ReplaceMatchMutator::new(),
-        RemoveAndLiftMutator::new(),
-        SwapMutator::new()
+        RepeatMutator::new(max_trace_length, constraints),
+        SkipMutator::new(min_trace_length, constraints),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints),
+        RemoveAndLiftMutator::new(constraints),
+        SwapMutator::new(constraints)
     )
 }
 
@@ -55,10 +59,11 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        if let Some((term_a, trace_path_a)) = choose(trace, rand) {
+        if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &Term| term.get_type_shape() == term_a.get_type_shape(),
+                self.constraints,
                 rand,
             ) {
                 let term_a_cloned = term_a.clone();
@@ -78,6 +83,7 @@ mutator! {
 
         Ok(MutationResult::Skipped)
     },
+    constraints: TermConstraints
 }
 
 mutator! {
@@ -106,7 +112,7 @@ mutator! {
                 })
                 .is_some(),
         };
-        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, rand, filter) {
+        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand) {
             match &mut to_mutate {
                 Term::Variable(_) => {
                     // never reached as `filter` returns false for variables
@@ -121,6 +127,7 @@ mutator! {
                     ) {
                         let grand_subterm_cloned = grand_subterm.clone();
                         subterms.push(grand_subterm_cloned);
+                        // move last item to the position of the item we removed
                         subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }
@@ -132,12 +139,14 @@ mutator! {
             Ok(MutationResult::Skipped)
         }
     },
+    constraints: TermConstraints
 }
 
 mutator! {
     /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
     /// An example would be to replace a constant with another constant or the binary function
     /// fn_add with fn_sub.
+    /// It can also replace any variable with a constant.
     ReplaceMatchMutator,
     Trace,
     fn mutate(
@@ -148,18 +157,26 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        if let Some(mut to_mutate) =
-            choose_term_filtered_mut(trace, rand, |term| matches!(term, Term::Application(_, _)))
-        {
+        if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             match &mut to_mutate {
-                Term::Variable(_) => {
-                    // never reached as `filter` returns false for variables
-                    Ok(MutationResult::Skipped)
+                Term::Variable(variable) => {
+                    // Replace variable with constant
+                    if let Some((shape, dynamic_fn)) = SIGNATURE.choose_filtered(
+                        |(shape, _)| {
+                            variable.typ == shape.return_type && shape.is_constant()
+                        },
+                        rand,
+                    ) {
+                        to_mutate.mutate(Term::Application(
+                            Function::new(shape.clone(), dynamic_fn.clone()), vec![]));
+                        Ok(MutationResult::Mutated)
+                    } else {
+                        Ok(MutationResult::Skipped)
+                    }
                 }
                 Term::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = choose_iter_filtered(
-                        &SIGNATURE.functions,
-                        |(shape, dynamic_fn)| {
+                    if let Some((shape, dynamic_fn)) = SIGNATURE.choose_filtered(
+                        |(shape, _)| {
                             func_mut.shape() != shape // do not mutate if we change the same function
                                 && func_mut.shape().return_type == shape.return_type
                                 && func_mut.shape().argument_types == shape.argument_types
@@ -177,6 +194,7 @@ mutator! {
             Ok(MutationResult::Skipped)
         }
     },
+    constraints: TermConstraints
 }
 
 mutator! {
@@ -192,10 +210,10 @@ mutator! {
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        if let Some(replacement) = choose_term(trace, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(trace, rand, |term: &Term| {
+        if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
+            if let Some(to_replace) = choose_term_filtered_mut(trace, |term: &Term| {
                 term.get_type_shape() == replacement.get_type_shape()
-            }) {
+            }, self.constraints, rand) {
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -203,6 +221,7 @@ mutator! {
 
         Ok(MutationResult::Skipped)
     },
+    constraints: TermConstraints
 }
 
 mutator! {
@@ -230,7 +249,8 @@ mutator! {
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
     },
-    min_trace_length: usize
+    min_trace_length: usize,
+    constraints: TermConstraints
 }
 
 mutator! {
@@ -260,40 +280,80 @@ mutator! {
         (&mut trace.steps).insert(insert_index, step);
         Ok(MutationResult::Mutated)
     },
-    max_trace_length: usize
+    max_trace_length: usize,
+    constraints: TermConstraints
 }
 
 pub mod util {
+    use std::slice::SliceIndex;
+
     use libafl::bolts::rands::Rand;
 
+    use crate::term::signature::{FunctionDefinition, Signature};
     use crate::term::Term;
     use crate::trace::{Action, InputAction, Step, Trace};
 
-    pub fn choose_iter_filtered<I, E, T, P, R: Rand>(from: I, filter: P, rand: &mut R) -> Option<T>
+    #[derive(Copy, Clone)]
+    pub struct TermConstraints {
+        pub min_term_size: usize,
+        pub max_term_size: usize,
+    }
+
+    /// Default values which represent no constraint
+    impl Default for TermConstraints {
+        fn default() -> Self {
+            Self {
+                min_term_size: 0,
+                max_term_size: 9000
+            }
+        }
+    }
+
+    pub trait Choosable<T, P, R: Rand>
     where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>,
-        P: FnMut(&T) -> bool,
+        P: FnMut(&&T) -> bool,
     {
-        // create iterator
-        let iter = from.into_iter().filter(filter).collect::<Vec<T>>();
-        let length = iter.len();
+        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&T>;
+        fn choose(&self, rand: &mut R) -> Option<&T>;
+    }
 
-        if length == 0 {
-            None
-        } else {
-            // pick a random, valid index
-            let index = rand.below(length as u64) as usize;
+    impl<P, R: Rand> Choosable<FunctionDefinition, P, R> for Signature
+    where
+        P: FnMut(&&FunctionDefinition) -> bool,
+    {
+        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&FunctionDefinition> {
+            let filtered = self
+                .functions
+                .iter()
+                .filter(filter)
+                .collect::<Vec<&FunctionDefinition>>();
+            let length = filtered.len();
 
-            // return the item chosen
-            iter.into_iter().nth(index)
+            if length == 0 {
+                None
+            } else {
+                let index = rand.below(length as u64) as usize;
+                filtered.into_iter().nth(index)
+            }
+        }
+
+        fn choose(&self, rand: &mut R) -> Option<&FunctionDefinition> {
+            let functions = &self.functions;
+            let length = functions.len();
+
+            if length == 0 {
+                None
+            } else {
+                let index = rand.below(length as u64) as usize;
+                functions.get(index)
+            }
         }
     }
 
     pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
-    where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>,
+        where
+            I: IntoIterator<Item = T, IntoIter = E>,
+            E: ExactSizeIterator + Iterator<Item = T>,
     {
         // create iterator
         let mut iter = from.into_iter();
@@ -317,8 +377,9 @@ pub mod util {
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
     fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &'a Trace,
-        rand: &mut R,
         filter: P,
+        constraints: TermConstraints,
+        rand: &mut R,
     ) -> Option<(&'a Term, TracePath)> {
         let mut reservoir: Option<(&'a Term, TracePath)> = None;
         let mut visited = 0;
@@ -327,6 +388,11 @@ pub mod util {
             match &step.action {
                 Action::Input(input) => {
                     let term = &input.recipe;
+
+                    let size = term.size();
+                    if size <= constraints.min_term_size || size >= constraints.max_term_size {
+                        continue;
+                    }
 
                     let mut stack: Vec<(&Term, TracePath)> = vec![(term, (step_index, Vec::new()))];
 
@@ -413,20 +479,26 @@ pub mod util {
 
     pub fn choose<'a, R: Rand>(
         trace: &'a Trace,
+        constraints: TermConstraints,
         rand: &mut R,
     ) -> Option<(&'a Term, (usize, TermPath))> {
-        reservoir_sample(trace, rand, |_| true)
+        reservoir_sample(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term<'a, R: Rand>(trace: &'a Trace, rand: &mut R) -> Option<&'a Term> {
-        reservoir_sample(trace, rand, |_| true).map(|ret| ret.0)
+    pub fn choose_term<'a, R: Rand>(
+        trace: &'a Trace,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<&'a Term> {
+        reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
     }
 
     pub fn choose_term_mut<'a, R: Rand>(
         trace: &'a mut Trace,
+        constraints: TermConstraints,
         rand: &mut R,
     ) -> Option<&'a mut Term> {
-        if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, rand) {
+        if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
             None
@@ -435,25 +507,31 @@ pub mod util {
 
     pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &'a mut Trace,
-        rand: &mut R,
         filter: P,
+        constraints: TermConstraints,
+        rand: &mut R,
     ) -> Option<&'a mut Term> {
-        if let Some(trace_path) = choose_term_path_filtered(trace, filter, rand) {
+        if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
             None
         }
     }
 
-    pub fn choose_term_path<'a, R: Rand>(trace: &Trace, rand: &mut R) -> Option<TracePath> {
-        choose_term_path_filtered(trace, |_| true, rand)
+    pub fn choose_term_path<'a, R: Rand>(
+        trace: &Trace,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<TracePath> {
+        choose_term_path_filtered(trace, |_| true, constraints, rand)
     }
 
     pub fn choose_term_path_filtered<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &Trace,
         filter: P,
+        constraints: TermConstraints,
         rand: &mut R,
     ) -> Option<TracePath> {
-        reservoir_sample(trace, rand, filter).map(|ret| ret.1)
+        reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
     }
 }

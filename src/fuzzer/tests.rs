@@ -5,10 +5,11 @@ use libafl::bolts::rands::{Rand, RomuDuoJrRand, RomuTrioRand, StdRand};
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
+
 use openssl::rand::rand_bytes;
 
 use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
-use crate::fuzzer::mutations::util::TracePath;
+use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
     SwapMutator,
@@ -40,7 +41,7 @@ fn test_repeat_mutator() {
     let server = client.next();
     let _trace = seed_client_attacker12(client, server);
 
-    let mut mutator = RepeatMutator::new(15);
+    let mut mutator = RepeatMutator::new(15, TermConstraints::default());
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
@@ -76,7 +77,7 @@ fn test_replace_match_mutator() {
     let client = AgentName::first();
     let server = client.next();
 
-    let mut mutator = ReplaceMatchMutator::new();
+    let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
@@ -108,7 +109,7 @@ fn test_remove_lift_mutator() {
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let mut mutator = RemoveAndLiftMutator::new();
+    let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
@@ -137,7 +138,7 @@ fn test_replace_reuse_mutator() {
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let mut mutator = ReplaceReuseMutator::new();
+    let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
 
     fn count_client_hello(trace: &Trace) -> u16 {
         util::count_functions_trace(trace, fn_client_hello.name())
@@ -169,7 +170,7 @@ fn test_skip_mutator() {
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let mut mutator = SkipMutator::new(4);
+    let mut mutator = SkipMutator::new(4, TermConstraints::default());
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
@@ -189,7 +190,7 @@ fn test_swap_mutator() {
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let client = AgentName::first();
     let server = client.next();
-    let mut mutator = SwapMutator::new();
+    let mut mutator = SwapMutator::new(TermConstraints::default());
 
     loop {
         let mut trace = seed_client_attacker12(client, server);
@@ -197,9 +198,7 @@ fn test_swap_mutator() {
 
         let last = if let Some(last) = trace.steps.iter().last() {
             match &last.action {
-                Action::Input(input) => {
-                   Some(input.recipe.name() != fn_encrypt12.name())
-                }
+                Action::Input(input) => Some(input.recipe.name() != fn_encrypt12.name()),
                 Action::Output(_) => None,
             }
         } else {
@@ -208,9 +207,7 @@ fn test_swap_mutator() {
 
         let first = if let Some(first) = trace.steps.iter().nth(0) {
             match &first.action {
-                Action::Input(input) => {
-                    Some(input.recipe.name() != fn_client_hello.name())
-                }
+                Action::Input(input) => Some(input.recipe.name() != fn_client_hello.name()),
                 Action::Output(_) => None,
             }
         } else {
@@ -219,7 +216,7 @@ fn test_swap_mutator() {
 
         if let Some(first) = first {
             if let Some(last) = last {
-                if first  {
+                if first {
                     if last {
                         break;
                     }
@@ -237,7 +234,12 @@ fn test_find_term() {
     let mut stats: HashSet<TracePath> = HashSet::new();
 
     for _ in 0..10000 {
-        let path = crate::fuzzer::mutations::util::choose_term_path(&trace, &mut rand).unwrap();
+        let path = crate::fuzzer::mutations::util::choose_term_path(
+            &trace,
+            TermConstraints::default(),
+            &mut rand,
+        )
+        .unwrap();
         crate::fuzzer::mutations::util::find_term_mut(&mut trace, &path).unwrap();
         stats.insert(path);
     }
@@ -283,7 +285,9 @@ fn test_reservoir_sample_randomness() {
     let mut stats: HashMap<u32, u32> = HashMap::new();
 
     for _ in 0..10000 {
-        let term = crate::fuzzer::mutations::util::choose(&trace, &mut rand).unwrap();
+        let term =
+            crate::fuzzer::mutations::util::choose(&trace, TermConstraints::default(), &mut rand)
+                .unwrap();
 
         let id = term.0.resistant_id();
 
@@ -314,8 +318,11 @@ mod util {
                 fn_protocol_version12,
                 fn_new_random,
                 fn_new_session_id,
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_new_cipher_suites12,
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                    fn_cipher_suite12
+                )),
                 fn_compressions,
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(

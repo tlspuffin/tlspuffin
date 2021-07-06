@@ -45,25 +45,8 @@ impl Term {
     pub fn size(&self) -> usize {
         match self {
             Term::Variable(_) => 1,
-            Term::Application(_, ref args) => {
-                if args.is_empty() {
-                    return 1;
-                }
-
-                args.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
-            }
-        }
-    }
-
-    pub fn length_filtered<P: Fn(&Term) -> bool + Copy>(&self, filter: P) -> usize {
-        let increment = if filter(self) { 1 } else { 0 };
-        match self {
-            Term::Variable(_) => increment,
-            Term::Application(_, ref args) => {
-                args.iter()
-                    .map(|subterm| subterm.length_filtered(filter))
-                    .sum::<usize>()
-                    + increment
+            Term::Application(_, ref subterms) => {
+                subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
             }
         }
     }
