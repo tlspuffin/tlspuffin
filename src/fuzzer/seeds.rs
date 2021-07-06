@@ -803,7 +803,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                             ((1, 0)/ProtocolVersion),
                             ((1, 0)/Random),
                             ((1, 0)/SessionID),
-                            fn_secure_rsa_cipher_suite12,
+                            ((1, 0)/CipherSuite), // todo: add alternative freak: fn_secure_rsa_cipher_suite12,
                             ((1, 0)/Compression),
                             ((1, 0)/Vec<ServerExtension>)
                         )
