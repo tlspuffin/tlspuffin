@@ -3,7 +3,7 @@ from datetime import datetime
 from io import BytesIO
 from itertools import groupby
 from operator import itemgetter
-from typing import Callable, Union
+from typing import Callable, Union, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -85,7 +85,7 @@ def is_available(stat: ClientStatistics, selector: Callable[[ClientStatistics], 
         return False
 
 
-def plot_with_other(ax, times, data: list[ClientStatistics],
+def plot_with_other(ax, times, data: List[ClientStatistics],
                     selector_a: Callable[[ClientStatistics], Union[int, float]],
                     name_a: str,
                     selector_b: Callable[[ClientStatistics], Union[int, float]] = lambda stats: stats.total_execs,
@@ -111,7 +111,7 @@ def plot_with_other(ax, times, data: list[ClientStatistics],
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def plot_client_stats(start_date, client_stats: list[dict]):
+def plot_client_stats(start_date, client_stats: List[dict]):
     times = []
     data = []
 
