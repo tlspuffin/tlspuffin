@@ -231,6 +231,8 @@ pub fn create_openssl_client(
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
     }
 
+    ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+
     let mut ssl = Ssl::new(&ctx_builder.build())?;
     ssl.set_connect_state();
 

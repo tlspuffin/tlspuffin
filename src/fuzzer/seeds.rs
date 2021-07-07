@@ -803,7 +803,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                             ((1, 0)/ProtocolVersion),
                             ((1, 0)/Random),
                             ((1, 0)/SessionID),
-                            ((1, 0)/CipherSuite), // todo: add alternative freak: fn_secure_rsa_cipher_suite12,
+                            (fn_secure_rsa_cipher_suite12),
                             ((1, 0)/Compression),
                             ((1, 0)/Vec<ServerExtension>)
                         )
@@ -825,7 +825,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_server_key_exchange(
+                        fn_server_key_exchange( // check whether the client rejects this if it does not support export
                             ((1, 2)/Vec<u8>)
                         )
                     },
