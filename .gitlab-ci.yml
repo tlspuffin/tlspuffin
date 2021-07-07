@@ -12,7 +12,8 @@ before_script:
   - echo "$GITHUB_OPENSSL_RS" | tr -d '\r' | ssh-add - > /dev/null
   - git submodule sync --recursive
   - git submodule update --init --recursive
-  - apt install -y clang
+  # clang for compilation and xutils-dev for makedepend which is needed for OpenSSL 1.0.1
+  - apt install -y clang xutils-dev
 
 build:
   script:
