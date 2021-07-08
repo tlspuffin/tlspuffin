@@ -16,12 +16,15 @@ use openssl::{
         X509NameBuilder, X509Ref, X509,
     },
 };
-
+use foreign_types_shared::ForeignTypeRef;
 
 use crate::agent::TLSVersion;
 use crate::io::MemoryStream;
 use std::mem::transmute;
 use crate::error::Error;
+use std::ptr::{null, null_mut};
+use std::ffi::CStr;
+use security_claims;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -258,5 +261,16 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
             trace!("Handshake is done");
         }
     }
+
+    println!("cipher_bits {}", unsafe {
+        //(stream.ssl().as_ptr().cast::<openssl_sys::SSL>()).ctx;
+        let cipher = openssl_sys::SSL_get_current_cipher(stream.ssl().as_ptr());
+        let i = openssl_sys::SSL_CIPHER_get_name(cipher);
+
+        std::str::from_utf8( CStr::from_ptr(i as *const _).to_bytes()).unwrap()
+    });
+
+    println!("testing {:?}", unsafe { security_claims::current_claim(stream.ssl().as_ptr().cast()) });
+
     Ok(())
 }

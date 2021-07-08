@@ -6,7 +6,7 @@ edition = "2018"
 resolver = "2"
 
 [features]
-default = ["sancov_libafl", "ossl101", "introspection"]
+default = ["sancov_libafl", "ossl110", "introspection"]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
@@ -62,6 +62,9 @@ chrono = "0.4"
 # OpenSSL
 # Uses build scripts from './openssl-src'
 openssl = { path = "rust-openssl/openssl", features = ["vendored", "sancov", "no-rand"] }
+openssl-sys = { path = "rust-openssl/openssl-sys", features = ["vendored", "sancov", "no-rand"] }
+foreign-types-shared = "0.1"
+security-claims = { path = "security-claims" }
 
 [dev-dependencies]
 criterion = "0.3"
