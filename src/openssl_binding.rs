@@ -1,6 +1,9 @@
+use std::io::ErrorKind;
+use std::mem::transmute;
+use std::os::raw::c_int;
 
-use std::io::{ErrorKind};
-use std::os::raw::{c_int};
+use foreign_types_shared::ForeignTypeRef;
+use security_claims::current_claim_safe;
 
 use openssl::error::ErrorStack;
 use openssl::ssl::SslVersion;
@@ -16,12 +19,10 @@ use openssl::{
         X509NameBuilder, X509Ref, X509,
     },
 };
+
 use crate::agent::TLSVersion;
-use crate::io::MemoryStream;
-use std::mem::transmute;
 use crate::error::Error;
-use security_claims::current_claim;
-use foreign_types_shared::ForeignTypeRef;
+use crate::io::MemoryStream;
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -91,8 +92,6 @@ pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
 pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::generate(2048)?;
     let pkey = PKey::from_rsa(rsa)?;
-
-
 
     let mut x509_name = X509NameBuilder::new()?;
     x509_name.append_entry_by_text("C", "US")?;
@@ -177,9 +176,8 @@ pub fn create_openssl_server(
     });
 
     #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
-        ctx_builder.set_tmp_rsa_callback(|_, is_export, keylength| {
-        openssl::rsa::Rsa::generate(keylength)
-    });
+    ctx_builder
+        .set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
 
@@ -195,9 +193,7 @@ pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), Error> {
                 trace!("Would have blocked but the underlying stream is non-blocking!");
                 Ok(())
             }
-            _ => {
-                Err(Error::IO(format!("Unexpected IO Error: {}", io_error)))
-            }
+            _ => Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),
         }
     } else {
         Ok(())
@@ -259,7 +255,19 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
         }
     }
 
-    println!("testing {:?}", unsafe { current_claim(stream.ssl().as_ptr().cast()) });
+    let role = if stream.ssl().is_server() {
+        "server"
+    } else {
+        "client "
+    };
+
+    let claim = current_claim_safe(stream.ssl().as_ptr().cast());
+    println!("claim {}: {}", role, claim);
+
+    match claim.state {
+        security_claims::OSSL_HANDSHAKE_STATE_TLS_ST_CR_KEY_UPDATE => {}
+        _ => {}
+    }
 
     Ok(())
 }

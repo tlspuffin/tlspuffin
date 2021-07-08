@@ -3,5 +3,9 @@ build = "build.rs"
 name = "security-claims"
 version = "0.1.0"
 
+
+[dependencies]
+hex = "0.4"
+
 [build-dependencies]
 bindgen = "*"
