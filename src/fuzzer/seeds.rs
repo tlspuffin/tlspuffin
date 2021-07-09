@@ -318,7 +318,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     }
 }
 
-pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
+pub fn seed_client_attacker(server: AgentName) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -422,11 +422,6 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     let trace = Trace {
         descriptors: vec![
             AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_3,
-                server: false,
-            },
-            AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
@@ -474,11 +469,11 @@ pub fn seed_client_attacker(client: AgentName, server: AgentName) -> Trace {
     trace
 }
 
-pub fn seed_client_attacker12(client: AgentName, server: AgentName) -> Trace {
-    _seed_client_attacker12(client, server).0
+pub fn seed_client_attacker12(server: AgentName) -> Trace {
+    _seed_client_attacker12(server).0
 }
 
-fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term) {
+fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -575,11 +570,6 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
     let trace = Trace {
         descriptors: vec![
             AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_2,
-                server: false,
-            },
-            AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
@@ -629,8 +619,8 @@ fn _seed_client_attacker12(client: AgentName, server: AgentName) -> (Trace, Term
     (trace, client_verify_data)
 }
 
-pub fn seed_cve_2021_3449(client: AgentName, server: AgentName) -> Trace {
-    let (mut trace, client_verify_data) = _seed_client_attacker12(client, server);
+pub fn seed_cve_2021_3449(server: AgentName) -> Trace {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
     let renegotiation_client_hello = term! {
           fn_client_hello(

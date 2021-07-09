@@ -149,9 +149,8 @@ mod tests {
 
     #[test]
     fn test_dot_graph() {
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker12(client, server);
+        let server = AgentName::first();
+        let trace = seed_client_attacker12(server);
         println!("{}", trace.dot_graph(true));
     }
 }

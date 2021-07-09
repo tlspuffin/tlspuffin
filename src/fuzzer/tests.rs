@@ -37,9 +37,8 @@ fn test_repeat_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
-    let _trace = seed_client_attacker12(client, server);
+    let server = AgentName::first();
+    let _trace = seed_client_attacker12(server);
 
     let mut mutator = RepeatMutator::new(15, TermConstraints::default());
 
@@ -53,7 +52,7 @@ fn test_repeat_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12(server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let length = trace.steps.len();
@@ -74,13 +73,12 @@ fn test_replace_match_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
+    let server = AgentName::first();
 
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12( server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(last) = trace.steps.iter().last() {
@@ -107,8 +105,7 @@ fn test_remove_lift_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
+    let server = AgentName::first();
     let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
 
     // Returns the amount of extensions in the trace
@@ -117,7 +114,7 @@ fn test_remove_lift_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12(server);
         let before_mutation = sum_extension_appends(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -136,8 +133,7 @@ fn test_replace_reuse_mutator() {
     let rand = StdRand::with_seed(45);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
+    let server = AgentName::first();
     let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
 
     fn count_client_hello(trace: &Trace) -> u16 {
@@ -149,7 +145,7 @@ fn test_replace_reuse_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12(server);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
@@ -168,12 +164,11 @@ fn test_skip_mutator() {
     let rand = StdRand::with_seed(45);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
+    let server = AgentName::first();
     let mut mutator = SkipMutator::new(4, TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12( server);
         let before_len = trace.steps.len();
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -188,12 +183,11 @@ fn test_swap_mutator() {
     let rand = StdRand::with_seed(45);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
-    let client = AgentName::first();
-    let server = client.next();
+    let server = AgentName::first();
     let mut mutator = SwapMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(client, server);
+        let mut trace = seed_client_attacker12(server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let last = if let Some(last) = trace.steps.iter().last() {

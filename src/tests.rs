@@ -67,9 +67,8 @@ pub mod seeds {
         expect_crash(|| {
             make_deterministic();
             let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_cve_2021_3449(client, server);
+            let server = AgentName::first();
+            let trace = seed_cve_2021_3449(server);
 
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
@@ -80,16 +79,13 @@ pub mod seeds {
     fn test_seed_client_attacker12() {
         make_deterministic();
         let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker12(client, server);
+        let server = AgentName::first();
+        let trace = seed_client_attacker12(server);
 
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
         let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        println!("{}", client_state);
         println!("{}", server_state);
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
@@ -99,16 +95,13 @@ pub mod seeds {
     fn test_seed_client_attacker() {
         make_deterministic();
         let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker(client, server);
+        let server = AgentName::first();
+        let trace = seed_client_attacker(server);
 
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
         let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        println!("{}", client_state);
         println!("{}", server_state);
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
@@ -181,9 +174,9 @@ pub mod seeds {
         for trace in [
             seed_successful12(client, server),
             seed_successful(client, server),
-            seed_client_attacker12(client, server),
-            seed_cve_2021_3449(client, server),
-            seed_client_attacker(client, server),
+            seed_client_attacker12(server),
+            seed_cve_2021_3449(server),
+            seed_client_attacker(server),
         ] {
             for step in &trace.steps {
                 match &step.action {
@@ -211,9 +204,8 @@ pub mod serialization {
 
     #[test]
     fn test_serialisation_seed_client_attacker_json() {
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker(client, server);
+        let server = AgentName::first();
+        let trace = seed_client_attacker(server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -225,9 +217,8 @@ pub mod serialization {
 
     #[test]
     fn test_serialisation_seed_client_attacker12_json() {
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_client_attacker12(client, server);
+        let server = AgentName::first();
+        let trace = seed_client_attacker12(server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 

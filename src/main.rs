@@ -97,22 +97,22 @@ fn main() {
     info!("{}", openssl_binding::openssl_version());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        let client = agent::AgentName::first();
-        let server = client.next();
+        let agent_a = agent::AgentName::first();
+        let agent_b = agent_a.next();
 
         let traces: Vec<(
-            fn(agent::AgentName, agent::AgentName) -> trace::Trace,
+            trace::Trace,
             &'static str,
         )> = vec![
-            (seed_successful, "seed_successful"),
-            (seed_successful12, "seed_successful12"),
-            (seed_client_attacker, "seed_client_attacker"),
-            (seed_client_attacker12, "seed_client_attacker12"),
+            (seed_successful(agent_a, agent_b), "seed_successful"),
+            (seed_successful12(agent_a, agent_b), "seed_successful12"),
+            (seed_client_attacker(agent_a), "seed_client_attacker"),
+            (seed_client_attacker12(agent_a), "seed_client_attacker12"),
         ];
 
-        for (trace_fn, name) in traces {
+        for (trace, name) in traces {
             let mut file = File::create(format!("./corpus/{}.trace", name)).unwrap();
-            let buffer = postcard::to_allocvec(&trace_fn(client, server)).unwrap();
+            let buffer = postcard::to_allocvec(&trace).unwrap();
             file.write_all(&buffer).unwrap();
             println!("Generated seed traces into the directory ./corpus")
         }
