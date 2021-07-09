@@ -1,0 +1,31 @@
+use std::ffi::c_void;
+use std::mem;
+
+use ffi::{Claim, TLSLike};
+use ffi;
+
+extern "C" fn handle_claim_c(x: Claim, ctx: *mut c_void) {
+    let closure: &mut Box<FnMut(Claim)> = unsafe { mem::transmute(ctx) };
+    closure(x)
+}
+
+pub fn register_claimer<F>(ssl_like_ptr: TLSLike, callback: F)
+where
+    F: FnMut(Claim),
+    F: 'static,
+{
+    let cb: Box<Box<FnMut(Claim)>> = Box::new(Box::new(callback));
+    unsafe {
+        ffi::register_claimer(
+            ssl_like_ptr,
+            Some(handle_claim_c),
+            Box::into_raw(cb) as *mut _,
+        );
+    }
+}
+
+pub fn deregister_claimer(ssl_like_ptr: TLSLike) {
+    let ptr = unsafe { ffi::deregister_claimer(ssl_like_ptr) };
+    // drop the callback
+    let _: Box<Box<FnMut(Claim)>> = unsafe { Box::from_raw(ptr as *mut _) };
+}

@@ -9,6 +9,8 @@ fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");
     let bindings = bindgen::Builder::default()
         .header("claim-interface.h")
+        // We have full control over enums: https://github.com/rust-lang/rust-bindgen/issues/758
+        .rustified_enum(".*")
         .generate()
         .expect("Unable to generate bindings");
 

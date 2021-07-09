@@ -3,7 +3,7 @@ use std::mem::transmute;
 use std::os::raw::c_int;
 
 use foreign_types_shared::ForeignTypeRef;
-use security_claims::current_claim_safe;
+use security_claims::{register_claimer, ClaimType};
 
 use openssl::error::ErrorStack;
 use openssl::ssl::SslVersion;
@@ -232,6 +232,16 @@ pub fn create_openssl_client(
     let mut ssl = Ssl::new(&ctx_builder.build())?;
     ssl.set_connect_state();
 
+    let mut test: u32 = 4;
+
+    register_claimer(ssl.as_ptr().cast(), move |claim| {
+        match claim.typ {
+            ClaimType::CLAIM_CLIENT_CIPHERS => {}
+        }
+        test += 1;
+        println!("claim {}: {}", test, claim);
+    });
+
     SslStream::new(ssl, stream)
 }
 
@@ -253,20 +263,6 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
         } else {
             trace!("Handshake is done");
         }
-    }
-
-    let role = if stream.ssl().is_server() {
-        "server"
-    } else {
-        "client "
-    };
-
-    let claim = current_claim_safe(stream.ssl().as_ptr().cast());
-    println!("claim {}: {}", role, claim);
-
-    match claim.state {
-        security_claims::OSSL_HANDSHAKE_STATE_TLS_ST_CR_KEY_UPDATE => {}
-        _ => {}
     }
 
     Ok(())
