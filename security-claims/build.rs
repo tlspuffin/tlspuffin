@@ -11,6 +11,9 @@ fn main() {
         .header("claim-interface.h")
         // We have full control over enums: https://github.com/rust-lang/rust-bindgen/issues/758
         .rustified_enum(".*")
+        .derive_copy(true)
+        .derive_debug(true)
+        .impl_debug(true)
         .generate()
         .expect("Unable to generate bindings");
 

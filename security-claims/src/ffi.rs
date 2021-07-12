@@ -17,7 +17,7 @@ impl fmt::Display for Claim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{ cert_rsa_key_length: {}, \
+            "{{ (debug) cert_rsa_key_length: {}, \
             state: {:?}, \
             available_ciphers: {}, \
             master_secret: {} }}",

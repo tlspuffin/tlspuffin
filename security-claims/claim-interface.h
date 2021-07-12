@@ -2,14 +2,25 @@
 #define TLSPUFFIN_DETECTOR_H
 
 typedef enum ClaimType {
-    CLAIM_CLIENT_CIPHERS
+    CLAIM_CIPHERS
 } ClaimType;
 
+static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
+
 typedef struct Claim {
-    int cert_rsa_key_length;
     ClaimType typ;
+
+    // length of the key used in RSA certificate
+    int cert_rsa_key_length;
+
+    int master_secret_len;
     unsigned char master_secret[64];
-    unsigned short available_ciphers[64];
+
+    // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
+    int available_ciphers_len;
+    unsigned short available_ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
+
+    unsigned short chosen_cipher;
 } Claim;
 
 /**

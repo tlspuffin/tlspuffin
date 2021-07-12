@@ -236,10 +236,10 @@ pub fn create_openssl_client(
 
     register_claimer(ssl.as_ptr().cast(), move |claim| {
         match claim.typ {
-            ClaimType::CLAIM_CLIENT_CIPHERS => {}
+            ClaimType::CLAIM_CIPHERS => {}
         }
         test += 1;
-        println!("claim {}: {}", test, claim);
+        println!("claim {}: {:?}", test, claim);
     });
 
     SslStream::new(ssl, stream)
