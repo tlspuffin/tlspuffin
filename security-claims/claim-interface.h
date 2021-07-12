@@ -2,7 +2,8 @@
 #define TLSPUFFIN_DETECTOR_H
 
 typedef enum ClaimType {
-    CLAIM_CIPHERS
+    CLAIM_CLIENT_HELLO,
+    CLAIM_SERVER_HELLO,
 } ClaimType;
 
 static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;

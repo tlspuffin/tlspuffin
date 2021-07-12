@@ -64,8 +64,10 @@ use std::io::empty;
 use std::ops::Deref;
 use std::{any::TypeId, fmt::Formatter};
 
+use itertools::Itertools;
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
+use security_claims::check::is_violation;
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +83,6 @@ use crate::{
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use security_claims::check::is_violation;
 
 pub type ObservedId = (u16, u16);
 
@@ -231,7 +232,8 @@ impl Trace {
             execution_listener(step);
         }
 
-        let claims: Vec<(AgentName, Claim)> = self.descriptors
+        let claims: Vec<(AgentName, Claim)> = self
+            .descriptors
             .iter()
             .filter_map(|descriptor| {
                 ctx.find_agent(descriptor.name)
@@ -240,11 +242,16 @@ impl Trace {
             })
             .flat_map(|(name, agent)| {
                 let claims = agent.claimer.deref().borrow().claims.clone();
-                claims.into_iter().map(move |claim| (name.clone(), claim.clone()))
+                claims
+                    .into_iter()
+                    .map(move |claim| (name.clone(), claim.clone()))
             })
             .collect();
 
-        println!("Claims: {:?}", &claims);
+        println!(
+            "Claims:\n{}",
+            &claims.iter().map(|(name, claim)| format!("{}: {}", name, claim)).join("\n")
+        );
 
         if is_violation(claims) {
             return Err(Error::SecurityClaim());

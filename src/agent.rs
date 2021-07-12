@@ -62,21 +62,13 @@ pub struct VecClaimer {
 
 impl VecClaimer {
     pub fn new() -> Self {
-        let mut claims = vec![];
-
         Self {
-            claims
+            claims: vec![]
         }
     }
 
     pub fn claim(&mut self, claim: Claim) {
         self.claims.push(claim);
-
-        match claim.typ {
-            ClaimType::CLAIM_CIPHERS => {}
-        }
-
-        println!("claim: {:?}", claim);
     }
 }
 
