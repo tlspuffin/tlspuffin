@@ -22,13 +22,17 @@ impl fmt::Display for Claim {
                 cert_rsa_key_length: {}, \
                 available_ciphers: {}, \
                 chosen_cipher: {}, \
-                master_secret: {} \
+                cipher_bits: {}, \
+                master_secret: {}, \
+                peer_tmp_security_bits: {}, \
             }}",
             self.typ,
             self.cert_rsa_key_length,
             self.available_ciphers.iter().map(|c| hex::encode(c.to_be_bytes())).collect::<Vec<String>>().join(", "),
             hex::encode(self.chosen_cipher.to_be_bytes()),
-            hex::encode(self.master_secret)
+            self.cipher_bits,
+            hex::encode(self.master_secret),
+            self.peer_tmp_security_bits,
         )
     }
 }
