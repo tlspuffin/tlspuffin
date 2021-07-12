@@ -17,12 +17,14 @@ impl fmt::Display for Claim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{ (debug) cert_rsa_key_length: {}, \
-            state: {:?}, \
-            available_ciphers: {}, \
-            master_secret: {} }}",
-            self.cert_rsa_key_length,
+            "{{ (debug) \
+                state: {:?}, \
+                cert_rsa_key_length: {}, \
+                available_ciphers: {}, \
+                master_secret: {} \
+            }}",
             self.typ,
+            self.cert_rsa_key_length,
             self.available_ciphers.iter().map(|c| hex::encode(c.to_be_bytes())).collect::<Vec<String>>().join(", "),
             hex::encode(self.master_secret)
         )

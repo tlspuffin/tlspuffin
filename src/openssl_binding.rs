@@ -1,9 +1,12 @@
+use std::cell::RefCell;
 use std::io::ErrorKind;
 use std::mem::transmute;
 use std::os::raw::c_int;
+use std::rc::Rc;
 
 use foreign_types_shared::ForeignTypeRef;
-use security_claims::{register_claimer, ClaimType};
+use security_claims::register::Claimer;
+use security_claims::{register_claimer, Claim, ClaimType};
 
 use openssl::error::ErrorStack;
 use openssl::ssl::SslVersion;
@@ -20,7 +23,7 @@ use openssl::{
     },
 };
 
-use crate::agent::TLSVersion;
+use crate::agent::{TLSVersion, VecClaimer};
 use crate::error::Error;
 use crate::io::MemoryStream;
 
@@ -231,16 +234,6 @@ pub fn create_openssl_client(
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
     ssl.set_connect_state();
-
-    let mut test: u32 = 4;
-
-    register_claimer(ssl.as_ptr().cast(), move |claim| {
-        match claim.typ {
-            ClaimType::CLAIM_CIPHERS => {}
-        }
-        test += 1;
-        println!("claim {}: {:?}", test, claim);
-    });
 
     SslStream::new(ssl, stream)
 }

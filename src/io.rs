@@ -27,10 +27,16 @@ use openssl::ssl::SslStream;
 use rustls::msgs::message::{OpaqueMessage, MessagePayload};
 use rustls::msgs::handshake::HandshakePayload;
 use rustls::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
-use crate::agent::TLSVersion;
+use crate::agent::{TLSVersion, VecClaimer};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
 use crate::openssl_binding;
+use std::rc::Rc;
+use security_claims::register::Claimer;
+use std::cell::RefCell;
+use security_claims::{deregister_claimer, register_claimer, Claim};
+use foreign_types_shared::ForeignTypeRef;
+use std::mem::ManuallyDrop;
 
 pub trait Stream: std::io::Read + std::io::Write {
     fn add_to_inbound(&mut self, result: &MessageResult);
@@ -63,6 +69,47 @@ pub struct OpenSSLStream {
     openssl_stream: SslStream<MemoryStream>
 }
 
+impl OpenSSLStream {
+    pub fn new(server: bool, tls_version: &TLSVersion, claimer: Rc<RefCell<VecClaimer>>) -> Result<Self, Error> {
+        let memory_stream = MemoryStream::new();
+        let openssl_stream = if server {
+            //let (cert, pkey) = openssl_binding::generate_cert();
+            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
+        } else {
+            openssl_binding::create_openssl_client(memory_stream, tls_version)?
+        };
+
+        register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
+            (*claimer).borrow_mut().claim(claim)
+        });
+
+        Ok(OpenSSLStream {
+            openssl_stream
+        })
+    }
+
+    pub fn describe_state(&self) -> &'static str {
+        // Very useful for nonblocking according to docs:
+        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
+        // When using nonblocking sockets, the function call performing the handshake may return
+        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
+        // so that SSL_state_string[_long]() may be called.
+        self.openssl_stream.ssl().state_string_long()
+    }
+
+    pub fn next_state(&mut self) -> Result<(), Error> {
+        let stream = &mut self.openssl_stream;
+        Ok(openssl_binding::do_handshake(stream)?)
+    }
+}
+
+impl Drop for OpenSSLStream {
+    fn drop(&mut self) {
+        deregister_claimer(self.openssl_stream.ssl().as_ptr().cast());
+    }
+}
+
 impl Stream for OpenSSLStream {
     fn add_to_inbound(&mut self, result: &MessageResult) {
         self.openssl_stream.get_mut().add_to_inbound(result)
@@ -86,37 +133,6 @@ impl Write for OpenSSLStream {
 
     fn flush(&mut self) -> io::Result<()> {
         self.openssl_stream.get_mut().flush()
-    }
-}
-
-impl OpenSSLStream {
-    pub fn new(server: bool, tls_version: &TLSVersion) -> Result<Self, Error> {
-        let memory_stream = MemoryStream::new();
-        let openssl_stream = if server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
-            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
-        } else {
-            openssl_binding::create_openssl_client(memory_stream, tls_version)?
-        };
-
-        Ok(OpenSSLStream {
-            openssl_stream
-        })
-    }
-
-    pub fn describe_state(&self) -> &'static str {
-        // Very useful for nonblocking according to docs:
-        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
-        // When using nonblocking sockets, the function call performing the handshake may return
-        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
-        // so that SSL_state_string[_long]() may be called.
-        self.openssl_stream.ssl().state_string_long()
-    }
-
-    pub fn next_state(&mut self) -> Result<(), Error> {
-        let stream = &mut self.openssl_stream;
-        Ok(openssl_binding::do_handshake(stream)?)
     }
 }
 

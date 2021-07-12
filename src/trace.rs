@@ -60,24 +60,28 @@
 //!
 
 use core::fmt;
+use std::io::empty;
+use std::ops::Deref;
 use std::{any::TypeId, fmt::Formatter};
 
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
+use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentDescriptor};
+use crate::agent::AgentDescriptor;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
+use crate::tls::error::FnError;
 use crate::{
     agent::{Agent, AgentName},
-    term::{Term, dynamic_function::TypeShape},
+    term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::tls::error::FnError;
+use security_claims::check::is_violation;
 
 pub type ObservedId = (u16, u16);
 
@@ -156,9 +160,7 @@ impl TraceContext {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        Ok(agent
-            .stream
-            .take_message_from_outbound()?)
+        Ok(agent.stream.take_message_from_outbound()?)
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -182,13 +184,13 @@ impl TraceContext {
             )))
     }
 
-    pub fn find_agent(&self, name: AgentName) -> Result<&Agent, String> {
+    pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or(format!(
+            .ok_or(Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
-            ))
+            )))
     }
 }
 
@@ -227,6 +229,25 @@ impl Trace {
             trace!("Executing step #{}", i);
 
             execution_listener(step);
+        }
+
+        let claims: Vec<(AgentName, Claim)> = self.descriptors
+            .iter()
+            .filter_map(|descriptor| {
+                ctx.find_agent(descriptor.name)
+                    .ok()
+                    .map(|agent| (descriptor.name, agent))
+            })
+            .flat_map(|(name, agent)| {
+                let claims = agent.claimer.deref().borrow().claims.clone();
+                claims.into_iter().map(move |claim| (name.clone(), claim.clone()))
+            })
+            .collect();
+
+        println!("Claims: {:?}", &claims);
+
+        if is_violation(claims) {
+            return Err(Error::SecurityClaim());
         }
 
         Ok(())
@@ -359,9 +380,7 @@ impl InputAction {
 
     fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         // message controlled by the attacker
-        let evaluated = self
-            .recipe
-            .evaluate(ctx)?;
+        let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
@@ -380,7 +399,8 @@ impl InputAction {
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
-            )).into());
+            ))
+            .into());
         }
 
         ctx.next_state(step.agent)

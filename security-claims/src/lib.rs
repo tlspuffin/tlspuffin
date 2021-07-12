@@ -8,3 +8,4 @@ use ffi::TLSLike;
 
 pub mod register;
 mod ffi;
+pub mod check;

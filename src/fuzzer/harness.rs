@@ -38,6 +38,9 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction(_) => EXTRACTION.increment(),
+            Error::SecurityClaim() => {
+                std::process::abort()
+            }
         }
 
         trace!("{}", err);

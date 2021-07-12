@@ -8,9 +8,13 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use crate::io::{OpenSSLStream, Stream};
 use crate::error::Error;
+use security_claims::{Claim, ClaimType};
+use security_claims::register::Claimer;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 /// Copyable reference to an [`Agent`]
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq)]
 pub struct AgentName(u8);
 
 impl AgentName {
@@ -52,25 +56,58 @@ pub enum TLSVersion {
     V1_2,
 }
 
+pub struct VecClaimer {
+    pub claims: Vec<Claim>
+}
+
+impl VecClaimer {
+    pub fn new() -> Self {
+        let mut claims = vec![];
+
+        Self {
+            claims
+        }
+    }
+
+    pub fn claim(&mut self, claim: Claim) {
+        self.claims.push(claim);
+
+        match claim.typ {
+            ClaimType::CLAIM_CIPHERS => {}
+        }
+
+        println!("claim: {:?}", claim);
+    }
+}
+
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
     pub stream: OpenSSLStream,
+    pub claimer: Rc<RefCell<VecClaimer>>,
 }
 
 impl Agent {
     pub fn new_openssl(descriptor: &AgentDescriptor) -> Result<Self, Error> {
+        let claimer = Rc::new(RefCell::new(VecClaimer::new()));
+
         let openssl_stream = OpenSSLStream::new(
             descriptor.server,
             &descriptor.tls_version,
+            claimer.clone()
         )?;
-        Ok(Self::from_stream(
+
+        let mut agent = Self::from_stream(
             descriptor,
             openssl_stream,
-        ))
+            claimer
+        );
+
+        Ok(agent)
     }
 
-    pub fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
-        Agent { descriptor: *descriptor, stream }
+
+    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream, claimer: Rc<RefCell<VecClaimer>>) -> Agent {
+        Agent { descriptor: *descriptor, stream, claimer }
     }
 }
