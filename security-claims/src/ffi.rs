@@ -21,11 +21,16 @@ impl fmt::Display for Claim {
                 state: {:?}, \
                 write: {}, \
 
+                version: {}, \
+
                 cert: {}, \
                 peer_cert: {}, \
 
                 peer_tmp_type: {:?}, \
                 peer_tmp_security_bits: {}, \
+
+                group_id: {}, \
+                key_share_type: {:?}, \
 
                 chosen_cipher: {}, \
                 available_ciphers: {}, \
@@ -43,13 +48,19 @@ impl fmt::Display for Claim {
                 server_app_traffic_secret: {}, \
                 exporter_master_secret: {}, \
                 early_exporter_master_secret: {}, \
+
+                transcript: {}, \
             }}",
             self.typ,
             self.write,
+            hex::encode(self.version.to_be_bytes()),
             self.cert,
             self.peer_cert,
             self.peer_tmp_type,
             self.peer_tmp_security_bits,
+            self.group_id,
+            self.key_share_type,
+
             hex::encode(self.chosen_cipher.to_be_bytes()),
             self.available_ciphers,
             self.master_secret,
@@ -65,6 +76,8 @@ impl fmt::Display for Claim {
             self.server_app_traffic_secret,
             self.exporter_master_secret,
             self.early_exporter_master_secret,
+
+            hex::encode(&self.transcript),
         )
     }
 }

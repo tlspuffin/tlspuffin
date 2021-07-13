@@ -34,6 +34,12 @@ typedef enum ClaimKeyType {
     CLAIM_KEY_TYPE_RSA,
     CLAIM_KEY_TYPE_DH,
     CLAIM_KEY_TYPE_EC,
+    CLAIM_KEY_TYPE_POLY1305,
+    CLAIM_KEY_TYPE_SIPHASH,
+    CLAIM_KEY_TYPE_X25519,
+    CLAIM_KEY_TYPE_ED25519,
+    CLAIM_KEY_TYPE_X448,
+    CLAIM_KEY_TYPE_ED448,
 } ClaimKeyType;
 
 typedef struct ClaimSecret {
@@ -57,11 +63,16 @@ typedef struct Claim {
     // writing or processing messages
     int write;
 
+    int version;
+
     ClaimCertData cert;
     ClaimCertData peer_cert;
 
     ClaimKeyType peer_tmp_type;
     int peer_tmp_security_bits;
+
+    int group_id;
+    ClaimKeyType key_share_type;
 
     /*
     * The TLS1.3 secrets.
@@ -81,9 +92,11 @@ typedef struct Claim {
 
     ClaimCiphers available_ciphers;
     unsigned short chosen_cipher;
+
+    unsigned char transcript[MAX_SECRET_SIZE];
 } Claim;
 
-typedef void (* claim_t)(Claim claim, void* ctx);
+typedef void (*claim_t)(Claim claim, void *ctx);
 
 /**
  * registers a
@@ -91,11 +104,11 @@ typedef void (* claim_t)(Claim claim, void* ctx);
  * @param claim function which is called each time a claim is made
  * @param ctx the ctx to pass along
  */
-void register_claimer(const void *tls_like, claim_t claimer, void* ctx);
+void register_claimer(const void *tls_like, claim_t claimer, void *ctx);
 
 /**
  * Sets the internal callbacks to NULL and returns the reference to the claimer
  */
-void* deregister_claimer(const void *tls_like);
+void *deregister_claimer(const void *tls_like);
 
 #endif
