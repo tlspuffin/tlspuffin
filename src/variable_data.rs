@@ -116,6 +116,8 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                 }
                 HandshakePayload::ServerKeyExchange(ske) => match ske {
                     ServerKeyExchangePayload::ECDHE(ecdhe) => {
+                        // this path wont be taken because we do not know the key exchange algorithm
+                        // in advance
                         vec![Box::new(message.clone()), Box::new(ecdhe.clone())]
                     }
                     ServerKeyExchangePayload::Unknown(unknown) => {
