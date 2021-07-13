@@ -4,6 +4,7 @@
 typedef enum ClaimType {
     CLAIM_UNKNOWN,
 
+    // client types
     CLAIM_CLIENT_HELLO,
     CLAIM_CCS,
     CLAIM_END_OF_EARLY_DATA,
@@ -13,23 +14,38 @@ typedef enum ClaimType {
     CLAIM_FINISHED,
     CLAIM_KEY_UPDATE,
 
-    //CLAIM_CCS,
+    // Additional Server types
     CLAIM_HELLO_REQUEST,
     CLAIM_SERVER_HELLO,
-    //CLAIM_CERTIFICATE,
-    //CLAIM_CERTIFICATE_VERIFY,
-    //CLAIM_KEY_EXCHANGE,
     CLAIM_CERTIFICATE_REQUEST,
     CLAIM_SERVER_DONE,
     CLAIM_SESSION_TICKET,
     CLAIM_CERTIFICATE_STATUS,
-    //CLAIM_FINISHED,
     CLAIM_EARLY_DATA,
     CLAIM_ENCRYPTED_EXTENSIONS,
-    //CLAIM_KEY_UPDATE,
 } ClaimType;
 
+typedef enum ClaimKeyType {
+    CLAIM_KEY_TYPE_UNKNOWN,
+    CLAIM_KEY_TYPE_DSA,
+    CLAIM_KEY_TYPE_RSA,
+    CLAIM_KEY_TYPE_DH,
+    CLAIM_KEY_TYPE_EC,
+} ClaimKeyType;
+
 static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
+
+static const int MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
+
+typedef struct ClaimSecret {
+    unsigned char secret[MAX_SECRET_SIZE];
+} ClaimSecret;
+
+typedef struct ClaimCiphers {
+    // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
+    int len;
+    unsigned short ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
+} ClaimCiphers;
 
 typedef struct Claim {
     ClaimType typ;
@@ -37,21 +53,29 @@ typedef struct Claim {
     // writing or processing messages
     int write;
 
-    // length of the key used in RSA certificate
-    int cert_rsa_key_length;
-    int cert_key_length;
+    ClaimKeyType server_cert_key_type;
+    int server_cert_key_length;
 
+    ClaimKeyType peer_tmp_type;
     int peer_tmp_security_bits;
 
-    int cipher_bits;
+    /*
+    * The TLS1.3 secrets.
+    */
+    ClaimSecret early_secret;
+    ClaimSecret handshake_secret;
+    ClaimSecret master_secret;
+    ClaimSecret resumption_master_secret;
+    ClaimSecret client_finished_secret;
+    ClaimSecret server_finished_secret;
+    ClaimSecret server_finished_hash;
+    ClaimSecret handshake_traffic_hash;
+    ClaimSecret client_app_traffic_secret;
+    ClaimSecret server_app_traffic_secret;
+    ClaimSecret exporter_master_secret;
+    ClaimSecret early_exporter_master_secret;
 
-    int master_secret_len;
-    unsigned char master_secret[64];
-
-    // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
-    int available_ciphers_len;
-    unsigned short available_ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
-
+    ClaimCiphers available_ciphers;
     unsigned short chosen_cipher;
 } Claim;
 
