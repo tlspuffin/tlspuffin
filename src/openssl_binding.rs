@@ -23,7 +23,7 @@ use openssl::{
     },
 };
 
-use crate::agent::{TLSVersion, VecClaimer};
+use crate::agent::{TLSVersion};
 use crate::error::Error;
 use crate::io::MemoryStream;
 

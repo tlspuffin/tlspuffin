@@ -67,11 +67,11 @@ use std::{any::TypeId, fmt::Formatter};
 use itertools::Itertools;
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::check::is_violation;
+use security_claims::check::{is_violation};
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
-use crate::agent::AgentDescriptor;
+use crate::agent::{AgentDescriptor};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
@@ -83,12 +83,30 @@ use crate::{
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub type ObservedId = (u16, u16);
 
 struct ObservedVariable {
     observed_id: ObservedId,
     data: Box<dyn VariableData>,
+}
+
+pub struct VecClaimer {
+    pub claims: Vec<(AgentName, Claim)>
+}
+
+impl VecClaimer {
+    pub fn new() -> Self {
+        Self {
+            claims: vec![]
+        }
+    }
+
+    pub fn claim(&mut self, name: AgentName, claim: Claim) {
+        self.claims.push((name, claim));
+    }
 }
 
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
@@ -100,13 +118,17 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
+    pub claimer: Rc<RefCell<VecClaimer>>,
 }
 
 impl TraceContext {
     pub fn new() -> Self {
+        let claimer = Rc::new(RefCell::new(VecClaimer::new()));
+
         Self {
             knowledge: vec![],
             agents: vec![],
+            claimer
         }
     }
 
@@ -171,7 +193,7 @@ impl TraceContext {
     }
 
     pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new_openssl(descriptor)?);
+        let agent_name = self.add_agent(Agent::new_openssl(descriptor, self.claimer.clone())?);
         return Ok(agent_name);
     }
 
@@ -232,21 +254,7 @@ impl Trace {
             execution_listener(step);
         }
 
-        let claims: Vec<(AgentName, Claim)> = self
-            .descriptors
-            .iter()
-            .filter_map(|descriptor| {
-                ctx.find_agent(descriptor.name)
-                    .ok()
-                    .map(|agent| (descriptor.name, agent))
-            })
-            .flat_map(|(name, agent)| {
-                let claims = agent.claimer.deref().borrow().claims.clone();
-                claims
-                    .into_iter()
-                    .map(move |claim| (name.clone(), claim.clone()))
-            })
-            .collect();
+        let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
 
         println!(
             "Claims:\n{}",

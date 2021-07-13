@@ -12,6 +12,7 @@ use security_claims::{Claim, ClaimType};
 use security_claims::register::Claimer;
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::trace::VecClaimer;
 
 /// Copyable reference to an [`Agent`]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq)]
@@ -56,50 +57,32 @@ pub enum TLSVersion {
     V1_2,
 }
 
-pub struct VecClaimer {
-    pub claims: Vec<Claim>
-}
-
-impl VecClaimer {
-    pub fn new() -> Self {
-        Self {
-            claims: vec![]
-        }
-    }
-
-    pub fn claim(&mut self, claim: Claim) {
-        self.claims.push(claim);
-    }
-}
-
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
     pub stream: OpenSSLStream,
-    pub claimer: Rc<RefCell<VecClaimer>>,
+
 }
 
 impl Agent {
-    pub fn new_openssl(descriptor: &AgentDescriptor) -> Result<Self, Error> {
-        let claimer = Rc::new(RefCell::new(VecClaimer::new()));
-
+    pub fn new_openssl(descriptor: &AgentDescriptor, claimer: Rc<RefCell<VecClaimer>>) -> Result<Self, Error> {
         let openssl_stream = OpenSSLStream::new(
             descriptor.server,
             &descriptor.tls_version,
-            claimer.clone()
+            descriptor.name,
+            claimer
         )?;
 
         let mut agent = Self::from_stream(
             descriptor,
-            openssl_stream,
-            claimer
+            openssl_stream
         );
 
         Ok(agent)
     }
 
 
-    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream, claimer: Rc<RefCell<VecClaimer>>) -> Agent {
-        Agent { descriptor: *descriptor, stream, claimer }
+    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
+        Agent { descriptor: *descriptor, stream }
     }
 }
