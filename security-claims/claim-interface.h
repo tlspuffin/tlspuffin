@@ -39,6 +39,7 @@ typedef struct Claim {
 
     // length of the key used in RSA certificate
     int cert_rsa_key_length;
+    int cert_key_length;
 
     int peer_tmp_security_bits;
 
@@ -54,13 +55,15 @@ typedef struct Claim {
     unsigned short chosen_cipher;
 } Claim;
 
+typedef void (* claim_t)(Claim claim, void* ctx);
+
 /**
  * registers a
  *
  * @param claim function which is called each time a claim is made
  * @param ctx the ctx to pass along
  */
-void register_claimer(const void *tls_like, void (* claim)(Claim claim, void* ctx), void* ctx);
+void register_claimer(const void *tls_like, claim_t claimer, void* ctx);
 
 /**
  * Sets the internal callbacks to NULL and returns the reference to the claimer

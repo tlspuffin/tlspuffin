@@ -19,6 +19,8 @@ impl fmt::Display for Claim {
             f,
             "{{ (debug) \
                 state: {:?}, \
+                write: {:?}, \
+                cert_key_length: {}, \
                 cert_rsa_key_length: {}, \
                 available_ciphers: {}, \
                 chosen_cipher: {}, \
@@ -27,6 +29,8 @@ impl fmt::Display for Claim {
                 peer_tmp_security_bits: {}, \
             }}",
             self.typ,
+            self.write,
+            self.cert_key_length,
             self.cert_rsa_key_length,
             self.available_ciphers.iter().map(|c| hex::encode(c.to_be_bytes())).collect::<Vec<String>>().join(", "),
             hex::encode(self.chosen_cipher.to_be_bytes()),
