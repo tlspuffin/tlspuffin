@@ -1,6 +1,9 @@
 #ifndef TLSPUFFIN_DETECTOR_H
 #define TLSPUFFIN_DETECTOR_H
 
+static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
+static const int MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
+
 typedef enum ClaimType {
     CLAIM_UNKNOWN,
 
@@ -33,13 +36,14 @@ typedef enum ClaimKeyType {
     CLAIM_KEY_TYPE_EC,
 } ClaimKeyType;
 
-static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
-
-static const int MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
-
 typedef struct ClaimSecret {
     unsigned char secret[MAX_SECRET_SIZE];
 } ClaimSecret;
+
+typedef struct ClaimCertData {
+    ClaimKeyType key_type;
+    int key_length;
+} ClaimCertData;
 
 typedef struct ClaimCiphers {
     // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
@@ -53,8 +57,8 @@ typedef struct Claim {
     // writing or processing messages
     int write;
 
-    ClaimKeyType server_cert_key_type;
-    int server_cert_key_length;
+    ClaimCertData cert;
+    ClaimCertData peer_cert;
 
     ClaimKeyType peer_tmp_type;
     int peer_tmp_security_bits;

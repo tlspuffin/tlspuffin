@@ -19,11 +19,10 @@ impl fmt::Display for Claim {
             f,
             "{{ (debug) \
                 state: {:?}, \
-                write: {:?}, \
+                write: {}, \
 
-                server_cert_key_type: {:?}, \
-                server_cert_key_length: {}, \
-
+                cert: {}, \
+                peer_cert: {}, \
 
                 peer_tmp_type: {:?}, \
                 peer_tmp_security_bits: {}, \
@@ -47,8 +46,8 @@ impl fmt::Display for Claim {
             }}",
             self.typ,
             self.write,
-            self.server_cert_key_type,
-            self.server_cert_key_length,
+            self.cert,
+            self.peer_cert,
             self.peer_tmp_type,
             self.peer_tmp_security_bits,
             hex::encode(self.chosen_cipher.to_be_bytes()),
@@ -66,6 +65,21 @@ impl fmt::Display for Claim {
             self.server_app_traffic_secret,
             self.exporter_master_secret,
             self.early_exporter_master_secret,
+        )
+    }
+}
+
+impl fmt::Display for ClaimCertData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?}({}b)",
+            self.key_type,
+            if self.key_length == 0 {
+                "?".to_string()
+            } else {
+                self.key_length.to_string()
+            }
         )
     }
 }
