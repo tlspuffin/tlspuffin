@@ -107,6 +107,9 @@ typedef struct Claim {
     ClaimKeyType tmp_skey_type;
     int tmp_skey_group_id;
 
+    int signature_algorithm;
+    int peer_signature_algorithm;
+
     // The TLS1.3 secrets.
     ClaimSecret early_secret;
     ClaimSecret handshake_secret;
