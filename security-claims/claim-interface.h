@@ -121,6 +121,9 @@ typedef struct Claim {
     ClaimSecret exporter_master_secret;
     ClaimSecret early_exporter_master_secret;
 
+    // TLS 1.2
+    ClaimSecret master_secret_12;
+
     // Ciphers
     ClaimCiphers available_ciphers;
     ClaimCipher chosen_cipher;
