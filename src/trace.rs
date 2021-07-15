@@ -67,7 +67,6 @@ use std::{any::TypeId, fmt::Formatter};
 use itertools::Itertools;
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::check::{is_violation};
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +84,7 @@ use crate::{
 };
 use std::rc::Rc;
 use std::cell::RefCell;
+use crate::violation::is_violation;
 
 pub type ObservedId = (u16, u16);
 
@@ -268,6 +268,9 @@ impl Trace {
         Ok(())
     }
 }
+
+
+
 
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

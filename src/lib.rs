@@ -24,3 +24,4 @@ mod debug;
 mod openssl_binding;
 mod tests;
 mod experiment;
+mod violation;
