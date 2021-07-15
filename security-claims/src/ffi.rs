@@ -77,3 +77,6 @@ impl fmt::Display for ClaimSecret {
         Ok(())
     }
 }
+
+impl Eq for ClaimSecret {
+}

@@ -13,7 +13,10 @@ fn main() {
         .rustified_enum(".*")
         .derive_copy(true)
         .derive_debug(true)
+        .derive_eq(true)
         .impl_debug(true)
+        .impl_partialeq(true)
+        .derive_partialeq(true)
         .generate()
         .expect("Unable to generate bindings");
 

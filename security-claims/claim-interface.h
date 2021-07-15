@@ -88,6 +88,8 @@ typedef struct Claim {
 
     ClaimVersion version;
 
+    int server;
+
     // Session ID
     ClaimSessionId session_id;
 
