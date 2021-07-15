@@ -4,6 +4,9 @@ use rustls::msgs::handshake::{Random, ServerECDHParams, ServerExtension, Session
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 
 use super::error::FnError;
+use rustls::msgs::codec::Codec;
+use rustls::msgs::codec::Reader;
+use libafl::bolts::tuples::Prepend;
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -14,7 +17,10 @@ pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
 }
 
 pub fn fn_new_session_id() -> Result<SessionID, FnError> {
-    Ok(SessionID::empty())
+    let mut id: Vec<u8> = Vec::from([3u8; 32]);
+    id.insert(0, 32);
+    let id = SessionID::read(&mut Reader::init(id.as_slice()));
+    Ok(id.unwrap())
 }
 
 pub fn fn_new_random() -> Result<Random, FnError> {

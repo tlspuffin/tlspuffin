@@ -139,6 +139,7 @@ fn tls12_new_secrets(
     let suite12 = Tls12CipherSuite::try_from(suite)
         .map_err(|_err| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
+    // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }
 
