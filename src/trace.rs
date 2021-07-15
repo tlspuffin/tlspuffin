@@ -262,7 +262,7 @@ impl Trace {
         );
 
         if is_violation(claims) {
-            return Err(Error::SecurityClaim());
+            return Err(Error::SecurityClaim(claims.clone()));
         }
 
         Ok(())

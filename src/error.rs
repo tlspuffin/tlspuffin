@@ -5,6 +5,8 @@ use openssl::error::ErrorStack;
 
 use crate::tls::error::FnError;
 use rustls::msgs::enums::ContentType;
+use security_claims::Claim;
+use crate::agent::AgentName;
 
 // #[derive(Debug, Clone, Serialize)] Serialization not used right now
 #[derive(Debug, Clone)]
@@ -22,7 +24,7 @@ pub enum Error {
     /// Error while operating on a [`Stream`]
     Stream(String),
     Extraction(ContentType),
-    SecurityClaim(),
+    SecurityClaim(Vec<(AgentName, Claim)>),
 }
 
 /*fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
@@ -60,7 +62,7 @@ impl fmt::Display for Error {
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
             Error::Extraction(content_type) => write!(f, "error while extracting variable data from {:?}", content_type),
-            Error::SecurityClaim() => write!(f, "error because a security violation occurred"),
+            Error::SecurityClaim(claims) => write!(f, "error because a security violation occurred. claims: {:?}", claims),
         }
     }
 }
