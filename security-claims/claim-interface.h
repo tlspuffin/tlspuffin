@@ -2,9 +2,11 @@
 #define TLSPUFFIN_DETECTOR_H
 
 static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
-static const int MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
+static const int CLAIM_MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
+static const int CLAIM_SESSION_ID_LENGTH = 32;
 
 typedef enum ClaimType {
+    CLAIM_NOT_SET,
     CLAIM_UNKNOWN,
 
     // client types
@@ -29,6 +31,7 @@ typedef enum ClaimType {
 } ClaimType;
 
 typedef enum ClaimKeyType {
+    CLAIM_KEY_TYPE_NOT_SET,
     CLAIM_KEY_TYPE_UNKNOWN,
     CLAIM_KEY_TYPE_DSA,
     CLAIM_KEY_TYPE_RSA,
@@ -43,7 +46,7 @@ typedef enum ClaimKeyType {
 } ClaimKeyType;
 
 typedef struct ClaimSecret {
-    unsigned char secret[MAX_SECRET_SIZE];
+    unsigned char secret[CLAIM_MAX_SECRET_SIZE];
 } ClaimSecret;
 
 typedef struct ClaimCertData {
@@ -51,11 +54,31 @@ typedef struct ClaimCertData {
     int key_length;
 } ClaimCertData;
 
+typedef struct ClaimCipher {
+    unsigned short data;
+} ClaimCipher;
+
 typedef struct ClaimCiphers {
     // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
     int len;
-    unsigned short ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
+    ClaimCipher ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
 } ClaimCiphers;
+
+typedef struct ClaimVersion {
+    int data;
+} ClaimVersion;
+
+typedef struct ClaimRandom {
+    unsigned char data[CLAIM_SESSION_ID_LENGTH];
+} ClaimRandom;
+
+typedef struct ClaimSessionId {
+    unsigned char data[CLAIM_SESSION_ID_LENGTH];
+} ClaimSessionId;
+
+typedef struct ClaimTranscript {
+    unsigned char data[CLAIM_MAX_SECRET_SIZE]; // it contains a hash -> use CLAIM_MAX_SECRET_SIZE
+} ClaimTranscript;
 
 typedef struct Claim {
     ClaimType typ;
@@ -63,20 +86,28 @@ typedef struct Claim {
     // writing or processing messages
     int write;
 
-    int version;
+    ClaimVersion version;
 
+    // Session ID
+    ClaimSessionId session_id;
+
+    // Randoms
+    ClaimRandom server_random;
+    ClaimRandom client_random;
+
+    // Cert info
     ClaimCertData cert;
     ClaimCertData peer_cert;
 
-    ClaimKeyType peer_tmp_type;
-    int peer_tmp_security_bits;
+    // Peer ephemeral key
+    ClaimKeyType peer_tmp_skey_type;
+    int peer_tmp_skey_security_bits;
 
-    int group_id;
-    ClaimKeyType key_share_type;
+    // Ephemeral key
+    ClaimKeyType tmp_skey_type;
+    int tmp_skey_group_id;
 
-    /*
-    * The TLS1.3 secrets.
-    */
+    // The TLS1.3 secrets.
     ClaimSecret early_secret;
     ClaimSecret handshake_secret;
     ClaimSecret master_secret;
@@ -90,10 +121,12 @@ typedef struct Claim {
     ClaimSecret exporter_master_secret;
     ClaimSecret early_exporter_master_secret;
 
+    // Ciphers
     ClaimCiphers available_ciphers;
-    unsigned short chosen_cipher;
+    ClaimCipher chosen_cipher;
 
-    unsigned char transcript[MAX_SECRET_SIZE];
+    // Transcript
+    ClaimTranscript transcript;
 } Claim;
 
 typedef void (*claim_t)(Claim claim, void *ctx);

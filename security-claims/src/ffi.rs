@@ -15,70 +15,25 @@ include!(concat!(env!("OUT_DIR"), "/claim-interface.rs"));
 
 impl fmt::Display for Claim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{{ (debug) \
-                state: {:?}, \
-                write: {}, \
+        write!(f, "{:?}", &self)
+    }
+}
 
-                version: {}, \
+impl fmt::Display for ClaimVersion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.data.to_be_bytes()))
+    }
+}
 
-                cert: {}, \
-                peer_cert: {}, \
+impl fmt::Display for ClaimTranscript {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.data))
+    }
+}
 
-                peer_tmp_type: {:?}, \
-                peer_tmp_security_bits: {}, \
-
-                group_id: {}, \
-                key_share_type: {:?}, \
-
-                chosen_cipher: {}, \
-                available_ciphers: {}, \
-
-                master_secret: {}, \
-                early_secret: {}, \
-                handshake_secret: {}, \
-                master_secret: {}, \
-                resumption_master_secret: {}, \
-                client_finished_secret: {}, \
-                server_finished_secret: {}, \
-                server_finished_hash: {}, \
-                handshake_traffic_hash: {}, \
-                client_app_traffic_secret: {}, \
-                server_app_traffic_secret: {}, \
-                exporter_master_secret: {}, \
-                early_exporter_master_secret: {}, \
-
-                transcript: {}, \
-            }}",
-            self.typ,
-            self.write,
-            hex::encode(self.version.to_be_bytes()),
-            self.cert,
-            self.peer_cert,
-            self.peer_tmp_type,
-            self.peer_tmp_security_bits,
-            self.group_id,
-            self.key_share_type,
-
-            hex::encode(self.chosen_cipher.to_be_bytes()),
-            self.available_ciphers,
-            self.master_secret,
-            self.early_secret,
-            self.handshake_secret,
-            self.master_secret,
-            self.resumption_master_secret,
-            self.client_finished_secret,
-            self.server_finished_secret,
-            self.server_finished_hash,
-            self.handshake_traffic_hash,
-            self.client_app_traffic_secret,
-            self.server_app_traffic_secret,
-            self.exporter_master_secret,
-            self.early_exporter_master_secret,
-
-            hex::encode(&self.transcript),
-        )
+impl fmt::Display for ClaimCipher {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.data.to_be_bytes()),)
     }
 }
 
@@ -104,7 +59,7 @@ impl fmt::Display for ClaimCiphers {
             "{}",
             self.ciphers[0..self.len as usize]
                 .iter()
-                .map(|c| hex::encode(c.to_be_bytes()))
+                .map(|c| hex::encode(c.data.to_be_bytes()))
                 .collect::<Vec<String>>()
                 .join(", ")
         )
