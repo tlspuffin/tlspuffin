@@ -261,8 +261,8 @@ impl Trace {
             &claims.iter().map(|(name, claim)| format!("{}: {}", name, claim)).join("\n")
         );
 
-        if is_violation(claims) {
-            return Err(Error::SecurityClaim(claims.clone()));
+        if let Some(msg) = is_violation(claims) {
+            return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 
         Ok(())

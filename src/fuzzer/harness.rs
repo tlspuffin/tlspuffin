@@ -38,8 +38,8 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction(_) => EXTRACTION.increment(),
-            Error::SecurityClaim(claims) => {
-                warn!("{:?}", claims);
+            Error::SecurityClaim(msg, claims) => {
+                warn!("{} claims: {:?}", msg, claims);
                 std::process::abort()
             }
         }

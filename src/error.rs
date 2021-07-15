@@ -24,7 +24,7 @@ pub enum Error {
     /// Error while operating on a [`Stream`]
     Stream(String),
     Extraction(ContentType),
-    SecurityClaim(Vec<(AgentName, Claim)>),
+    SecurityClaim(&'static str, Vec<(AgentName, Claim)>),
 }
 
 /*fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
@@ -62,7 +62,7 @@ impl fmt::Display for Error {
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
             Error::Extraction(content_type) => write!(f, "error while extracting variable data from {:?}", content_type),
-            Error::SecurityClaim(claims) => write!(f, "error because a security violation occurred. claims: {:?}", claims),
+            Error::SecurityClaim(msg, claims) => write!(f, "error because a security violation occurred. msg: {}, claims: {:?}", msg, claims),
         }
     }
 }
