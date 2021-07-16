@@ -19,7 +19,7 @@ use serde::Serialize;
 use serde::Serializer;
 use serde_json::{to_value, to_writer, Serializer as JSONSerializer};
 
-use crate::fuzzer::stats::{RuntimeStats, STATS};
+use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
 
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
 pub struct PuffinStats<F>

@@ -41,7 +41,7 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats::StatsFeedback;
+use crate::fuzzer::stats_observer::StatsFeedback;
 use crate::fuzzer::terminal_stats::TerminalStats;
 use crate::openssl_binding::make_deterministic;
 

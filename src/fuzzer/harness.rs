@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::trace::{Trace, TraceContext, Action};
 use crate::error::Error;
-use crate::fuzzer::stats::*;
+use crate::fuzzer::stats_observer::*;
 
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
