@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use itertools::Itertools;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::corpus::LenTimeMinimizerCorpusScheduler;
-use libafl::events::LlmpRestartingEventManager;
+use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
     bolts::{
         current_nanos,
@@ -41,7 +41,7 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats_observer::ErrorObserver;
+use crate::fuzzer::stats::StatsFeedback;
 use crate::fuzzer::terminal_stats::TerminalStats;
 use crate::openssl_binding::make_deterministic;
 
@@ -94,20 +94,18 @@ pub fn start(
                 &mut EDGES_MAP[0..MAX_EDGES_NUM]
             }));
             let time_observer = TimeObserver::new("time");
-            let error_observer = ErrorObserver::new("error");
 
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
             #[cfg(feature = "no-minimizer")]
-            let feedback = feedback_or!(MaxMapFeedback::new_tracking(
-                &edges_feedback_state,
-                &edges_observer,
-                false,
-                false
-            ));
+            let feedback = feedback_or!(
+                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false),
+                StatsFeedback::new("stats")
+            );
 
             #[cfg(not(feature = "no-minimizer"))]
             let feedback = feedback_or!(
+                StatsFeedback::new("stats"),
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
                 MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
@@ -119,8 +117,8 @@ pub fn start(
             // A feedback to choose if an input is a solution or not
             let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
 
-            let sender_id = restarting_mgr.sender().id;
-            info!("Sender ID is {}", sender_id);
+            let sender_id = restarting_mgr.mgr_id();
+            info!("Sender ID is {}", sender_id.id);
 
             // If not restarting, create a State from scratch
             let mut state = state.unwrap_or_else(|| {
@@ -175,7 +173,7 @@ pub fn start(
                 InProcessExecutor::new(
                     &mut harness_fn,
                     // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
-                    tuple_list!(edges_observer, time_observer, error_observer),
+                    tuple_list!(edges_observer, time_observer),
                     &mut fuzzer,
                     &mut state,
                     &mut restarting_mgr,
@@ -218,6 +216,7 @@ pub fn start(
 
     if let Err(error) = libafl::bolts::launcher::Launcher::builder()
         .shmem_provider(shmem_provider)
+        .configuration("launcher default".into())
         .stats(stats)
         .run_client(&mut run_client)
         .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg

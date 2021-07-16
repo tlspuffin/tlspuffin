@@ -6,7 +6,7 @@ mod tests;
 mod libafl_setup;
 mod harness;
 pub mod mutations;
-mod stats_observer;
+mod stats;
 pub mod seeds;
 
 pub use libafl_setup::start;
@@ -31,7 +31,7 @@ mod sancov_dummy;
 mod stages;
 mod macros;
 mod terminal_stats;
-mod stats;
+mod stats_observer;
 
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]

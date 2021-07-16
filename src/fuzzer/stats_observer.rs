@@ -5,11 +5,13 @@ use itertools::Itertools;
 use libafl::bolts::tuples::Named;
 use libafl::events::Event::UpdateUserStats;
 use libafl::events::{Event, EventFirer};
+use libafl::executors::ExitKind;
+use libafl::feedbacks::Feedback;
 use libafl::inputs::Input;
-use libafl::observers::Observer;
-use libafl::state::State;
+use libafl::observers::{Observer, ObserversTuple};
+use libafl::state::{HasClientPerfStats, State};
 use libafl::stats::UserStats;
-use libafl::{executors::HasExecHooks, Error};
+use libafl::Error;
 use serde::{Deserialize, Serialize};
 
 pub enum RuntimeStats {
@@ -190,49 +192,30 @@ impl Fire for MinMaxMean {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ErrorObserver {
+pub struct StatsFeedback {
     name: String,
 }
 
-impl ErrorObserver {
-    /// Creates a new [`ErrorObserver`] with the given name.
-    #[must_use]
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name: name.to_string(),
-        }
-    }
-}
-
-impl Observer for ErrorObserver {}
-
-impl<EM, I, S, Z> HasExecHooks<EM, I, S, Z> for ErrorObserver
+impl<I, S> Feedback<I, S> for StatsFeedback
 where
-    EM: EventFirer<I, S>,
     I: Input,
-    S: State,
+    S: HasClientPerfStats,
 {
-    fn pre_exec(
+    fn is_interesting<EM, OT>(
         &mut self,
-        _fuzzer: &mut Z,
-        _state: &mut S,
-        _mgr: &mut EM,
-        _input: &I,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn post_exec(
-        &mut self,
-        _fuzzer: &mut Z,
         state: &mut S,
-        mgr: &mut EM,
+        manager: &mut EM,
         _input: &I,
-    ) -> Result<(), Error> {
+        _observers: &OT,
+        _exit_kind: &ExitKind,
+    ) -> Result<bool, Error>
+    where
+        EM: EventFirer<I, S>,
+        OT: ObserversTuple<I, S>,
+    {
         for stat in &STATS {
             stat.fire(&mut |name, stats| {
-                mgr.fire(
+                manager.fire(
                     state,
                     Event::UpdateUserStats {
                         name,
@@ -243,12 +226,22 @@ where
             })?;
         }
 
-        Ok(())
+        Ok(false)
     }
 }
 
-impl Named for ErrorObserver {
+impl Named for StatsFeedback {
+    #[inline]
     fn name(&self) -> &str {
-        &self.name
+        self.name.as_str()
+    }
+}
+
+impl StatsFeedback {
+    #[must_use]
+    pub fn new(name: &'static str) -> Self {
+        Self {
+            name: name.to_string(),
+        }
     }
 }
