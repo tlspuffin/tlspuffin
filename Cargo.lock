@@ -757,7 +757,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 [[package]]
 name = "libafl"
 version = "0.3.2"
-source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#a40b8a186550103390f80f9dfccb503397f564ed"
+source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#883154d96fbb38173d98ca87851296aee2b996c3"
 dependencies = [
  "ahash 0.7.4",
  "core_affinity",
@@ -789,7 +789,7 @@ dependencies = [
 [[package]]
 name = "libafl_derive"
 version = "0.3.2"
-source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#a40b8a186550103390f80f9dfccb503397f564ed"
+source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#883154d96fbb38173d98ca87851296aee2b996c3"
 dependencies = [
  "quote",
  "syn",
@@ -798,7 +798,7 @@ dependencies = [
 [[package]]
 name = "libafl_targets"
 version = "0.3.2"
-source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#a40b8a186550103390f80f9dfccb503397f564ed"
+source = "git+https://github.com/maxammann/LibAFL.git?branch=fuzz#883154d96fbb38173d98ca87851296aee2b996c3"
 dependencies = [
  "cc",
  "libafl",
