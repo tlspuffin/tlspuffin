@@ -57,7 +57,7 @@ impl fmt::Display for ClaimCiphers {
         write!(
             f,
             "{}",
-            self.ciphers[0..self.len as usize]
+            self.ciphers[0..self.length as usize]
                 .iter()
                 .map(|c| hex::encode(c.data.to_be_bytes()))
                 .collect::<Vec<String>>()

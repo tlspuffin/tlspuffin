@@ -27,9 +27,10 @@ where
 }
 
 pub fn deregister_claimer(ssl_like_ptr: TLSLike) {
-    let ptr = unsafe { ffi::deregister_claimer(ssl_like_ptr) };
     // drop the callback
     let _: Box<Box<Claimer>> = unsafe {
-        Box::from_raw(ptr as *mut _)
+        let ptr = ffi::deregister_claimer(ssl_like_ptr);
+        let raw: Box<Box<Claimer>> = Box::from_raw(ptr as *mut _);
+        raw
     };
 }

@@ -60,7 +60,7 @@ typedef struct ClaimCipher {
 
 typedef struct ClaimCiphers {
     // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
-    int len;
+    int length;
     ClaimCipher ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
 } ClaimCiphers;
 
@@ -77,6 +77,7 @@ typedef struct ClaimSessionId {
 } ClaimSessionId;
 
 typedef struct ClaimTranscript {
+    int length;
     unsigned char data[CLAIM_MAX_SECRET_SIZE]; // it contains a hash -> use CLAIM_MAX_SECRET_SIZE
 } ClaimTranscript;
 
