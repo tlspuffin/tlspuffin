@@ -217,7 +217,7 @@ impl TraceContext {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
@@ -269,8 +269,11 @@ impl Trace {
     }
 }
 
-
-
+impl fmt::Debug for Trace {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Trace with {} steps", self.steps.len())
+    }
+}
 
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

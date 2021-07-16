@@ -82,8 +82,7 @@ pub fn start(
             info!("{}", s);
         },
         stats_file.clone(),
-    )
-    .unwrap();
+    ).unwrap();
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,
@@ -97,21 +96,10 @@ pub fn start(
 
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
-            #[cfg(feature = "no-minimizer")]
+
             let feedback = feedback_or!(
                 MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false),
                 StatsFeedback::new("stats")
-            );
-
-            #[cfg(not(feature = "no-minimizer"))]
-            let feedback = feedback_or!(
-                StatsFeedback::new("stats"),
-                // New maximization map feedback linked to the edges observer and the feedback state
-                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
-                // Time feedback, this one does not need a feedback state
-                // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::new_with_observer(&time_observer)
             );
 
             // A feedback to choose if an input is a solution or not
@@ -159,10 +147,6 @@ pub fn start(
             ));
 
             // A minimization+queue policy to get testcasess from the corpus
-            #[cfg(not(feature = "no-minimizer"))]
-            let scheduler =
-                IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-            #[cfg(feature = "no-minimizer")]
             let scheduler = RandCorpusScheduler::new();
 
             let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
