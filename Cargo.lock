@@ -758,7 +758,7 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 [[package]]
 name = "libafl"
 version = "0.5.0"
-source = "git+https://github.com/AFLplusplus/LibAFL.git#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=230d7a1#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
 dependencies = [
  "ahash 0.7.4",
  "core_affinity",
@@ -790,7 +790,7 @@ dependencies = [
 [[package]]
 name = "libafl_derive"
 version = "0.5.0"
-source = "git+https://github.com/AFLplusplus/LibAFL.git#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=230d7a1#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
 dependencies = [
  "quote",
  "syn",
@@ -799,7 +799,7 @@ dependencies = [
 [[package]]
 name = "libafl_targets"
 version = "0.5.0"
-source = "git+https://github.com/AFLplusplus/LibAFL.git#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
+source = "git+https://github.com/AFLplusplus/LibAFL.git?rev=230d7a1#230d7a1cb1a89b6e47b01e8c08719f01bfd1af65"
 dependencies = [
  "cc",
  "libafl",
