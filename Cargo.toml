@@ -34,7 +34,7 @@ webpki-roots = "0.22.0"
 ring = { version = "0.16", features = ["std"] }
 
 # LibAFL
-libafl = { git = "https://github.com/maxammann/LibAFL.git", branch = "fuzz" }
+libafl = { git = "https://github.com/maxammann/LibAFL.git", branch = "fuzz", features = ["llmp_debug"]}
 libafl_derive = { git = "https://github.com/maxammann/LibAFL.git", branch = "fuzz" }
 libafl_targets = { git = "https://github.com/maxammann/LibAFL.git", branch = "fuzz" }
 
