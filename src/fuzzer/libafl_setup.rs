@@ -136,7 +136,7 @@ pub fn start(
                             }
                         #[cfg(feature = "disk-corpus")]
                             {
-                                OnDiskCorpus::new(on_disk_corpus).unwrap()
+                                OnDiskCorpus::new(on_disk_corpus.clone()).unwrap()
                             }
                     },
                     OnDiskCorpus::new(objective_dir.clone()).unwrap(),
