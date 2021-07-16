@@ -71,6 +71,7 @@ fn main() {
         .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
         .args_from_usage("-s, --seed=[n] '(experimental) provide a seed for all clients'")
         .args_from_usage("-p, --port=[n] 'Port of the broker'")
+        .args_from_usage("-i, --max-iters=[i] 'Maximum iterations to do'")
         .subcommands(vec![
             SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
             SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
@@ -94,6 +95,7 @@ fn main() {
     let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
     let port = value_t!(matches, "port", u16).unwrap_or(1337);
     let static_seed = value_t!(matches, "seed", u64).ok();
+    let max_iters = value_t!(matches, "max.iters", u64).ok();
 
     info!("{}", openssl_binding::openssl_version());
 
@@ -188,6 +190,7 @@ fn main() {
             &experiment_path.join("crashes"),
             port,
             static_seed,
+            max_iters
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
         let git_ref = get_git_ref().unwrap();
@@ -217,6 +220,7 @@ fn main() {
             &experiment_path.join("crashes"),
             port,
             static_seed,
+            max_iters
         );
     } else {
         start(
@@ -226,6 +230,7 @@ fn main() {
             &PathBuf::from("crashes"),
             port,
             static_seed,
+            max_iters
         );
     }
 }

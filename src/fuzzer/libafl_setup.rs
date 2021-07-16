@@ -37,16 +37,16 @@ use libafl::{
     Error, Evaluator,
 };
 
-use crate::fuzzer::stats_observer::ErrorObserver;
 use crate::fuzzer::mutations::trace_mutations;
+use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
+use crate::fuzzer::stats_observer::ErrorObserver;
 use crate::fuzzer::terminal_stats::TerminalStats;
 use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
-use crate::fuzzer::mutations::util::TermConstraints;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -68,6 +68,7 @@ pub fn start(
     corpus_dirs: &[PathBuf],
     objective_dir: &PathBuf,
     broker_port: u16,
+    max_iters: Option<u64>,
     static_seed: Option<u64>,
 ) {
     info!("Running on {} cores", num_cores);
@@ -77,9 +78,13 @@ pub fn start(
 
     /*    let stats = TerminalStats::new();*/
 
-    let stats = PuffinStats::new(|s| {
-        info!("{}", s);
-    }, stats_file.clone()).unwrap();
+    let stats = PuffinStats::new(
+        |s| {
+            //info!("{}", s);
+        },
+        stats_file.clone(),
+    )
+    .unwrap();
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,
@@ -124,10 +129,14 @@ pub fn start(
                 )
             });
 
-            let mutations = trace_mutations(MIN_TRACE_LENGTH, MAX_TRACE_LENGTH, TermConstraints {
-                min_term_size: MIN_TERM_SIZE,
-                max_term_size: MAX_TERM_SIZE
-            });
+            let mutations = trace_mutations(
+                MIN_TRACE_LENGTH,
+                MAX_TRACE_LENGTH,
+                TermConstraints {
+                    min_term_size: MIN_TERM_SIZE,
+                    max_term_size: MAX_TERM_SIZE,
+                },
+            );
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
             let mut stages = tuple_list!(PuffinMutationalStage::new(
                 mutator,
@@ -175,7 +184,18 @@ pub fn start(
                 println!("We imported {} inputs from disk.", state.corpus().count());
             }
 
-            fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut restarting_mgr)?;
+            if let Some(max_iters) = max_iters {
+                fuzzer.fuzz_loop_for(
+                    &mut stages,
+                    &mut state,
+                    &mut executor,
+                    &mut restarting_mgr,
+                    max_iters,
+                )?;
+            } else {
+                fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut restarting_mgr)?;
+            }
+
             Ok(())
         };
 
