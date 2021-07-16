@@ -64,9 +64,10 @@ pub static MAX_TERM_SIZE: usize = 300;
 /// Starts the fuzzing loop
 pub fn start(
     num_cores: usize,
-    stats_file: &PathBuf,
-    corpus_dirs: &[PathBuf],
-    objective_dir: &PathBuf,
+    stats_file: PathBuf,
+    on_disk_corpus: PathBuf,
+    corpus_dir: PathBuf,
+    objective_dir: PathBuf,
     broker_port: u16,
     max_iters: Option<u64>,
     static_seed: Option<u64>,
@@ -99,6 +100,12 @@ pub fn start(
 
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
+            #[cfg(feature = "no-minimizer")]
+            let feedback = feedback_or!(
+                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false)
+            );
+
+            #[cfg(not(feature = "no-minimizer"))]
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
@@ -122,7 +129,16 @@ pub fn start(
                 info!("Seed is {}", seed);
                 StdState::new(
                     StdRand::with_seed(seed),
-                    InMemoryCorpus::new(),
+                    {
+                        #[cfg(not(feature = "disk-corpus"))]
+                            {
+                                InMemoryCorpus::new()
+                            }
+                        #[cfg(feature = "disk-corpus")]
+                            {
+                                OnDiskCorpus::new(on_disk_corpus).unwrap()
+                            }
+                    },
                     OnDiskCorpus::new(objective_dir.clone()).unwrap(),
                     // They are the data related to the feedbacks that you want to persist in the State.
                     tuple_list!(edges_feedback_state),
@@ -173,12 +189,12 @@ pub fn start(
                         &mut fuzzer,
                         &mut executor,
                         &mut restarting_mgr,
-                        &corpus_dirs,
+                        &[corpus_dir.clone()],
                     )
                     .unwrap_or_else(|err| {
                         panic!(
                             "Failed to load initial corpus at {:?}: {}",
-                            &corpus_dirs, err
+                            &corpus_dir, err
                         )
                     });
                 println!("We imported {} inputs from disk.", state.corpus().count());

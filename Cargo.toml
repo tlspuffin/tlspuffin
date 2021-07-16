@@ -6,7 +6,7 @@ edition = "2018"
 resolver = "2"
 
 [features]
-default = ["sancov_libafl", "ossl110", "introspection"]
+default = ["sancov_libafl", "ossl110", "introspection", "no-minimizer"]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
@@ -17,6 +17,7 @@ ossl110 =[]
 ossl101 = ["openssl/weak-crypto"] # We want to allow weak-crypto for FREAK
 # Uses a random scheduler instead of minimizer
 no-minimizer = []
+disk-corpus = []
 # Enables ASAN
 asan = ["openssl/asan"]
 introspection = ["libafl/introspection"]

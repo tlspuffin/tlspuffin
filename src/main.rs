@@ -73,7 +73,8 @@ fn main() {
         .args_from_usage("-p, --port=[n] 'Port of the broker'")
         .args_from_usage("-i, --max-iters=[i] 'Maximum iterations to do'")
         .subcommands(vec![
-            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
+            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out")
+                .args_from_usage("--disk-corpus 'Use a on disk corpus'"),
             SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
                 .args_from_usage("-t, --title=[t] 'Title of the experiment'")
                 .args_from_usage("-d, --description=[d] 'Decryption of the experiment'")
@@ -95,7 +96,7 @@ fn main() {
     let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
     let port = value_t!(matches, "port", u16).unwrap_or(1337);
     let static_seed = value_t!(matches, "seed", u64).ok();
-    let max_iters = value_t!(matches, "max.iters", u64).ok();
+    let max_iters = value_t!(matches, "max-iters", u64).ok();
 
     info!("{}", openssl_binding::openssl_version());
 
@@ -103,10 +104,7 @@ fn main() {
         let agent_a = agent::AgentName::first();
         let agent_b = agent_a.next();
 
-        let traces: Vec<(
-            trace::Trace,
-            &'static str,
-        )> = vec![
+        let traces: Vec<(trace::Trace, &'static str)> = vec![
             (seed_successful(agent_a, agent_b), "seed_successful"),
             (seed_successful12(agent_a, agent_b), "seed_successful12"),
             (seed_client_attacker(agent_a), "seed_client_attacker"),
@@ -185,12 +183,13 @@ fn main() {
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
             num_cores,
-            &experiment_path.join("stats.json"),
-            &[PathBuf::from("./corpus")],
-            &experiment_path.join("crashes"),
+            experiment_path.join("stats.json"),
+            experiment_path.join("corpus"),
+            PathBuf::from("./corpus"),
+            experiment_path.join("crashes"),
             port,
             static_seed,
-            max_iters
+            max_iters,
         );
     } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
         let git_ref = get_git_ref().unwrap();
@@ -215,22 +214,24 @@ fn main() {
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
             num_cores,
-            &experiment_path.join("stats.json"),
-            &[PathBuf::from("./corpus")],
-            &experiment_path.join("crashes"),
+            experiment_path.join("stats.json"),
+            experiment_path.join("corpus"),
+            PathBuf::from("./corpus"),
+            experiment_path.join("crashes"),
             port,
             static_seed,
-            max_iters
+            max_iters,
         );
     } else {
         start(
             num_cores,
-            &PathBuf::from("stats.json"),
-            &[PathBuf::from("corpus")],
-            &PathBuf::from("crashes"),
+            PathBuf::from("stats.json"),
+            PathBuf::from("disk-corpus"),
+            PathBuf::from("corpus"),
+            PathBuf::from("crashes"),
             port,
             static_seed,
-            max_iters
+            max_iters,
         );
     }
 }
