@@ -77,11 +77,9 @@ pub fn start(
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
-    /*    let stats = TerminalStats::new();*/
-
     let stats = PuffinStats::new(
         |s| {
-            //info!("{}", s);
+            info!("{}", s);
         },
         stats_file.clone(),
     )
@@ -101,9 +99,12 @@ pub fn start(
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
             #[cfg(feature = "no-minimizer")]
-            let feedback = feedback_or!(
-                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false)
-            );
+            let feedback = feedback_or!(MaxMapFeedback::new_tracking(
+                &edges_feedback_state,
+                &edges_observer,
+                false,
+                false
+            ));
 
             #[cfg(not(feature = "no-minimizer"))]
             let feedback = feedback_or!(
@@ -131,13 +132,13 @@ pub fn start(
                     StdRand::with_seed(seed),
                     {
                         #[cfg(not(feature = "disk-corpus"))]
-                            {
-                                InMemoryCorpus::new()
-                            }
+                        {
+                            InMemoryCorpus::new()
+                        }
                         #[cfg(feature = "disk-corpus")]
-                            {
-                                OnDiskCorpus::new(on_disk_corpus.clone()).unwrap()
-                            }
+                        {
+                            OnDiskCorpus::new(on_disk_corpus.clone()).unwrap()
+                        }
                     },
                     OnDiskCorpus::new(objective_dir.clone()).unwrap(),
                     // They are the data related to the feedbacks that you want to persist in the State.
