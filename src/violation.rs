@@ -48,8 +48,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("Mismatching ciphers");
                     }
 
-                    if !(client.signature_algorithm == server.peer_signature_algorithm
-                        || server.signature_algorithm == client.peer_signature_algorithm)
+                    if client.signature_algorithm != server.peer_signature_algorithm
+                        || server.signature_algorithm != client.peer_signature_algorithm
                     {
                         return Some("mismatching signature algorithms");
                     }
@@ -72,18 +72,18 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                     }
 
                     if client.tmp_skey_type != server.tmp_skey_type {
-                        return Some("Mismatching ephemeral kex method");;
+                        return Some("Mismatching ephemeral kex method");
                     }
                     if client.tmp_skey_group_id != server.tmp_skey_group_id {
-                        return Some("Mismatching groups");;
+                        return Some("Mismatching groups");
                     }
 
                     if client.chosen_cipher != server.chosen_cipher {
-                        return Some("Mismatching ciphers");;
+                        return Some("Mismatching ciphers");
                     }
 
-                    if !(client.signature_algorithm == server.peer_signature_algorithm
-                        || server.signature_algorithm == client.peer_signature_algorithm)
+                    if client.signature_algorithm != server.peer_signature_algorithm
+                        || server.signature_algorithm != client.peer_signature_algorithm
                     {
                         return Some("mismatching signature algorithms");
                     }
