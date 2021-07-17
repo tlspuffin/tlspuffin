@@ -9,10 +9,15 @@ use libafl::executors::ExitKind;
 use libafl::feedbacks::Feedback;
 use libafl::inputs::Input;
 use libafl::observers::{Observer, ObserversTuple};
-use libafl::state::{HasClientPerfStats, State};
+use libafl::state::{HasClientPerfStats, State, HasRand, HasCorpus};
 use libafl::stats::UserStats;
-use libafl::Error;
+use libafl::{Error, Evaluator};
 use serde::{Deserialize, Serialize};
+use libafl::bolts::rands::Rand;
+use libafl::mutators::Mutator;
+use libafl::corpus::Corpus;
+use libafl::stages::Stage;
+use std::marker::PhantomData;
 
 pub enum RuntimeStats {
     FnError(&'static Counter),
@@ -245,3 +250,76 @@ impl StatsFeedback {
         }
     }
 }
+
+
+
+/////
+
+
+
+#[derive(Clone, Debug)]
+pub struct StatsStage<C, E, EM, I, R, S, Z>
+    where
+        C: Corpus<I>,
+        I: Input,
+        R: Rand,
+        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+        Z: Evaluator<E, EM, I, S>,
+{
+    #[allow(clippy::type_complexity)]
+    phantom: PhantomData<(C, E, EM, I, R, S, Z)>
+}
+
+
+impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, Z>
+    where
+        C: Corpus<I>,
+        I: Input,
+        R: Rand,
+        EM: EventFirer<I, S>,
+        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+        Z: Evaluator<E, EM, I, S>,
+{
+    #[inline]
+    #[allow(clippy::let_and_return)]
+    fn perform(
+        &mut self,
+        fuzzer: &mut Z,
+        executor: &mut E,
+        state: &mut S,
+        manager: &mut EM,
+        corpus_idx: usize,
+    ) -> Result<(), Error> {
+        for stat in &STATS {
+            stat.fire(&mut |name, stats| {
+                manager.fire(
+                    state,
+                    Event::UpdateUserStats {
+                        name,
+                        value: stats,
+                        phantom: Default::default(),
+                    },
+                )
+            })?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<C, E, EM, I,  R, S, Z> StatsStage<C, E, EM, I, R, S, Z>
+    where
+        C: Corpus<I>,
+        I: Input,
+        R: Rand,
+        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+        Z: Evaluator<E, EM, I, S>,
+{
+
+    pub fn new() -> Self {
+        Self {
+            phantom: PhantomData
+        }
+    }
+}
+

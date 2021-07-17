@@ -41,7 +41,7 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats_observer::StatsFeedback;
+use crate::fuzzer::stats_observer::{StatsFeedback, StatsStage};
 use crate::fuzzer::terminal_stats::TerminalStats;
 use crate::openssl_binding::make_deterministic;
 
@@ -98,8 +98,7 @@ pub fn start(
 
 
             let feedback = feedback_or!(
-                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false),
-                StatsFeedback::new("stats")
+                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false)
             );
 
             // A feedback to choose if an input is a solution or not
@@ -144,7 +143,7 @@ pub fn start(
             let mut stages = tuple_list!(PuffinMutationalStage::new(
                 mutator,
                 MAX_ITERATIONS_PER_STAGE
-            ));
+            ), StatsStage::new());
 
             // A minimization+queue policy to get testcasess from the corpus
             let scheduler = RandCorpusScheduler::new();
