@@ -1,6 +1,6 @@
 //!  These are currently implemented by using an in-memory buffer.
-//! One might ask why we want two channel There two very practical reasons
-//! for thi Note that these are advantages for the implementation and are not
+//! One might ask why we want two channels. There two very practical reasons
+//! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
 //!
 //! * Having two buffers resembles how networking works in reality: Each computer has an input and an
@@ -90,7 +90,7 @@ impl OpenSSLStream {
         })
     }
 
-    pub fn describe_state(&self) -> &'static str {
+    pub fn describe_state(&self) -> &'static str {  // LH: Why 'static lifetime? Couldn't you use an owned value here?
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return

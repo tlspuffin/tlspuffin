@@ -23,7 +23,7 @@ pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 pub struct Signature {
     pub functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)>,
     pub functions: Vec<FunctionDefinition>,
-    pub types_by_name: HashMap<&'static str, TypeShape>,
+    pub types_by_name: HashMap<&'static str, TypeShape>,  // LH: Why not owned String as in `function_by_name` or use `static there as well?
 }
 
 impl Signature {
@@ -40,7 +40,7 @@ impl Signature {
             .clone()
             .into_iter()
             .map(|(shape, dynamic_fn)| {
-                let types: Vec<TypeShape> = shape
+                let types: Vec<TypeShape> = shape // vector of the argument shapes + return type
                     .argument_types
                     .iter()
                     .copied()
@@ -49,7 +49,7 @@ impl Signature {
                 types
             })
             .unique()
-            .flatten()
+            .flatten() // LH: I do not understand this, what is the intended returned TypeShape in the HashMap?
             .map(|typ| (typ.name, typ.clone()))
             .collect();
 
@@ -88,7 +88,7 @@ impl fmt::Debug for Signature {
 }
 
 #[macro_export]
-macro_rules! define_signature {
+macro_rules! define_signature {   // LH: To document somewhere: it does not seem that your signature and the way you (de)serialize are robust to function name modifications (?)
     ($name_signature:ident, $($f:path),+ $(,)?) => {
         use once_cell::sync::Lazy;
         /// Signature which contains all functions defined in the `tls` module.

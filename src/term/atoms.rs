@@ -39,18 +39,18 @@ impl Clone for Variable {
 }
 
 impl Variable {
-    pub fn new(type_shape: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(typ: TypeShape, observed_id: ObservedId) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
-            typ: type_shape,
+            typ,
             observed_id,
         }
     }
 }
 
 impl fmt::Display for Variable {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "({},{})/{}", self.observed_id.0, self.observed_id.1, remove_prefix(self.typ.name))
     }
 }

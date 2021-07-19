@@ -36,7 +36,7 @@ impl fmt::Display for AgentName {
     }
 }
 
-impl PartialEq for AgentName {
+impl PartialEq for AgentName {  // LH: Isn't this the default PartialEq obtained with Derive?
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -80,7 +80,6 @@ impl Agent {
 
         Ok(agent)
     }
-
 
     fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
         Agent { descriptor: *descriptor, stream }

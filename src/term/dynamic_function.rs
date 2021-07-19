@@ -70,7 +70,7 @@ pub struct DynamicFunctionShape {
     pub return_type: TypeShape,
 }
 
-impl Eq for DynamicFunctionShape {}
+impl Eq for DynamicFunctionShape {}  // LH: What is that? Why not deriving Eq on the struct?
 
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
@@ -116,8 +116,8 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
         "({})",
         anys.iter()
             .map(|any| {
-                let id = any.as_ref().type_id().clone();
-                format!("{:x}", hash_type_id(&id))
+                let id = &any.as_ref().type_id();
+                format!("{:x}", hash_type_id(id))
             })
             .join(",")
     )
