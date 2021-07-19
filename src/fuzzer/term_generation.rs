@@ -1,9 +1,8 @@
-use itertools::{multizip, zip, Itertools};
+use itertools::{multizip, Itertools};
 use libafl::bolts::rands::Rand;
 
 use crate::fuzzer::mutations::util::choose_iter;
 use crate::term::atoms::Function;
-use crate::term::dynamic_function::TypeShape;
 use crate::term::signature::{FunctionDefinition, Signature};
 use crate::term::Term;
 

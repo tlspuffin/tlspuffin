@@ -7,17 +7,15 @@ use libafl::{
     Error,
 };
 
-use util::*;
 use util::Choosable;
+use util::*;
 
+use crate::fuzzer::term_generation::generate_multiple_terms;
 use crate::mutator;
 use crate::term::atoms::Function;
-
-
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
-
 
 pub fn trace_mutations<R, C, S>(
     min_trace_length: usize,
@@ -29,6 +27,7 @@ pub fn trace_mutations<R, C, S>(
        ReplaceReuseMutator<R, S>,
        ReplaceMatchMutator<R, S>,
        RemoveAndLiftMutator<R, S>,
+       GenerateMutator<R, S>,
        SwapMutator<R,S>
    )
 where
@@ -42,6 +41,7 @@ where
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints),
         RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(constraints, None),
         SwapMutator::new(constraints)
     )
 }
@@ -161,7 +161,7 @@ mutator! {
             match &mut to_mutate {
                 Term::Variable(variable) => {
                     // Replace variable with constant
-                    if let Some((shape, dynamic_fn)) = SIGNATURE.choose_filtered(
+                    if let Some((shape, dynamic_fn)) = SIGNATURE.functions.choose_filtered(
                         |(shape, _)| {
                             variable.typ == shape.return_type && shape.is_constant()
                         },
@@ -175,7 +175,7 @@ mutator! {
                     }
                 }
                 Term::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = SIGNATURE.choose_filtered(
+                    if let Some((shape, dynamic_fn)) = SIGNATURE.functions.choose_filtered(
                         |(shape, _)| {
                             func_mut.shape() != shape // do not mutate if we change the same function
                                 && func_mut.shape().return_type == shape.return_type
@@ -282,10 +282,44 @@ mutator! {
     max_trace_length: usize
 }
 
+mutator! {
+    /// GENERATE: TODO
+    GenerateMutator,
+    Trace,
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+
+        if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+            let zoo = self.zoo.get_or_insert_with(|| generate_multiple_terms(&SIGNATURE, rand));
+
+            // Replace with generated term
+            if let Some(term) = zoo.choose_filtered(
+                |term| {
+                    to_mutate.get_type_shape() == term.get_type_shape()
+                },
+                rand,
+            ) {
+                to_mutate.mutate(term.clone());
+                Ok(MutationResult::Mutated)
+            } else {
+                Ok(MutationResult::Skipped)
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    },
+    constraints: TermConstraints,
+    zoo: Option<Vec<Term>>
+}
+
 pub mod util {
     use libafl::bolts::rands::Rand;
 
-    use crate::term::signature::{FunctionDefinition, Signature};
     use crate::term::Term;
     use crate::trace::{Action, Step, Trace};
 
@@ -300,7 +334,7 @@ pub mod util {
         fn default() -> Self {
             Self {
                 min_term_size: 0,
-                max_term_size: 9000
+                max_term_size: 9000,
             }
         }
     }
@@ -313,16 +347,15 @@ pub mod util {
         fn choose(&self, rand: &mut R) -> Option<&T>;
     }
 
-    impl<P, R: Rand> Choosable<FunctionDefinition, P, R> for Signature
-    where
-        P: FnMut(&&FunctionDefinition) -> bool,
+    impl<T, P, R: Rand> Choosable<T, P, R> for Vec<T>
+        where
+            P: FnMut(&&T) -> bool,
     {
-        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&FunctionDefinition> {
+        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&T> {
             let filtered = self
-                .functions
                 .iter()
                 .filter(filter)
-                .collect::<Vec<&FunctionDefinition>>();
+                .collect::<Vec<&T>>();
             let length = filtered.len();
 
             if length == 0 {
@@ -333,23 +366,22 @@ pub mod util {
             }
         }
 
-        fn choose(&self, rand: &mut R) -> Option<&FunctionDefinition> {
-            let functions = &self.functions;
-            let length = functions.len();
+        fn choose(&self, rand: &mut R) -> Option<&T> {
+            let length = self.len();
 
             if length == 0 {
                 None
             } else {
                 let index = rand.below(length as u64) as usize;
-                functions.get(index)
+                self.get(index)
             }
         }
     }
 
     pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
-        where
-            I: IntoIterator<Item = T, IntoIter = E>,
-            E: ExactSizeIterator + Iterator<Item = T>,
+    where
+        I: IntoIterator<Item = T, IntoIter = E>,
+        E: ExactSizeIterator + Iterator<Item = T>,
     {
         // create iterator
         let mut iter = from.into_iter();
