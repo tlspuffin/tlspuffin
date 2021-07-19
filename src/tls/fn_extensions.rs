@@ -6,7 +6,7 @@
 
 use rustls::kx::KeyExchange;
 use rustls::kx_group::SECP384R1;
-use rustls::msgs::base::Payload;
+use rustls::msgs::base::{Payload, PayloadU24};
 use rustls::msgs::base::{PayloadU16, PayloadU8};
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::*;
@@ -67,6 +67,20 @@ pub fn fn_cert_req_extensions_append(
     extensions: &Vec<CertReqExtension>,
     extension: &CertReqExtension,
 ) -> Result<Vec<CertReqExtension>, FnError> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+
+    Ok(new_extensions)
+}
+
+pub fn fn_cert_extensions_new() -> Result<Vec<CertificateExtension>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_cert_extensions_append(
+    extensions: &Vec<CertificateExtension>,
+    extension: &CertificateExtension,
+) -> Result<Vec<CertificateExtension>, FnError> {
     let mut new_extensions = extensions.clone();
     new_extensions.push(extension.clone());
 
@@ -143,10 +157,20 @@ pub fn fn_status_request_extension(
         }),
     ))
 }
-pub fn fn_status_request_server_extension(
-) -> Result<ServerExtension, FnError> {
+pub fn fn_status_request_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::CertificateStatusAck)
 }
+
+pub fn fn_status_request_certificate_extension(
+    ocsp_response: &Vec<u8>,
+) -> Result<CertificateExtension, FnError> {
+    // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    Ok(CertificateExtension::CertificateStatus(CertificateStatus {
+        ocsp_response: PayloadU24::new(ocsp_response.clone()),
+    }))
+}
+
 /// UserMapping => 0x0006,
 nyi_fn!();
 /// ClientAuthz => 0x0007,
@@ -223,13 +247,23 @@ pub fn fn_al_protocol_server_negotiation(
 /// status_request_v2 => 0x0011
 nyi_fn!();
 /// SCT => 0x0012,
-pub fn fn_signed_certificate_timestamp() -> Result<ClientExtension, FnError> {
+pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignedCertificateTimestampRequest)
 }
-pub fn fn_signed_certificate_server_timestamp() -> Result<ServerExtension, FnError> {
+pub fn fn_signed_certificate_timestamp_server_extension() -> Result<ServerExtension, FnError> {
     // todo unclear where what to put here
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-    Ok(ServerExtension::SignedCertificateTimestamp(vec!(PayloadU16::new(Vec::from([42u8; 128])))))
+    Ok(ServerExtension::SignedCertificateTimestamp(vec![
+        PayloadU16::new(Vec::from([42u8; 128])),
+    ]))
+}
+pub fn fn_signed_certificate_timestamp_certificate_extension(
+) -> Result<CertificateExtension, FnError> {
+    // todo unclear where what to put here
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    Ok(CertificateExtension::SignedCertificateTimestamp(vec![
+        PayloadU16::new(Vec::from([42u8; 128])),
+    ]))
 }
 /// client_certificate_type => 0x0013,
 nyi_fn!();
@@ -322,9 +356,7 @@ pub fn fn_preshared_keys_extension(
             .collect(),
     }))
 }
-pub fn fn_preshared_keys_server_extension(
-    identities: &u64,
-) -> Result<ServerExtension, FnError> {
+pub fn fn_preshared_keys_server_extension(identities: &u64) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::PresharedKey(*identities as u16))
 }
 /// EarlyData => 0x002a,
@@ -362,14 +394,10 @@ pub fn fn_supported_versions13_hello_retry_extension() -> Result<HelloRetryExten
 }
 
 pub fn fn_supported_versions12_server_extension() -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::SupportedVersions(
-        ProtocolVersion::TLSv1_2,
-    ))
+    Ok(ServerExtension::SupportedVersions(ProtocolVersion::TLSv1_2))
 }
 pub fn fn_supported_versions13_server_extension() -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::SupportedVersions(
-        ProtocolVersion::TLSv1_3,
-    ))
+    Ok(ServerExtension::SupportedVersions(ProtocolVersion::TLSv1_3))
 }
 /// Cookie => 0x002c,
 pub fn fn_cookie_extension(cookie: &Vec<u8>) -> Result<ClientExtension, FnError> {
@@ -460,7 +488,9 @@ pub fn fn_transport_parameters_extension(parameters: &Vec<u8>) -> Result<ClientE
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::TransportParameters(parameters.clone()))
 }
-pub fn fn_transport_parameters_server_extension(parameters: &Vec<u8>) -> Result<ServerExtension, FnError> {
+pub fn fn_transport_parameters_server_extension(
+    parameters: &Vec<u8>,
+) -> Result<ServerExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ServerExtension::TransportParameters(parameters.clone()))
@@ -515,22 +545,29 @@ pub fn fn_unknown_server_extension() -> Result<ServerExtension, FnError> {
     }))
 }
 
-pub fn fn_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
+pub fn fn_unknown_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
         payload: Payload::new([42; 7000]),
     }))
 }
 
-pub fn fn_cert_request_extension() -> Result<CertReqExtension, FnError> {
+pub fn fn_unknown_cert_request_extension() -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
         payload: Payload::new([42; 7000]),
     }))
 }
 
-pub fn fn_new_session_ticket_extension() -> Result<NewSessionTicketExtension, FnError> {
+pub fn fn_unknown_new_session_ticket_extension() -> Result<NewSessionTicketExtension, FnError> {
     Ok(NewSessionTicketExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
+}
+
+pub fn fn_unknown_certificate_extension() -> Result<CertificateExtension, FnError> {
+    Ok(CertificateExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
         payload: Payload::new([42; 7000]),
     }))

@@ -495,7 +495,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                             )),
                             fn_ec_point_formats_extension
                         )),
-                        fn_signed_certificate_timestamp
+                        fn_signed_certificate_timestamp_extension
                     )),
                      // Enable Renegotiation
                     (fn_renegotiation_info_extension(fn_empty_bytes_vec))
@@ -640,7 +640,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace {
                             )),
                             fn_ec_point_formats_extension
                         )),
-                        fn_signed_certificate_timestamp
+                        fn_signed_certificate_timestamp_extension
                     )),
                      // Enable Renegotiation
                     (fn_renegotiation_info_extension((@client_verify_data)))
@@ -706,7 +706,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
                     )),
                     fn_ec_point_formats_extension
                 )),
-                fn_signed_certificate_timestamp
+                fn_signed_certificate_timestamp_extension
             ))
         )
     };

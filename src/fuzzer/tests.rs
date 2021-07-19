@@ -323,8 +323,9 @@ fn test_term_generation() {
         .map(|term| term.name().to_string())
         .collect::<HashSet<String>>();
 
-    println!("{:?}",  all.difference(&success));
-    println!("{}", graph);
+    assert_eq!(all.difference(&success).count(), 0);
+    //println!("{}", graph);
+
 }
 
 mod util {
@@ -361,7 +362,7 @@ mod util {
                                 )),
                                 fn_ec_point_formats_extension
                             )),
-                            fn_signed_certificate_timestamp
+                            fn_signed_certificate_timestamp_extension
                         )),
                          // Enable Renegotiation
                         (fn_renegotiation_info_extension(fn_empty_bytes_vec))
