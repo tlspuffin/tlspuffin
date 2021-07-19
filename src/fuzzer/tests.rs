@@ -40,7 +40,7 @@ fn test_repeat_mutator() {
     let server = AgentName::first();
     let _trace = seed_client_attacker12(server);
 
-    let mut mutator = RepeatMutator::new(15, TermConstraints::default());
+    let mut mutator = RepeatMutator::new(15);
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
@@ -165,7 +165,7 @@ fn test_skip_mutator() {
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let server = AgentName::first();
-    let mut mutator = SkipMutator::new(4, TermConstraints::default());
+    let mut mutator = SkipMutator::new(4);
 
     loop {
         let mut trace = seed_client_attacker12( server);
