@@ -10,31 +10,22 @@ use libafl::{
     bolts::{
         current_nanos,
         rands::StdRand,
-        tuples::{tuple_list, Merge},
+        tuples::{tuple_list},
     },
     corpus::{
         Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
-        QueueCorpusScheduler, RandCorpusScheduler,
+        QueueCorpusScheduler,
     },
-    events::{setup_restarting_mgr_std, Event, EventManager, EventRestarter, LogSeverity},
-    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
+    executors::{inprocess::InProcessExecutor, TimeoutExecutor},
     feedback_or,
     feedbacks::{
-        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MapIndexesMetadata, MaxMapFeedback,
-        MaxReducer, TimeFeedback, TimeoutFeedback,
+        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MaxMapFeedback,
+        TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
-    inputs::BytesInput,
-    mutators::{
-        havoc_mutations,
-        scheduled::{tokens_mutations, StdScheduledMutator},
-        token_mutations::Tokens,
-    },
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    stages::mutational::StdMutationalStage,
-    state::{HasCorpus, HasMetadata, StdState},
-    stats::{MultiStats, SimpleStats},
-    Error, Evaluator,
+    state::{HasCorpus, StdState},
+    Error,
 };
 
 use crate::fuzzer::mutations::trace_mutations;

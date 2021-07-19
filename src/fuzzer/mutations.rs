@@ -37,8 +37,8 @@ where
     R: Rand,
 {
     tuple_list!(
-        RepeatMutator::new(max_trace_length, constraints),
-        SkipMutator::new(min_trace_length, constraints),
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints),
         RemoveAndLiftMutator::new(constraints),
@@ -249,8 +249,7 @@ mutator! {
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
     },
-    min_trace_length: usize,
-    constraints: TermConstraints
+    min_trace_length: usize
 }
 
 mutator! {
@@ -280,13 +279,10 @@ mutator! {
         (&mut trace.steps).insert(insert_index, step);
         Ok(MutationResult::Mutated)
     },
-    max_trace_length: usize,
-    constraints: TermConstraints
+    max_trace_length: usize
 }
 
 pub mod util {
-    use std::slice::SliceIndex;
-
     use libafl::bolts::rands::Rand;
 
     use crate::term::signature::{FunctionDefinition, Signature};

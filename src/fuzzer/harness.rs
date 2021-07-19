@@ -50,6 +50,7 @@ pub fn harness(input: &Trace) -> ExitKind {
     ExitKind::Ok
 }
 
+#[allow(unused)]
 pub fn dummy_harness(_input: &Trace) -> ExitKind {
     let mut rng = rand::thread_rng();
 

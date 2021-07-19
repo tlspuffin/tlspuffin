@@ -26,7 +26,7 @@ use std::{
 use openssl::ssl::SslStream;
 use rustls::msgs::message::{OpaqueMessage};
 
-use rustls::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
+use rustls::msgs::{deframer::MessageDeframer, message::Message};
 use crate::agent::{TLSVersion, AgentName};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;

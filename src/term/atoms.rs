@@ -94,7 +94,7 @@ impl Function {
     }
 
     pub fn is_constant(&self) -> bool {
-        self.is_constant()
+        self.fn_container.shape.is_constant()
     }
 
     pub fn name(&self) -> &str {

@@ -18,8 +18,7 @@ use rustls::{
         heartbeat::HeartbeatPayload,
         message::{Message, MessagePayload},
     },
-    kx, tls12, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
-    ALL_KX_GROUPS,
+    CipherSuite, ProtocolVersion, SignatureScheme,
 };
 use HandshakePayload::EncryptedExtensions;
 
