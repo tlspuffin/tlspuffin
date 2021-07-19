@@ -63,7 +63,7 @@ use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use crate::tls::{error::FnError, SIGNATURE};
 
 /// Describes the shape of a [`DynamicFunction`]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct DynamicFunctionShape {
     pub name: String,
     pub argument_types: Vec<TypeShape>,

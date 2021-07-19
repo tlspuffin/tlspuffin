@@ -7,9 +7,22 @@ use rustls::ProtocolVersion;
 use crate::term;
 use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
-use crate::tls::fn_impl::{fn_client_hello, fn_hmac256, fn_hmac256_new_key, fn_new_session_id};
+use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
 use crate::{term::Term, trace::TraceContext};
+use ring::test::rand::FixedByteRandom;
+use ring::hmac::Key;
+use ring::hmac;
+
+pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
+    let random = FixedByteRandom { byte: 12 };
+    Ok(hmac::Key::generate(hmac::HMAC_SHA256, &random)?)
+}
+
+pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    let tag = hmac::sign(&key, msg);
+    Ok(Vec::from(tag.as_ref()))
+}
 
 fn test_compilation() {
     // reminds me of Lisp, lol

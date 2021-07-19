@@ -3,17 +3,16 @@
 //!
 use std::{fmt, fmt::Formatter};
 
+use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::term::atoms::fn_container::FnContainer;
+use crate::term::remove_prefix;
 use crate::{
-    term::{
-        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-    },
+    term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
     trace::ObservedId,
 };
-use rand::random;
-use crate::term::remove_prefix;
+use std::hash::{Hash, Hasher};
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -27,13 +26,26 @@ pub struct Variable {
     pub observed_id: ObservedId,
 }
 
+impl Eq for Variable {}
+impl Hash for Variable {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.typ.hash(state);
+        self.observed_id.hash(state);
+    }
+}
+impl PartialEq for Variable {
+    fn eq(&self, other: &Self) -> bool {
+        self.typ == other.typ && self.observed_id == other.observed_id
+    }
+}
+
 impl Clone for Variable {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
-            observed_id: self.observed_id.clone()
+            observed_id: self.observed_id.clone(),
         }
     }
 }
@@ -51,7 +63,13 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({},{})/{}", self.observed_id.0, self.observed_id.1, remove_prefix(self.typ.name))
+        write!(
+            f,
+            "({},{})/{}",
+            self.observed_id.0,
+            self.observed_id.1,
+            remove_prefix(self.typ.name)
+        )
     }
 }
 
@@ -67,21 +85,30 @@ pub struct Function {
     fn_container: FnContainer,
 }
 
+impl Eq for Function {}
+impl Hash for Function {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.fn_container.hash(state)
+    }
+}
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        self.fn_container == other.fn_container
+    }
+}
+
 impl Clone for Function {
     fn clone(&self) -> Self {
         Function {
             unique_id: random(),
             resistant_id: self.resistant_id,
-            fn_container: self.fn_container.clone()
+            fn_container: self.fn_container.clone(),
         }
     }
 }
 
 impl Function {
-    pub fn new(
-        shape: DynamicFunctionShape,
-        dynamic_fn: Box<dyn DynamicFunction>,
-    ) -> Self {
+    pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -109,7 +136,11 @@ impl Function {
         &self.fn_container.dynamic_fn
     }
 
-    pub fn change_function(&mut self, shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) {
+    pub fn change_function(
+        &mut self,
+        shape: DynamicFunctionShape,
+        dynamic_fn: Box<dyn DynamicFunction>,
+    ) {
         self.fn_container.shape = shape;
         self.fn_container.dynamic_fn = dynamic_fn;
     }
@@ -123,6 +154,7 @@ impl fmt::Display for Function {
 
 mod fn_container {
     use std::fmt;
+    use std::hash::{Hash, Hasher};
 
     use serde::de::{MapAccess, SeqAccess, Visitor};
     use serde::ser::SerializeStruct;
@@ -141,6 +173,19 @@ mod fn_container {
         pub shape: DynamicFunctionShape,
         pub dynamic_fn: Box<dyn DynamicFunction>,
     }
+
+    impl Hash for FnContainer {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.shape.hash(state)
+        }
+    }
+    impl PartialEq for FnContainer {
+        fn eq(&self, other: &Self) -> bool {
+            // shape already identifies the function container
+            self.shape == other.shape
+        }
+    }
+    impl Eq for FnContainer {}
 
     impl Serialize for FnContainer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -165,8 +210,8 @@ mod fn_container {
         }
 
         fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
-            where
-                V: SeqAccess<'de>,
+        where
+            V: SeqAccess<'de>,
         {
             let name: &str = seq
                 .next_element()?
@@ -178,21 +223,16 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) =
-                SIGNATURE
-                    .functions_by_name
-                    .get(name)
-                    .ok_or_else( || {
-                        // panic!("Could not find fn: {}", name);
-                        de::Error::custom(format!(
-                            "could not find function {}",
-                            name
-                        ))
-                    })?;
+            let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
+                // panic!("Could not find fn: {}", name);
+                de::Error::custom(format!("could not find function {}", name))
+            })?;
 
             if return_type != shape.return_type || argument_types != shape.argument_types {
                 // panic!("Return types or argument types do not match!");
-                return Err(de::Error::custom("Return types or argument types do not match!"));
+                return Err(de::Error::custom(
+                    "Return types or argument types do not match!",
+                ));
             }
 
             Ok(FnContainer {
@@ -206,8 +246,8 @@ mod fn_container {
         }
 
         fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
-            where
-                V: MapAccess<'de>,
+        where
+            V: MapAccess<'de>,
         {
             let mut name: Option<&'de str> = None;
             let mut arguments: Option<Vec<TypeShape>> = None;
@@ -248,13 +288,14 @@ mod fn_container {
                         name
                     )))?;
 
-            let argument_types =
-                arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
+            let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
 
             if return_type != shape.return_type || argument_types != shape.argument_types {
                 // panic!("Return types or argument types do not match!");
-                return Err(de::Error::custom("Return types or argument types do not match!"));
+                return Err(de::Error::custom(
+                    "Return types or argument types do not match!",
+                ));
             }
 
             Ok(FnContainer {

@@ -21,7 +21,8 @@ pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 /// Signatures are containers for types and function symbols. They hold references to the concrete
 /// implementations of functions and the types of variables.
 pub struct Signature {
-    pub functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)>,
+    pub functions_by_name: HashMap<String, FunctionDefinition>,
+    pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
     pub types_by_name: HashMap<&'static str, TypeShape>,
 }
@@ -29,12 +30,18 @@ pub struct Signature {
 impl Signature {
     /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
-        let functions_by_name: HashMap<String, (DynamicFunctionShape, Box<dyn DynamicFunction>)> =
+        let functions_by_name: HashMap<String, FunctionDefinition> =
             definitions
                 .clone()
                 .into_iter()
                 .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
                 .collect();
+
+        let functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>> =
+            definitions
+                .clone()
+                .into_iter()
+                .into_group_map_by(|(shape, dynamic_fn)| shape.return_type);
 
         let types_by_name: HashMap<&'static str, TypeShape> = definitions
             .clone()
@@ -55,6 +62,7 @@ impl Signature {
 
         Signature {
             functions_by_name,
+            functions_by_typ,
             functions: definitions,
             types_by_name,
         }
@@ -91,12 +99,13 @@ impl fmt::Debug for Signature {
 macro_rules! define_signature {
     ($name_signature:ident, $($f:path),+ $(,)?) => {
         use once_cell::sync::Lazy;
+        use crate::term::signature::Signature;
         /// Signature which contains all functions defined in the `tls` module.
-        pub static $name_signature: Lazy<crate::term::signature::Signature> = Lazy::new(|| {
+        pub static $name_signature: Lazy<Signature> = Lazy::new(|| {
             let definitions = vec![
                 $(crate::term::dynamic_function::make_dynamic(&$f)),*
             ];
-            crate::term::signature::Signature::new(definitions)
+            Signature::new(definitions)
         });
     };
 }

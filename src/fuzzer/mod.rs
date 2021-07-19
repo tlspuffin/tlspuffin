@@ -32,6 +32,7 @@ mod stages;
 mod macros;
 mod terminal_stats;
 mod stats_observer;
+mod term_generation;
 
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]
