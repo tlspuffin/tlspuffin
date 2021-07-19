@@ -31,6 +31,10 @@ pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
     Ok(vec![Compression::Null])
 }
 
+pub fn fn_compression() -> Result<Compression, FnError> {
+    Ok(Compression::Null)
+}
+
 pub fn fn_verify_data(
     server_extensions: &Vec<ServerExtension>,
     verify_transcript: &HandshakeHash,

@@ -113,22 +113,3 @@ pub fn fn_encrypt12(
     let encrypted = encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?;
     Ok(Message::try_from(encrypted)?)
 }
-
-// ----
-// Unused
-// ----
-
-pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
-    // todo maybe we need a context for rng? Maybe also for hs_hash? https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let random = FixedByteRandom { byte: 12 };
-    Ok(hmac::Key::generate(hmac::HMAC_SHA256, &random)?)
-}
-
-pub fn fn_arbitrary_to_key(key: &Vec<u8>) -> Result<Key, FnError> {
-    Ok(Key::new(hmac::HMAC_SHA256, key.as_slice()))
-}
-
-pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
-    let tag = hmac::sign(&key, msg);
-    Ok(Vec::from(tag.as_ref()))
-}
