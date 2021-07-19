@@ -3,22 +3,22 @@ extern crate log;
 
 use std::fs::File;
 use std::io::Read;
-use std::process::Command;
+
 use std::{env, fs, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
-use log::{Level, LevelFilter};
+use log::{LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-use log4rs::config::runtime::ConfigErrors;
-use log4rs::config::{Appender, InitError, Logger, RawConfig, Root};
+
+use log4rs::config::{Appender, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::{Config, Handle};
+use log4rs::{Config};
 
-use agent::AgentName;
+
 use fuzzer::seeds::*;
-use trace::{Trace, TraceContext};
+use trace::{TraceContext};
 
 use crate::experiment::*;
 use crate::fuzzer::start;
@@ -191,8 +191,7 @@ fn main() {
             static_seed,
             max_iters,
         );
-    } else if let Some(matches) = matches.subcommand_matches("quick-experiment") {
-        let git_ref = get_git_ref().unwrap();
+    } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
         let description = "No Description, because this is a quick experiment.";
         let experiments_root = PathBuf::from("experiments");
 

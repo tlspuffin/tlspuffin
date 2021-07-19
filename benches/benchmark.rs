@@ -9,6 +9,7 @@ use ring::hmac::{Key, HMAC_SHA256};
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
+use tlspuffin::fuzzer::mutations::util::TermConstraints;
 use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term;
 use tlspuffin::trace::{Trace};
@@ -51,9 +52,11 @@ fn benchmark_mutations(c: &mut Criterion) {
         let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
         let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
         let client = AgentName::first();
-        let server = client.next();
-        let mut mutator = ReplaceReuseMutator::new();
-        let mut trace = seed_client_attacker12(client, server);
+        let mut mutator = ReplaceReuseMutator::new(TermConstraints {
+            min_term_size: 0,
+            max_term_size: 200
+        });
+        let mut trace = seed_client_attacker12(client);
 
         b.iter(|| {
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -123,8 +126,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_client_attacker(client, server);
+            let trace = seed_client_attacker(client);
 
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
@@ -135,8 +137,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_client_attacker12(client, server);
+            let trace = seed_client_attacker12(client);
 
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();

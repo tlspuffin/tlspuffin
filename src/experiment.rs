@@ -4,9 +4,9 @@ use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
-use std::string::FromUtf8Error;
 
-use chrono::{SecondsFormat, Local};
+
+use chrono::{Local};
 
 use crate::openssl_binding;
 

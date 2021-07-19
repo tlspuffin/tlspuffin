@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 
-use libafl::bolts::rands::{Rand, RomuDuoJrRand, RomuTrioRand, StdRand};
+
+use libafl::bolts::rands::{StdRand};
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
@@ -15,9 +15,9 @@ use crate::fuzzer::mutations::{
     SwapMutator,
 };
 use crate::fuzzer::seeds::*;
-use crate::graphviz::write_graphviz;
+
 use crate::openssl_binding::make_deterministic;
-use crate::term;
+
 use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;

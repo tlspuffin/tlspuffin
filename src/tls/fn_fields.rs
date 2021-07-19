@@ -6,7 +6,7 @@ use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 use super::error::FnError;
 use rustls::msgs::codec::Codec;
 use rustls::msgs::codec::Reader;
-use libafl::bolts::tuples::Prepend;
+
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)

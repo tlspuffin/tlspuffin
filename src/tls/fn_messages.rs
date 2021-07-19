@@ -5,12 +5,12 @@
 //! Return type is `Message`
 //!
 
-use std::convert::TryFrom;
 
-use rustls::msgs::codec::Reader;
+
+
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension};
-use rustls::msgs::message::OpaqueMessage;
+
 use rustls::msgs::alert::AlertMessagePayload;
 use rustls::msgs::base::{PayloadU16, PayloadU24, PayloadU8};
 use rustls::{

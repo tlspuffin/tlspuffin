@@ -1,10 +1,10 @@
 use core::time::Duration;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
 
 use itertools::Itertools;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
-use libafl::corpus::LenTimeMinimizerCorpusScheduler;
+
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
     bolts::{
@@ -41,8 +41,8 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats_observer::{StatsFeedback, StatsStage};
-use crate::fuzzer::terminal_stats::TerminalStats;
+use crate::fuzzer::stats_observer::{StatsStage};
+
 use crate::openssl_binding::make_deterministic;
 
 use super::harness;

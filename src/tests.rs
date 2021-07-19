@@ -167,7 +167,6 @@ pub mod seeds {
 
     #[test]
     fn test_term_sizes() {
-        let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
 

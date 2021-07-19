@@ -15,7 +15,7 @@ use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
-    term::{signature::Signature, Term},
+    term::{Term},
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 use crate::{term};

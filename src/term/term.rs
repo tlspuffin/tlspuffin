@@ -1,6 +1,6 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use core::iter;
+
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 

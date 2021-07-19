@@ -6,10 +6,10 @@
 
 use core::fmt;
 use serde::{Deserialize, Serialize};
-use crate::io::{OpenSSLStream, Stream};
+use crate::io::{OpenSSLStream};
 use crate::error::Error;
-use security_claims::{Claim, ClaimType};
-use security_claims::register::Claimer;
+
+
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::trace::VecClaimer;
@@ -73,7 +73,7 @@ impl Agent {
             claimer
         )?;
 
-        let mut agent = Self::from_stream(
+        let agent = Self::from_stream(
             descriptor,
             openssl_stream
         );

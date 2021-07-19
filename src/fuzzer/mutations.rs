@@ -12,12 +12,12 @@ use util::Choosable;
 
 use crate::mutator;
 use crate::term::atoms::Function;
-use crate::term::dynamic_function::DynamicFunction;
-use crate::term::signature::FunctionDefinition;
+
+
 use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
-use std::ops::Deref;
+
 
 pub fn trace_mutations<R, C, S>(
     min_trace_length: usize,
@@ -291,7 +291,7 @@ pub mod util {
 
     use crate::term::signature::{FunctionDefinition, Signature};
     use crate::term::Term;
-    use crate::trace::{Action, InputAction, Step, Trace};
+    use crate::trace::{Action, Step, Trace};
 
     #[derive(Copy, Clone)]
     pub struct TermConstraints {

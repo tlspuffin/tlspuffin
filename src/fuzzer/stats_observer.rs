@@ -1,20 +1,20 @@
-use core::time::Duration;
+
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use itertools::Itertools;
+
 use libafl::bolts::tuples::Named;
-use libafl::events::Event::UpdateUserStats;
+
 use libafl::events::{Event, EventFirer};
 use libafl::executors::ExitKind;
 use libafl::feedbacks::Feedback;
 use libafl::inputs::Input;
-use libafl::observers::{Observer, ObserversTuple};
-use libafl::state::{HasClientPerfStats, State, HasRand, HasCorpus};
+use libafl::observers::{ObserversTuple};
+use libafl::state::{HasClientPerfStats, HasRand, HasCorpus};
 use libafl::stats::UserStats;
 use libafl::{Error, Evaluator};
-use serde::{Deserialize, Serialize};
+
 use libafl::bolts::rands::Rand;
-use libafl::mutators::Mutator;
+
 use libafl::corpus::Corpus;
 use libafl::stages::Stage;
 use std::marker::PhantomData;
@@ -284,11 +284,11 @@ impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, 
     #[allow(clippy::let_and_return)]
     fn perform(
         &mut self,
-        fuzzer: &mut Z,
-        executor: &mut E,
+        _fuzzer: &mut Z,
+        _executor: &mut E,
         state: &mut S,
         manager: &mut EM,
-        corpus_idx: usize,
+        _corpus_idx: usize,
     ) -> Result<(), Error> {
         for stat in &STATS {
             stat.fire(&mut |name, stats| {

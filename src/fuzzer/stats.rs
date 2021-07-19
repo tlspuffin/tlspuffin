@@ -1,23 +1,23 @@
 //! Stats to disply both cumulative and per-client stats
 
 use core::{time, time::Duration};
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+
+
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter};
 use std::path::PathBuf;
 use std::time::SystemTime;
-use std::{fmt, io};
+use std::{io};
 
 use libafl::stats::{PerfFeature, UserStats};
 use libafl::{
     bolts::current_time,
     stats::{ClientStats, Stats},
 };
-use serde::ser::SerializeSeq;
+
 use serde::Serialize;
-use serde::Serializer;
-use serde_json::{to_value, to_writer, Serializer as JSONSerializer};
+
+use serde_json::{Serializer as JSONSerializer};
 
 use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
 
@@ -432,29 +432,5 @@ where
             stats_file,
             serializer: writer,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use serde::ser::SerializeSeq;
-    use serde::Serializer;
-    use serde_json::to_value;
-
-    // todo
-    #[test]
-    pub fn test_streaming_writing() {
-        let rows = vec!["a", "b", "c"];
-        let mut out = std::io::stdout();
-
-        let mut ser = serde_json::Serializer::new(out);
-        //let mut seq = ser.serialize_seq(None).unwrap(); // or None if unknown
-        for row in rows {
-            println!("{}", to_value(row).unwrap())
-        }
-
-        //seq.end().unwrap();
     }
 }

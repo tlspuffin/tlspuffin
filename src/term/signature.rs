@@ -39,7 +39,7 @@ impl Signature {
         let types_by_name: HashMap<&'static str, TypeShape> = definitions
             .clone()
             .into_iter()
-            .map(|(shape, dynamic_fn)| {
+            .map(|(shape, _dynamic_fn)| {
                 let types: Vec<TypeShape> = shape
                     .argument_types
                     .iter()

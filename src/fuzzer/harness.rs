@@ -28,7 +28,7 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Fn(_) => {
                 FN_ERROR.increment()
             },
-            Error::Term(e) => {
+            Error::Term(_e) => {
                 TERM.increment()
             },
             Error::OpenSSL(_)=>  {
