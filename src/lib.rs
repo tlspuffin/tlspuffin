@@ -7,6 +7,9 @@
 //! We forked the [rustls](https://github.com/ctz/rustls) library for cryptographic operations like deriving secrets. We also use it to encode and decode TLS messages.
 //!
 //! The cryptographic library [ring](https://github.com/briansmith/ring) allows us to use the derived secrets to encrypt and decrypt TLS messages.
+
+#![allow(unused_doc_comments)]
+
 #[macro_use]
 extern crate log;
 

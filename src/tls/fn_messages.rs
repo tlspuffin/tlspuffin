@@ -5,9 +5,6 @@
 //! Return type is `Message`
 //!
 
-
-
-
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension};
 
