@@ -285,7 +285,7 @@ fn test_reservoir_sample_randomness() {
 
         let id = term.0.resistant_id();
 
-        let count: &u32 = stats.get(&id).unwrap_or(&0);
+        let count: u32 = *stats.get(&id).unwrap_or(&0);
         stats.insert(id, count + 1);
     }
 
