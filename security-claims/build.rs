@@ -2,8 +2,6 @@ extern crate bindgen;
 
 use std::env;
 use std::path::PathBuf;
-use std::fs::File;
-use std::io::Read;
 
 fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");
