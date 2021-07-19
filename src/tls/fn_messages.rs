@@ -107,19 +107,19 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u16) -> Result<Message, FnError> {
+pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u64) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
             payload: PayloadU16::new(payload.clone()),
-            fake_length: Some(*fake_length),
+            fake_length: Some(*fake_length as u16),
         }),
     })
 }
 
 pub fn fn_heartbeat(payload: &Vec<u8>) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.len() as u16))
+    fn_heartbeat_fake_length(payload, &(payload.len() as u64))
 }
 
 // ----

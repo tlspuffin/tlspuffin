@@ -52,8 +52,8 @@ pub fn fn_seq_16() -> Result<u64, FnError> {
     Ok(16)
 }
 
-
-pub fn fn_large_length() -> Result<u16, FnError> {
+/// Used in heartbleed attack
+pub fn fn_large_length() -> Result<u64, FnError> {
     Ok(16702)
 }
 
