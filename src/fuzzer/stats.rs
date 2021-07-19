@@ -404,7 +404,7 @@ where
     fn display(&mut self, event_msg: String, sender_id: u32) {
         self.log_count += 1;
 
-        if self.log_count % 5000 != 0 {
+        if self.log_count % 10 != 0 {
             return;
         }
 

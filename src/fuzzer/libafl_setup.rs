@@ -82,7 +82,14 @@ pub fn start(
             info!("{}", s);
         },
         stats_file.clone(),
-    ).unwrap();
+    )
+    .unwrap();
+
+/*    let stats = MultiStats::new(
+        |s| {
+            info!("{}", s);
+        }
+    );*/
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,
@@ -96,10 +103,21 @@ pub fn start(
 
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
-
-            let feedback = feedback_or!(
+            #[cfg(feature = "no-minimizer")]
+                let feedback = feedback_or!(
                 MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false)
             );
+
+            #[cfg(not(feature = "no-minimizer"))]
+                let feedback = feedback_or!(
+                // New maximization map feedback linked to the edges observer and the feedback state
+                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
+                // Time feedback, this one does not need a feedback state
+                // needed for IndexesLenTimeMinimizerCorpusScheduler
+                TimeFeedback::new_with_observer(&time_observer)
+            );
+
 
             // A feedback to choose if an input is a solution or not
             let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
@@ -140,13 +158,17 @@ pub fn start(
                 },
             );
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
-            let mut stages = tuple_list!(PuffinMutationalStage::new(
-                mutator,
-                MAX_ITERATIONS_PER_STAGE
-            ), StatsStage::new());
+            let mut stages = tuple_list!(
+                PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
+                StatsStage::new()
+            );
 
             // A minimization+queue policy to get testcasess from the corpus
-            let scheduler = RandCorpusScheduler::new();
+            #[cfg(not(feature = "no-minimizer"))]
+                let scheduler =
+                IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
+            #[cfg(feature = "no-minimizer")]
+                let scheduler = RandCorpusScheduler::new();
 
             let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
