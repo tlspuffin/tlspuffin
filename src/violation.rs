@@ -21,8 +21,11 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("Mismatching master secrets");
                     }
 
-                    if client.session_id != server.session_id {
-                        return Some("Mismatching session ids");
+                    // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
+                    if server.session_id.length != 0 {
+                        if client.session_id != server.session_id {
+                            return Some("Mismatching session ids");
+                        }
                     }
 
                     if client.server_random != server.server_random {
@@ -112,15 +115,6 @@ pub fn find_finished_messages(
 
     two_finishes
 }
-
-/*pub fn find_claim<P>(
-    claims: &Vec<(AgentName, Claim)>,
-    predicate: P
-) -> Option<&(AgentName, Claim)> where P: FnMut(&Claim) -> bool {
-     claims
-        .iter()
-        .find(predicate)
-}*/
 
 pub fn get_client_server<'a>(
     claim_a: &'a Claim,

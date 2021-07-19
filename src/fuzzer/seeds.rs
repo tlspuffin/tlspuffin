@@ -1,7 +1,7 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crahes OpenSSL.
 
-use rustls::msgs::handshake::CertificatePayload;
+use rustls::msgs::handshake::{CertificatePayload, NewSessionTicketPayload};
 use rustls::msgs::message::Message;
 use rustls::{
     internal::msgs::{
@@ -294,6 +294,18 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Output(OutputAction { id: 3 }),
             },
+            // Ticket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_new_session_ticket(
+                            ((3, 0)/u64),
+                            ((3, 0)/Vec<u8>)
+                        )
+                    },
+                }),
+            },
             // Server Change Cipher Spec, Server -> Client
             Step {
                 agent: client,
@@ -309,7 +321,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_handshake_message(
-                            ((3, 1)/Vec<u8>)
+                            ((3, 2)/Vec<u8>)
                         )
                     },
                 }),
@@ -338,7 +350,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_extension
+                    fn_key_share_deterministic_extension
                 )),
                 fn_supported_versions13_extension
             ))

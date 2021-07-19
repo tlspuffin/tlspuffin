@@ -73,6 +73,7 @@ typedef struct ClaimRandom {
 } ClaimRandom;
 
 typedef struct ClaimSessionId {
+    int length;
     unsigned char data[CLAIM_SESSION_ID_LENGTH];
 } ClaimSessionId;
 

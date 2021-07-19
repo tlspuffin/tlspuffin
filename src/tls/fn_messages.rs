@@ -187,7 +187,7 @@ pub fn fn_server_hello(
 /// hello_verify_request_RESERVED => 0x03,
 nyi_fn!();
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(ticket: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(Message {
@@ -195,7 +195,7 @@ pub fn fn_new_session_ticket(ticket: &Vec<u8>) -> Result<Message, FnError> {
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
-                lifetime_hint: 10,
+                lifetime_hint: *lifetime_hint as u32,
                 ticket: PayloadU16::new(ticket.clone()),
             }),
         }),
