@@ -75,22 +75,13 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                     },
                 }),
             },
-            // CCS Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_change_cipher_spec
-                    },
-                }),
-            },
             // Encrypted Extensions Server -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 2)/Vec<u8>)
+                            ((1, 1)/Vec<u8>)
                         )
                     },
                 }),
@@ -101,7 +92,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 3)/Vec<u8>)
+                            ((1, 2)/Vec<u8>)
                         )
                     },
                 }),
@@ -112,7 +103,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 4)/Vec<u8>)
+                            ((1, 3)/Vec<u8>)
                         )
                     },
                 }),
@@ -123,7 +114,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 5)/Vec<u8>)
+                            ((1, 4)/Vec<u8>)
                         )
                     },
                 }),
@@ -132,21 +123,13 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Output(OutputAction { id: 2 }),
             },
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_change_cipher_spec
-                    },
-                }),
-            },
             // Finished Client -> Server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((2, 1)/Vec<u8>)
+                            ((2, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -367,9 +350,11 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
         )
     };
 
+    // ((0, 1)/Message) could be a CCS the server sends one
+
     let encrypted_extensions = term! {
         fn_decrypt(
-            ((0, 2)/Message), // Encrypted Extensions
+            ((0, 1)/Message), // Encrypted Extensions
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_0  // sequence 0
@@ -385,7 +370,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_certificate = term! {
         fn_decrypt(
-            ((0, 3)/Message),// Server Certificate
+            ((0, 2)/Message),// Server Certificate
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_1 // sequence 1
@@ -401,7 +386,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_certificate_verify = term! {
         fn_decrypt(
-            ((0, 4)/Message), // Server Certificate Verify
+            ((0, 3)/Message), // Server Certificate Verify
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_2 // sequence 2
@@ -417,7 +402,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_finished = term! {
         fn_decrypt(
-            ((0, 5)/Message), // Server Handshake Finished
+            ((0, 4)/Message), // Server Handshake Finished
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_3 // sequence 3

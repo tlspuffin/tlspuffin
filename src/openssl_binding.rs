@@ -166,9 +166,7 @@ pub fn create_openssl_server(
     ctx_builder.set_certificate(cert)?;
     ctx_builder.set_private_key(key)?;
 
-
-    //ctx_builder.set_options(SslOptions::NO_TICKET);
-    //ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     #[cfg(feature = "ossl110")]
     match tls_version {
@@ -225,8 +223,7 @@ pub fn create_openssl_client(
     // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
     // for now.
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-
-    //ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     #[cfg(feature = "ossl110")]
     match tls_version {
