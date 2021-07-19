@@ -6,12 +6,12 @@ use std::convert::{TryFrom, TryInto};
 use ring::hkdf::Prk;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
+use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
+use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::msgs::enums::{ExtensionType, NamedGroup};
 use rustls::msgs::handshake::{
     HasServerExtensions, KeyShareEntry, Random, ServerECDHParams, ServerExtension,
 };
-use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
-use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::suites::Tls12CipherSuite;
 use rustls::NoKeyLog;
 use rustls::{tls12, SupportedCipherSuite, ALL_KX_GROUPS};
@@ -148,18 +148,28 @@ macro_rules! nyi_fn {
     () => {};
 }
 
-
 define_signature!(
     SIGNATURE,
     // constants
     fn_empty_bytes_vec,
+    fn_large_length,
     fn_seq_0,
     fn_seq_1,
+    fn_seq_10,
+    fn_seq_11,
+    fn_seq_12,
+    fn_seq_13,
+    fn_seq_14,
+    fn_seq_15,
+    fn_seq_16,
     fn_seq_2,
     fn_seq_3,
     fn_seq_4,
     fn_seq_5,
-    fn_large_length,
+    fn_seq_6,
+    fn_seq_7,
+    fn_seq_8,
+    fn_seq_9,
     // extensions
     fn_al_protocol_negotiation,
     fn_al_protocol_server_negotiation,
