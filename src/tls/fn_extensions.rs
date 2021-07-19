@@ -4,13 +4,13 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
-use rustls::msgs::base::{PayloadU16, PayloadU8};
-use rustls::msgs::enums::*;
-use rustls::msgs::handshake::*;
 use rustls::kx::KeyExchange;
 use rustls::kx_group::SECP384R1;
 use rustls::msgs::base::Payload;
-use rustls::{ProtocolVersion, SignatureScheme};
+use rustls::msgs::base::{PayloadU16, PayloadU8};
+use rustls::msgs::enums::*;
+use rustls::msgs::handshake::*;
+use rustls::{x509, ProtocolVersion, SignatureScheme};
 
 use crate::nyi_fn;
 use crate::tls::key_exchange::deterministic_key_exchange;
@@ -73,6 +73,20 @@ pub fn fn_cert_req_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_new_session_ticket_extensions_new() -> Result<Vec<NewSessionTicketExtension>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_new_session_ticket_extensions_append(
+    extensions: &Vec<NewSessionTicketExtension>,
+    extension: &NewSessionTicketExtension,
+) -> Result<Vec<NewSessionTicketExtension>, FnError> {
+    let mut new_extensions = extensions.clone();
+    new_extensions.push(extension.clone());
+
+    Ok(new_extensions)
+}
+
 // todo ServerExtensions
 //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/57
 
@@ -101,6 +115,9 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
         )),
     }]))
 }
+pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ServerNameAck)
+}
 /// MaxFragmentLength => 0x0001,
 nyi_fn!();
 /// ClientCertificateUrl => 0x0002,
@@ -122,9 +139,13 @@ pub fn fn_status_request_extension(
                 .iter()
                 .map(|data| PayloadU16::new(data.clone()))
                 .collect(),
-            extensions: PayloadU16::new(extensions.clone())
+            extensions: PayloadU16::new(extensions.clone()),
         }),
     ))
+}
+pub fn fn_status_request_server_extension(
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::CertificateStatusAck)
 }
 /// UserMapping => 0x0006,
 nyi_fn!();
@@ -158,6 +179,12 @@ pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
         SignatureScheme::RSA_PSS_SHA256,
     ]))
 }
+pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
+    Ok(CertReqExtension::SignatureAlgorithms(vec![
+        SignatureScheme::RSA_PKCS1_SHA256,
+        SignatureScheme::RSA_PSS_SHA256,
+    ]))
+}
 /// UseSRTP => 0x000e,
 nyi_fn!();
 /// Heartbeat => 0x000f,
@@ -167,6 +194,8 @@ pub fn fn_empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
     Ok(vec![])
 }
 pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Vec<u8>>, FnError> {
+    // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     let mut new = vec_of_vec.clone();
     new.push(data.clone());
     Ok(new)
@@ -174,9 +203,17 @@ pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Ve
 pub fn fn_al_protocol_negotiation(
     protocol_name_list: &Vec<Vec<u8>>,
 ) -> Result<ClientExtension, FnError> {
-    // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::Protocols(
+        protocol_name_list
+            .iter()
+            .map(|data| PayloadU8::new(data.clone()))
+            .collect(),
+    ))
+}
+pub fn fn_al_protocol_server_negotiation(
+    protocol_name_list: &Vec<Vec<u8>>,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::Protocols(
         protocol_name_list
             .iter()
             .map(|data| PayloadU8::new(data.clone()))
@@ -189,6 +226,11 @@ nyi_fn!();
 pub fn fn_signed_certificate_timestamp() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignedCertificateTimestampRequest)
 }
+pub fn fn_signed_certificate_server_timestamp() -> Result<ServerExtension, FnError> {
+    // todo unclear where what to put here
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    Ok(ServerExtension::SignedCertificateTimestamp(vec!(PayloadU16::new(Vec::from([42u8; 128])))))
+}
 /// client_certificate_type => 0x0013,
 nyi_fn!();
 /// server_certificate_type => 0x0014,
@@ -200,6 +242,9 @@ nyi_fn!();
 /// ExtendedMasterSecret => 0x0017,
 pub fn fn_extended_master_secret_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ExtendedMasterSecretRequest)
+}
+pub fn fn_extended_master_secret_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ExtendedMasterSecretAck)
 }
 /// token_binding => 0x0018,
 nyi_fn!();
@@ -230,7 +275,12 @@ pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError>
 pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-    Ok(ClientExtension::SessionTicketOffer(Payload::new(ticket.clone())))
+    Ok(ClientExtension::SessionTicketOffer(Payload::new(
+        ticket.clone(),
+    )))
+}
+pub fn fn_session_ticket_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ServerNameAck)
 }
 /// TLMSP => 0x0024,
 nyi_fn!();
@@ -242,9 +292,11 @@ nyi_fn!();
 nyi_fn!();
 /// PreSharedKey => 0x0029,
 pub fn fn_new_preshared_key_identity(identity: &Vec<u8>) -> Result<PresharedKeyIdentity, FnError> {
+    // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(PresharedKeyIdentity {
         identity: PayloadU16::new(identity.clone()),
-        obfuscated_ticket_age: 10
+        obfuscated_ticket_age: 10,
     })
 }
 pub fn fn_empty_preshared_keys_identity_vec() -> Result<Vec<PresharedKeyIdentity>, FnError> {
@@ -258,12 +310,10 @@ pub fn fn_append_preshared_keys_identity(
     new.push(identify.clone());
     Ok(new)
 }
-pub fn fn_preshared_keys(
+pub fn fn_preshared_keys_extension(
     identities: &Vec<PresharedKeyIdentity>,
     binders: &Vec<Vec<u8>>,
 ) -> Result<ClientExtension, FnError> {
-    // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::PresharedKey(PresharedKeyOffer {
         identities: identities.clone(),
         binders: binders
@@ -272,9 +322,22 @@ pub fn fn_preshared_keys(
             .collect(),
     }))
 }
+pub fn fn_preshared_keys_server_extension(
+    identities: &u64,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::PresharedKey(*identities as u16))
+}
 /// EarlyData => 0x002a,
 pub fn fn_early_data_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::EarlyData)
+}
+pub fn fn_early_data_new_session_ticket_extension(
+    early_data: &u64,
+) -> Result<NewSessionTicketExtension, FnError> {
+    Ok(NewSessionTicketExtension::EarlyData(*early_data as u32))
+}
+pub fn fn_early_data_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::EarlyData)
 }
 /// SupportedVersions => 0x002b,
 pub fn fn_supported_versions12_extension() -> Result<ClientExtension, FnError> {
@@ -288,10 +351,25 @@ pub fn fn_supported_versions13_extension() -> Result<ClientExtension, FnError> {
     ]))
 }
 pub fn fn_supported_versions12_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_2))
+    Ok(HelloRetryExtension::SupportedVersions(
+        ProtocolVersion::TLSv1_2,
+    ))
 }
 pub fn fn_supported_versions13_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_3))
+    Ok(HelloRetryExtension::SupportedVersions(
+        ProtocolVersion::TLSv1_3,
+    ))
+}
+
+pub fn fn_supported_versions12_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::SupportedVersions(
+        ProtocolVersion::TLSv1_2,
+    ))
+}
+pub fn fn_supported_versions13_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::SupportedVersions(
+        ProtocolVersion::TLSv1_3,
+    ))
 }
 /// Cookie => 0x002c,
 pub fn fn_cookie_extension(cookie: &Vec<u8>) -> Result<ClientExtension, FnError> {
@@ -310,7 +388,18 @@ pub fn fn_psk_exchange_modes_extension() -> Result<ClientExtension, FnError> {
 /// TicketEarlyDataInfo => 0x002e,
 nyi_fn!();
 /// CertificateAuthorities => 0x002f,
-nyi_fn!();
+pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnError> {
+    let mut r = DistinguishedNames::new();
+
+    for subject in ["inria.fr"] {
+        let mut name = Vec::new();
+        name.extend_from_slice(subject.as_bytes());
+        x509::wrap_in_sequence(&mut name);
+        r.push(DistinguishedName::new(name));
+    }
+
+    Ok(CertReqExtension::AuthorityNames(r))
+}
 /// OIDFilters => 0x0030,
 nyi_fn!();
 /// PostHandshakeAuth => 0x0031,
@@ -334,14 +423,27 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
     ]))
 }
 /// KeyShare => 0x0033,
-pub fn fn_key_share_extension() -> Result<ClientExtension, FnError> {
+pub fn fn_key_share_deterministic_extension() -> Result<ClientExtension, FnError> {
     let our_key_share: KeyExchange = deterministic_key_exchange(&SECP384R1)?;
+    fn_key_share_extension(&Vec::from(our_key_share.pubkey.as_ref()))
+}
+pub fn fn_key_share_extension(key_share: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
         group: NamedGroup::secp384r1,
-        payload: PayloadU16::new(Vec::from(our_key_share.pubkey.as_ref())),
+        payload: PayloadU16::new(key_share.clone()),
     }]))
 }
-pub fn fn_hello_retry_key_share_extension() -> Result<HelloRetryExtension, FnError> {
+pub fn fn_key_share_deterministic_server_extension() -> Result<ServerExtension, FnError> {
+    let our_key_share: KeyExchange = deterministic_key_exchange(&SECP384R1)?;
+    fn_key_share_server_extension(&Vec::from(our_key_share.pubkey.as_ref()))
+}
+pub fn fn_key_share_server_extension(key_share: &Vec<u8>) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::KeyShare(KeyShareEntry {
+        group: NamedGroup::secp384r1,
+        payload: PayloadU16::new(key_share.clone()),
+    }))
+}
+pub fn fn_key_share_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::KeyShare(NamedGroup::secp384r1))
 }
 /// transparency_info => 0x0034,
@@ -358,23 +460,78 @@ pub fn fn_transport_parameters_extension(parameters: &Vec<u8>) -> Result<ClientE
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(ClientExtension::TransportParameters(parameters.clone()))
 }
+pub fn fn_transport_parameters_server_extension(parameters: &Vec<u8>) -> Result<ServerExtension, FnError> {
+    // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    Ok(ServerExtension::TransportParameters(parameters.clone()))
+}
 /// NextProtocolNegotiation => 0x3374,
 nyi_fn!();
 /// ChannelId => 0x754f,
 nyi_fn!();
 /// RenegotiationInfo => 0xff01,
-// todo this is rather bad as the mutator ReplaceReuse may find it easier to replace an empty byte array than an extension
-/*pub fn fn_renegotiation_info_initial_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::RenegotiationInfo(PayloadU8::empty()))
-}*/
 pub fn fn_renegotiation_info_extension(data: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
         data.clone(),
     )))
 }
+pub fn fn_renegotiation_info_server_extension(data: &Vec<u8>) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::RenegotiationInfo(PayloadU8::new(
+        data.clone(),
+    )))
+}
 /// TransportParametersDraft => 0xffa5
-pub fn fn_transport_parameters_draft_extension(parameters: &Vec<u8>) -> Result<ClientExtension, FnError> {
+pub fn fn_transport_parameters_draft_extension(
+    parameters: &Vec<u8>,
+) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-    Ok(ClientExtension::TransportParametersDraft(parameters.clone()))
+    Ok(ClientExtension::TransportParametersDraft(
+        parameters.clone(),
+    ))
+}
+pub fn fn_transport_parameters_draft_server_extension(
+    parameters: &Vec<u8>,
+) -> Result<ServerExtension, FnError> {
+    // todo unclear where the arguments come from here, needs manual trace implementation
+    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    Ok(ServerExtension::TransportParametersDraft(
+        parameters.clone(),
+    ))
+}
+// Unknown extensions
+
+pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
+}
+
+pub fn fn_unknown_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
+}
+
+pub fn fn_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
+}
+
+pub fn fn_cert_request_extension() -> Result<CertReqExtension, FnError> {
+    Ok(CertReqExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
+}
+
+pub fn fn_new_session_ticket_extension() -> Result<NewSessionTicketExtension, FnError> {
+    Ok(NewSessionTicketExtension::Unknown(UnknownExtension {
+        typ: ExtensionType::Unknown(0xFFFF),
+        payload: Payload::new([42; 7000]),
+    }))
 }
