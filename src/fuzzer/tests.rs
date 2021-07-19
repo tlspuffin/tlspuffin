@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-
-use libafl::bolts::rands::{StdRand};
+use itertools::Itertools;
+use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
@@ -15,12 +15,12 @@ use crate::fuzzer::mutations::{
     SwapMutator,
 };
 use crate::fuzzer::seeds::*;
-
+use crate::fuzzer::term_generation::{generate_multiple_terms, generate_terms};
 use crate::openssl_binding::make_deterministic;
-
 use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
+use crate::tls::SIGNATURE;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
@@ -78,7 +78,7 @@ fn test_replace_match_mutator() {
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12( server);
+        let mut trace = seed_client_attacker12(server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(last) = trace.steps.iter().last() {
@@ -168,7 +168,7 @@ fn test_skip_mutator() {
     let mut mutator = SkipMutator::new(4);
 
     loop {
-        let mut trace = seed_client_attacker12( server);
+        let mut trace = seed_client_attacker12(server);
         let before_len = trace.steps.len();
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -295,6 +295,36 @@ fn test_reservoir_sample_randomness() {
 
     assert!(std_dev < 30.0);
     assert_eq!(client_hello.size(), stats.len());
+}
+
+#[test]
+fn test_term_generation() {
+    let mut rand = StdRand::with_seed(45);
+    let terms = generate_multiple_terms(&SIGNATURE, &mut rand);
+
+    let subgraphs = terms
+        .iter()
+        .enumerate()
+        .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
+        .collect_vec();
+
+    let graph = format!(
+        "strict digraph \"Trace\" {{ splines=true; {} }}",
+        subgraphs.join("\n")
+    );
+
+    let all = SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name.to_string())
+        .collect::<HashSet<String>>();
+    let success = terms
+        .iter()
+        .map(|term| term.name().to_string())
+        .collect::<HashSet<String>>();
+
+    println!("{:?}",  all.difference(&success));
+    println!("{}", graph);
 }
 
 mod util {
