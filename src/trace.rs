@@ -94,7 +94,7 @@ struct ObservedVariable {
 }
 
 pub struct VecClaimer {
-    pub claims: Vec<(AgentName, Claim)>
+    claims: Vec<(AgentName, Claim)>
 }
 
 impl VecClaimer {
@@ -118,7 +118,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    pub claimer: Rc<RefCell<VecClaimer>>,
+    claimer: Rc<RefCell<VecClaimer>>,
 }
 
 impl TraceContext {

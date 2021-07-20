@@ -294,7 +294,7 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
 
-        if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+        if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             let zoo = self.zoo.get_or_insert_with(|| generate_multiple_terms(&SIGNATURE, rand));
 
             // Replace with generated term

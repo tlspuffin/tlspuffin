@@ -7,9 +7,6 @@ use rustls::msgs::codec::{Codec, Reader};
 use rustls::msgs::handshake::{Random, ServerECDHParams, ServerExtension, CertificateEntry, CertificateExtension};
 use rustls::msgs::message::{Message, OpaqueMessage};
 use rustls::{key, Certificate};
-
-use crate::error::Error;
-
 use super::error::FnError;
 
 // ----
@@ -138,7 +135,7 @@ pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     161df1ba38891e9bddec0f196bdcfc9a8801d4e066d4b258a9c072c6f4f13a80da85c75102b7cecae60987997c6b8c3\
     56bef671e44bc3aceb6e15590befb11b76efb6ee89c69820b91e1ba9d11d0324e961e9b0cb98e38ea2414ae94",
     );
-    Ok(Certificate(der_cert.map_err(|err| {
+    Ok(Certificate(der_cert.map_err(|_err| {
         FnError::Unknown("Failed to load DER certificate".to_string())
     })?))
 }

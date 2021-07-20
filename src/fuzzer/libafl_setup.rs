@@ -8,7 +8,6 @@ use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
     bolts::{
-        current_nanos,
         rands::StdRand,
         tuples::{tuple_list},
     },
@@ -19,7 +18,7 @@ use libafl::{
     executors::{inprocess::InProcessExecutor, TimeoutExecutor},
     feedback_or,
     feedbacks::{
-        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MaxMapFeedback,
+        CrashFeedback, MapFeedbackState, MaxMapFeedback,
         TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},

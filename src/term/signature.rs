@@ -41,7 +41,7 @@ impl Signature {
             definitions
                 .clone()
                 .into_iter()
-                .into_group_map_by(|(shape, dynamic_fn)| shape.return_type);
+                .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type);
 
         let types_by_name: HashMap<&'static str, TypeShape> = definitions
             .clone()

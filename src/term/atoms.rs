@@ -162,7 +162,7 @@ mod fn_container {
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
     use crate::term::dynamic_function::{
-        DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+        DynamicFunction, DynamicFunctionShape, TypeShape,
     };
     use crate::tls::SIGNATURE;
 
