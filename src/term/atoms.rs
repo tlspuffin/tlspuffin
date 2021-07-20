@@ -26,13 +26,14 @@ pub struct Variable {
     pub observed_id: ObservedId,
 }
 
-impl Eq for Variable {}
 impl Hash for Variable {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
         self.observed_id.hash(state);
     }
 }
+
+impl Eq for Variable {}
 impl PartialEq for Variable {
     fn eq(&self, other: &Self) -> bool {
         self.typ == other.typ && self.observed_id == other.observed_id
@@ -181,13 +182,14 @@ mod fn_container {
             self.shape.hash(state)
         }
     }
+
+    impl Eq for FnContainer {}
     impl PartialEq for FnContainer {
         fn eq(&self, other: &Self) -> bool {
             // shape already identifies the function container
             self.shape == other.shape
         }
     }
-    impl Eq for FnContainer {}
 
     impl Serialize for FnContainer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

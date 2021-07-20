@@ -63,7 +63,7 @@ use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use crate::tls::{error::FnError, SIGNATURE};
 
 /// Describes the shape of a [`DynamicFunction`]
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash)]
 pub struct DynamicFunctionShape {
     pub name: &'static str,
     pub argument_types: Vec<TypeShape>,
@@ -71,7 +71,6 @@ pub struct DynamicFunctionShape {
 }
 
 impl Eq for DynamicFunctionShape {}  // LH: What is that? Why not deriving Eq on the struct?
-
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
         self.name.eq(other.name) // name is unique
@@ -272,7 +271,6 @@ impl Into<TypeId> for TypeShape {
 }
 
 impl Eq for TypeShape {}
-
 impl PartialEq for TypeShape {
     fn eq(&self, other: &Self) -> bool {
         self.inner_type_id == other.inner_type_id
