@@ -60,7 +60,7 @@
 //!
 
 use core::fmt;
-use std::io::empty;
+
 use std::ops::Deref;
 use std::{any::TypeId, fmt::Formatter};
 

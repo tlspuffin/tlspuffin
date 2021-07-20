@@ -32,11 +32,12 @@ mod stages;
 mod macros;
 mod terminal_stats;
 mod stats_observer;
+mod term_generation;
 
 
 #[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
-pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM, CMP_MAP};
+pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 use libafl::inputs::{Input, HasLen};
 use crate::trace::Trace;
 

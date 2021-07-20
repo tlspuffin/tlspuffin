@@ -1,12 +1,12 @@
-use std::cell::RefCell;
+
 use std::io::ErrorKind;
 use std::mem::transmute;
 use std::os::raw::c_int;
-use std::rc::Rc;
 
-use foreign_types_shared::ForeignTypeRef;
-use security_claims::register::Claimer;
-use security_claims::{register_claimer, Claim, ClaimType};
+
+
+
+
 
 use openssl::error::ErrorStack;
 use openssl::ssl::SslVersion;
@@ -165,7 +165,8 @@ pub fn create_openssl_server(
     let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
     ctx_builder.set_certificate(cert)?;
     ctx_builder.set_private_key(key)?;
-    ctx_builder.set_options(SslOptions::NO_TICKET); // todo remove, its here for seed_successful12
+
+    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     #[cfg(feature = "ossl110")]
     match tls_version {
@@ -222,7 +223,7 @@ pub fn create_openssl_client(
     // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
     // for now.
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-    // ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     #[cfg(feature = "ossl110")]
     match tls_version {

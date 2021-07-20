@@ -1,20 +1,13 @@
-use core::time::Duration;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use itertools::Itertools;
-use libafl::bolts::tuples::Named;
-use libafl::events::Event::UpdateUserStats;
 use libafl::events::{Event, EventFirer};
-use libafl::executors::ExitKind;
-use libafl::feedbacks::Feedback;
 use libafl::inputs::Input;
-use libafl::observers::{Observer, ObserversTuple};
-use libafl::state::{HasClientPerfStats, State, HasRand, HasCorpus};
+use libafl::state::{HasClientPerfStats, HasRand, HasCorpus};
 use libafl::stats::UserStats;
 use libafl::{Error, Evaluator};
-use serde::{Deserialize, Serialize};
+
 use libafl::bolts::rands::Rand;
-use libafl::mutators::Mutator;
+
 use libafl::corpus::Corpus;
 use libafl::stages::Stage;
 use std::marker::PhantomData;
@@ -197,66 +190,6 @@ impl Fire for MinMaxMean {
     }
 }
 
-pub struct StatsFeedback {
-    name: String,
-}
-
-impl<I, S> Feedback<I, S> for StatsFeedback
-where
-    I: Input,
-    S: HasClientPerfStats,
-{
-    fn is_interesting<EM, OT>(
-        &mut self,
-        state: &mut S,
-        manager: &mut EM,
-        _input: &I,
-        _observers: &OT,
-        _exit_kind: &ExitKind,
-    ) -> Result<bool, Error>
-    where
-        EM: EventFirer<I, S>,
-        OT: ObserversTuple<I, S>,
-    {
-        for stat in &STATS {
-            stat.fire(&mut |name, stats| {
-                manager.fire(
-                    state,
-                    Event::UpdateUserStats {
-                        name,
-                        value: stats,
-                        phantom: Default::default(),
-                    },
-                )
-            })?;
-        }
-
-        Ok(false)
-    }
-}
-
-impl Named for StatsFeedback {
-    #[inline]
-    fn name(&self) -> &str {
-        self.name.as_str()
-    }
-}
-
-impl StatsFeedback {
-    #[must_use]
-    pub fn new(name: &'static str) -> Self {
-        Self {
-            name: name.to_string(),
-        }
-    }
-}
-
-
-
-/////
-
-
-
 #[derive(Clone, Debug)]
 pub struct StatsStage<C, E, EM, I, R, S, Z>
     where
@@ -284,11 +217,11 @@ impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, 
     #[allow(clippy::let_and_return)]
     fn perform(
         &mut self,
-        fuzzer: &mut Z,
-        executor: &mut E,
+        _fuzzer: &mut Z,
+        _executor: &mut E,
         state: &mut S,
         manager: &mut EM,
-        corpus_idx: usize,
+        _corpus_idx: usize,
     ) -> Result<(), Error> {
         for stat in &STATS {
             stat.fire(&mut |name, stats| {

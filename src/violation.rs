@@ -6,7 +6,7 @@ use openssl_sys::{TLS1_2_VERSION, TLS1_3_VERSION};
 use crate::agent::AgentName;
 
 pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
-    if let Some(((agent_a, claim_a), (agent_b, claim_b))) = find_finished_messages(claims) {
+    if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
                 return Some("Mismatching versions");
@@ -21,8 +21,11 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("Mismatching master secrets");
                     }
 
-                    if client.session_id != server.session_id {
-                        return Some("Mismatching session ids");
+                    // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
+                    if server.session_id.length != 0 {
+                        if client.session_id != server.session_id {
+                            return Some("Mismatching session ids");
+                        }
                     }
 
                     if client.server_random != server.server_random {
@@ -32,7 +35,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("Mismatching client random");
                     }
 
-                    if let Some(server_kex) = claims.iter().find(|(agent, claim)| {
+                    if let Some(server_kex) = claims.iter().find(|(_agent, claim)| {
                         claim.write == 1
                             && claim.server == 1
                             && claim.typ == ClaimType::CLAIM_SERVER_DONE
@@ -107,20 +110,11 @@ pub fn find_finished_messages(
 ) -> Option<(&(AgentName, Claim), &(AgentName, Claim))> {
     let two_finishes = claims
         .iter()
-        .filter(|(agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
+        .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();
 
     two_finishes
 }
-
-/*pub fn find_claim<P>(
-    claims: &Vec<(AgentName, Claim)>,
-    predicate: P
-) -> Option<&(AgentName, Claim)> where P: FnMut(&Claim) -> bool {
-     claims
-        .iter()
-        .find(predicate)
-}*/
 
 pub fn get_client_server<'a>(
     claim_a: &'a Claim,

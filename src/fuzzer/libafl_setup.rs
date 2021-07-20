@@ -1,48 +1,39 @@
 use core::time::Duration;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
 
 use itertools::Itertools;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
-use libafl::corpus::LenTimeMinimizerCorpusScheduler;
+
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
     bolts::{
         current_nanos,
         rands::StdRand,
-        tuples::{tuple_list, Merge},
+        tuples::{tuple_list},
     },
     corpus::{
         Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
-        QueueCorpusScheduler, RandCorpusScheduler,
+        QueueCorpusScheduler,
     },
-    events::{setup_restarting_mgr_std, Event, EventManager, EventRestarter, LogSeverity},
-    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
+    executors::{inprocess::InProcessExecutor, TimeoutExecutor},
     feedback_or,
     feedbacks::{
-        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MapIndexesMetadata, MaxMapFeedback,
-        MaxReducer, TimeFeedback, TimeoutFeedback,
+        CrashFeedback, FeedbackStatesTuple, MapFeedbackState, MaxMapFeedback,
+        TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
-    inputs::BytesInput,
-    mutators::{
-        havoc_mutations,
-        scheduled::{tokens_mutations, StdScheduledMutator},
-        token_mutations::Tokens,
-    },
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    stages::mutational::StdMutationalStage,
-    state::{HasCorpus, HasMetadata, StdState},
-    stats::{MultiStats, SimpleStats},
-    Error, Evaluator,
+    state::{HasCorpus, StdState},
+    Error,
 };
 
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats_observer::{StatsFeedback, StatsStage};
-use crate::fuzzer::terminal_stats::TerminalStats;
+use crate::fuzzer::stats_observer::{StatsStage};
+
 use crate::openssl_binding::make_deterministic;
 
 use super::harness;

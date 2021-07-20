@@ -24,19 +24,19 @@ use std::{
 };
 
 use openssl::ssl::SslStream;
-use rustls::msgs::message::{OpaqueMessage, MessagePayload};
-use rustls::msgs::handshake::HandshakePayload;
-use rustls::msgs::{codec::Codec, deframer::MessageDeframer, message::Message};
+use rustls::msgs::message::{OpaqueMessage};
+
+use rustls::msgs::{deframer::MessageDeframer, message::Message};
 use crate::agent::{TLSVersion, AgentName};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
 use crate::openssl_binding;
 use std::rc::Rc;
-use security_claims::register::Claimer;
+
 use std::cell::RefCell;
 use security_claims::{deregister_claimer, register_claimer, Claim};
 use foreign_types_shared::ForeignTypeRef;
-use std::mem::ManuallyDrop;
+
 use crate::trace::VecClaimer;
 
 pub trait Stream: std::io::Read + std::io::Write {

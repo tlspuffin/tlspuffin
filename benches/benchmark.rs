@@ -9,6 +9,7 @@ use ring::hmac::{Key, HMAC_SHA256};
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
+use tlspuffin::fuzzer::mutations::util::TermConstraints;
 use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term;
 use tlspuffin::trace::{Trace};
@@ -51,9 +52,11 @@ fn benchmark_mutations(c: &mut Criterion) {
         let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
         let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
         let client = AgentName::first();
-        let server = client.next();
-        let mut mutator = ReplaceReuseMutator::new();
-        let mut trace = seed_client_attacker12(client, server);
+        let mut mutator = ReplaceReuseMutator::new(TermConstraints {
+            min_term_size: 0,
+            max_term_size: 200
+        });
+        let mut trace = seed_client_attacker12(client);
 
         b.iter(|| {
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -66,27 +69,39 @@ fn benchmark_trace(c: &mut Criterion) {
 
     group.bench_function("term clone", |b| {
         let client_hello = term! {
-              fn_client_hello(
-                fn_protocol_version12,
-                fn_new_random,
-                fn_new_session_id,
-                fn_cipher_suites13,
-                fn_compressions,
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
-                                fn_client_extensions_new,
-                                fn_secp384r1_support_group_extension
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    fn_secp384r1_support_group_extension
+                                )),
+                                fn_signature_algorithm_extension
                             )),
-                            fn_signature_algorithm_extension
+                            fn_ec_point_formats_extension
                         )),
-                        fn_key_share_extension
+                        fn_signed_certificate_timestamp
                     )),
-                    fn_supported_versions13_extension
-                ))
-            )
-        };
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                )),
+                // Add signature cert extension
+                fn_signature_algorithm_cert_extension
+            ))
+        )
+    };
 
         b.iter(|| client_hello.clone())
     });
@@ -123,8 +138,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_client_attacker(client, server);
+            let trace = seed_client_attacker(client);
 
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
@@ -135,8 +149,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_client_attacker12(client, server);
+            let trace = seed_client_attacker12(client);
 
             trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();

@@ -1,9 +1,9 @@
 #ifndef TLSPUFFIN_DETECTOR_H
 #define TLSPUFFIN_DETECTOR_H
 
-static const int CLAIM_MAX_AVAILABLE_CIPHERS = 128;
-static const int CLAIM_MAX_SECRET_SIZE = 64; /* longest known is SHA512 */
-static const int CLAIM_SESSION_ID_LENGTH = 32;
+#define CLAIM_MAX_AVAILABLE_CIPHERS 128
+#define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
+#define CLAIM_SESSION_ID_LENGTH 32
 
 typedef enum ClaimType {
     CLAIM_NOT_SET,
@@ -73,6 +73,7 @@ typedef struct ClaimRandom {
 } ClaimRandom;
 
 typedef struct ClaimSessionId {
+    int length;
     unsigned char data[CLAIM_SESSION_ID_LENGTH];
 } ClaimSessionId;
 

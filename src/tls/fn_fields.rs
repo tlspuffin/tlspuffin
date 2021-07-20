@@ -6,7 +6,6 @@ use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 use super::error::FnError;
 use rustls::msgs::codec::Codec;
 use rustls::msgs::codec::Reader;
-use libafl::bolts::tuples::Prepend;
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -30,6 +29,10 @@ pub fn fn_new_random() -> Result<Random, FnError> {
 
 pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
     Ok(vec![Compression::Null])
+}
+
+pub fn fn_compression() -> Result<Compression, FnError> {
+    Ok(Compression::Null)
 }
 
 pub fn fn_verify_data(

@@ -5,12 +5,9 @@
 //! Return type is `Message`
 //!
 
-use std::convert::TryFrom;
-
-use rustls::msgs::codec::Reader;
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension};
-use rustls::msgs::message::OpaqueMessage;
+
 use rustls::msgs::alert::AlertMessagePayload;
 use rustls::msgs::base::{PayloadU16, PayloadU24, PayloadU8};
 use rustls::{
@@ -21,8 +18,7 @@ use rustls::{
         heartbeat::HeartbeatPayload,
         message::{Message, MessagePayload},
     },
-    kx, tls12, CipherSuite, NoKeyLog, ProtocolVersion, SignatureScheme, SupportedCipherSuite,
-    ALL_KX_GROUPS,
+    CipherSuite, ProtocolVersion, SignatureScheme,
 };
 use HandshakePayload::EncryptedExtensions;
 
@@ -111,19 +107,19 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u16) -> Result<Message, FnError> {
+pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u64) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
             payload: PayloadU16::new(payload.clone()),
-            fake_length: Some(*fake_length),
+            fake_length: Some(*fake_length as u16),
         }),
     })
 }
 
 pub fn fn_heartbeat(payload: &Vec<u8>) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.len() as u16))
+    fn_heartbeat_fake_length(payload, &(payload.len() as u64))
 }
 
 // ----
@@ -191,7 +187,7 @@ pub fn fn_server_hello(
 /// hello_verify_request_RESERVED => 0x03,
 nyi_fn!();
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(ticket: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
     Ok(Message {
@@ -199,7 +195,7 @@ pub fn fn_new_session_ticket(ticket: &Vec<u8>) -> Result<Message, FnError> {
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
-                lifetime_hint: 10,
+                lifetime_hint: *lifetime_hint as u32,
                 ticket: PayloadU16::new(ticket.clone()),
             }),
         }),

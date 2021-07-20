@@ -133,8 +133,8 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                 HandshakePayload::NewSessionTicket(ticket) => {
                     vec![
                         Box::new(message.clone()),
-                        Box::new(ticket.lifetime_hint),
-                        Box::new(ticket.ticket.clone()),
+                        Box::new(ticket.lifetime_hint as u64),
+                        Box::new(ticket.ticket.0.clone()),
                     ]
                 }
                 _ => {

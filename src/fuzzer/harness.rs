@@ -28,7 +28,7 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Fn(_) => {
                 FN_ERROR.increment()
             },
-            Error::Term(e) => {
+            Error::Term(_e) => {
                 TERM.increment()
             },
             Error::OpenSSL(_)=>  {
@@ -50,6 +50,7 @@ pub fn harness(input: &Trace) -> ExitKind {
     ExitKind::Ok
 }
 
+#[allow(unused)]
 pub fn dummy_harness(_input: &Trace) -> ExitKind {
     let mut rng = rand::thread_rng();
 

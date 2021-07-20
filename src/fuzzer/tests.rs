@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 
-use libafl::bolts::rands::{Rand, RomuDuoJrRand, RomuTrioRand, StdRand};
+use itertools::Itertools;
+use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
@@ -15,12 +15,12 @@ use crate::fuzzer::mutations::{
     SwapMutator,
 };
 use crate::fuzzer::seeds::*;
-use crate::graphviz::write_graphviz;
+use crate::fuzzer::term_generation::{generate_multiple_terms, generate_terms};
 use crate::openssl_binding::make_deterministic;
-use crate::term;
 use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
+use crate::tls::SIGNATURE;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 
 #[test]
@@ -40,7 +40,7 @@ fn test_repeat_mutator() {
     let server = AgentName::first();
     let _trace = seed_client_attacker12(server);
 
-    let mut mutator = RepeatMutator::new(15, TermConstraints::default());
+    let mut mutator = RepeatMutator::new(15);
 
     fn check_is_encrypt12(step: &Step) -> bool {
         if let Action::Input(input) = &step.action {
@@ -78,7 +78,7 @@ fn test_replace_match_mutator() {
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12( server);
+        let mut trace = seed_client_attacker12(server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(last) = trace.steps.iter().last() {
@@ -165,10 +165,10 @@ fn test_skip_mutator() {
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let server = AgentName::first();
-    let mut mutator = SkipMutator::new(4, TermConstraints::default());
+    let mut mutator = SkipMutator::new(4);
 
     loop {
-        let mut trace = seed_client_attacker12( server);
+        let mut trace = seed_client_attacker12(server);
         let before_len = trace.steps.len();
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -285,7 +285,7 @@ fn test_reservoir_sample_randomness() {
 
         let id = term.0.resistant_id();
 
-        let count: &u32 = stats.get(&id).unwrap_or(&0);
+        let count: u32 = *stats.get(&id).unwrap_or(&0);
         stats.insert(id, count + 1);
     }
 
@@ -295,6 +295,37 @@ fn test_reservoir_sample_randomness() {
 
     assert!(std_dev < 30.0);
     assert_eq!(client_hello.size(), stats.len());
+}
+
+#[test]
+fn test_term_generation() {
+    let mut rand = StdRand::with_seed(45);
+    let terms = generate_multiple_terms(&SIGNATURE, &mut rand);
+
+    let subgraphs = terms
+        .iter()
+        .enumerate()
+        .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
+        .collect_vec();
+
+    let graph = format!(
+        "strict digraph \"Trace\" {{ splines=true; {} }}",
+        subgraphs.join("\n")
+    );
+
+    let all = SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name.to_string())
+        .collect::<HashSet<String>>();
+    let success = terms
+        .iter()
+        .map(|term| term.name().to_string())
+        .collect::<HashSet<String>>();
+
+    assert_eq!(all.difference(&success).count(), 0);
+    //println!("{}", graph);
+
 }
 
 mod util {
@@ -331,7 +362,7 @@ mod util {
                                 )),
                                 fn_ec_point_formats_extension
                             )),
-                            fn_signed_certificate_timestamp
+                            fn_signed_certificate_timestamp_extension
                         )),
                          // Enable Renegotiation
                         (fn_renegotiation_info_extension(fn_empty_bytes_vec))
