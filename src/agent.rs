@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use crate::trace::VecClaimer;
 
 /// Copyable reference to an [`Agent`]
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct AgentName(u8);
 
 impl AgentName {
@@ -24,21 +24,14 @@ impl AgentName {
     }
 
     pub fn first() -> AgentName {
+        const FIRST: AgentName = AgentName(0u8);
         FIRST
     }
 }
 
-const FIRST: AgentName = AgentName(0u8);
-
 impl fmt::Display for AgentName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl PartialEq for AgentName {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
     }
 }
 
@@ -61,7 +54,6 @@ pub enum TLSVersion {
 pub struct Agent {
     pub descriptor: AgentDescriptor,
     pub stream: OpenSSLStream,
-
 }
 
 impl Agent {
@@ -80,7 +72,6 @@ impl Agent {
 
         Ok(agent)
     }
-
 
     fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
         Agent { descriptor: *descriptor, stream }

@@ -21,16 +21,16 @@ pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 /// Signatures are containers for types and function symbols. They hold references to the concrete
 /// implementations of functions and the types of variables.
 pub struct Signature {
-    pub functions_by_name: HashMap<String, FunctionDefinition>,
+    pub functions_by_name: HashMap<&'static str, FunctionDefinition>,
     pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
-    pub types_by_name: HashMap<&'static str, TypeShape>,
+    pub types_by_name: HashMap<&'static str, TypeShape>,  // LH: Why not owned String as in `function_by_name` or use `static there as well?
 }
 
 impl Signature {
     /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
-        let functions_by_name: HashMap<String, FunctionDefinition> =
+        let functions_by_name: HashMap<&'static str, FunctionDefinition> =
             definitions
                 .clone()
                 .into_iter()
@@ -47,16 +47,16 @@ impl Signature {
             .clone()
             .into_iter()
             .map(|(shape, _dynamic_fn)| {
-                let types: Vec<TypeShape> = shape
+                let used_types: Vec<TypeShape> = shape // vector of the argument shapes + return type
                     .argument_types
                     .iter()
                     .copied()
                     .chain(vec![shape.return_type])
                     .collect::<Vec<TypeShape>>();
-                types
+                used_types
             })
             .unique()
-            .flatten()
+            .flatten() // LH: I do not understand this, what is the intended returned TypeShape in the HashMap?
             .map(|typ| (typ.name, typ.clone()))
             .collect();
 
@@ -96,7 +96,7 @@ impl fmt::Debug for Signature {
 }
 
 #[macro_export]
-macro_rules! define_signature {
+macro_rules! define_signature {   // LH: To document somewhere: it does not seem that your signature and the way you (de)serialize are robust to function name modifications (?)
     ($name_signature:ident, $($f:path),+ $(,)?) => {
         use once_cell::sync::Lazy;
         use crate::term::signature::Signature;

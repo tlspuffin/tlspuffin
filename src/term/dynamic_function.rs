@@ -63,18 +63,17 @@ use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use crate::tls::{error::FnError, SIGNATURE};
 
 /// Describes the shape of a [`DynamicFunction`]
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, Hash)]
 pub struct DynamicFunctionShape {
-    pub name: String,
+    pub name: &'static str,
     pub argument_types: Vec<TypeShape>,
     pub return_type: TypeShape,
 }
 
-impl Eq for DynamicFunctionShape {}
-
+impl Eq for DynamicFunctionShape {}  // LH: What is that? Why not deriving Eq on the struct?
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
-        self.name.eq(&other.name) // name is unique
+        self.name.eq(other.name) // name is unique
     }
 }
 
@@ -89,7 +88,7 @@ impl DynamicFunctionShape {
 }
 
 impl fmt::Display for DynamicFunctionShape {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "{}({}) -> {}",
@@ -116,8 +115,8 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
         "({})",
         anys.iter()
             .map(|any| {
-                let id = any.as_ref().type_id().clone();
-                format!("{:x}", hash_type_id(&id))
+                let id = &any.as_ref().type_id();
+                format!("{:x}", hash_type_id(id))
             })
             .join(",")
     )
@@ -137,9 +136,9 @@ pub trait DynamicFunction:
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
-impl<T> DynamicFunction for T
+impl<F> DynamicFunction for F
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
+    F: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -153,7 +152,7 @@ impl fmt::Debug for Box<dyn DynamicFunction> {
 }
 
 impl fmt::Display for Box<dyn DynamicFunction> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
@@ -186,7 +185,7 @@ macro_rules! dynamic_fn {
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
-                name: std::any::type_name::<F>().to_string(),
+                name: std::any::type_name::<F>(),
                 argument_types: vec![$(TypeShape::of::<$arg>()),*],
                 return_type: TypeShape::of::<$res>(),
             }
@@ -272,7 +271,6 @@ impl Into<TypeId> for TypeShape {
 }
 
 impl Eq for TypeShape {}
-
 impl PartialEq for TypeShape {
     fn eq(&self, other: &Self) -> bool {
         self.inner_type_id == other.inner_type_id

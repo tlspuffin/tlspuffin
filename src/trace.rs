@@ -276,7 +276,7 @@ impl fmt::Debug for Trace {
 }
 
 impl fmt::Display for Trace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}\n", "Trace:")?;
         for step in &self.steps {
             write!(f, "{} \t({})\n", step.agent, step.action)?;

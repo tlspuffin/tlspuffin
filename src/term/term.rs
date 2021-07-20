@@ -15,7 +15,7 @@ use crate::trace::TraceContext;
 use super::atoms::{Function, Variable};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
@@ -27,8 +27,6 @@ pub enum Term {
     ///
     Application(Function, Vec<Term>),
 }
-
-impl Eq for Term {}
 
 impl fmt::Display for Term {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
