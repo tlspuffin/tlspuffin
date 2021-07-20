@@ -10,16 +10,43 @@
       <sourceFolder url="file://$MODULE_DIR$/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/openssl-errors/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/openssl-errors/tests" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/openssl-sys/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/openssl/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/openssl/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/rust-openssl/systest/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/bindgen-8306320987cfd3d5/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/bitflags-929df470e18587d0/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/clang-sys-9c866bff65a7da47/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/crunchy-ba94635ada653b64/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/getrandom-b97dfd57ee876c71/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/libc-cccd823737fc2b59/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/libloading-fbc68b320e62942e/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/log-41445dc4195817a2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/memchr-e495cbbc2b9fcbee/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/nom-3bf64cd8455f373a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro-hack-2ff30f49be507d14/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro2-6381ee6c2b5c3cbb/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/security-claims-e97cef13c073c8b9/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/serde_derive-b8d1f5db8590f22f/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-3a60924a6710367a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/tiny-keccak-bc2d3d19025d980c/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ahash-b18c559a84352e7e/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/anyhow-937d914d99348c77/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/generic-array-24461834c16cfec6/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/heapless-09fcfda5b02a8747/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/heapless-d185c13661b5e99d/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/libafl-e0b86cd510fdb3e1/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/libafl_targets-6e6e2da9288c856a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/memoffset-2d6077f16d793a24/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/miniz_oxide-d3516317e5b313a6/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-integer-520b2f1d59bbf3f4/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-iter-f5aae7c9c4143de2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-rational-e3e2582f2c3b9c19/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-traits-07f90a0c4d6ad4c3/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-8f5f1d9934167b28/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-e4104915a8949ee8/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ring-e22e8448dbb290ab/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ryu-392ef4f7ab8a6cf2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde-7055070918e2ea54/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde_json-0060b490b0fc80ac/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/typenum-d635ce95aa56e166/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
-      <excludeFolder url="file://$MODULE_DIR$/target-nightly" />
-      <excludeFolder url="file://$MODULE_DIR$/crashes" />
-      <excludeFolder url="file://$MODULE_DIR$/rust-openssl/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
