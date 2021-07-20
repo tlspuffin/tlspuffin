@@ -323,7 +323,9 @@ fn test_term_generation() {
         .map(|term| term.name().to_string())
         .collect::<HashSet<String>>();
 
-    assert_eq!(all.difference(&success).count(), 0);
+    let difference = all.difference(&success);
+    println!("{:?}", &difference);
+    assert_eq!(difference.count(), 0);
     //println!("{}", graph);
 
 }
