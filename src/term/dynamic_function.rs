@@ -65,7 +65,7 @@ use crate::tls::{error::FnError, SIGNATURE};
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone, Hash)]
 pub struct DynamicFunctionShape {
-    pub name: String,
+    pub name: &'static str,
     pub argument_types: Vec<TypeShape>,
     pub return_type: TypeShape,
 }
@@ -74,7 +74,7 @@ impl Eq for DynamicFunctionShape {}  // LH: What is that? Why not deriving Eq on
 
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
-        self.name.eq(&other.name) // name is unique
+        self.name.eq(other.name) // name is unique
     }
 }
 
@@ -137,9 +137,9 @@ pub trait DynamicFunction:
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
-impl<T> DynamicFunction for T
+impl<F> DynamicFunction for F
 where
-    T: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
+    F: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -186,7 +186,7 @@ macro_rules! dynamic_fn {
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
-                name: std::any::type_name::<F>().to_string(),
+                name: std::any::type_name::<F>(),
                 argument_types: vec![$(TypeShape::of::<$arg>()),*],
                 return_type: TypeShape::of::<$res>(),
             }

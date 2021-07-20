@@ -1,6 +1,7 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
 //!
+use std::hash::{Hash, Hasher};
 use std::{fmt, fmt::Formatter};
 
 use rand::random;
@@ -12,7 +13,6 @@ use crate::{
     term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
     trace::ObservedId,
 };
-use std::hash::{Hash, Hasher};
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -124,8 +124,8 @@ impl Function {
         self.fn_container.shape.is_constant()
     }
 
-    pub fn name(&self) -> &str {
-        self.fn_container.shape.name.as_str()
+    pub fn name<'a>(&'a self) -> &'static str {
+        self.fn_container.shape.name
     }
 
     pub fn shape(&self) -> &DynamicFunctionShape {
@@ -160,7 +160,9 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::term::dynamic_function::{
+        DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+    };
     use crate::tls::SIGNATURE;
 
     const NAME: &str = "name";
@@ -216,31 +218,29 @@ mod fn_container {
             let name: &str = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-            let argument_types = seq
+            let argument_types: Vec<TypeShape> = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-            let return_type = seq
+            let return_type: TypeShape = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
             let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
-                // panic!("Could not find fn: {}", name);
                 de::Error::custom(format!("could not find function {}", name))
             })?;
 
+            if name != shape.name {
+                return Err(de::Error::custom("Function name does not match!"));
+            }
+
             if return_type != shape.return_type || argument_types != shape.argument_types {
-                // panic!("Return types or argument types do not match!");
                 return Err(de::Error::custom(
                     "Return types or argument types do not match!",
                 ));
             }
 
             Ok(FnContainer {
-                shape: DynamicFunctionShape {
-                    name: name.to_string(),
-                    argument_types,
-                    return_type,
-                },
+                shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
             })
         }
@@ -291,19 +291,18 @@ mod fn_container {
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
 
+            if name != shape.name {
+                return Err(de::Error::custom("Function name does not match!"));
+            }
+
             if return_type != shape.return_type || argument_types != shape.argument_types {
-                // panic!("Return types or argument types do not match!");
                 return Err(de::Error::custom(
                     "Return types or argument types do not match!",
                 ));
             }
 
             Ok(FnContainer {
-                shape: DynamicFunctionShape {
-                    name: name.to_string(),
-                    argument_types,
-                    return_type,
-                },
+                shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
             })
         }

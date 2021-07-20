@@ -21,7 +21,7 @@ pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 /// Signatures are containers for types and function symbols. They hold references to the concrete
 /// implementations of functions and the types of variables.
 pub struct Signature {
-    pub functions_by_name: HashMap<String, FunctionDefinition>,
+    pub functions_by_name: HashMap<&'static str, FunctionDefinition>,
     pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
     pub types_by_name: HashMap<&'static str, TypeShape>,  // LH: Why not owned String as in `function_by_name` or use `static there as well?
@@ -30,7 +30,7 @@ pub struct Signature {
 impl Signature {
     /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
-        let functions_by_name: HashMap<String, FunctionDefinition> =
+        let functions_by_name: HashMap<&'static str, FunctionDefinition> =
             definitions
                 .clone()
                 .into_iter()

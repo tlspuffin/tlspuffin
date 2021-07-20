@@ -1,8 +1,5 @@
 use std::convert::TryFrom;
 
-use ring::hmac;
-use ring::hmac::Key;
-use ring::test::rand::FixedByteRandom;
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
 use rustls::msgs::base::PayloadU8;
