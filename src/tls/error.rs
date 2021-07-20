@@ -42,7 +42,7 @@ impl From<InvalidDnsNameError> for FnError {
 }
 
 impl fmt::Display for FnError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             FnError::Unknown(msg) => write!(f, "error in fn: {}", msg),
             FnError::Rustls(msg) =>  write!(f, "error in fn from rustls: {}", msg),

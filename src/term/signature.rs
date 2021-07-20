@@ -47,13 +47,13 @@ impl Signature {
             .clone()
             .into_iter()
             .map(|(shape, _dynamic_fn)| {
-                let types: Vec<TypeShape> = shape // vector of the argument shapes + return type
+                let used_types: Vec<TypeShape> = shape // vector of the argument shapes + return type
                     .argument_types
                     .iter()
                     .copied()
                     .chain(vec![shape.return_type])
                     .collect::<Vec<TypeShape>>();
-                types
+                used_types
             })
             .unique()
             .flatten() // LH: I do not understand this, what is the intended returned TypeShape in the HashMap?
