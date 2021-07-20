@@ -118,9 +118,7 @@ pub fn start(
 
             // If not restarting, create a State from scratch
             let mut state = state.unwrap_or_else(|| {
-                //let seed = restarting_mgr.sender().id as u64 * 42;
-                // todo does not work right now: https://github.com/AFLplusplus/LibAFL/pull/190#issuecomment-869175308
-                let seed = static_seed.unwrap_or(current_nanos());
+                let seed = static_seed.unwrap_or(sender_id.id as u64);
                 info!("Seed is {}", seed);
                 StdState::new(
                     StdRand::with_seed(seed),
