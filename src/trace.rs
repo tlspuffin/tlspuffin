@@ -19,6 +19,7 @@
 //! let server: AgentName = client.next();
 //!
 //! let trace = Trace {
+//!         prior_traces: vec![],
 //!         descriptors: vec![
 //!             AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
 //!             AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
@@ -220,6 +221,7 @@ impl TraceContext {
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
+    pub prior_traces: Vec<Trace>
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].

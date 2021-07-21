@@ -22,6 +22,7 @@ use crate::tls::fn_impl::*;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: client,
@@ -140,6 +141,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: client,
@@ -455,6 +457,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
     };
 
     let trace = Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: server,
@@ -603,6 +606,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
     };
 
     let trace = Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: server,
@@ -750,6 +754,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
     };
 
     let trace = Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: client,
@@ -787,6 +792,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
 
 pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
     Trace {
+        prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor {
                 name: client,
@@ -890,4 +896,56 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
             },
         ],
     }
+}
+
+pub fn seed_session_resumption(server: AgentName) -> Trace {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            fn_secp384r1_support_group_extension
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_key_share_deterministic_extension
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    // get ticket from NewSessionTicketPayloadTLS13
+    // compute resumption_master_secret
+
+
+    // create PresharedKeyOffer(binder? and PresharedKeyIdentity?) and PSKKeyExchangeModes(easy)
+
+    // send ClientHello with pre_shared_key(fn_preshared_keys_extension) and psk_key_exchange_modes (fn_psk_exchange_modes_extension) extensions
+    // according to https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_3,
+                server: true,
+            },
+        ],
+        steps: vec![
+
+        ],
+    };
+
+    trace
 }

@@ -380,6 +380,7 @@ mod util {
         (
             client_hello,
             Trace {
+                prior_traces: vec![],
                 descriptors: vec![AgentDescriptor {
                     name: server,
                     tls_version: TLSVersion::V1_2,

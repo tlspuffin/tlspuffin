@@ -28,21 +28,28 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/tiny-keccak-bc2d3d19025d980c/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ahash-b18c559a84352e7e/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/anyhow-937d914d99348c77/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/bitflags-ecf6303be72ea823/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/generic-array-24461834c16cfec6/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/heapless-09fcfda5b02a8747/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/heapless-d185c13661b5e99d/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/libafl-e0b86cd510fdb3e1/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/libafl_targets-6e6e2da9288c856a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/libc-866f9f3a4cbfb97d/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/log-47f270fdd9a9d352/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/memchr-fcc870e4d703c4ff/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/memoffset-2d6077f16d793a24/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/miniz_oxide-d3516317e5b313a6/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-integer-520b2f1d59bbf3f4/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-iter-f5aae7c9c4143de2/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-rational-e3e2582f2c3b9c19/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/num-traits-07f90a0c4d6ad4c3/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-7ac463930db114d4/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-8f5f1d9934167b28/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-2f58365ff13ac92b/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-e4104915a8949ee8/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ring-e22e8448dbb290ab/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/ryu-392ef4f7ab8a6cf2/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/security-claims-4ba89aa06d380876/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde-7055070918e2ea54/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde_json-0060b490b0fc80ac/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/typenum-d635ce95aa56e166/out" isTestSource="false" />
