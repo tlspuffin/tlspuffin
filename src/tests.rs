@@ -41,6 +41,10 @@ pub mod seeds {
             Err(_) => panic!("Fork failed"),
         }
     }
+    #[test]
+    fn test_version() {
+        println!("{}", openssl_version());
+    }
 
     #[test]
     fn test_seed_hearbeat() {
