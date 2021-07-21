@@ -146,6 +146,7 @@ extern "C" {
     pub fn RAND_seed(buf: *mut u8, num: c_int);
 }
 
+#[cfg(feature = "openssl111")]
 pub fn make_deterministic() {
     warn!("OpenSSL is no longer random!");
     unsafe {
@@ -154,6 +155,10 @@ pub fn make_deterministic() {
         let buf = seed.as_mut_ptr();
         RAND_seed(buf, 4);
     }
+}
+#[cfg(not(feature = "openssl111"))]
+pub fn make_deterministic() {
+    warn!("Failed to make PUT determinisitic!");
 }
 
 pub fn create_openssl_server(
@@ -166,20 +171,21 @@ pub fn create_openssl_server(
     ctx_builder.set_certificate(cert)?;
     ctx_builder.set_private_key(key)?;
 
+    #[cfg(feature = "openssl111")]
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    #[cfg(feature = "ossl110")]
+    #[cfg(feature = "openssl111")]
     match tls_version {
         TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
     }
 
-    #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
+    #[cfg(feature = "openssl101")]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
         openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
     });
 
-    #[cfg(all(feature = "ossl101", not(feature = "ossl110")))]
+    #[cfg(feature = "openssl101")]
     ctx_builder
         .set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
 
@@ -223,9 +229,10 @@ pub fn create_openssl_client(
     // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
     // for now.
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
+    #[cfg(feature = "openssl111")]
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    #[cfg(feature = "ossl110")]
+    #[cfg(feature = "openssl111")]
     match tls_version {
         TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,

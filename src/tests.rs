@@ -90,7 +90,7 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
-    #[cfg(feature = "ossl110")] // require version which supports TLS 1.3
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker() {
         make_deterministic();
@@ -106,7 +106,7 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
-    #[cfg(feature = "ossl110")] // require version which supports TLS 1.3
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {
         make_deterministic();

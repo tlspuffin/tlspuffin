@@ -1,8 +1,6 @@
 use itertools::Itertools;
 use security_claims::{Claim, ClaimType};
 
-use openssl_sys::{TLS1_2_VERSION, TLS1_3_VERSION};
-
 use crate::agent::AgentName;
 
 pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
@@ -15,7 +13,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
             let version = claim_a.version;
 
             match version.data {
-                TLS1_2_VERSION => {
+                0x303 => {
                     // TLS 1.2 Checks
                     if client.master_secret_12 != server.master_secret_12 {
                         return Some("Mismatching master secrets");
@@ -57,7 +55,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("mismatching signature algorithms");
                     }
                 }
-                TLS1_3_VERSION => {
+                0x304 => {
                     // TLS 1.3 Checks
                     if client.master_secret != server.master_secret {
                         return Some("Mismatching master secrets");
