@@ -34,7 +34,9 @@ use crate::openssl_binding;
 use std::rc::Rc;
 
 use std::cell::RefCell;
-use security_claims::{deregister_claimer, register_claimer, Claim};
+#[cfg(feature = "claims")]
+use security_claims::{deregister_claimer, register_claimer};
+use security_claims::{Claim};
 use foreign_types_shared::ForeignTypeRef;
 
 use crate::trace::VecClaimer;
@@ -81,6 +83,7 @@ impl OpenSSLStream {
             openssl_binding::create_openssl_client(memory_stream, tls_version)?
         };
 
+        #[cfg(feature = "claims")]
         register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
             (*claimer).borrow_mut().claim(agent_name, claim)
         });
@@ -105,6 +108,7 @@ impl OpenSSLStream {
     }
 }
 
+#[cfg(feature = "claims")]
 impl Drop for OpenSSLStream {
     fn drop(&mut self) {
         deregister_claimer(self.openssl_stream.ssl().as_ptr().cast());
