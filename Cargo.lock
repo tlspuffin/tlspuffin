@@ -104,6 +104,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "autotools"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b875eaceeddbbfb52c4d102af0e28872be06ba363b9b28c7551304beb3eac42"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "bare-metal"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,6 +833,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "libressl-src"
+version = "111.13.0+3.1.4"
+dependencies = [
+ "autotools",
+]
+
+[[package]]
 name = "linked-hash-map"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1102,6 +1118,7 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
+ "libressl-src",
  "openssl-src",
  "pkg-config",
  "vcpkg",
@@ -1735,7 +1752,6 @@ dependencies = [
  "nix 0.21.0",
  "once_cell",
  "openssl",
- "openssl-sys",
  "postcard 0.7.0",
  "rand",
  "ring",
