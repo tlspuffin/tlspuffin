@@ -46,6 +46,30 @@
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde-7055070918e2ea54/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/serde_json-0060b490b0fc80ac/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/typenum-d635ce95aa56e166/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/bindgen-a90995c9bbc841cc/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/clang-sys-487e4a9828e8e756/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/nom-18e58e48031e3244/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/radium-57dc8fff983f571c/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/bitflags-ecf6303be72ea823/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-09ed9c8516aba515/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-2a77fec267d27abb/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-2e013509f41d6603/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-562ca94ce09b8ddd/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-7ac463930db114d4/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-9f37d779ddd1fd58/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-a0e38f1e96ea8e90/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-c8b16c0790145db9/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-0945aba8327236e5/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-2f58365ff13ac92b/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-2f97c6505a7f387a/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-749af0ca5698ae9c/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-751b0531e846fa2b/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-98ddd761e5d2bdcc/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-dc528991cbb23632/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-f1dffa8f63ce9e2d/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/security-claims-1c3cd1a6e79d8960/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/tlspuffin-3959dff064dbfc47/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/tlspuffin-faed1be9bb8f6079/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
