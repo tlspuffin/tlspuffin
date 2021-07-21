@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-libressl-src/" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-openssl" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-openssl-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl" vcs="Git" />

@@ -4,3 +4,6 @@
 [submodule "rust-openssl"]
 	path = rust-openssl
 	url = git@github.com:maxammann/rust-openssl.git
+[submodule "rust-libressl-src"]
+	path = rust-libressl-src
+	url = git@github.com:maxammann/libressl-src.git
