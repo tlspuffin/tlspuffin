@@ -14,12 +14,16 @@ before_script:
   - git submodule update --init --recursive
   # clang for compilation and xutils-dev for makedepend which is needed for OpenSSL 1.0.1
   - apt install -y clang xutils-dev
+  - rustc --version && cargo --version  # Print version info for debugging
 
-build:
+build-openssl111:
   script:
-    - rustc --version && cargo --version  # Print version info for debugging
     - cargo test
     - cargo build --bin tlspuffin --verbose
+
+build-libressl:
+  script:
+    - cargo build --bin tlspuffin --no-default-features --features="libressl" --verbose
 
 pages:
   script:
