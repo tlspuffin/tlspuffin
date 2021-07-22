@@ -1,24 +1,24 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crahes OpenSSL.
 
-use rustls::msgs::handshake::{CertificatePayload};
-use rustls::msgs::message::Message;
 use rustls::{
+    CipherSuite,
     internal::msgs::{
         enums::Compression,
         handshake::{ClientExtension, Random, ServerExtension, SessionID},
-    },
-    CipherSuite, ProtocolVersion,
+    }, ProtocolVersion,
 };
+use rustls::msgs::handshake::CertificatePayload;
+use rustls::msgs::message::{Message, OpaqueMessage};
 
-use crate::agent::{AgentDescriptor, TLSVersion};
-use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
-    term::{Term},
+    term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
-use crate::{term};
+use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::term;
+use crate::tls::fn_impl::*;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -81,7 +81,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 1)/Vec<u8>)
+                            ((1, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -92,7 +92,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 2)/Vec<u8>)
+                            ((1, 1)/Vec<u8>)
                         )
                     },
                 }),
@@ -103,7 +103,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 3)/Vec<u8>)
+                            ((1, 2)/Vec<u8>)
                         )
                     },
                 }),
@@ -114,7 +114,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 4)/Vec<u8>)
+                            ((1, 3)/Vec<u8>)
                         )
                     },
                 }),
@@ -133,31 +133,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                         )
                     },
                 }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 3 }),
-            },
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((3, 0)/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((3, 1)/Vec<u8>)
-                        )
-                    },
-                }),
-            },
+            }
         ],
     }
 }
@@ -213,7 +189,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_certificate(
-                            ((1, 1)/CertificatePayload)
+                            ((1, 0)/CertificatePayload)
                         )
                     },
                 }),
@@ -224,7 +200,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(
-                            ((1, 2)/Vec<u8>)
+                            ((1, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -263,13 +239,15 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 }),
             },
             // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            // todo remove TLS12EncryptedHandshake as this is the correct way of doing it
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_opaque_handshake_message(
-                            ((2, 2)/Vec<u8>)
-                        )
+                        (2, 2)/OpaqueMessage
                     },
                 }),
             },
@@ -303,14 +281,70 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_opaque_handshake_message(
-                            ((3, 2)/Vec<u8>)
-                        )
+                        (3, 2)/OpaqueMessage
                     },
                 }),
             },
         ],
     }
+}
+
+pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace {
+    let mut trace = seed_successful(client, server);
+
+    // CCS Server -> Client, at index 4
+    trace.steps.insert(4, Step {
+        agent: client,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_change_cipher_spec
+            },
+        }),
+    });
+
+    trace.steps.insert(10, Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_change_cipher_spec
+            }
+        }),
+    });
+
+    trace
+}
+
+pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Trace {
+    let mut trace = seed_successful(client, server);
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Output(OutputAction { id: 3 }),
+    });
+    // Ticket
+    trace.steps.push(Step {
+        agent: client,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_application_data(
+                    ((3, 0)/Vec<u8>)
+                )
+            },
+        }),
+    });
+    // Ticket
+    trace.steps.push(Step {
+        agent: client,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_application_data(
+                    ((3, 1)/Vec<u8>)
+                )
+            },
+        }),
+    });
+
+    trace
 }
 
 pub fn seed_client_attacker(server: AgentName) -> Trace {
@@ -541,7 +575,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
         fn_client_key_exchange(
             (fn_new_pubkey12(
                 (fn_decode_ecdh_params(
-                    ((0,2)/Vec<u8>)
+                    ((0, 0)/Vec<u8>) // ServerECDHParams
                 ))
             ))
         )
@@ -558,7 +592,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
         fn_sign_transcript(
             ((0, 0)/Random),
             (fn_decode_ecdh_params(
-                ((0, 2)/Vec<u8>) // ServerECDHParams
+                ((0, 0)/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript)
         )
@@ -603,7 +637,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                             (fn_finished((@client_verify_data))),
                             ((0, 0)/Random),
                             (fn_decode_ecdh_params(
-                                ((0, 2)/Vec<u8>) // ServerECDHParams
+                                ((0, 0)/Vec<u8>) // ServerECDHParams
                             )),
                             fn_seq_0
                         )
@@ -745,7 +779,6 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
 
     trace
 }
-
 
 
 pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
