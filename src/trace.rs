@@ -60,9 +60,11 @@
 //!
 
 use core::fmt;
-
-use std::ops::Deref;
 use std::{any::TypeId, fmt::Formatter};
+use std::cell::RefCell;
+use std::env::var;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use itertools::Itertools;
 use rustls::msgs::message::Message;
@@ -70,20 +72,18 @@ use rustls::msgs::message::OpaqueMessage;
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentDescriptor};
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::io::{MessageResult, Stream};
-use crate::tls::error::FnError;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use std::rc::Rc;
-use std::cell::RefCell;
+use crate::agent::AgentDescriptor;
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
+use crate::io::{MessageResult, Stream};
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::tls::error::FnError;
 use crate::violation::is_violation;
 
 pub type ObservedId = (u16, u16);
@@ -94,7 +94,7 @@ struct ObservedVariable {
 }
 
 pub struct VecClaimer {
-    claims: Vec<(AgentName, Claim)>
+    claims: Vec<(AgentName, Claim)>,
 }
 
 impl VecClaimer {
@@ -128,21 +128,20 @@ impl TraceContext {
         Self {
             knowledge: vec![],
             agents: vec![],
-            claimer
+            claimer,
         }
     }
 
-    pub fn add_variable(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
+    pub fn add_knowledge(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
         self.knowledge.push(ObservedVariable { observed_id, data })
     }
 
-    pub fn add_variables<I>(&mut self, observed_id: ObservedId, variables: I)
-    where
-        I: IntoIterator<Item = Box<dyn VariableData>>,
-    {
-        for variable in variables {
-            self.add_variable(observed_id, variable)
-        }
+    pub fn already_known(&self, in_step_id: u16, type_id: TypeId) -> u16 {
+        let known_count = self.knowledge
+            .iter()
+            .filter(|knowledge| knowledge.observed_id.0 == in_step_id && knowledge.data.type_id() == type_id)
+            .count();
+        known_count as u16
     }
 
     pub fn get_variable_by_type_id(
@@ -165,7 +164,7 @@ impl TraceContext {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &MessageResult,
+        message: &OpaqueMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.stream.add_to_inbound(message))
@@ -248,8 +247,8 @@ impl Trace {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
-            step.action.execute(step, ctx)?;
             trace!("Executing step #{}", i);
+            step.action.execute(step, ctx)?;
 
             execution_listener(step);
         }
@@ -342,34 +341,27 @@ impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         ctx.next_state(step.agent)?;
 
-        let mut sub_id = 0u16;
-        while let Some(result) = ctx.take_message_from_outbound(step.agent)? {
-            match result {
-                MessageResult::Message(message) => {
-                    debug_message_with_info(
-                        format!("Output message with observed id {:?}", (self.id, sub_id)).as_str(),
-                        &message,
-                    );
+
+        while let Some(MessageResult(message, opaque_message)) = ctx.take_message_from_outbound(step.agent)? {
+            match message {
+                Some(message) => {
+                    debug_message_with_info(format!("Output message").as_str(), &message);
                     let knowledge = extract_knowledge(&message)?;
-                    trace!("New knowledge: {:?}", knowledge.len());
-                    ctx.add_variables((self.id, sub_id), knowledge);
+                    trace!("Knowledge increased by {:?}", knowledge.len());
+
+                    for variable in knowledge {
+                        let sub_id = ctx.already_known(self.id, variable.type_id());
+                        trace!("New knowledge {:?}/{}", (self.id, sub_id), variable.type_name());
+                        ctx.add_knowledge((self.id, sub_id), variable)
+                    }
                 }
-                MessageResult::OpaqueMessage(opaque_message) => {
-                    // The finish Message in TLS1.2 can not be parsed to a rustls Message as it is
-                    // encrypted. We need tow ork with the opaque type in this case
-                    debug_opaque_message_with_info(
-                        format!(
-                            "Output opaque message with observed id {:?}",
-                            (self.id, sub_id)
-                        )
-                        .as_str(),
-                        &opaque_message,
-                    );
-                    ctx.add_variable((self.id, sub_id), Box::new(opaque_message.payload.0));
-                }
+                None => {}
             }
 
-            sub_id += 1;
+            debug_opaque_message_with_info(format!("Output opaque message").as_str(), &opaque_message);
+            let sub_id = ctx.already_known(self.id,opaque_message.type_id());
+            trace!("New knowledge {:?}/{}", (self.id, sub_id), opaque_message.type_name());
+            ctx.add_knowledge((self.id, sub_id), Box::new(opaque_message));
         }
         Ok(())
     }
@@ -404,13 +396,13 @@ impl InputAction {
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
-            ctx.add_to_inbound(step.agent, &MessageResult::Message(msg.clone()))?;
+            ctx.add_to_inbound(step.agent, &OpaqueMessage::from(msg.clone()))?;
 
             debug_message_with_info(format!("Input message").as_str(), msg);
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
             ctx.add_to_inbound(
                 step.agent,
-                &MessageResult::OpaqueMessage(opaque_message.clone()),
+                &opaque_message.clone(),
             )?;
 
             debug_opaque_message_with_info(
@@ -421,7 +413,7 @@ impl InputAction {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
             ))
-            .into());
+                .into());
         }
 
         ctx.next_state(step.agent)
