@@ -315,7 +315,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Trace {
-    let mut trace = seed_successful(client, server);
+    let mut trace = seed_successful_with_ccs(client, server);
 
     trace.steps.push(Step {
         agent: server,

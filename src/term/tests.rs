@@ -91,7 +91,7 @@ fn example() {
 
     println!("{}", generated_term);
     let mut context = TraceContext::new();
-    context.add_variable((0, 0), Box::new(data));
+    context.add_knowledge((0, 0), Box::new(data));
 
     println!(
         "{:?}",
