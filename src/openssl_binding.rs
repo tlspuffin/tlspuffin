@@ -141,6 +141,7 @@ pub fn openssl_version() -> &'static str {
     version()
 }
 
+#[cfg(feature = "openssl111")]
 extern "C" {
     pub fn make_openssl_deterministic();
     pub fn RAND_seed(buf: *mut u8, num: c_int);
