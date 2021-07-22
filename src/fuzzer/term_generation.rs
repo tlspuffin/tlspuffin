@@ -1,7 +1,7 @@
-use itertools::{multizip, Itertools};
+use itertools::{Itertools};
 use libafl::bolts::rands::Rand;
 
-use crate::fuzzer::mutations::util::choose_iter;
+use crate::fuzzer::mutations::util::{Choosable, choose_iter};
 use crate::term::atoms::Function;
 use crate::term::signature::{FunctionDefinition, Signature};
 use crate::term::Term;
@@ -9,22 +9,14 @@ use crate::term::Term;
 const MAX_DEPTH: u16 = 15;
 
 pub fn generate_multiple_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term> {
-    multizip((
+    vec![
         generate_terms(signature, rand),
         generate_terms(signature, rand),
         generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-    ))
-    .flat_map(|terms| {
-        [
-            terms.0, terms.1, terms.2, terms.3, terms.4, terms.5, terms.6,
-        ]
-    })
-    .unique()
-    .collect_vec()
+    ].into_iter()
+        .flatten()
+        .unique()
+        .collect_vec()
 }
 
 pub fn generate_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term> {
@@ -32,7 +24,7 @@ pub fn generate_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term>
         .functions
         .iter()
         .filter_map(|def| {
-            generate_term(signature, &def, MAX_DEPTH, rand)
+           generate_term(signature, &def, MAX_DEPTH, rand)
         })
         .collect_vec()
 }
@@ -54,7 +46,7 @@ fn generate_term<R: Rand>(
 
     for typ in required_types {
         if let Some(possibilities) = signature.functions_by_typ.get(typ) {
-            if let Some(possibility) = choose_iter(possibilities, rand) {
+            if let Some(possibility) = possibilities.choose(rand) {
                 if let Some(subterm) = generate_term(signature, possibility, depth - 1, rand) {
                     subterms.push(subterm)
                 } else {
