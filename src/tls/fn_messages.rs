@@ -25,12 +25,18 @@ use HandshakePayload::EncryptedExtensions;
 use crate::nyi_fn;
 
 use super::error::FnError;
+use rustls::msgs::message::OpaqueMessage;
 
-/// Used in TLS 1.2 as is has encrypted handshake messages
-pub fn fn_opaque_handshake_message(data: &Vec<u8>) -> Result<Message, FnError> {
-    Ok(Message {
+
+pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
+    Ok(message.clone())
+}
+
+pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
+    Ok(OpaqueMessage {
+        typ: ContentType::Handshake,
         version: ProtocolVersion::TLSv1_2,
-        payload: MessagePayload::TLS12EncryptedHandshake(Payload::new(data.clone()))
+        payload: Payload::empty()
     })
 }
 

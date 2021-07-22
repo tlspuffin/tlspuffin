@@ -247,7 +247,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        (2, 2)/OpaqueMessage
+                        fn_opaque_message(
+                            ((2, 2)/OpaqueMessage)
+                        )
                     },
                 }),
             },
@@ -281,7 +283,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        (3, 2)/OpaqueMessage
+                        fn_opaque_message(
+                            ((3, 2)/OpaqueMessage)
+                        )
                     },
                 }),
             },

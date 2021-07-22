@@ -241,7 +241,7 @@ pub mod serialization {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed};
+    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12};
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
@@ -299,6 +299,21 @@ pub mod serialization {
 
         let deserialized_trace = postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap();
         let serialized2 = postcard::to_allocvec(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_serialisation_seed_successful12_json() {
+        let _ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful12(client, server);
+
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
 
         assert_eq!(serialized1, serialized2);
     }

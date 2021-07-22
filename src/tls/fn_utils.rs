@@ -113,7 +113,7 @@ pub fn fn_encrypt12(
     Ok(Message::try_from(encrypted)?)
 }
 
-pub fn fn_new_certificate() -> Result<Certificate, FnError> {
+pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
     let der_cert = hex::decode(
         "308203473082022fa003020102021406f7fb1d20\
     b39f71b9a222e8f03a0ab0a79ec54d300d060\
@@ -140,13 +140,13 @@ pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     })?))
 }
 
-pub fn fn_new_certificates() -> Result<Vec<Certificate>, FnError> {
+pub fn fn_new_certificates() -> Result<Vec<key::Certificate>, FnError> {
     Ok(vec![])
 }
 
 pub fn fn_append_certificate(
-    certs: &Vec<Certificate>,
-    cert: &Certificate,
+    certs: &Vec<key::Certificate>,
+    cert: &key::Certificate,
 ) -> Result<Vec<Certificate>, FnError> {
     let mut new_certs = certs.clone();
     new_certs.push(cert.clone());

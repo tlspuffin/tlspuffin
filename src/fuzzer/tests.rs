@@ -22,6 +22,8 @@ use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
+use crate::variable_data::VariableData;
+use std::iter::FromIterator;
 
 #[test]
 fn test_openssl_no_randomness() {
@@ -299,7 +301,7 @@ fn test_reservoir_sample_randomness() {
 
 #[test]
 fn test_term_generation() {
-    let mut rand = StdRand::with_seed(45);
+    let mut rand = StdRand::with_seed(33);
     let terms = generate_multiple_terms(&SIGNATURE, &mut rand);
 
     let subgraphs = terms
@@ -327,7 +329,6 @@ fn test_term_generation() {
     println!("{:?}", &difference);
     assert_eq!(difference.count(), 0);
     //println!("{}", graph);
-
 }
 
 mod util {
