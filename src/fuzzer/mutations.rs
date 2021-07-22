@@ -1,19 +1,19 @@
+use libafl::{
+    bolts::tuples::{tuple_list, tuple_list_type},
+    Error,
+    mutators::MutationResult,
+};
 use libafl::bolts::rands::Rand;
 use libafl::corpus::Corpus;
 use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
-use libafl::{
-    bolts::tuples::{tuple_list, tuple_list_type},
-    mutators::MutationResult,
-    Error,
-};
 
-use util::Choosable;
 use util::*;
+use util::Choosable;
 
 use crate::fuzzer::term_generation::generate_multiple_terms;
 use crate::mutator;
-use crate::term::atoms::Function;
 use crate::term::{Subterms, Term};
+use crate::term::atoms::Function;
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
@@ -30,10 +30,10 @@ pub fn trace_mutations<R, C, S>(
        GenerateMutator<R, S>,
        SwapMutator<R,S>
    )
-where
-    S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
-    C: Corpus<Trace>,
-    R: Rand,
+    where
+        S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
+        C: Corpus<Trace>,
+        R: Rand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
@@ -339,19 +339,17 @@ pub mod util {
         }
     }
 
-    pub trait Choosable<T, P, R: Rand>
-    where
-        P: FnMut(&&T) -> bool,
+    pub trait Choosable<T, R: Rand>
     {
-        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&T>;
+        fn choose_filtered<P>(&self, filter: P, rand: &mut R) -> Option<&T> where
+            P: FnMut(&&T) -> bool;
         fn choose(&self, rand: &mut R) -> Option<&T>;
     }
 
-    impl<T, P, R: Rand> Choosable<T, P, R> for Vec<T>
-        where
-            P: FnMut(&&T) -> bool,
+    impl<T, R: Rand> Choosable<T, R> for Vec<T>
     {
-        fn choose_filtered(&self, filter: P, rand: &mut R) -> Option<&T> {
+        fn choose_filtered<P>(&self, filter: P, rand: &mut R) -> Option<&T> where
+            P: FnMut(&&T) -> bool {
             let filtered = self
                 .iter()
                 .filter(filter)
@@ -379,9 +377,9 @@ pub mod util {
     }
 
     pub fn choose_iter<I, E, T, R: Rand>(from: I, rand: &mut R) -> Option<T>
-    where
-        I: IntoIterator<Item = T, IntoIter = E>,
-        E: ExactSizeIterator + Iterator<Item = T>,
+        where
+            I: IntoIterator<Item=T, IntoIter=E>,
+            E: ExactSizeIterator + Iterator<Item=T>,
     {
         // create iterator
         let mut iter = from.into_iter();
