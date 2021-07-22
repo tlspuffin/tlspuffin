@@ -6,10 +6,13 @@ use crate::term::atoms::Function;
 use crate::term::signature::{FunctionDefinition, Signature};
 use crate::term::Term;
 
-const MAX_DEPTH: u16 = 15;
+const MAX_DEPTH: u16 = 8;
 
 pub fn generate_multiple_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term> {
     vec![
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
         generate_terms(signature, rand),
         generate_terms(signature, rand),
         generate_terms(signature, rand),
