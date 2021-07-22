@@ -17,32 +17,30 @@
 //! If Bob is an [`Agent`], which has an underlying *OpenSSLStream* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
-use std::convert::TryFrom;
 use std::{
     io,
     io::{Read, Write},
 };
+use std::cell::RefCell;
+use std::convert::TryFrom;
+use std::rc::Rc;
 
+use foreign_types_shared::ForeignTypeRef;
 use openssl::ssl::SslStream;
-use rustls::msgs::message::{OpaqueMessage};
-
 use rustls::msgs::{deframer::MessageDeframer, message::Message};
-use crate::agent::{TLSVersion, AgentName};
+use rustls::msgs::message::OpaqueMessage;
+#[cfg(feature = "claims")]
+use security_claims::{deregister_claimer, register_claimer};
+use security_claims::Claim;
+
+use crate::agent::{AgentName, TLSVersion};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
 use crate::openssl_binding;
-use std::rc::Rc;
-
-use std::cell::RefCell;
-#[cfg(feature = "claims")]
-use security_claims::{deregister_claimer, register_claimer};
-use security_claims::{Claim};
-use foreign_types_shared::ForeignTypeRef;
-
 use crate::trace::VecClaimer;
 
 pub trait Stream: std::io::Read + std::io::Write {
-    fn add_to_inbound(&mut self, result: &MessageResult);
+    fn add_to_inbound(&mut self, result: &OpaqueMessage);
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error>;
@@ -69,7 +67,7 @@ pub struct MemoryStream {
 
 /// A MemoryStream which wraps an SslStream.
 pub struct OpenSSLStream {
-    openssl_stream: SslStream<MemoryStream>
+    openssl_stream: SslStream<MemoryStream>,
 }
 
 impl OpenSSLStream {
@@ -84,7 +82,7 @@ impl OpenSSLStream {
         };
 
         #[cfg(feature = "claims")]
-        register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
+            register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
             (*claimer).borrow_mut().claim(agent_name, claim)
         });
 
@@ -116,7 +114,7 @@ impl Drop for OpenSSLStream {
 }
 
 impl Stream for OpenSSLStream {
-    fn add_to_inbound(&mut self, result: &MessageResult) {
+    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         self.openssl_stream.get_mut().add_to_inbound(result)
     }
 
@@ -150,25 +148,12 @@ impl MemoryStream {
     }
 }
 
-pub enum MessageResult {
-    Message(Message),
-    OpaqueMessage(OpaqueMessage),
-}
+pub struct MessageResult(pub Option<Message>, pub OpaqueMessage);
 
 impl Stream for MemoryStream {
-    fn add_to_inbound(&mut self, result: &MessageResult) {
-        let out: Vec<u8> = match result {
-            MessageResult::Message(message) => {
-                let mut out: Vec<u8> = Vec::new();
-                out.append(&mut OpaqueMessage::from(message.clone()).encode());
-                out
-            }
-            MessageResult::OpaqueMessage(opaque_message) => {
-                let mut out: Vec<u8> = Vec::new();
-                out.append(&mut opaque_message.clone().encode());
-                out
-            }
-        };
+    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
+        let mut out: Vec<u8> = Vec::new();
+        out.append(&mut opaque_message.clone().encode());
         self.inbound.get_mut().extend_from_slice(&out);
     }
 
@@ -196,15 +181,19 @@ impl Stream for MemoryStream {
                     &opaque_message,
                 );
 
-                Ok(Some(match Message::try_from(opaque_message.clone()) {
+                let message = match Message::try_from(opaque_message.clone()) {
                     Ok(message) => {
-                        MessageResult::Message(message)
-                    },
+                        Some(message)
+                    }
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}: {}", err, hex::encode(opaque_message.clone().encode()));
-                        MessageResult::OpaqueMessage(opaque_message)
+                        None
                     }
-                }))
+                };
+
+                Ok(
+                    Some(MessageResult(message, opaque_message))
+                )
             } else {
                 // no message to return
                 Ok(None)
