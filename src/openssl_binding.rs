@@ -9,7 +9,7 @@ use std::os::raw::c_int;
 
 
 use openssl::error::ErrorStack;
-use openssl::ssl::SslVersion;
+use openssl::ssl::{SslVersion, SslContextBuilder};
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -161,6 +161,19 @@ pub fn make_deterministic() {
     warn!("Failed to make PUT determinisitic!");
 }
 
+fn set_max_protocol_version(ctx_builder: &mut SslContextBuilder, tls_version: &TLSVersion) -> Result<(), ErrorStack> {
+    #[cfg(any(feature = "openssl111", feature = "libressl"))]
+    match tls_version {
+        TLSVersion::V1_3 => {
+            // do nothing as the maximum available TLS version is 1.3
+            #[cfg(feature = "openssl111")]
+            ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
+            Ok(())
+        },
+        TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
+    }
+}
+
 pub fn create_openssl_server(
     stream: MemoryStream,
     cert: &X509Ref,
@@ -174,11 +187,7 @@ pub fn create_openssl_server(
     #[cfg(feature = "openssl111")]
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    #[cfg(feature = "openssl111")]
-    match tls_version {
-        TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
-        TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
-    }
+    set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
     #[cfg(feature = "openssl101")]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
@@ -232,11 +241,7 @@ pub fn create_openssl_client(
     #[cfg(feature = "openssl111")]
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    #[cfg(feature = "openssl111")]
-    match tls_version {
-        TLSVersion::V1_3 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?,
-        TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2))?,
-    }
+    set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
     ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
