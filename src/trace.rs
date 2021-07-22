@@ -47,7 +47,6 @@
 //!         ]
 //! };
 //! let mut ctx = TraceContext::new();
-//! trace.spawn_agents(&mut ctx).unwrap();
 //! trace.execute(&mut ctx).unwrap();
 //! ```
 //!
@@ -215,6 +214,10 @@ impl TraceContext {
                 name
             )))
     }
+
+    pub fn reset_agents(&mut self) {
+        self.agents.clear();
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -229,7 +232,7 @@ pub struct Trace {
 /// *AgentDescritptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl Trace {
-    pub fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             ctx.new_openssl_agent(&descriptor)?;
         }
@@ -238,6 +241,12 @@ impl Trace {
     }
 
     pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+        for trace in &self.prior_traces {
+            self.spawn_agents(ctx)?;
+            trace.execute(ctx)?;
+            ctx.reset_agents();
+        }
+        self.spawn_agents(ctx)?;
         self.execute_with_listener(ctx, |_step| {})
     }
 

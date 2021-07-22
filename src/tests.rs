@@ -58,7 +58,6 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_heartbleed(client, server);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
     }
@@ -74,7 +73,6 @@ pub mod seeds {
             let server = AgentName::first();
             let trace = seed_cve_2021_3449(server);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
     }
@@ -86,7 +84,6 @@ pub mod seeds {
         let server = AgentName::first();
         let trace = seed_client_attacker12(server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
@@ -102,7 +99,21 @@ pub mod seeds {
         let server = AgentName::first();
         let trace = seed_client_attacker(server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_session_resumption() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let trace = seed_session_resumption(server);
+
         trace.execute(&mut ctx).unwrap();
 
         let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
@@ -119,7 +130,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful(client, server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -139,7 +149,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful_with_ccs(client, server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -161,7 +170,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful_with_tickets(client, server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -181,7 +189,6 @@ pub mod seeds {
         let server = client.next();
         let trace = seed_successful12(client, server);
 
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
 
         let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
@@ -206,7 +213,6 @@ pub mod seeds {
             let server = client.next();
             let trace = seed_freak(client, server);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         });
     }

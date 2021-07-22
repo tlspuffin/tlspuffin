@@ -117,7 +117,6 @@ fn benchmark_seeds(c: &mut Criterion) {
             let server = client.next();
             let trace = seed_successful(client, server);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         })
     });
@@ -129,7 +128,6 @@ fn benchmark_seeds(c: &mut Criterion) {
             let server = client.next();
             let trace = seed_successful12(client, server);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap()
         })
     });
@@ -140,7 +138,6 @@ fn benchmark_seeds(c: &mut Criterion) {
             let client = AgentName::first();
             let trace = seed_client_attacker(client);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         })
     });
@@ -151,7 +148,6 @@ fn benchmark_seeds(c: &mut Criterion) {
             let client = AgentName::first();
             let trace = seed_client_attacker12(client);
 
-            trace.spawn_agents(&mut ctx).unwrap();
             trace.execute(&mut ctx).unwrap();
         })
     });

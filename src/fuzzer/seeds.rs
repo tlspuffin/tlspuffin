@@ -934,7 +934,9 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
     // send ClientHello with pre_shared_key(fn_preshared_keys_extension) and psk_key_exchange_modes (fn_psk_exchange_modes_extension) extensions
     // according to https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
     let trace = Trace {
-        prior_traces: vec![],
+        prior_traces: vec![
+            seed_client_attacker(server)
+        ],
         descriptors: vec![
             AgentDescriptor {
                 name: server,
@@ -942,9 +944,7 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                 server: true,
             },
         ],
-        steps: vec![
-
-        ],
+        steps: vec![]
     };
 
     trace
