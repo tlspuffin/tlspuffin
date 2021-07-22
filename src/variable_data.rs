@@ -18,6 +18,7 @@ pub trait VariableData {
     fn clone_box(&self) -> Box<dyn VariableData>;
     fn clone_box_any(&self) -> Box<dyn Any>;
     fn type_id(&self) -> TypeId;
+    fn type_name(&self) -> &'static str;
 }
 
 /// A VariableData is cloneable and has a `'static` type. This data type is used throughout
@@ -36,6 +37,10 @@ where
 
     fn type_id(&self) -> TypeId {
         Any::type_id(self)
+    }
+
+    fn type_name(&self) -> &'static str {
+        std::any::type_name::<T>()
     }
 }
 
