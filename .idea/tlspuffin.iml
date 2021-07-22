@@ -70,6 +70,8 @@
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/security-claims-1c3cd1a6e79d8960/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/tlspuffin-3959dff064dbfc47/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/tlspuffin-faed1be9bb8f6079/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-dea79006314a8402/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/x86_64-unknown-linux-gnu/debug/build/openssl-sys-b7537f8e6b8040ec/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
