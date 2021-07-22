@@ -108,6 +108,8 @@ fn main() {
 
         let traces: Vec<(trace::Trace, &'static str)> = vec![
             (seed_successful(agent_a, agent_b), "seed_successful"),
+            (seed_successful_with_ccs(agent_a, agent_b), "seed_successful_with_ccs"),
+            (seed_successful_with_tickets(agent_a, agent_b), "seed_successful_with_tickets"),
             (seed_successful12(agent_a, agent_b), "seed_successful12"),
             (seed_client_attacker(agent_a), "seed_client_attacker"),
             (seed_client_attacker12(agent_a), "seed_client_attacker12"),
