@@ -27,6 +27,12 @@ macro_rules! term {
     // Variables
     (($step:expr, $msg:expr) / $typ:ty) => {{
         let var = $crate::term::signature::Signature::new_var::<$typ>( ($step, $msg));
+        // LH: [TODO] We should modify the macro here:
+        //  - take the agent name as argument,
+        //  - add an extra contextual argument that is produced in the recursive calls for the other
+        //    arms
+        //  - derive the tls_message_type from this extra contexctual argument.
+        // This way, there is hope we only need to lightly modify the seeds.
         $crate::term::Term::Variable(var)
     }};
 
@@ -50,7 +56,7 @@ macro_rules! term {
 }
 
 #[macro_export]
-macro_rules! term_arg { // LH: this seems to not be used anywhere. I left it as it is.
+macro_rules! term_arg {
     // Somehow the following rules is very important
     ( ( $($e:tt)* ) ) => (term!($($e)*));
     // not sure why I should need this
