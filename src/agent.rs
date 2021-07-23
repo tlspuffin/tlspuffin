@@ -14,8 +14,8 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use crate::trace::VecClaimer;
 
-/// Copyable reference to an [`Agent`]
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
+/// Copyable reference to an [`Agent`]. LH: I assume this injectively identifies agents.
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
 
 impl AgentName {

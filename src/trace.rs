@@ -71,6 +71,8 @@ use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
+use rustls::msgs::{enums::{ContentType,HandshakeType},
+                   message::MessagePayload};
 
 use crate::{
     agent::{Agent, AgentName},
@@ -86,10 +88,50 @@ use crate::io::Channel;
 use crate::tls::error::FnError;
 use crate::violation::is_violation;
 
-// [ObservedId] is made of two u16: (output counter, sub-message counter). The output counter is
-// the output step id.
-pub type ObservedId = (u16, u16);
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
+struct MessageType {
+    opaque_type: ContentType,
+    handshake_type: Option<HandshakeType>, // relevant if opaque = ContentType::Handshake
+}
 
+impl MessageType {
+    fn from_message_result(message_result: &MessageResult) -> Self {
+        let opaque_type = message_result.1.typ;
+        let handshake_type =
+            match (opaque_type,message_result) {
+                (ContentType::Handshake, MessageResult(Some(message),_))
+                => match message.payload {
+                    MessagePayload::Handshake(handshake_payload) => Some(handshake_payload.typ),
+                    _ => { debug_message_with_info(format!("[GRACEFUL ERROR] [SHOULD NEVER HAPPEN] MessageType computation for")
+                                                       .as_str(), &message);
+                           None},
+                }
+                _ => None,
+        };
+        Self {opaque_type, handshake_type}
+    }
+}
+
+// [ObservedId] is made of the agent that produced the output, the message type, and a unique
+// counter if this does not single out a message
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
+pub struct ObservedId {
+    agent_name: AgentName,
+    message_type: MessageType,
+    counter: u16,
+}
+
+impl fmt::Display for ObservedId {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(
+            f,
+            "@{}:{:?}#{}",
+            self.agent_name,
+            self.message_type,
+            self.counter
+        )
+    }
+}
 struct ObservedVariable {
     observed_id: ObservedId,
     data: Box<dyn VariableData>,
@@ -140,14 +182,16 @@ impl TraceContext {
     }
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
-    pub fn already_known(&self, in_step_id: u16, type_id: TypeId) -> u16 {
+    pub fn number_matching_message(&self, agent: AgentName, message_type: MessageType) -> u16 {
         let known_count = self.knowledge
             .iter()
-            .filter(|knowledge| knowledge.observed_id.0 == in_step_id && knowledge.data.type_id() == type_id)
+            .filter(|knowledge|
+                knowledge.observed_id.agent_name == agent && knowledge.observed_id.message_type == message_type)
             .count();
         known_count as u16
     }
 
+    /// Returns the first
     pub fn get_variable_by_type_id(
         &self,
         type_shape: TypeShape,
@@ -348,6 +392,7 @@ impl OutputAction {
 
 
         while let Some(MessageResult(message, opaque_message)) = ctx.take_message_from_outbound(step.agent)? {
+            let message_result = MessageResult(message, opaque_message);
             match message {
                 Some(message) => {
                     debug_message_with_info(format!("Output message").as_str(), &message);
@@ -355,18 +400,22 @@ impl OutputAction {
                     trace!("Knowledge increased by {:?}", knowledge.len());
 
                     for variable in knowledge {
-                        let sub_id = ctx.already_known(self.id, variable.type_id());
-                        trace!("New knowledge {:?}/{}", (self.id, sub_id), variable.type_name());
-                        ctx.add_knowledge((self.id, sub_id), variable)
+                        let message_type = MessageType::from_message_result(&message_result);
+                        let counter = ctx.number_matching_message(step.agent, message_type);
+                        let observed_id = ObservedId {agent_name: step.agent, message_type, counter};
+                        trace!("New knowledge {:?}/{}", observed_id, variable.type_name());
+                        ctx.add_knowledge(observed_id, variable)
                     }
                 }
                 None => {}
             }
 
             debug_opaque_message_with_info(format!("Output opaque message").as_str(), &opaque_message);
-            let sub_id = ctx.already_known(self.id,opaque_message.type_id());
-            trace!("New knowledge {:?}/{}", (self.id, sub_id), opaque_message.type_name());
-            ctx.add_knowledge((self.id, sub_id), Box::new(opaque_message));
+            let message_type = MessageType::from_message_result(&message_result);
+            let counter = ctx.number_matching_message(step.agent, message_type);
+            let observed_id = ObservedId {agent_name: step.agent, message_type, counter};
+            trace!("New knowledge {:?}/{}", observed_id, opaque_message.type_name());
+            ctx.add_knowledge(observed_id, Box::new(opaque_message));
         }
         Ok(())
     }

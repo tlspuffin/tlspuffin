@@ -66,9 +66,8 @@ impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "({},{})/{}",
-            self.observed_id.0,
-            self.observed_id.1,
+            "[{}]/{}",
+            self.observed_id,
             remove_prefix(self.typ.name)
         )
     }

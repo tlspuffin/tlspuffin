@@ -1434,11 +1434,13 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.19.0"
-source = "git+https://github.com/maxammann/rustls.git?branch=remove-checks#655d429bc4d6eacae683bae19be4222a8881800d"
+source = "git+https://github.com/LCBH/rustls.git?branch=remove-checks#8d429a7f231da2c45974c35b0363258e26b9e509"
 dependencies = [
  "log",
  "ring",
  "sct",
+ "serde",
+ "serde_json",
  "webpki",
 ]
 
