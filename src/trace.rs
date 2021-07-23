@@ -18,32 +18,40 @@
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
 //!
-//! let trace = Trace {
-//!         descriptors: vec![
-//!             AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
-//!             AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
-//!         ],
-//!         steps: vec![
-//!             Step { agent: client, action: Action::Output(OutputAction { id: 0 })},
-//!             // Client: Hello Client -> Server
-//!             Step {
-//!                 agent: server,
-//!                 action: Action::Input(InputAction {
-//!                     recipe: Term::Application(
-//!                         Signature::new_function(&fn_client_hello),
-//!                         vec![
-//!                             Term::Variable(Signature::new_var::<ProtocolVersion>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Random>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<SessionID>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<Compression>>((0, 0))),
-//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>((0, 0))),
-//!                         ],
-//!                     ),
-//!                 }),
-//!             },
-//!             // further steps here
-//!         ]
+//! let observedID_CH = ObservedId {
+//!     agent_name: client,
+//!     message_type: MessageType{
+//!         TLS_opaque_type: ContentType::Handshake,
+//!         TLS_handshake_type: Some(HandshakeType::ClientHello),
+//!    },
+//!    counter: 0
+//! };
+//! let _trace = Trace {
+//! descriptors: vec![
+//!     AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
+//!     AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
+//! ],
+//! steps: vec![
+//!     Step { agent: client, action: Action::Output(OutputAction { id: 0 }) },
+//!     // Client: Hello Client -> Server
+//!     Step {
+//!         agent: server,
+//!         action: Action::Input(InputAction {
+//!             recipe: Term::Application(
+//!                 Signature::new_function(&fn_client_hello),
+//!                 vec![
+//!                     Term::Variable(Signature::new_var::<ProtocolVersion>(observedID_CH)),
+//!                     Term::Variable(Signature::new_var::<Random>(observedID_CH)),
+//!                     Term::Variable(Signature::new_var::<SessionID>(observedID_CH)),
+//!                     Term::Variable(Signature::new_var::<Vec<CipherSuite>>(observedID_CH)),
+//!                     Term::Variable(Signature::new_var::<Vec<Compression>>(observedID_CH)),
+//!                     Term::Variable(Signature::new_var::<Vec<ClientExtension>>(observedID_CH)),
+//!                 ],
+//!             ),
+//!         }),
+//!     },
+//!     // further steps here
+//! ]
 //! };
 //! let mut ctx = TraceContext::new();
 //! trace.spawn_agents(&mut ctx).unwrap();
@@ -79,7 +87,7 @@ use crate::{
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::agent::AgentDescriptor;
+use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 use crate::io::{MessageResult, Stream};
@@ -87,18 +95,23 @@ use crate::io::{MessageResult, Stream};
 use crate::io::Channel;
 use crate::tls::error::FnError;
 use crate::violation::is_violation;
+use crate::term::signature::Signature;
+use rustls::{ProtocolVersion, CipherSuite};
+use rustls::msgs::handshake::{Random, SessionID, ClientExtension};
+use rustls::msgs::enums::Compression;
+use crate::tls::fn_messages::fn_client_hello;
 
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
 struct MessageType {
-    opaque_type: ContentType,
-    handshake_type: Option<HandshakeType>, // relevant if opaque = ContentType::Handshake
+    tls_opaque_type: ContentType,
+    tls_handshake_type: Option<HandshakeType>, // relevant if opaque = ContentType::Handshake
 }
 
 impl MessageType {
     fn from_message_result(message_result: &MessageResult) -> Self {
-        let opaque_type = message_result.1.typ;
-        let handshake_type =
-            match (opaque_type,message_result) {
+        let tls_opaque_type = message_result.1.typ;
+        let tls_handshake_type =
+            match (tls_opaque_type,message_result) {
                 (ContentType::Handshake, MessageResult(Some(message),_))
                 => match message.payload {
                     MessagePayload::Handshake(handshake_payload) => Some(handshake_payload.typ),
@@ -108,7 +121,7 @@ impl MessageType {
                 }
                 _ => None,
         };
-        Self {opaque_type, handshake_type}
+        Self {tls_opaque_type, tls_handshake_type}
     }
 }
 

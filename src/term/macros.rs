@@ -50,7 +50,7 @@ macro_rules! term {
 }
 
 #[macro_export]
-macro_rules! term_arg {
+macro_rules! term_arg { // LH: this seems to not be used anywhere. I left it as it is.
     // Somehow the following rules is very important
     ( ( $($e:tt)* ) ) => (term!($($e)*));
     // not sure why I should need this
