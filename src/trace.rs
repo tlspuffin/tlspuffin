@@ -86,6 +86,8 @@ use crate::io::Channel;
 use crate::tls::error::FnError;
 use crate::violation::is_violation;
 
+// [ObservedId] is made of two u16: (output counter, sub-message counter). The output counter is
+// the output step id.
 pub type ObservedId = (u16, u16);
 
 struct ObservedVariable {
@@ -118,7 +120,8 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    claimer: Rc<RefCell<VecClaimer>>,
+    claimer: Rc<RefCell<VecClaimer>>,  // LH: to discuss live: why do you use Rc<RefCell< here? The
+    // TraceContext could use standard reference + the lifetime of VecClaimer, couldn't it?
 }
 
 impl TraceContext {
@@ -136,6 +139,7 @@ impl TraceContext {
         self.knowledge.push(ObservedVariable { observed_id, data })
     }
 
+    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
     pub fn already_known(&self, in_step_id: u16, type_id: TypeId) -> u16 {
         let known_count = self.knowledge
             .iter()
@@ -148,7 +152,7 @@ impl TraceContext {
         &self,
         type_shape: TypeShape,
         observed_id: ObservedId,
-    ) -> Option<&(dyn VariableData + 'static)> {
+    ) -> Option<&(dyn VariableData)> {
         let type_id: TypeId = type_shape.into();
 
         for observed in &self.knowledge {
@@ -262,6 +266,7 @@ impl Trace {
 
         if let Some(msg) = is_violation(claims) {
             return Err(Error::SecurityClaim(msg, claims.clone()));
+            // LH: Why do you return only one violated security claim? What if there are many?
         }
 
         Ok(())
@@ -308,7 +313,7 @@ pub enum Action {
 impl Action {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         match self {
-            Action::Input(input) => input.input(step, ctx),
+            Action::Input(input) => input.input(step, ctx), // LH: Why do you give step as argument here? Isn'it supposed to be self?
             Action::Output(output) => output.output(step, ctx),
         }
     }
