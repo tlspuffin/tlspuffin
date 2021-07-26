@@ -354,6 +354,10 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
 }
 
 pub fn seed_client_attacker(server: AgentName) -> Trace {
+    seed_client_attacker_(server).0
+}
+
+fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -393,7 +397,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
     // ((0, 1)/Message) could be a CCS the server sends one
 
     let encrypted_extensions = term! {
-        fn_decrypt(
+        fn_decrypt_handshake(
             ((0, 1)/Message), // Encrypted Extensions
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
@@ -409,7 +413,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
     };
 
     let server_certificate = term! {
-        fn_decrypt(
+        fn_decrypt_handshake(
             ((0, 2)/Message),// Server Certificate
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
@@ -425,7 +429,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
     };
 
     let server_certificate_verify = term! {
-        fn_decrypt(
+        fn_decrypt_handshake(
             ((0, 3)/Message), // Server Certificate Verify
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
@@ -441,7 +445,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
     };
 
     let server_finished = term! {
-        fn_decrypt(
+        fn_decrypt_handshake(
             ((0, 4)/Message), // Server Handshake Finished
             ((0, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
@@ -482,7 +486,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_encrypt(
+                        fn_encrypt_handshake(
                             (fn_finished(
                                 (fn_verify_data(
                                     ((0, 0)/Vec<ServerExtension>),
@@ -504,7 +508,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
         ],
     };
 
-    trace
+    (trace, server_hello_transcript, server_finished_transcript)
 }
 
 pub fn seed_client_attacker12(server: AgentName) -> Trace {
@@ -899,6 +903,26 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_session_resumption(server: AgentName) -> Trace {
+    // get ticket from NewSessionTicketPayloadTLS13 | done
+    // compute resumption_master_secret
+
+
+    // create PresharedKeyOffer(binder? and PresharedKeyIdentity?) and PSKKeyExchangeModes(easy)
+
+    // send ClientHello with pre_shared_key(fn_preshared_keys_extension) and psk_key_exchange_modes (fn_psk_exchange_modes_extension) extensions
+    // according to https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+    let (initial_handshake, server_hello_transcript, server_finished_transcript) = seed_client_attacker_(server);
+
+    let new_ticket_message = term! {
+        fn_decrypt_application(
+            ((1, 0)/Message), // Ticket?
+            ((0, 0)/Vec<ServerExtension>),
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+        )
+    };
+
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -918,24 +942,18 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_preshared_keys_extension(
+
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
         )
     };
 
-    // get ticket from NewSessionTicketPayloadTLS13
-    // compute resumption_master_secret
-
-
-    // create PresharedKeyOffer(binder? and PresharedKeyIdentity?) and PSKKeyExchangeModes(easy)
-
-    // send ClientHello with pre_shared_key(fn_preshared_keys_extension) and psk_key_exchange_modes (fn_psk_exchange_modes_extension) extensions
-    // according to https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
     let trace = Trace {
         prior_traces: vec![
-            seed_client_attacker(server)
+            initial_handshake
         ],
         descriptors: vec![
             AgentDescriptor {
@@ -944,8 +962,22 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                 server: true,
             },
         ],
-        steps: vec![]
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    }
+                }),
+            }
+        ],
     };
 
     trace
+}
+
+fn fn_debug(message: &Message) -> Result<Message, FnError> {
+    dbg!(message);
+    Ok(message.clone())
 }

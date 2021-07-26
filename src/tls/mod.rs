@@ -6,7 +6,9 @@ use std::convert::{TryFrom, TryInto};
 use ring::hkdf::Prk;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
-use rustls::key_schedule::{KeyScheduleHandshake, KeyScheduleNonSecret};
+use rustls::key_schedule::{
+    KeyScheduleHandshake, KeyScheduleNonSecret, KeyScheduleTrafficWithClientFinishedPending,
+};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::msgs::enums::{ExtensionType, NamedGroup};
 use rustls::msgs::handshake::{
@@ -38,35 +40,99 @@ pub mod fn_impl {
         tls::fn_utils::*,
     };
 }
+
 pub mod error;
 
-fn tls13_client_handshake_traffic_secret(
+fn tls13_handshake_traffic_secret(
     server_public_key: &[u8],
-    transcript: &HandshakeHash,
-    write: bool,
-) -> Result<(&'static SupportedCipherSuite, Prk), FnError> {
+    server_hello: &HandshakeHash,
+    server: bool,
+) -> Result<(&'static SupportedCipherSuite, Prk, KeyScheduleHandshake), FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let mut key_schedule = tls12_key_schedule(server_public_key, suite, group)?;
 
-    let key = if write {
-        key_schedule.client_handshake_traffic_secret(
-            &transcript.get_current_hash(),
-            &NoKeyLog {},
-            client_random,
-        )
-    } else {
-        key_schedule.server_handshake_traffic_secret(
-            &transcript.get_current_hash(),
-            &NoKeyLog {},
-            client_random,
-        )
-    };
+    let server_secret = key_schedule.server_handshake_traffic_secret(
+        &server_hello.get_current_hash(),
+        &NoKeyLog {},
+        client_random,
+    );
 
-    Ok((suite, key))
+    let client_secret = key_schedule.client_handshake_traffic_secret(
+        &server_hello.get_current_hash(),
+        &NoKeyLog {},
+        client_random,
+    );
+
+    Ok((
+        suite,
+        if server { client_secret } else { server_secret },
+        key_schedule,
+    ))
 }
 
+fn tls13_application_traffic_secret(
+    server_public_key: &[u8],
+    server_hello: &HandshakeHash,
+    server_finished: &HandshakeHash,
+    server: bool,
+) -> Result<
+    (
+        &'static SupportedCipherSuite,
+        Prk,
+        KeyScheduleTrafficWithClientFinishedPending,
+    ),
+    FnError,
+> {
+    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let (suite, _key, key_schedule) =
+        tls13_handshake_traffic_secret(server_public_key, server_hello, server)?;
+
+    let mut application_key_schedule = key_schedule.into_traffic_with_client_finished_pending();
+
+    let server_secret = application_key_schedule.server_application_traffic_secret(
+        &server_finished.get_current_hash(),
+        &NoKeyLog {},
+        client_random,
+    );
+
+    let client_secret = application_key_schedule.client_application_traffic_secret(
+        &server_finished.get_current_hash(),
+        &NoKeyLog {},
+        client_random,
+    );
+
+    Ok((
+        suite,
+        if server { client_secret } else { server_secret },
+        application_key_schedule,
+    ))
+}
+
+/*fn tls13_derive_ticket_psk(
+    server_public_key: &[u8],
+    server_hello: &HandshakeHash,
+    server_finished: &HandshakeHash,
+) -> Result<(Vec<u8>), FnError> {
+    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+
+    let (_, _, mut application_key_schedule) =
+        tls13_application_traffic_secret(server_public_key, server_hello, server_finished, true)?;
+
+    application_key_schedule.exporter_master_secret(
+        &server_finished.get_current_hash(), // todo
+        &NoKeyLog {},
+        client_random,
+    );
+
+    let psk = application_key_schedule
+        .into_traffic()
+        .resumption_master_secret_and_derive_ticket_psk(&server_finished.get_current_hash(), &[]);
+
+    Ok(psk)
+}
+*/
 fn tls12_key_schedule(
     server_public_key: &[u8],
     suite: &SupportedCipherSuite,
@@ -290,8 +356,8 @@ define_signature!(
     fn_append_transcript,
     fn_certificate,
     fn_decode_ecdh_params,
-    fn_decrypt,
-    fn_encrypt,
+    fn_decrypt_handshake,
+    fn_encrypt_handshake,
     fn_encrypt12,
     fn_new_certificates,
     fn_new_pubkey12,
