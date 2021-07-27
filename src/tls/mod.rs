@@ -316,7 +316,8 @@ define_signature!(
     fn_new_session_ticket_extensions_new
     fn_preshared_keys_extension_empty_binder
     fn_preshared_keys_server_extension
-    fn_psk_exchange_modes_extension
+    fn_psk_exchange_mode_dhe_ke_extension
+    fn_psk_exchange_mode_ke_extension
     fn_renegotiation_info_extension
     fn_renegotiation_info_server_extension
     fn_secp384r1_support_group_extension
@@ -385,4 +386,5 @@ define_signature!(
     fn_new_transcript
     fn_new_transcript12
     fn_no_psk
+    fn_psk
 );

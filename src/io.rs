@@ -104,6 +104,10 @@ impl OpenSSLStream {
         let stream = &mut self.openssl_stream;
         Ok(openssl_binding::do_handshake(stream)?)
     }
+
+    pub fn reset(&mut self) {
+        self.openssl_stream.clear();
+    }
 }
 
 #[cfg(feature = "claims")]

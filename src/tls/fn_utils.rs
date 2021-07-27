@@ -62,6 +62,10 @@ pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
     Ok(None)
 }
 
+pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
+    Ok(Some(some.clone()))
+}
+
 pub fn fn_decrypt_application(
     application_data: &Message,
     server_extensions: &Vec<ServerExtension>,
@@ -137,7 +141,7 @@ pub fn fn_derive_psk(
     server_finished: &HandshakeHash,
     client_finished: &HandshakeHash,
     new_ticket_nonce: &Vec<u8>,
-) -> Result<Option<Vec<u8>>, FnError> {
+) -> Result<Vec<u8>, FnError> {
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
 
     let server_public_key = keyshare.payload.0.as_slice();
@@ -150,7 +154,7 @@ pub fn fn_derive_psk(
         new_ticket_nonce,
     )?;
 
-    Ok(Some(psk))
+    Ok(psk)
 }
 
 pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Vec<u8>, FnError> {

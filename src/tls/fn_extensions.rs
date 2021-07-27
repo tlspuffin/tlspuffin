@@ -424,10 +424,14 @@ pub fn fn_cookie_hello_retry_extension(cookie: &Vec<u8>) -> Result<HelloRetryExt
     Ok(HelloRetryExtension::Cookie(PayloadU16::new(cookie.clone())))
 }
 /// PSKKeyExchangeModes => 0x002d,
-pub fn fn_psk_exchange_modes_extension() -> Result<ClientExtension, FnError> {
+pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::PresharedKeyModes(vec![
-        //PSKKeyExchangeMode::PSK_KE,
         PSKKeyExchangeMode::PSK_DHE_KE,
+    ]))
+}
+pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::PresharedKeyModes(vec![
+        PSKKeyExchangeMode::PSK_KE,
     ]))
 }
 /// TicketEarlyDataInfo => 0x002e,

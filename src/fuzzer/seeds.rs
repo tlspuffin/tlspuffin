@@ -926,13 +926,6 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_session_resumption(server: AgentName) -> Trace {
-    // get ticket from NewSessionTicketPayloadTLS13 | done
-    // compute resumption_master_secret
-
-    // create PresharedKeyOffer(binder? and PresharedKeyIdentity?) and PSKKeyExchangeModes(easy)
-
-    // send ClientHello with pre_shared_key(fn_preshared_keys_extension) and psk_key_exchange_modes (fn_psk_exchange_modes_extension) extensions
-    // according to https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
     let (
         initial_handshake,
         server_hello_transcript,
@@ -976,9 +969,10 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                         )),
                         fn_key_share_deterministic_extension
                     )),
-                    fn_psk_exchange_modes_extension
+                    fn_psk_exchange_mode_dhe_ke_extension
                 )),
-                // must be last in client_hello
+                // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+                // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
                     (fn_get_ticket((@new_ticket_message))),
                     (fn_get_ticket_age_add((@new_ticket_message)))
@@ -1026,7 +1020,7 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
             ((10, 1)/Message), // Encrypted Extensions
             ((10, 0)/Vec<ServerExtension>),
             (@resumption_server_hello_transcript),
-            (@psk),
+            (fn_psk((@psk))),
             fn_seq_0  // sequence 0
         )
     };
@@ -1043,7 +1037,7 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
             ((10, 2)/Message), // Server Handshake Finished
             ((10, 0)/Vec<ServerExtension>),
             (@resumption_server_hello_transcript),
-            (@psk),
+            (fn_psk((@psk))),
             fn_seq_1 // sequence 1
         )
     };
@@ -1061,7 +1055,7 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                 ((10, 0)/Vec<ServerExtension>),
                 (@resumption_server_finished_transcript),
                 (@resumption_server_hello_transcript),
-                (@psk)
+                (fn_psk((@psk)))
             ))
         )
     };
@@ -1094,7 +1088,7 @@ pub fn seed_session_resumption(server: AgentName) -> Trace {
                             (@resumption_client_finished),
                             ((10, 0)/Vec<ServerExtension>),
                             (@resumption_server_hello_transcript),
-                            (@psk),
+                            (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
                         )
                     },
