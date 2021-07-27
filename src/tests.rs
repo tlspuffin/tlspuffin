@@ -121,6 +121,21 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[test]
+    fn test_seed_session_resumption_ke() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let trace = seed_session_resumption_ke(server);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {

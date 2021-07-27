@@ -39,17 +39,14 @@ pub fn fn_append_transcript(
 
 pub fn fn_decrypt_handshake(
     application_data: &Message,
-    server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
-
-    let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key, _) = super::tls13_handshake_traffic_secret(
-        server_public_key,
         &server_hello_transcript,
+        server_key_share,
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
@@ -68,19 +65,16 @@ pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
 
 pub fn fn_decrypt_application(
     application_data: &Message,
-    server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
     server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
-
-    let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key, _) = super::tls13_application_traffic_secret(
-        server_public_key,
         &server_hello_transcript,
         &server_finished_transcript,
+        server_key_share,
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
@@ -91,16 +85,13 @@ pub fn fn_decrypt_application(
 
 pub fn fn_encrypt_handshake(
     some_message: &Message,
-    server_extensions: &Vec<ServerExtension>,
     server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
-
-    let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key, _) =
-        super::tls13_handshake_traffic_secret(server_public_key, &server_hello, psk, true)?;
+        super::tls13_handshake_traffic_secret(&server_hello, server_key_share, psk, true)?;
     let encrypter = new_tls13_write(suite, &key);
     let application_data = encrypter.encrypt(
         OpaqueMessage::from(some_message.clone()).borrow(),
@@ -111,19 +102,17 @@ pub fn fn_encrypt_handshake(
 
 pub fn fn_encrypt_application(
     some_message: &Message,
-    server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
     server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
 
-    let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key, _) = super::tls13_application_traffic_secret(
-        server_public_key,
         &server_hello_transcript,
         &server_finished_transcript,
+        server_key_share,
         psk,
         true,
     )?;
@@ -136,21 +125,18 @@ pub fn fn_encrypt_application(
 }
 
 pub fn fn_derive_psk(
-    server_extensions: &Vec<ServerExtension>,
     server_hello: &HandshakeHash,
     server_finished: &HandshakeHash,
     client_finished: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
-    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
-
-    let server_public_key = keyshare.payload.0.as_slice();
 
     let psk = super::tls13_derive_psk(
-        server_public_key,
         server_hello,
         server_finished,
         client_finished,
+        server_key_share,
         new_ticket_nonce,
     )?;
 
