@@ -188,6 +188,9 @@ pub fn create_openssl_server(
     #[cfg(feature = "openssl111")]
     ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
+    #[cfg(feature = "openssl111")]
+    ctx_builder.set_options(SslOptions::ALLOW_NO_DHE_KEX);
+
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
     #[cfg(feature = "openssl101")]
