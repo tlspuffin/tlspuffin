@@ -1,13 +1,17 @@
 use std::convert::TryFrom;
 
+use ring::digest::Digest;
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
+use rustls::internal::msgs::enums::HandshakeType;
+use rustls::key_schedule::KeyScheduleEarly;
 use rustls::msgs::base::PayloadU8;
 use rustls::msgs::codec::{Codec, Reader};
 use rustls::msgs::handshake::{
-    CertificateEntry, CertificateExtension, Random, ServerECDHParams, ServerExtension,
+    CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload, Random,
+    ServerECDHParams, ServerExtension,
 };
-use rustls::msgs::message::{Message, OpaqueMessage};
+use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 use rustls::{key, Certificate};
 
 use super::error::FnError;
@@ -37,6 +41,7 @@ pub fn fn_decrypt_handshake(
     application_data: &Message,
     server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
@@ -45,6 +50,7 @@ pub fn fn_decrypt_handshake(
     let (suite, key, _) = super::tls13_handshake_traffic_secret(
         server_public_key,
         &server_hello_transcript,
+        psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
     let decrypter = new_tls13_read(suite, &key);
@@ -52,11 +58,16 @@ pub fn fn_decrypt_handshake(
     Ok(Message::try_from(message.clone())?)
 }
 
+pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
+    Ok(None)
+}
+
 pub fn fn_decrypt_application(
     application_data: &Message,
     server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
     server_finished_transcript: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
@@ -66,6 +77,7 @@ pub fn fn_decrypt_application(
         server_public_key,
         &server_hello_transcript,
         &server_finished_transcript,
+        psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
     let decrypter = new_tls13_read(suite, &key);
@@ -77,13 +89,14 @@ pub fn fn_encrypt_handshake(
     some_message: &Message,
     server_extensions: &Vec<ServerExtension>,
     server_hello: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
 
     let server_public_key = keyshare.payload.0.as_slice();
     let (suite, key, _) =
-        super::tls13_handshake_traffic_secret(server_public_key, &server_hello, true)?;
+        super::tls13_handshake_traffic_secret(server_public_key, &server_hello, psk, true)?;
     let encrypter = new_tls13_write(suite, &key);
     let application_data = encrypter.encrypt(
         OpaqueMessage::from(some_message.clone()).borrow(),
@@ -97,6 +110,7 @@ pub fn fn_encrypt_application(
     server_extensions: &Vec<ServerExtension>,
     server_hello_transcript: &HandshakeHash,
     server_finished_transcript: &HandshakeHash,
+    psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
@@ -106,6 +120,7 @@ pub fn fn_encrypt_application(
         server_public_key,
         &server_hello_transcript,
         &server_finished_transcript,
+        psk,
         true,
     )?;
     let encrypter = new_tls13_write(suite, &key);
@@ -114,6 +129,111 @@ pub fn fn_encrypt_application(
         *sequence,
     )?;
     Ok(Message::try_from(application_data.clone())?)
+}
+
+pub fn fn_derive_psk(
+    server_extensions: &Vec<ServerExtension>,
+    server_hello: &HandshakeHash,
+    server_finished: &HandshakeHash,
+    client_finished: &HandshakeHash,
+    new_ticket_nonce: &Vec<u8>,
+) -> Result<Option<Vec<u8>>, FnError> {
+    let keyshare = super::tls13_get_server_key_share(server_extensions)?;
+
+    let server_public_key = keyshare.payload.0.as_slice();
+
+    let psk = super::tls13_derive_psk(
+        server_public_key,
+        server_hello,
+        server_finished,
+        client_finished,
+        new_ticket_nonce,
+    )?;
+
+    Ok(Some(psk))
+}
+
+pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    let client_hello_payload: HandshakeMessagePayload = match full_client_hello.payload.clone() {
+        MessagePayload::Handshake(payload) => Some(payload),
+        _ => None,
+    }
+    .ok_or_else(|| {
+        FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
+    })?;
+
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let hkdf_alg = suite.hkdf_algorithm;
+    let suite_hash = suite.get_hash();
+
+    let transcript = HandshakeHash::new();
+
+    // RFC: The "pre_shared_key" extension MUST be the last extension in the ClientHello
+    // The binder is calculated over the clienthello, but doesn't include itself or its
+    // length, or the length of its container.
+    let binder_plaintext = client_hello_payload.get_encoding_for_binder_signing();
+    let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
+
+    // Run a fake key_schedule to simulate what the server will do if it chooses
+    // to resume.
+    let key_schedule = KeyScheduleEarly::new(hkdf_alg, &psk);
+    let real_binder = key_schedule.resumption_psk_binder_key_and_sign_verify_data(&handshake_hash);
+
+    Ok(Vec::from(real_binder.as_ref()))
+}
+
+pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<Message, FnError> {
+    match full_client_hello.payload.clone() {
+        MessagePayload::Handshake(payload) => match payload.payload {
+            HandshakePayload::ClientHello(payload) => {
+                let mut new_payload = payload.clone();
+                new_payload.set_psk_binder(binder.clone());
+                Some(Message {
+                    version: full_client_hello.version,
+                    payload: MessagePayload::Handshake(HandshakeMessagePayload {
+                        typ: HandshakeType::ClientHello,
+                        payload: HandshakePayload::ClientHello(new_payload),
+                    }),
+                })
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+}
+
+pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
+    match new_ticket.payload.clone() {
+        MessagePayload::Handshake(payload) => match payload.payload {
+            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.ticket.0.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+}
+
+pub fn fn_get_ticket_age_add(new_ticket: &Message) -> Result<u64, FnError> {
+    match new_ticket.payload.clone() {
+        MessagePayload::Handshake(payload) => match payload.payload {
+            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.age_add as u64),
+            _ => None,
+        },
+        _ => None,
+    }
+    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+}
+
+pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
+    match new_ticket.payload.clone() {
+        MessagePayload::Handshake(payload) => match payload.payload {
+            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.nonce.0),
+            _ => None,
+        },
+        _ => None,
+    }
+    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
 }
 
 // ----

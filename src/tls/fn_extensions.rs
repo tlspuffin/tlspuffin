@@ -4,12 +4,21 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
+use std::convert::TryInto;
+
+use ring::digest::Digest;
+use ring::hmac;
+use rustls::hash_hs::HandshakeHash;
+use rustls::internal::msgs::message::MessagePayload;
+use rustls::key_schedule::KeyScheduleEarly;
 use rustls::kx::KeyExchange;
 use rustls::kx_group::SECP384R1;
 use rustls::msgs::base::{Payload, PayloadU24};
 use rustls::msgs::base::{PayloadU16, PayloadU8};
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::*;
+use rustls::msgs::message::Message;
+use rustls::ticketer::TimeBase;
 use rustls::{x509, ProtocolVersion, SignatureScheme};
 
 use crate::nyi_fn;
@@ -344,18 +353,26 @@ pub fn fn_append_preshared_keys_identity(
     new.push(identify.clone());
     Ok(new)
 }
-pub fn fn_preshared_keys_extension(
-    identities: &Vec<PresharedKeyIdentity>,
-    binders: &Vec<Vec<u8>>,
+
+pub fn fn_preshared_keys_extension_empty_binder(
+    ticket: &Vec<u8>,
+    age_add: &u64,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::PresharedKey(PresharedKeyOffer {
-        identities: identities.clone(),
-        binders: binders
-            .iter()
-            .map(|data| PayloadU8::new(data.clone()))
-            .collect(),
-    }))
+    let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
+    let obfuscated_ticket_age = ticket_age_millis.wrapping_add(*age_add as u32);
+
+    let resuming_suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let binder_len = resuming_suite.get_hash().output_len;
+    let binder = vec![0u8; binder_len];
+
+    let psk_identity = PresharedKeyIdentity::new(ticket.clone(), obfuscated_ticket_age);
+
+    Ok(ClientExtension::PresharedKey(PresharedKeyOffer::new(
+        psk_identity,
+        binder.clone(),
+    )))
 }
+
 pub fn fn_preshared_keys_server_extension(identities: &u64) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::PresharedKey(*identities as u16))
 }
@@ -409,8 +426,8 @@ pub fn fn_cookie_hello_retry_extension(cookie: &Vec<u8>) -> Result<HelloRetryExt
 /// PSKKeyExchangeModes => 0x002d,
 pub fn fn_psk_exchange_modes_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::PresharedKeyModes(vec![
+        //PSKKeyExchangeMode::PSK_KE,
         PSKKeyExchangeMode::PSK_DHE_KE,
-        PSKKeyExchangeMode::PSK_KE,
     ]))
 }
 /// TicketEarlyDataInfo => 0x002e,

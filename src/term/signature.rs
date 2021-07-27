@@ -97,7 +97,7 @@ impl fmt::Debug for Signature {
 
 #[macro_export]
 macro_rules! define_signature {   // LH: To document somewhere: it does not seem that your signature and the way you (de)serialize are robust to function name modifications (?)
-    ($name_signature:ident, $($f:path),+ $(,)?) => {
+    ($name_signature:ident, $($f:path)+) => {
         use once_cell::sync::Lazy;
         use crate::term::signature::Signature;
         /// Signature which contains all functions defined in the `tls` module.

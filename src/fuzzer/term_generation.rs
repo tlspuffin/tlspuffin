@@ -16,6 +16,15 @@ pub fn generate_multiple_terms<R: Rand>(signature: &Signature, rand: &mut R) -> 
         generate_terms(signature, rand),
         generate_terms(signature, rand),
         generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
+        generate_terms(signature, rand),
     ].into_iter()
         .flatten()
         .unique()

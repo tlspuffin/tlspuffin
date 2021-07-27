@@ -39,6 +39,7 @@ pub fn fn_verify_data(
     server_extensions: &Vec<ServerExtension>,
     verify_transcript: &HandshakeHash,
     client_handshake_traffic_secret_transcript: &HandshakeHash,
+    psk: &Option<Vec<u8>>
 ) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
@@ -48,7 +49,7 @@ pub fn fn_verify_data(
     let keyshare = super::tls13_get_server_key_share(server_extensions)?;
     let server_public_key = keyshare.payload.0.as_slice();
 
-    let mut key_schedule = super::tls12_key_schedule(server_public_key, suite, group)?;
+    let mut key_schedule = super::tls12_dhe_key_schedule(server_public_key, suite, group, psk)?;
 
     key_schedule.client_handshake_traffic_secret(
         &client_handshake_traffic_secret_transcript.get_current_hash(),
