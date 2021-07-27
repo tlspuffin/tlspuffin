@@ -106,13 +106,13 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
-    fn test_seed_session_resumption() {
+    fn test_seed_session_resumption_dhe() {
         make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_session_resumption(server);
+        let trace = seed_session_resumption_dhe(server);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -161,7 +161,7 @@ pub mod seeds {
 
     // require version which supports TLS 1.3
     // LibreSSL does not yet support PSK
-    #[cfg(all(feature = "tls13", not(feature = "libressl")))]
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
         make_deterministic();

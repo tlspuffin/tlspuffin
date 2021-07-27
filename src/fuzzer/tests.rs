@@ -25,6 +25,7 @@ use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
 use crate::variable_data::VariableData;
 use std::iter::FromIterator;
 
+#[cfg(feature = "deterministic")]
 #[test]
 fn test_openssl_no_randomness() {
     make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests

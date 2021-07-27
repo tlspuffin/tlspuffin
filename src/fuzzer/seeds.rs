@@ -925,7 +925,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
     }
 }
 
-pub fn seed_session_resumption(server: AgentName) -> Trace {
+pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
     let (
         initial_handshake,
         server_hello_transcript,
