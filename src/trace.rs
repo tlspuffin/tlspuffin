@@ -60,11 +60,11 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, fmt::Formatter};
 use std::cell::RefCell;
 use std::env::var;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
 use rustls::msgs::message::Message;
@@ -72,19 +72,19 @@ use rustls::msgs::message::OpaqueMessage;
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
+use crate::agent::AgentDescriptor;
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::io::{MessageResult, Stream};
+use crate::tls::error::FnError;
+use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::agent::AgentDescriptor;
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-use crate::io::{MessageResult, Stream};
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::tls::error::FnError;
-use crate::violation::is_violation;
 
 pub type ObservedId = (u16, u16);
 
@@ -99,9 +99,7 @@ pub struct VecClaimer {
 
 impl VecClaimer {
     pub fn new() -> Self {
-        Self {
-            claims: vec![]
-        }
+        Self { claims: vec![] }
     }
 
     pub fn claim(&mut self, name: AgentName, claim: Claim) {
@@ -137,9 +135,12 @@ impl TraceContext {
     }
 
     pub fn already_known(&self, in_step_id: u16, type_id: TypeId) -> u16 {
-        let known_count = self.knowledge
+        let known_count = self
+            .knowledge
             .iter()
-            .filter(|knowledge| knowledge.observed_id.0 == in_step_id && knowledge.data.type_id() == type_id)
+            .filter(|knowledge| {
+                knowledge.observed_id.0 == in_step_id && knowledge.data.type_id() == type_id
+            })
             .count();
         known_count as u16
     }
@@ -216,7 +217,9 @@ impl TraceContext {
     }
 
     pub fn reset_agents(&mut self) {
-        self.agents.clear();
+        for agent in &mut self.agents {
+            agent.reset();
+        }
     }
 }
 
@@ -224,7 +227,7 @@ impl TraceContext {
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
-    pub prior_traces: Vec<Trace>
+    pub prior_traces: Vec<Trace>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
@@ -234,7 +237,15 @@ pub struct Trace {
 impl Trace {
     fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            ctx.new_openssl_agent(&descriptor)?;
+            if !ctx
+                .agents
+                .iter()
+                .map(|agent| agent.descriptor)
+                .any(|existing| existing == *descriptor)
+            {
+                // only spawn if not yet existing
+                ctx.new_openssl_agent(&descriptor)?;
+            }
         }
 
         Ok(())
@@ -268,7 +279,10 @@ impl Trace {
 
         trace!(
             "Claims:\n{}",
-            &claims.iter().map(|(name, claim)| format!("{}: {}", name, claim)).join("\n")
+            &claims
+                .iter()
+                .map(|(name, claim)| format!("{}: {}", name, claim))
+                .join("\n")
         );
 
         if let Some(msg) = is_violation(claims) {
@@ -352,8 +366,9 @@ impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         ctx.next_state(step.agent)?;
 
-
-        while let Some(MessageResult(message, opaque_message)) = ctx.take_message_from_outbound(step.agent)? {
+        while let Some(MessageResult(message, opaque_message)) =
+            ctx.take_message_from_outbound(step.agent)?
+        {
             match message {
                 Some(message) => {
                     debug_message_with_info(format!("Output message").as_str(), &message);
@@ -362,16 +377,27 @@ impl OutputAction {
 
                     for variable in knowledge {
                         let sub_id = ctx.already_known(self.id, variable.type_id());
-                        trace!("New knowledge {:?}/{}", (self.id, sub_id), variable.type_name());
+                        trace!(
+                            "New knowledge {:?}/{}",
+                            (self.id, sub_id),
+                            variable.type_name()
+                        );
                         ctx.add_knowledge((self.id, sub_id), variable)
                     }
                 }
                 None => {}
             }
 
-            debug_opaque_message_with_info(format!("Output opaque message").as_str(), &opaque_message);
-            let sub_id = ctx.already_known(self.id,opaque_message.type_id());
-            trace!("New knowledge {:?}/{}", (self.id, sub_id), opaque_message.type_name());
+            debug_opaque_message_with_info(
+                format!("Output opaque message").as_str(),
+                &opaque_message,
+            );
+            let sub_id = ctx.already_known(self.id, opaque_message.type_id());
+            trace!(
+                "New knowledge {:?}/{}",
+                (self.id, sub_id),
+                opaque_message.type_name()
+            );
             ctx.add_knowledge((self.id, sub_id), Box::new(opaque_message));
         }
         Ok(())
@@ -411,10 +437,7 @@ impl InputAction {
 
             debug_message_with_info(format!("Input message").as_str(), msg);
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
-            ctx.add_to_inbound(
-                step.agent,
-                &opaque_message.clone(),
-            )?;
+            ctx.add_to_inbound(step.agent, &opaque_message.clone())?;
 
             debug_opaque_message_with_info(
                 format!("Input opaque message").as_str(),
@@ -424,7 +447,7 @@ impl InputAction {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
             ))
-                .into());
+            .into());
         }
 
         ctx.next_state(step.agent)
