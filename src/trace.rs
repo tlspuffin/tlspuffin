@@ -107,6 +107,7 @@ use crate::tls::fn_messages::fn_client_hello;
 struct TlsMessageType {
     tls_opaque_type: ContentType,
     tls_handshake_type: Option<HandshakeType>, // relevant if opaque = ContentType::Handshake
+    // TODO: more typing information can be added later, the public interface is the derived traits above
 }
 
 impl TlsMessageType {
@@ -132,21 +133,22 @@ impl TlsMessageType {
 #[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
 pub struct ObservedId {
     agent_name: AgentName,
-    tls_message_type: TlsMessageType, // TLS message type
-    term_type: TypeId,                // internal Rust type
-    counter: u16,                     // in case an agent sends multiple messages of the same type
+    tls_message_type: Option<TlsMessageType>, // TLS message type, optional to make trace easier but will be added later
+    counter: u16,                             // in case an agent sends multiple messages of the same type
 }
 
 // LH: [TODO] TypeId does not have the Deserialize trait and use a private u64 field. Annoying...
+// Solution: remove TypeId, and use the get_shape method instead
+// Other [DONE]: make the type Optional to ease seed writing (force outputs after inputs)
+// Other TODO: remove outputs from the seed and force outputs
 
 impl fmt::Display for ObservedId {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "@{}:{:?}({:?})#{}",
+            "@{}:{:?}#{}",
             self.agent_name,
             self.tls_message_type,
-            self.term_type,
             self.counter
         )
     }
@@ -203,12 +205,16 @@ impl TraceContext {
     }
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
-    pub fn number_matching_message(&self, agent: AgentName, tls_message_type: TlsMessageType) -> u16 {
+    pub fn number_matching_message(&self, agent: AgentName, type_id: TypeId, tls_message_type: TlsMessageType) -> u16 {
         let known_count = self.knowledge
             .iter()
             .filter(|knowledge|
-                    knowledge.observed_id.agent_name == agent &&
-                    knowledge.observed_id.tls_message_type == tls_message_type)
+                    if let Some(knowledge_tls_message_type) = knowledge.observed_id.tls_message_type {
+                        knowledge.observed_id.agent_name == agent &&
+                        knowledge_tls_message_type == tls_message_type
+                    } else {
+                        false
+                    })
             .count();
         known_count as u16
     }
@@ -423,11 +429,11 @@ impl OutputAction {
 
                     for variable in knowledge {
                         let tls_message_type = TlsMessageType::from_message_result(&message_result);
-                        let counter = ctx.number_matching_message(step.agent, tls_message_type);
+                        let type_id = variable.type_id();
+                        let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
                         let observed_id = ObservedId {
                             agent_name: step.agent,
-                            tls_message_type,
-                            term_type: variable.type_id(),
+                            tls_message_type: Some(tls_message_type),
                             counter};
                         trace!("New knowledge {:?}/{}", observed_id, variable.type_name());
                         ctx.add_knowledge(observed_id, variable)
@@ -438,11 +444,11 @@ impl OutputAction {
 
             debug_opaque_message_with_info(format!("Output opaque message").as_str(), &opaque_message);
             let tls_message_type = TlsMessageType::from_message_result(&message_result);
-            let counter = ctx.number_matching_message(step.agent, tls_message_type);
+            let type_id = opaque_message.type_id();
+            let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
             let observed_id = ObservedId {
                 agent_name: step.agent,
-                tls_message_type,
-                term_type: opaque_message.type_id(),
+                tls_message_type: Some(tls_message_type),
                 counter};
             trace!("New knowledge {:?}/{}", observed_id, opaque_message.type_name());
             ctx.add_knowledge(observed_id, Box::new(opaque_message));
