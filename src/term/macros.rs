@@ -27,19 +27,27 @@ use rustls::msgs::enums::HandshakeType;
 
 #[macro_export]
 macro_rules! term {
-    // Variables
+    // Handshake Variable
     (($agent:expr, $counter:expr) / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter); // Hopefully, we can automatically "coerce" the type into a HandshakeType here
+        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter);
         $crate::term::Term::Variable(var)
     }};
 
-     (($agent:expr, $counter:expr) H[$tls_typ:expr] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter); // explicitely giving an handshake type
+    // Handshake Variable
+    (($agent:expr, $counter:expr) [H@$hs_type:expr] / $typ:ty) => {{
+        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, Some($hs_type), $counter);
         $crate::term::Term::Variable(var)
     }};
 
-     (($agent:expr, $counter:expr) [tls_typ:expr] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_no_handshake::<$typ>($agent, None, $counter); // explicitely giving a non-handhskae ContentType
+    // Handshake Variable
+    (($agent:expr, $counter:expr) [H] / $typ:ty) => {{
+        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter);
+        $crate::term::Term::Variable(var)
+    }};
+
+    // Application Data Variable
+    (($agent:expr, $counter:expr) [A] / $typ:ty) => {{
+        let var = $crate::term::signature::Signature::new_var_application_data::<$typ>($agent, $counter);
         $crate::term::Term::Variable(var)
     }};
 

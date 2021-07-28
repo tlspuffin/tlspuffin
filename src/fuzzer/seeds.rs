@@ -19,6 +19,8 @@ use crate::{
     term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
+use rustls::internal::msgs::enums::HandshakeType;
+use rustls::msgs::enums::HandshakeType::ServerHello;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -202,7 +204,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(
-                            ((server, 0)/Vec<u8>)
+                            ((server, 0)[H@HandshakeType::ServerKeyExchange]/Vec<u8>)
                         )
                     },
                 }),
@@ -226,7 +228,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((client, 0)/Vec<u8>)
+                            ((client, 0)[H@HandshakeType::ClientKeyExchange]/Vec<u8>)
                         )
                     },
                 }),
@@ -250,7 +252,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((client, 2)/OpaqueMessage)
+                            ((client, 0)[H]/OpaqueMessage)
                         )
                     },
                 }),
@@ -265,8 +267,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_new_session_ticket(
-                            ((client, 0)/u64),
-                            ((client, 0)/Vec<u8>)
+                            ((server, 0)/u64),
+                            ((server, 0)[H@HandshakeType::NewSessionTicket]/Vec<u8>)
                         )
                     },
                 }),
@@ -286,7 +288,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((server, 2)/OpaqueMessage)
+                            ((server, 0)[H]/OpaqueMessage)
                         )
                     },
                 }),
@@ -339,7 +341,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 0)/Vec<u8>)
+                    ((server, 4)/Vec<u8>)
                 )
             },
         }),
@@ -350,7 +352,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 1)/Vec<u8>)
+                    ((server, 5)/Vec<u8>)
                 )
             },
         }),
@@ -396,7 +398,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)/Message) // plaintext ServerHello
+            ((server, 0)[H@HandshakeType::ServerHello]/Message) // plaintext ServerHello
         )
     };
 
@@ -404,9 +406,9 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
 
     let encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 1)/Message), // Encrypted Extensions
+            ((server, 0)[A]/Message), // Encrypted Extensions
             (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)/Vec<ServerExtension>))),
+            (fn_get_server_key_share(((server, 0)[H@HandshakeType::ServerHello]/Vec<ServerExtension>))),
             fn_no_psk,
             fn_seq_0  // sequence 0
         )
@@ -421,7 +423,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
 
     let server_certificate = term! {
         fn_decrypt_handshake(
-            ((server, 2)/Message),// Server Certificate
+            ((server, 1)[A]/Message),// Server Certificate
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)/Vec<ServerExtension>))),
             fn_no_psk,
@@ -438,7 +440,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
 
     let server_certificate_verify = term! {
         fn_decrypt_handshake(
-            ((server, 3)/Message), // Server Certificate Verify
+            ((server, 2)[A]/Message), // Server Certificate Verify
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)/Vec<ServerExtension>))),
             fn_no_psk,
@@ -455,7 +457,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
 
     let server_finished = term! {
         fn_decrypt_handshake(
-            ((server, 4)/Message), // Server Handshake Finished
+            ((server, 3)[A]/Message), // Server Handshake Finished
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)/Vec<ServerExtension>))),
             fn_no_psk,
@@ -583,28 +585,28 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                 fn_new_transcript12,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)/Message) // plaintext ServerHello
+            ((server, 0)[H@HandshakeType::ServerHello]/Message) // plaintext ServerHello
         )
     };
 
     let certificate_transcript = term! {
         fn_append_transcript(
             (@server_hello_transcript),
-            ((server, 1)/Message) // Certificate
+            ((server, 0)[H@HandshakeType::Certificate]/Message) // Certificate
         )
     };
 
     let server_key_exchange_transcript = term! {
       fn_append_transcript(
             (@certificate_transcript),
-            ((server, 2)/Message) // ServerKeyExchange
+            ((server, 0)[H@HandshakeType::ServerKeyExchange]/Message) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript = term! {
       fn_append_transcript(
             (@server_key_exchange_transcript),
-            ((server, 3)/Message) // ServerHelloDone
+            ((server, 0)[H@HandshakeType::ServerHelloDone]/Message) // ServerHelloDone
         )
     };
 
@@ -612,7 +614,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
         fn_client_key_exchange(
             (fn_new_pubkey12(
                 (fn_decode_ecdh_params(
-                    ((server, 0)/Vec<u8>) // ServerECDHParams
+                    ((server, 0)[H@HandshakeType::ServerKeyExchange]/Vec<u8>) // ServerECDHParams
                 ))
             ))
         )
@@ -629,7 +631,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
         fn_sign_transcript(
             ((server, 0)/Random),
             (fn_decode_ecdh_params(
-                ((server, 0)/Vec<u8>) // ServerECDHParams
+                ((server, 0)[H@HandshakeType::ServerKeyExchange]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript)
         )

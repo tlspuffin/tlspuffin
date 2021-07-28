@@ -113,12 +113,11 @@ pub enum TlsMessageType {
     Heartbeat,
 }
 
-impl Eq for TlsMessageType {}
 impl PartialEq for TlsMessageType {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            TlsMessageType::ChangeCipherSpec => *other == TlsMessageType::ChangeCipherSpec,
-            TlsMessageType::Alert => *other == TlsMessageType::Alert,
+            TlsMessageType::ChangeCipherSpec => matches!(other, TlsMessageType::ChangeCipherSpec),
+            TlsMessageType::Alert => matches!(other, TlsMessageType::Alert),
             TlsMessageType::Handshake(handshake_type) => {
                 *handshake_type == None
                     || match other {
@@ -128,8 +127,8 @@ impl PartialEq for TlsMessageType {
                         _ => false,
                     }
             }
-            TlsMessageType::Heartbeat => *other == TlsMessageType::Heartbeat,
-            TlsMessageType::ApplicationData => *other == TlsMessageType::ApplicationData,
+            TlsMessageType::Heartbeat => matches!(other, TlsMessageType::Heartbeat),
+            TlsMessageType::ApplicationData => matches!(other, TlsMessageType::ApplicationData),
         }
     }
 }
@@ -143,6 +142,9 @@ impl TlsMessageType {
                     MessagePayload::Handshake(handshake_payload) => {
                         Some(TlsMessageType::Handshake(Some(handshake_payload.typ)))
                     }
+                    MessagePayload::TLS12EncryptedHandshake(handshake_payload) => {
+                        Some(TlsMessageType::Handshake(None))
+                    }
                     _ => {
                         debug_message_with_info(format!("[GRACEFUL ERROR] [SHOULD NEVER HAPPEN] MessageType computation for")
                                                        .as_str(), &message);
@@ -150,7 +152,22 @@ impl TlsMessageType {
                     }
                 }
             }
+            (ContentType::ApplicationData, _) => Some(TlsMessageType::ApplicationData),
             _ => None,
+        }
+    }
+}
+
+impl TlsMessageType {
+    pub fn specificity(&self) -> u32 {
+        match self {
+            TlsMessageType::Handshake(handshake_type) => {
+                1 + match handshake_type {
+                    None => 0,
+                    Some(_) => 1,
+                }
+            }
+            _ => 0,
         }
     }
 }
@@ -164,14 +181,21 @@ pub struct ObservedId {
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
-impl Eq for ObservedId {}
+impl ObservedId {
+    pub fn specificity(&self) -> u32 {
+        if let Some(tls_message_type) = self.tls_message_type {
+            1 + tls_message_type.specificity()
+        } else {
+            0
+        }
+    }
+}
+
 impl PartialEq for ObservedId {
     fn eq(&self, other: &Self) -> bool {
         self.agent_name == other.agent_name
             && self.counter == other.counter
-            && (self.tls_message_type == None
-                || other.tls_message_type == None
-                || self.tls_message_type == other.tls_message_type)
+            && (self.tls_message_type == None || self.tls_message_type == other.tls_message_type)
     }
 }
 
@@ -252,7 +276,8 @@ impl TraceContext {
         known_count as u16
     }
 
-    /// Returns the first matching variable
+    /// Returns the variable which matches best -> lowest specificity
+    /// If we want a variable with higher specificity, then we can just query more specific
     pub fn find_variable(
         &self,
         type_shape: TypeShape,
@@ -260,14 +285,24 @@ impl TraceContext {
     ) -> Option<&(dyn VariableData)> {
         let type_id: TypeId = type_shape.into();
 
+        let mut possibilities: Vec<&ObservedVariable> = Vec::new();
+
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
 
             if type_id == data.type_id() && observed_id == observed.observed_id {
-                return Some(data);
+                possibilities.push(observed);
             }
         }
-        None
+
+        possibilities.sort_by(|a, b| {
+            a.observed_id
+                .specificity()
+                .cmp(&b.observed_id.specificity())
+        });
+        possibilities
+            .first()
+            .map(|possibility| possibility.data.as_ref())
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
