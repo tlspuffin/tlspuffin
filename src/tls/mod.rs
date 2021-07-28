@@ -5,9 +5,13 @@ use std::convert::{TryFrom, TryInto};
 
 use ring::digest::Digest;
 use ring::hkdf::Prk;
+use ring::{digest, hmac};
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::hash_hs::HandshakeHash;
-use rustls::key_schedule::{KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret, KeyScheduleTrafficWithClientFinishedPending, KeySchedule};
+use rustls::key_schedule::{
+    KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
+    KeyScheduleTrafficWithClientFinishedPending,
+};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::msgs::enums::{ExtensionType, NamedGroup};
 use rustls::msgs::handshake::{
@@ -22,7 +26,6 @@ use fn_impl::*;
 use crate::define_signature;
 use crate::tls::error::FnError;
 use crate::tls::key_exchange::deterministic_key_exchange;
-use ring::{digest, hmac};
 
 pub mod fn_constants;
 pub mod fn_extensions;
@@ -177,9 +180,17 @@ fn dhe_key_schedule(
             Ok(KeyScheduleNonSecret::new(suite.hkdf_algorithm).into_handshake(&shared_secret?))
         }
         (None, Some(psk)) => {
+            // todo this empty secret is not specified in the RFC 8446
             let zeroes = [0u8; digest::MAX_OUTPUT_LEN];
-            Ok(KeyScheduleEarly::new(suite.hkdf_algorithm, psk.as_slice())
-                .into_handshake(&zeroes[..hmac::HMAC_SHA256.digest_algorithm().output_len]))
+            Ok(
+                KeyScheduleEarly::new(suite.hkdf_algorithm, psk.as_slice()).into_handshake(
+                    &zeroes[..suite
+                        .hkdf_algorithm
+                        .hmac_algorithm()
+                        .digest_algorithm()
+                        .output_len],
+                ),
+            )
         }
         (None, None) => Err(FnError::Unknown(
             "Need at least a key share or a psk".to_owned(),
