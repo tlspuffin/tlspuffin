@@ -231,8 +231,13 @@ impl TraceContext {
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
             println!("     [[Debug] observed: type_id: {:#?}, observed: {:#?}\n", data.type_id(), observed);
-            if type_id == data.type_id() {
-                return Some(data);
+            if type_id == data.type_id() && observed_id.agent_name == observed.observed_id.agent_name && observed_id.counter == observed.observed_id.counter {
+                if let (Some(tls_message_type), Some(observed_tls_message_type)) =
+                       (observed_id.tls_message_type, observed.observed_id.tls_message_type) {
+                    if tls_message_type == observed_tls_message_type  {
+                        return Some(data)
+                    }
+                }
             }
         }
         None
