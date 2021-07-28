@@ -102,7 +102,7 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(v) => context
-                .get_variable_by_type_id(v.typ, v.observed_id)
+                .find_variable(v.typ, v.observed_id)
                 .map(|data| data.clone_box_any())
                 .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
             Term::Application(func, args) => {

@@ -8,23 +8,20 @@
 //!
 //! ```rust
 //! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion};
-//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction};
+//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, ObservedId, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use rustls::msgs::enums::Compression;
+//! use rustls::msgs::enums::{Compression, HandshakeType};
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
 //!
 //! let observed_id_ch = ObservedId {
 //!     agent_name: client,
-//!     message_type: MessageType{
-//!         TLS_opaque_type: ContentType::Handshake,
-//!         TLS_handshake_type: Some(HandshakeType::ClientHello),
-//!    },
-//!    counter: 0
+//!     tls_message_type: Some(TlsMessageType::Handshake(HandshakeType::ClientHello)),
+//!     counter: 0
 //! };
 //! let _trace = Trace {
 //! prior_traces: vec![],
@@ -68,6 +65,7 @@
 //!
 
 use core::fmt;
+use std::any::Any;
 use std::cell::RefCell;
 use std::env::var;
 use std::ops::Deref;
@@ -75,12 +73,17 @@ use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
+use rustls::msgs::enums::Compression;
+use rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::{
+    enums::{ContentType, HandshakeType},
+    message::MessagePayload,
+};
+use rustls::{CipherSuite, ProtocolVersion};
 use security_claims::Claim;
-use serde::{Deserialize, Serialize, Deserializer};
-use rustls::msgs::{enums::{ContentType,HandshakeType},
-                   message::MessagePayload};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
@@ -88,54 +91,88 @@ use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
+use crate::term::signature::Signature;
 use crate::tls::error::FnError;
+use crate::tls::fn_messages::fn_client_hello;
 use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::term::signature::Signature;
-use rustls::{ProtocolVersion, CipherSuite};
-use rustls::msgs::handshake::{Random, SessionID, ClientExtension};
-use rustls::msgs::enums::Compression;
-use crate::tls::fn_messages::fn_client_hello;
-use std::any::Any;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
-pub struct TlsMessageType {
-    pub tls_opaque_type: ContentType,
-    pub tls_handshake_type: Option<HandshakeType>, // relevant if opaque = ContentType::Handshake
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash)]
+pub enum TlsMessageType {
+    ChangeCipherSpec,
+    Alert,
+    Handshake(Option<HandshakeType>),
     // TODO [Enhance]: more typing information can be added later, the public interface is the derived traits above
+    ApplicationData,
+    Heartbeat,
+}
+
+impl Eq for TlsMessageType {}
+impl PartialEq for TlsMessageType {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            TlsMessageType::ChangeCipherSpec => *other == TlsMessageType::ChangeCipherSpec,
+            TlsMessageType::Alert => *other == TlsMessageType::Alert,
+            TlsMessageType::Handshake(handshake_type) => {
+                *handshake_type == None
+                    || match other {
+                        TlsMessageType::Handshake(other_handshake_type) => {
+                            other_handshake_type == handshake_type
+                        }
+                        _ => false,
+                    }
+            }
+            TlsMessageType::Heartbeat => *other == TlsMessageType::Heartbeat,
+            TlsMessageType::ApplicationData => *other == TlsMessageType::ApplicationData,
+        }
+    }
 }
 
 impl TlsMessageType {
-    fn from_message_result(message_result: &MessageResult) -> Self {
+    fn from_message_result(message_result: &MessageResult) -> Option<Self> {
         let tls_opaque_type = message_result.1.typ;
-        let tls_handshake_type =
-            match (tls_opaque_type,message_result) {
-                (ContentType::Handshake, MessageResult(Some(message),_))
-                => match &message.payload {
-                    MessagePayload::Handshake(handshake_payload) => Some(handshake_payload.typ),
-                    _ => { debug_message_with_info(format!("[GRACEFUL ERROR] [SHOULD NEVER HAPPEN] MessageType computation for")
+        match (tls_opaque_type, message_result) {
+            (ContentType::Handshake, MessageResult(Some(message), _)) => {
+                match &message.payload {
+                    MessagePayload::Handshake(handshake_payload) => {
+                        Some(TlsMessageType::Handshake(Some(handshake_payload.typ)))
+                    }
+                    _ => {
+                        debug_message_with_info(format!("[GRACEFUL ERROR] [SHOULD NEVER HAPPEN] MessageType computation for")
                                                        .as_str(), &message);
-                           None},
+                        None
+                    }
                 }
-                _ => None,
-        };
-        Self {tls_opaque_type, tls_handshake_type}
+            }
+            _ => None,
+        }
     }
 }
 
 /// [ObservedId] is made of the agent that produced the output, the TLS message type, the internal type
 /// and a unique counter, which is useful only if this does not single out a message.
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone, Copy, Hash)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash)]
 pub struct ObservedId {
     pub agent_name: AgentName,
-    pub tls_message_type: TlsMessageType,
-    pub counter: u16,                      // in case an agent sends multiple messages of the same type
+    pub tls_message_type: Option<TlsMessageType>,
+    pub counter: u16, // in case an agent sends multiple messages of the same type
+}
+
+impl Eq for ObservedId {}
+impl PartialEq for ObservedId {
+    fn eq(&self, other: &Self) -> bool {
+        self.agent_name == other.agent_name
+            && self.counter == other.counter
+            && (self.tls_message_type == None
+                || other.tls_message_type == None
+                || self.tls_message_type == other.tls_message_type)
+    }
 }
 
 impl fmt::Display for ObservedId {
@@ -143,9 +180,7 @@ impl fmt::Display for ObservedId {
         write!(
             f,
             "@{}:{:?}#{}",
-            self.agent_name,
-            self.tls_message_type,
-            self.counter
+            self.agent_name, self.tls_message_type, self.counter
         )
     }
 }
@@ -180,7 +215,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    claimer: Rc<RefCell<VecClaimer>>
+    claimer: Rc<RefCell<VecClaimer>>,
 }
 
 impl TraceContext {
@@ -199,21 +234,26 @@ impl TraceContext {
     }
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
-    pub fn number_matching_message(&self, agent: AgentName, type_id: TypeId, tls_message_type: TlsMessageType) -> u16 {
+    pub fn number_matching_message(
+        &self,
+        agent: AgentName,
+        type_id: TypeId,
+        tls_message_type: Option<TlsMessageType>,
+    ) -> u16 {
         let known_count = self
             .knowledge
             .iter()
-            .filter(|knowledge|
-                knowledge.observed_id.agent_name == agent &&
-                    knowledge.observed_id.tls_message_type == tls_message_type &&
-                    knowledge.data.as_ref().type_id() == type_id
-            )
+            .filter(|knowledge| {
+                knowledge.observed_id.agent_name == agent
+                    && knowledge.observed_id.tls_message_type == tls_message_type
+                    && knowledge.data.as_ref().type_id() == type_id
+            })
             .count();
         known_count as u16
     }
 
     /// Returns the first matching variable
-    pub fn get_variable_by_type_id(
+    pub fn find_variable(
         &self,
         type_shape: TypeShape,
         observed_id: ObservedId,
@@ -223,9 +263,8 @@ impl TraceContext {
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
 
-            if type_id == data.type_id() &&
-                observed_id == observed.observed_id {
-                        return Some(data)
+            if type_id == data.type_id() && observed_id == observed.observed_id {
+                return Some(data);
             }
         }
         None
@@ -436,8 +475,9 @@ impl OutputAction {
     fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         ctx.next_state(step.agent)?;
 
-
-        while let Some(MessageResult(message_o, opaque_message)) = ctx.take_message_from_outbound(step.agent)? {
+        while let Some(MessageResult(message_o, opaque_message)) =
+            ctx.take_message_from_outbound(step.agent)?
+        {
             let message_result = MessageResult(message_o, opaque_message);
             let message_o = &message_result.0;
             let opaque_message = &message_result.1;
@@ -450,28 +490,38 @@ impl OutputAction {
 
                     for variable in knowledge {
                         let tls_message_type = TlsMessageType::from_message_result(&message_result);
-                        let type_id = variable.as_ref().type_id();
-                        let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
+                        let data_type_id = variable.as_ref().type_id();
+                        let counter =
+                            ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
                         let observed_id = ObservedId {
                             agent_name: step.agent,
                             tls_message_type,
-                            counter};
-                        trace!("New knowledge {:?}/{}", observed_id, variable.type_name());
+                            counter,
+                        };
+                        trace!("New knowledge {}/{}", observed_id, variable.type_name());
                         ctx.add_knowledge(observed_id, variable)
                     }
                 }
                 None => {}
             }
 
-            debug_opaque_message_with_info(format!("Output opaque message").as_str(), &opaque_message);
+            debug_opaque_message_with_info(
+                format!("Output opaque message").as_str(),
+                &opaque_message,
+            );
             let tls_message_type = TlsMessageType::from_message_result(&message_result);
             let type_id = std::any::Any::type_id(opaque_message); //LH: not sure about that
             let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
             let observed_id = ObservedId {
                 agent_name: step.agent,
                 tls_message_type,
-                counter};
-            trace!("New knowledge {:?}/{}", observed_id, opaque_message.type_name());
+                counter,
+            };
+            trace!(
+                "New knowledge {}/{}",
+                observed_id,
+                opaque_message.type_name()
+            );
             ctx.add_knowledge(observed_id, Box::new(message_result.1));
         }
         Ok(())

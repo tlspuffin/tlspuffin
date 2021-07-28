@@ -25,26 +25,21 @@ use rustls::msgs::enums;
 use std::any::TypeId;
 use rustls::msgs::enums::HandshakeType;
 
-fn hs_type(enu: TypeId) -> HandshakeType {
-  panic!(); // TODO LH: I thought I could do this "coerce" automatically in the macro below, actually I would need to implement this function first :(
-}
-
-// todo we could improve performance by not recreating these
 #[macro_export]
 macro_rules! term {
     // Variables
     (($agent:expr, $counter:expr) / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, hs_type($typ), $counter); // Hopefully, we can automatically "coerce" the type into a HandshakeType here
+        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter); // Hopefully, we can automatically "coerce" the type into a HandshakeType here
         $crate::term::Term::Variable(var)
     }};
 
      (($agent:expr, $counter:expr) H[$tls_typ:expr] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, $tls_typ, $counter); // explicitely giving an handshake type
+        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter); // explicitely giving an handshake type
         $crate::term::Term::Variable(var)
     }};
 
      (($agent:expr, $counter:expr) [tls_typ:expr] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_no_handshake::<$typ>($agent, $tls_typ, $counter); // explicitely giving a non-handhskae ContentType
+        let var = $crate::term::signature::Signature::new_var_no_handshake::<$typ>($agent, None, $counter); // explicitely giving a non-handhskae ContentType
         $crate::term::Term::Variable(var)
     }};
 
