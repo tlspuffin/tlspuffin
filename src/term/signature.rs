@@ -15,7 +15,8 @@ use crate::{
 
 use super::atoms::Function;
 use crate::agent::{Agent, AgentName};
-
+use crate::trace::TlsMessageType;
+use rustls::msgs::{enums::{ContentType,HandshakeType}};
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
 /// Records a universe of functions.
@@ -89,10 +90,25 @@ impl Signature {
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)
     }
 
-    pub fn new_var_no_type<T: 'static>(agent_name: AgentName, counter: u16) -> Variable {
+    pub fn new_var_handshake<T: 'static>(agent_name: AgentName, tls_handshake_type: HandshakeType,  counter: u16) -> Variable {
         let observed_id = ObservedId {
             agent_name,
-            tls_message_type: None,
+            tls_message_type: TlsMessageType{
+                tls_opaque_type: ContentType::Handshake,
+                tls_handshake_type: Some(tls_handshake_type),
+            },
+            counter,
+        };
+        Self::new_var_internal(TypeShape::of::<T>(), observed_id)
+    }
+
+    pub fn new_var_no_handshake<T: 'static>(agent_name: AgentName, tls_opaque_type: ContentType,  counter: u16) -> Variable {
+        let observed_id = ObservedId {
+            agent_name,
+            tls_message_type: TlsMessageType {
+                tls_opaque_type,
+                tls_handshake_type: None
+            },
             counter,
         };
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)
