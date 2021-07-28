@@ -1,6 +1,8 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crahes OpenSSL.
 
+use rustls::internal::msgs::enums::HandshakeType;
+use rustls::msgs::enums::HandshakeType::ServerHello;
 use rustls::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::{Message, OpaqueMessage};
 use rustls::{
@@ -19,8 +21,6 @@ use crate::{
     term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
-use rustls::internal::msgs::enums::HandshakeType;
-use rustls::msgs::enums::HandshakeType::ServerHello;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -38,10 +38,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
             },
         ],
         steps: vec![
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction { id: 0 }),
-            },
+            OutputAction::new_step(client),
             // Client Hello Client -> Server
             Step {
                 agent: server,
@@ -57,10 +54,6 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                         )
                     },
                 }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 1 }),
             },
             // Server Hello Server -> Client
             Step {
@@ -122,10 +115,6 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                     },
                 }),
             },
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction { id: 2 }),
-            },
             // Finished Client -> Server
             Step {
                 agent: server,
@@ -157,7 +146,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             },
         ],
         steps: vec![
-            OutputAction::new_step(client, 0),
+            OutputAction::new_step(client),
             // Client Hello, Client -> Server
             InputAction::new_step(
                 server,
@@ -172,7 +161,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                     )
                 },
             ),
-            OutputAction::new_step(server, 1),
             // Server Hello, Server -> Client
             InputAction::new_step(
                 client,
@@ -218,10 +206,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                     },
                 }),
             },
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction { id: 2 }),
-            },
             // Client Key Exchange, Client -> Server
             Step {
                 agent: server,
@@ -256,10 +240,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                         )
                     },
                 }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction { id: 3 }),
             },
             // Ticket, Server -> Client
             Step {
@@ -300,9 +280,9 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace {
     let mut trace = seed_successful(client, server);
 
-    // CCS Server -> Client, at index 4
+    // CCS Server -> Client
     trace.steps.insert(
-        4,
+        3,
         Step {
             agent: client,
             action: Action::Input(InputAction {
@@ -314,7 +294,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace {
     );
 
     trace.steps.insert(
-        10,
+        8,
         Step {
             agent: server,
             action: Action::Input(InputAction {
@@ -333,7 +313,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
 
     trace.steps.push(Step {
         agent: server,
-        action: Action::Output(OutputAction { id: 3 }),
+        action: Action::Output(OutputAction {}),
     });
     // Ticket
     trace.steps.push(Step {
@@ -508,7 +488,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction { id: 0 }),
+                action: Action::Output(OutputAction {}),
             },
             Step {
                 agent: server,
@@ -526,7 +506,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction { id: 1 }),
+                action: Action::Output(OutputAction {}),
             },
         ],
     };
@@ -653,7 +633,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction { id: 0 }),
+                action: Action::Output(OutputAction {}),
             },
             Step {
                 agent: server,
@@ -835,7 +815,6 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
             },
         ],
         steps: vec![
-            OutputAction::new_step(client, 0),
             // Client Hello, Client -> Server
             InputAction::new_step(
                 server,
@@ -853,7 +832,6 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                     )
                 },
             ),
-            OutputAction::new_step(server, 1),
             // Server Hello, Server -> Client
             InputAction::new_step(
                 client,
@@ -898,10 +876,6 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                         fn_server_hello_done
                     },
                 }),
-            },
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction { id: 2 }),
             },
             // Client Key Exchange, Client -> Server
             Step {
@@ -1080,7 +1054,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction { id: 10 }),
+                action: Action::Output(OutputAction {}),
             },
             Step {
                 agent: server,
@@ -1255,10 +1229,9 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction { id: 10 }),
+                action: Action::Output(OutputAction {}),
             },
-
-/*            Step {
+            /*            Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
@@ -1287,7 +1260,6 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     trace
 }
-
 
 fn fn_debug(message: &Message) -> Result<Message, crate::tls::error::FnError> {
     dbg!(message);

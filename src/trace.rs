@@ -65,41 +65,41 @@
 //!
 
 use core::fmt;
+use std::{any::TypeId, fmt::Formatter};
 use std::any::Any;
 use std::cell::RefCell;
 use std::env::var;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
-use rustls::msgs::enums::Compression;
-use rustls::msgs::handshake::{ClientExtension, Random, SessionID};
-use rustls::msgs::message::Message;
-use rustls::msgs::message::OpaqueMessage;
+use rustls::{CipherSuite, ProtocolVersion};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::MessagePayload,
 };
-use rustls::{CipherSuite, ProtocolVersion};
+use rustls::msgs::enums::Compression;
+use rustls::msgs::handshake::{ClientExtension, Random, SessionID};
+use rustls::msgs::message::Message;
+use rustls::msgs::message::OpaqueMessage;
 use security_claims::Claim;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::agent::{AgentDescriptor, TLSVersion};
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::io::{MessageResult, Stream};
-use crate::term::signature::Signature;
-use crate::tls::error::FnError;
-use crate::tls::fn_messages::fn_client_hello;
-use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
+use crate::io::{MessageResult, Stream};
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::term::signature::Signature;
+use crate::tls::error::FnError;
+use crate::tls::fn_messages::fn_client_hello;
+use crate::violation::is_violation;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -414,7 +414,23 @@ impl Trace {
         for i in 0..steps.len() {
             let step = &steps[i];
             trace!("Executing step #{}", i);
+
             step.action.execute(step, ctx)?;
+
+            // Output after each InputAction step
+            match step.action {
+                Action::Input(_) => {
+                    let output_step = &Step {
+                        agent: step.agent,
+                        action: Action::Output(OutputAction {}),
+                    };
+
+                    output_step.action.execute(output_step, ctx)?;
+                }
+                Action::Output(_) => {}
+            }
+
+
 
             execution_listener(step);
         }
@@ -495,15 +511,13 @@ impl fmt::Display for Action {
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct OutputAction {
-    pub id: u16,
-}
+pub struct OutputAction {}
 
 impl OutputAction {
-    pub fn new_step(agent: AgentName, id: u16) -> Step {
+    pub fn new_step(agent: AgentName) -> Step {
         Step {
             agent,
-            action: Action::Output(OutputAction { id }),
+            action: Action::Output(OutputAction {}),
         }
     }
 

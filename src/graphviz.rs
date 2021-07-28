@@ -49,10 +49,9 @@ impl Trace {
                     )
                 }
                 Action::Output(output) => format!(
-                    "subgraph cluster{} {{ label=\"{} - ({},)\" \"\" [color=\"#00000000\"]; }}",
+                    "subgraph cluster{} {{ label=\"{}\" \"\" [color=\"#00000000\"]; }}",
                     i,
-                    subgraph_name.as_str(),
-                    output.id
+                    subgraph_name.as_str()
                 ),
             };
 
