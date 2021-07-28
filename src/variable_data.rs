@@ -14,7 +14,7 @@ use rustls::{
 };
 use crate::error::Error;
 
-pub trait VariableData {
+pub trait VariableData: std::fmt::Debug {
     fn clone_box(&self) -> Box<dyn VariableData>;
     fn clone_box_any(&self) -> Box<dyn Any>;
     fn type_id(&self) -> TypeId;
@@ -23,7 +23,7 @@ pub trait VariableData {
 
 /// A VariableData is cloneable and has a `'static` type. This data type is used throughout
 /// tlspuffin to handle data of dynamic size.
-impl<T: 'static> VariableData for T
+impl<T: 'static + std::fmt::Debug> VariableData for T
 where
     T: Clone,
 {

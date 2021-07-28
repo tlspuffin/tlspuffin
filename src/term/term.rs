@@ -83,7 +83,7 @@ impl Term {
     fn display_at_depth(&self, depth: usize) -> String {
         let tabs = "\t".repeat(depth);
         match self {
-            Term::Variable(ref v) => format!("{}{}", tabs, remove_prefix(v.typ.name)),
+            Term::Variable(ref v) => format!("{}{}", tabs, v),
             Term::Application(ref func, ref args) => {
                 let op_str = remove_prefix(func.name());
                 if args.is_empty() {

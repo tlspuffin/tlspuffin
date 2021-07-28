@@ -152,6 +152,7 @@ impl fmt::Display for ObservedId {
 }
 
 /// [ObservedVariavble] describes an atomic TLS message (e.g., ClientHello(ProtocolVersion)).
+#[derive(Debug)]
 struct ObservedVariable {
     observed_id: ObservedId,
     data: Box<dyn VariableData>,
@@ -225,10 +226,12 @@ impl TraceContext {
         observed_id: ObservedId,
     ) -> Option<&(dyn VariableData)> {
         let type_id: TypeId = type_shape.into();
+        println!("[[Debug] type_id: {:#?} | observed_id: {:#?}]\n", type_shape, observed_id);
 
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            if type_id == data.type_id() && observed_id == observed.observed_id {
+            println!("     [[Debug] observed: type_id: {:#?}, observed: {:#?}\n", data.type_id(), observed);
+            if type_id == data.type_id() {
                 return Some(data);
             }
         }
