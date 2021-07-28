@@ -27,6 +27,7 @@
 //!    counter: 0
 //! };
 //! let _trace = Trace {
+//! prior_traces: vec![],
 //! descriptors: vec![
 //!     AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
 //!     AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
@@ -54,7 +55,6 @@
 //! ]
 //! };
 //! let mut ctx = TraceContext::new();
-//! trace.spawn_agents(&mut ctx).unwrap();
 //! trace.execute(&mut ctx).unwrap();
 //! ```
 //!
@@ -68,11 +68,11 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, fmt::Formatter};
 use std::cell::RefCell;
 use std::env::var;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
 use rustls::msgs::message::Message;
@@ -82,19 +82,19 @@ use serde::{Deserialize, Serialize, Deserializer};
 use rustls::msgs::{enums::{ContentType,HandshakeType},
                    message::MessagePayload};
 
+use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::io::{MessageResult, Stream};
+use crate::tls::error::FnError;
+use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::agent::{AgentDescriptor, TLSVersion};
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-use crate::io::{MessageResult, Stream};
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::tls::error::FnError;
-use crate::violation::is_violation;
 use crate::term::signature::Signature;
 use rustls::{ProtocolVersion, CipherSuite};
 use rustls::msgs::handshake::{Random, SessionID, ClientExtension};
@@ -137,7 +137,6 @@ pub struct ObservedId {
     pub tls_message_type: TlsMessageType,
     pub counter: u16,                      // in case an agent sends multiple messages of the same type
 }
-// TODO: remove outputs from the seed and force outputs
 
 impl fmt::Display for ObservedId {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -164,9 +163,7 @@ pub struct VecClaimer {
 
 impl VecClaimer {
     pub fn new() -> Self {
-        Self {
-            claims: vec![]
-        }
+        Self { claims: vec![] }
     }
 
     pub fn claim(&mut self, name: AgentName, claim: Claim) {
@@ -183,8 +180,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    claimer: Rc<RefCell<VecClaimer>>,  // LH: to discuss live: why do you use Rc<RefCell< here? The
-    // TraceContext could use standard reference + the lifetime of VecClaimer, couldn't it?
+    claimer: Rc<RefCell<VecClaimer>>
 }
 
 impl TraceContext {
@@ -204,7 +200,8 @@ impl TraceContext {
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
     pub fn number_matching_message(&self, agent: AgentName, type_id: TypeId, tls_message_type: TlsMessageType) -> u16 {
-        let known_count = self.knowledge
+        let known_count = self
+            .knowledge
             .iter()
             .filter(|knowledge|
                 knowledge.observed_id.agent_name == agent &&
@@ -222,11 +219,10 @@ impl TraceContext {
         observed_id: ObservedId,
     ) -> Option<&(dyn VariableData)> {
         let type_id: TypeId = type_shape.into();
-        println!("[[Debug] type_id: {:#?} | observed_id: {:#?}]\n", type_shape, observed_id);
 
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
-            println!("     [[Debug] observed: type_id: {:#?}, observed: {:#?}\n", data.type_id(), observed);
+
             if type_id == data.type_id() &&
                 observed_id == observed.observed_id {
                         return Some(data)
@@ -289,12 +285,19 @@ impl TraceContext {
                 name
             )))
     }
+
+    pub fn reset_agents(&mut self) {
+        for agent in &mut self.agents {
+            agent.reset();
+        }
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
+    pub prior_traces: Vec<Trace>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
@@ -302,15 +305,29 @@ pub struct Trace {
 /// *AgentDescritptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl Trace {
-    pub fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            ctx.new_openssl_agent(&descriptor)?;
+            if !ctx
+                .agents
+                .iter()
+                .map(|agent| agent.descriptor)
+                .any(|existing| existing == *descriptor)
+            {
+                // only spawn if not yet existing
+                ctx.new_openssl_agent(&descriptor)?;
+            }
         }
 
         Ok(())
     }
 
     pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+        for trace in &self.prior_traces {
+            self.spawn_agents(ctx)?;
+            trace.execute(ctx)?;
+            ctx.reset_agents();
+        }
+        self.spawn_agents(ctx)?;
         self.execute_with_listener(ctx, |_step| {})
     }
 
@@ -332,19 +349,17 @@ impl Trace {
 
         trace!(
             "Claims:\n{}",
-            &claims.iter().map(|(name, claim)| format!("{}: {}", name, claim)).join("\n")
+            &claims
+                .iter()
+                .map(|(name, claim)| format!("{}: {}", name, claim))
+                .join("\n")
         );
 
         if let Some(msg) = is_violation(claims) {
             return Err(Error::SecurityClaim(msg, claims.clone()));
-            // LH: Why do you return only one violated security claim? What if there are many?
         }
 
         Ok(())
-    }
-
-    pub fn update_types(mut self) -> Self {
-        self // TODO: replace None by Some(tls_message_type)
     }
 }
 
@@ -388,7 +403,7 @@ pub enum Action {
 impl Action {
     fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
         match self {
-            Action::Input(input) => input.input(step, ctx), // LH: Why do you give step as argument here? Isn'it supposed to be self?
+            Action::Input(input) => input.input(step, ctx),
             Action::Output(output) => output.output(step, ctx),
         }
     }
@@ -496,10 +511,7 @@ impl InputAction {
 
             debug_message_with_info(format!("Input message").as_str(), msg);
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
-            ctx.add_to_inbound(
-                step.agent,
-                &opaque_message.clone(),
-            )?;
+            ctx.add_to_inbound(step.agent, &opaque_message.clone())?;
 
             debug_opaque_message_with_info(
                 format!("Input opaque message").as_str(),
@@ -509,7 +521,7 @@ impl InputAction {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
             ))
-                .into());
+            .into());
         }
 
         ctx.next_state(step.agent)

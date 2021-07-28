@@ -19,10 +19,6 @@ pub fn harness(input: &Trace) -> ExitKind {
         }
     }
 
-    if let Err(err) = input.spawn_agents(&mut ctx) {
-        trace!("{}", err);
-    }
-
     if let Err(err) = input.execute(&mut ctx) {
         match &err {
             Error::Fn(_) => {

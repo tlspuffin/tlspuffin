@@ -6,6 +6,5 @@ fn main() {
     let server = client.next();
     let trace = seed_successful(client, server);
 
-    trace.spawn_agents(&mut ctx).unwrap();
     trace.execute(&mut ctx).unwrap();
 }

@@ -16,12 +16,20 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = ["openssl/asan"]
 
 # Lastest OpenSSL 1.1.1
-openssl111 = ["openssl/vendored-openssl111", "openssl/weak-crypto", "claims", "tls13"] # We want to allow weak-crypto for FREAK
+openssl111 = [
+    "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "tls13", "session-resumption", "deterministic",
+    "claims",
+]
 # Some LibreSSL version
 libressl = ["openssl/vendored-libressl", "tls13"]
 
-# Defines that the PUT supports TLS 1.3
+# PUT supports TLS 1.3
 tls13 = []
+# PUT supports session resumption
+session-resumption = []
+# PUT is determinisitic
+deterministic = []
 
 # Require the PUT to implement the claim-interface.h
 claims = []
@@ -73,7 +81,7 @@ chrono = "0.4"
 
 # OpenSSL
 # Uses build scripts from './openssl-src'
-openssl = { path = "rust-openssl/openssl", features = ["sancov", "no-rand"] }
+openssl = { path = "rust-openssl/openssl", features = ["sancov"] }
 foreign-types-shared = "0.1"
 security-claims = { path = "security-claims" }
 

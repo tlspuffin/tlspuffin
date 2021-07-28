@@ -37,14 +37,14 @@ impl fmt::Display for AgentName {
 
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-#[derive(Debug, Copy, Clone, Deserialize, Serialize)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct AgentDescriptor {
     pub name: AgentName,
     pub tls_version: TLSVersion,
     pub server: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
@@ -71,6 +71,10 @@ impl Agent {
         );
 
         Ok(agent)
+    }
+
+    pub fn reset(&mut self) {
+        self.stream.reset();
     }
 
     fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {

@@ -170,7 +170,6 @@ fn main() {
         let trace = postcard::from_bytes::<trace::Trace>(&buffer).unwrap();
 
         let mut ctx = TraceContext::new();
-        trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("experiment") {
         let title = value_t!(matches, "title", String).unwrap();

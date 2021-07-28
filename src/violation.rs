@@ -4,7 +4,7 @@ use security_claims::{Claim, ClaimType};
 use crate::agent::AgentName;
 
 pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
-    if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_finished_messages(claims) {
+    if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
                 return Some("Mismatching versions");
@@ -103,13 +103,21 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
     None
 }
 
-pub fn find_finished_messages(
+pub fn find_two_finished_messages(
     claims: &Vec<(AgentName, Claim)>,
 ) -> Option<(&(AgentName, Claim), &(AgentName, Claim))> {
-    let two_finishes = claims
+    let two_finishes: Option<(&(AgentName, Claim), &(AgentName, Claim))>  = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();
+
+    if let Some(((agent_a, _), (agent_b, _))) = two_finishes {
+        if agent_a == agent_b {
+            // One agent finished twice because of session resumption
+            return None
+        }
+    }
+
 
     two_finishes
 }
