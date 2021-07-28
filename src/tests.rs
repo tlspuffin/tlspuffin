@@ -118,6 +118,7 @@ pub mod seeds {
         let client = AgentName::first();
         let server = client.next();
         let trace = seed_successful(client, server);
+        println!("{}", trace);
 
         trace.spawn_agents(&mut ctx).unwrap();
         trace.execute(&mut ctx).unwrap();

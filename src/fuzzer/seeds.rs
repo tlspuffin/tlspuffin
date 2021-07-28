@@ -45,12 +45,12 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_hello(
-                            ((0, 0)/ProtocolVersion),
-                            ((0, 0)/Random),
-                            ((0, 0)/SessionID),
-                            ((0, 0)/Vec<CipherSuite>),
-                            ((0, 0)/Vec<Compression>),
-                            ((0, 0)/Vec<ClientExtension>)
+                            ((client, 0)/ProtocolVersion),
+                            ((client, 0)/Random),
+                            ((client, 0)/SessionID),
+                            ((client, 0)/Vec<CipherSuite>),
+                            ((client, 0)/Vec<Compression>),
+                            ((client, 0)/Vec<ClientExtension>)
                         )
                     },
                 }),
@@ -65,12 +65,12 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_hello(
-                            ((1, 0)/ProtocolVersion),
-                            ((1, 0)/Random),
-                            ((1, 0)/SessionID),
-                            ((1, 0)/CipherSuite),
-                            ((1, 0)/Compression),
-                            ((1, 0)/Vec<ServerExtension>)
+                            ((server, 0)/ProtocolVersion),
+                            ((server, 0)/Random),
+                            ((server, 0)/SessionID),
+                            ((server, 0)/CipherSuite),
+                            ((server, 0)/Compression),
+                            ((server, 0)/Vec<ServerExtension>)
                         )
                     },
                 }),
@@ -81,7 +81,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 0)/Vec<u8>)
+                            ((server, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -92,7 +92,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 1)/Vec<u8>)
+                            ((server, 1)/Vec<u8>)
                         )
                     },
                 }),
@@ -103,7 +103,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 2)/Vec<u8>)
+                            ((server, 2)/Vec<u8>)
                         )
                     },
                 }),
@@ -114,7 +114,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((1, 3)/Vec<u8>)
+                            ((server, 3)/Vec<u8>)
                         )
                     },
                 }),
@@ -129,13 +129,13 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((2, 0)/Vec<u8>)
+                            ((client, 0)/Vec<u8>)
                         )
                     },
                 }),
             }
         ],
-    }
+    }.update_types()
 }
 
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
@@ -159,12 +159,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 server,
                 term! {
                     fn_client_hello(
-                        ((0, 0)/ProtocolVersion),
-                        ((0, 0)/Random),
-                        ((0, 0)/SessionID),
-                        ((0, 0)/Vec<CipherSuite>),
-                        ((0, 0)/Vec<Compression>),
-                        ((0, 0)/Vec<ClientExtension>)
+                        ((client, 0)/ProtocolVersion),
+                        ((client, 0)/Random),
+                        ((client, 0)/SessionID),
+                        ((client, 0)/Vec<CipherSuite>),
+                        ((client, 0)/Vec<Compression>),
+                        ((client, 0)/Vec<ClientExtension>)
                     )
                 },
             ),
@@ -174,12 +174,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 client,
                 term! {
                         fn_server_hello(
-                            ((1, 0)/ProtocolVersion),
-                            ((1, 0)/Random),
-                            ((1, 0)/SessionID),
-                            ((1, 0)/CipherSuite),
-                            ((1, 0)/Compression),
-                            ((1, 0)/Vec<ServerExtension>)
+                            ((server, 0)/ProtocolVersion),
+                            ((server, 0)/Random),
+                            ((server, 0)/SessionID),
+                            ((server, 0)/CipherSuite),
+                            ((server, 0)/Compression),
+                            ((server, 0)/Vec<ServerExtension>)
                         )
                 },
             ),
@@ -189,7 +189,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_certificate(
-                            ((1, 0)/CertificatePayload)
+                            ((server, 0)/CertificatePayload)
                         )
                     },
                 }),
@@ -200,7 +200,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(
-                            ((1, 0)/Vec<u8>)
+                            ((server, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -224,7 +224,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((2, 0)/Vec<u8>)
+                            ((client, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -248,7 +248,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((2, 2)/OpaqueMessage)
+                            ((client, 2)/OpaqueMessage)
                         )
                     },
                 }),
@@ -263,8 +263,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_new_session_ticket(
-                            ((3, 0)/u64),
-                            ((3, 0)/Vec<u8>)
+                            ((client, 0)/u64),
+                            ((client, 0)/Vec<u8>)
                         )
                     },
                 }),
@@ -284,7 +284,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((3, 2)/OpaqueMessage)
+                            ((server, 2)/OpaqueMessage)
                         )
                     },
                 }),
@@ -331,7 +331,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((3, 0)/Vec<u8>)
+                    ((server, 0)/Vec<u8>)
                 )
             },
         }),
@@ -342,7 +342,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((3, 1)/Vec<u8>)
+                    ((server, 1)/Vec<u8>)
                 )
             },
         }),
@@ -384,7 +384,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((0, 0)/Message) // plaintext ServerHello
+            ((server, 0)/Message) // plaintext ServerHello
         )
     };
 
@@ -392,8 +392,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let encrypted_extensions = term! {
         fn_decrypt(
-            ((0, 1)/Message), // Encrypted Extensions
-            ((0, 0)/Vec<ServerExtension>),
+            ((server, 1)/Message), // Encrypted Extensions
+            ((server, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_0  // sequence 0
         )
@@ -408,8 +408,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_certificate = term! {
         fn_decrypt(
-            ((0, 2)/Message),// Server Certificate
-            ((0, 0)/Vec<ServerExtension>),
+            ((server, 2)/Message),// Server Certificate
+            ((server, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_1 // sequence 1
         )
@@ -424,8 +424,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_certificate_verify = term! {
         fn_decrypt(
-            ((0, 3)/Message), // Server Certificate Verify
-            ((0, 0)/Vec<ServerExtension>),
+            ((server, 3)/Message), // Server Certificate Verify
+            ((server, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_2 // sequence 2
         )
@@ -440,8 +440,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
 
     let server_finished = term! {
         fn_decrypt(
-            ((0, 4)/Message), // Server Handshake Finished
-            ((0, 0)/Vec<ServerExtension>),
+            ((server, 4)/Message), // Server Handshake Finished
+            ((server, 0)/Vec<ServerExtension>),
             (@server_hello_transcript),
             fn_seq_3 // sequence 3
         )
@@ -482,12 +482,12 @@ pub fn seed_client_attacker(server: AgentName) -> Trace {
                         fn_encrypt(
                             (fn_finished(
                                 (fn_verify_data(
-                                    ((0, 0)/Vec<ServerExtension>),
+                                    ((server, 0)/Vec<ServerExtension>),
                                     (@server_finished_transcript),
                                     (@server_hello_transcript)
                                 ))
                             )),
-                            ((0, 0)/Vec<ServerExtension>),
+                            ((server, 0)/Vec<ServerExtension>),
                             (@server_hello_transcript),
                             fn_seq_0  // sequence 0
                         )
@@ -550,28 +550,28 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                 fn_new_transcript12,
                 (@client_hello) // ClientHello
             )),
-            ((0, 0)/Message) // plaintext ServerHello
+            ((server, 0)/Message) // plaintext ServerHello
         )
     };
 
     let certificate_transcript = term! {
         fn_append_transcript(
             (@server_hello_transcript),
-            ((0, 1)/Message) // Certificate
+            ((server, 1)/Message) // Certificate
         )
     };
 
     let server_key_exchange_transcript = term! {
       fn_append_transcript(
             (@certificate_transcript),
-            ((0, 2)/Message) // ServerKeyExchange
+            ((server, 2)/Message) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript = term! {
       fn_append_transcript(
             (@server_key_exchange_transcript),
-            ((0, 3)/Message) // ServerHelloDone
+            ((server, 3)/Message) // ServerHelloDone
         )
     };
 
@@ -579,7 +579,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
         fn_client_key_exchange(
             (fn_new_pubkey12(
                 (fn_decode_ecdh_params(
-                    ((0, 0)/Vec<u8>) // ServerECDHParams
+                    ((server, 0)/Vec<u8>) // ServerECDHParams
                 ))
             ))
         )
@@ -594,9 +594,9 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
 
     let client_verify_data = term! {
         fn_sign_transcript(
-            ((0, 0)/Random),
+            ((server, 0)/Random),
             (fn_decode_ecdh_params(
-                ((0, 0)/Vec<u8>) // ServerECDHParams
+                ((server, 0)/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript)
         )
@@ -639,9 +639,9 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                     recipe: term! {
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
-                            ((0, 0)/Random),
+                            ((server, 0)/Random),
                             (fn_decode_ecdh_params(
-                                ((0, 0)/Vec<u8>) // ServerECDHParams
+                                ((server, 0)/Vec<u8>) // ServerECDHParams
                             )),
                             fn_seq_0
                         )
@@ -695,9 +695,9 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace {
             recipe: term! {
                 fn_encrypt12(
                     (@renegotiation_client_hello),
-                    ((0, 0)/Random),
+                    ((server, 0)/Random),
                     (fn_decode_ecdh_params(
-                        ((0, 2)/Vec<u8>) // ServerECDHParams
+                        ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
                     fn_seq_1
                 )
@@ -711,9 +711,9 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace {
             recipe: term! {
                 fn_encrypt12(
                     fn_alert_close_notify,
-                    ((0, 0)/Random),
+                    ((server, 0)/Random),
                     (fn_decode_ecdh_params(
-                        ((0, 2)/Vec<u8>) // ServerECDHParams
+                        ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
                     fn_seq_1
                 )
@@ -806,15 +806,15 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 server,
                 term! {
                     fn_client_hello(
-                        ((0, 0)/ProtocolVersion),
-                        ((0, 0)/Random),
-                        ((0, 0)/SessionID),
+                        ((client, 0)/ProtocolVersion),
+                        ((client, 0)/Random),
+                        ((client, 0)/SessionID),
                         (fn_append_cipher_suite(
                             (fn_new_cipher_suites()),
                             fn_weak_export_cipher_suite
                         )),
-                        ((0, 0)/Vec<Compression>),
-                        ((0, 0)/Vec<ClientExtension>)
+                        ((client, 0)/Vec<Compression>),
+                        ((client, 0)/Vec<ClientExtension>)
                     )
                 },
             ),
@@ -824,12 +824,12 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 client,
                 term! {
                         fn_server_hello(
-                            ((1, 0)/ProtocolVersion),
-                            ((1, 0)/Random),
-                            ((1, 0)/SessionID),
+                            ((server, 0)/ProtocolVersion),
+                            ((server, 0)/Random),
+                            ((server, 0)/SessionID),
                             (fn_secure_rsa_cipher_suite12),
-                            ((1, 0)/Compression),
-                            ((1, 0)/Vec<ServerExtension>)
+                            ((server, 0)/Compression),
+                            ((server, 0)/Vec<ServerExtension>)
                         )
                 },
             ),
@@ -839,7 +839,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_certificate(
-                            ((1, 1)/CertificatePayload)
+                            ((server, 1)/CertificatePayload)
                         )
                     },
                 }),
@@ -850,7 +850,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange( // check whether the client rejects this if it does not support export
-                            ((1, 2)/Vec<u8>)
+                            ((server, 2)/Vec<u8>)
                         )
                     },
                 }),
@@ -874,7 +874,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((2, 0)/Vec<u8>)
+                            ((client, 0)/Vec<u8>)
                         )
                     },
                 }),

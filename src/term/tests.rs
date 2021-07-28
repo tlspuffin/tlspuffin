@@ -13,6 +13,8 @@ use crate::{term::Term, trace::TraceContext};
 use ring::test::rand::FixedByteRandom;
 use ring::hmac::Key;
 use ring::hmac;
+use crate::agent::AgentName;
+use crate::trace::ObservedId;
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     let random = FixedByteRandom { byte: 12 };
@@ -26,6 +28,7 @@ pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
 
 fn test_compilation() {
     // reminds me of Lisp, lol
+    let client = AgentName::first();
     let _test_nested_with_variable = term! {
        fn_client_hello(
             (fn_client_hello(
@@ -34,7 +37,7 @@ fn test_compilation() {
                 (fn_client_hello(fn_protocol_version12,
                     fn_new_random,
                     fn_new_random,
-                    ((0,0)/ProtocolVersion)
+                    ((client,0)/ProtocolVersion)
                 ))
             )),
             fn_new_random
@@ -49,10 +52,10 @@ fn test_compilation() {
        fn_protocol_version12
     };
     let _test_simple_function = term! {
-       fn_new_random(((0,0)/ProtocolVersion))
+       fn_new_random(((client,0)/ProtocolVersion))
     };
     let _test_variable = term! {
-        (0,0)/ProtocolVersion
+        (client,0)/ProtocolVersion
     };
     let _set_nested_function = term! {
        fn_client_extensions_append(
@@ -79,7 +82,12 @@ fn example() {
 
     println!("TypeId of vec array {:?}", data.type_id());
 
-    let variable = Signature::new_var::<Vec<u8>>((0, 0));
+    let observed_id = ObservedId {
+        agent_name: AgentName::first(),
+        tls_message_type: None,
+        counter: 0
+    };
+    let variable = Signature::new_var::<Vec<u8>>(observed_id);
 
     let generated_term = Term::Application(
         hmac256,
@@ -91,7 +99,7 @@ fn example() {
 
     println!("{}", generated_term);
     let mut context = TraceContext::new();
-    context.add_knowledge((0, 0), Box::new(data));
+    context.add_knowledge(observed_id, Box::new(data));
 
     println!(
         "{:?}",
@@ -124,6 +132,11 @@ fn playground() {
     );
     println!("{}", Signature::new_function(&example_op_c).shape());
 
+    let observed_id = ObservedId {
+        agent_name: AgentName::first(),
+        tls_message_type: None,
+        counter: 0
+    };
     let constructed_term = Term::Application(
         Signature::new_function(&example_op_c),
         vec![
@@ -134,10 +147,10 @@ fn playground() {
                         Signature::new_function(&example_op_c),
                         vec![
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
-                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
                 ],
             ),
             Term::Application(
@@ -146,11 +159,11 @@ fn playground() {
                     Term::Application(
                         Signature::new_function(&example_op_c),
                         vec![
-                            Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>((0, 0))),
+                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
                 ],
             ),
         ],
