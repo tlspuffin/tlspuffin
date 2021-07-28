@@ -237,6 +237,8 @@ impl TraceContext {
                     if tls_message_type == observed_tls_message_type  {
                         return Some(data)
                     }
+                } else {
+                    return Some(data)
                 }
             }
         }
