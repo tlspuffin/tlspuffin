@@ -261,14 +261,14 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
             log_io_error(&error)?;
             log_ssl_error(&error)?;
         } else {
-            trace!("read succeeded");
+            // Reading succeeded
         }
     } else {
         if let Err(error) = stream.do_handshake() {
             log_io_error(&error)?;
             log_ssl_error(&error)?;
         } else {
-            trace!("Handshake is done");
+            // Handshake is done
         }
     }
 

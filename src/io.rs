@@ -184,11 +184,6 @@ impl Stream for MemoryStream {
             })?;
 
             if let Some(opaque_message) = first_message {
-                debug_opaque_message_with_info(
-                    format!("Processing message").as_str(),
-                    &opaque_message,
-                );
-
                 let message = match Message::try_from(opaque_message.clone()) {
                     Ok(message) => Some(message),
                     Err(err) => {

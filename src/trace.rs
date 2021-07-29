@@ -525,7 +525,6 @@ impl OutputAction {
 
             match &message {
                 Some(message) => {
-                    debug_message_with_info(format!("Output message").as_str(), &message);
                     let knowledge = extract_knowledge(&message)?;
 
                     trace!("Knowledge increased by {:?}", knowledge.len());
@@ -549,11 +548,6 @@ impl OutputAction {
                 }
                 None => {}
             }
-
-            debug_opaque_message_with_info(
-                format!("Output opaque message").as_str(),
-                &opaque_message,
-            );
 
             let type_id = std::any::Any::type_id(opaque_message); //LH: not sure about that
             let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
@@ -602,16 +596,15 @@ impl InputAction {
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
-            ctx.add_to_inbound(step.agent, &OpaqueMessage::from(msg.clone()))?;
-
             debug_message_with_info(format!("Input message").as_str(), msg);
-        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
-            ctx.add_to_inbound(step.agent, &opaque_message.clone())?;
 
+            ctx.add_to_inbound(step.agent, &OpaqueMessage::from(msg.clone()))?;
+        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
             debug_opaque_message_with_info(
                 format!("Input opaque message").as_str(),
                 opaque_message,
             );
+            ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
