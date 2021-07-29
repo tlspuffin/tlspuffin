@@ -20,36 +20,36 @@
 //!
 //! let observed_id_ch = ObservedId {
 //!     agent_name: client,
-//!     tls_message_type: Some(TlsMessageType::Handshake(HandshakeType::ClientHello)),
+//!     tls_message_type: Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello))),
 //!     counter: 0
 //! };
-//! let _trace = Trace {
-//! prior_traces: vec![],
-//! descriptors: vec![
-//!     AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
-//!     AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
-//! ],
-//! steps: vec![
-//!     Step { agent: client, action: Action::Output(OutputAction { id: 0 }) },
-//!     // Client: Hello Client -> Server
-//!     Step {
-//!         agent: server,
-//!         action: Action::Input(InputAction {
-//!             recipe: Term::Application(
-//!                 Signature::new_function(&fn_client_hello),
-//!                 vec![
-//!                     Term::Variable(Signature::new_var::<ProtocolVersion>(observedID_CH)),
-//!                     Term::Variable(Signature::new_var::<Random>(observedID_CH)),
-//!                     Term::Variable(Signature::new_var::<SessionID>(observedID_CH)),
-//!                     Term::Variable(Signature::new_var::<Vec<CipherSuite>>(observedID_CH)),
-//!                     Term::Variable(Signature::new_var::<Vec<Compression>>(observedID_CH)),
-//!                     Term::Variable(Signature::new_var::<Vec<ClientExtension>>(observedID_CH)),
-//!                 ],
-//!             ),
-//!         }),
-//!     },
+//! let trace = Trace {
+//!     prior_traces: vec![],
+//!     descriptors: vec![
+//!         AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
+//!         AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
+//!     ],
+//!     steps: vec![
+//!             Step { agent: client, action: Action::Output(OutputAction { }) },
+//!             // Client: Hello Client -> Server
+//!             Step {
+//!                 agent: server,
+//!                 action: Action::Input(InputAction {
+//!                     recipe: Term::Application(
+//!                         Signature::new_function(&fn_client_hello),
+//!                         vec![
+//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<Random>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<SessionID>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(observed_id_ch)),
+//!                         ],
+//!                     ),
+//!                 }),
+//!             },
 //!     // further steps here
-//! ]
+//!     ]
 //! };
 //! let mut ctx = TraceContext::new();
 //! trace.execute(&mut ctx).unwrap();

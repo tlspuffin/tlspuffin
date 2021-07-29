@@ -5,18 +5,20 @@
 //! ```rust
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::term;
+//! use tlspuffin::agent::AgentName;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::Compression;
 //!
+//! let client = AgentName::first();
 //! let term = term! {
 //!     fn_client_hello(
-//!         ((0, 0)/ProtocolVersion),
-//!         ((0, 0)/Random),
-//!         ((0, 0)/SessionID),
-//!         ((0, 0)/Vec<CipherSuite>),
-//!         ((0, 0)/Vec<Compression>),
-//!         ((0, 0)/Vec<ClientExtension>)
+//!         ((client, 0)/ProtocolVersion),
+//!         ((client, 0)/Random),
+//!         ((client, 0)/SessionID),
+//!         ((client, 0)/Vec<CipherSuite>),
+//!         ((client, 0)/Vec<Compression>),
+//!         ((client, 0)/Vec<ClientExtension>)
 //!     )
 //! };
 //! ```
