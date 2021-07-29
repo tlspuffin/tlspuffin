@@ -118,6 +118,8 @@ fn main() {
             (seed_successful12(agent_a, agent_b), "seed_successful12"),
             (seed_client_attacker(agent_a), "seed_client_attacker"),
             (seed_client_attacker12(agent_a), "seed_client_attacker12"),
+            (seed_session_resumption_dhe(agent_a), "seed_session_resumption_dhe"),
+            (seed_session_resumption_ke(agent_a), "seed_session_resumption_ke"),
         ];
 
         for (trace, name) in traces {
