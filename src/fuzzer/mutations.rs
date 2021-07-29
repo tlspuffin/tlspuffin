@@ -10,12 +10,13 @@ use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
 use util::*;
 use util::Choosable;
 
-use crate::fuzzer::term_generation::generate_multiple_terms;
 use crate::mutator;
 use crate::term::{Subterms, Term};
 use crate::term::atoms::Function;
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
+use crate::fuzzer::term_zoo::generate_term_zoo;
+use crate::fuzzer::term_zoo::Zoo;
 
 pub fn trace_mutations<R, C, S>(
     min_trace_length: usize,
@@ -295,7 +296,7 @@ mutator! {
         let rand = state.rand_mut();
 
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            let zoo = self.zoo.get_or_insert_with(|| generate_multiple_terms(&SIGNATURE, rand));
+            let zoo = self.zoo.get_or_insert_with(|| generate_term_zoo(&SIGNATURE, rand));
 
             // Replace with generated term
             if let Some(term) = zoo.choose_filtered(
@@ -314,7 +315,7 @@ mutator! {
         }
     },
     constraints: TermConstraints,
-    zoo: Option<Vec<Term>>
+    zoo: Option<Zoo>
 }
 
 pub mod util {

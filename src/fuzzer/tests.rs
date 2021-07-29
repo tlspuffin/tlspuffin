@@ -15,7 +15,7 @@ use crate::fuzzer::mutations::{
     SwapMutator,
 };
 use crate::fuzzer::seeds::*;
-use crate::fuzzer::term_generation::{generate_multiple_terms, generate_terms};
+use crate::fuzzer::term_zoo::{generate_term_zoo};
 use crate::openssl_binding::make_deterministic;
 use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
@@ -303,7 +303,7 @@ fn test_reservoir_sample_randomness() {
 #[test]
 fn test_term_generation() {
     let mut rand = StdRand::with_seed(33);
-    let terms = generate_multiple_terms(&SIGNATURE, &mut rand);
+    let terms = generate_term_zoo(&SIGNATURE, &mut rand);
 
     let subgraphs = terms
         .iter()

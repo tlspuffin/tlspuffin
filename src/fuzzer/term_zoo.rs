@@ -1,42 +1,37 @@
-use itertools::{Itertools};
+//! Generates a zoo of terms form a [`Signature`]. For each function symbol in the signature
+//! a closed term is generated and added to the zoo.
+
+use itertools::Itertools;
 use libafl::bolts::rands::Rand;
 
-use crate::fuzzer::mutations::util::{Choosable, choose_iter};
+use crate::fuzzer::mutations::util::{choose_iter, Choosable};
 use crate::term::atoms::Function;
 use crate::term::signature::{FunctionDefinition, Signature};
 use crate::term::Term;
 
-const MAX_DEPTH: u16 = 8;
+pub type Zoo = Vec<Term>;
 
-pub fn generate_multiple_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term> {
-    vec![
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-        generate_terms(signature, rand),
-    ].into_iter()
-        .flatten()
-        .unique()
-        .collect_vec()
-}
+const MAX_DEPTH: u16 = 8; // how deep terms we allow max
+const MAX_TRIES: u16 = 30; // How often we want to try to generate before failing
 
-pub fn generate_terms<R: Rand>(signature: &Signature, rand: &mut R) -> Vec<Term> {
+pub fn generate_term_zoo<R: Rand>(signature: &Signature, rand: &mut R) -> Zoo {
     signature
         .functions
         .iter()
         .filter_map(|def| {
-           generate_term(signature, &def, MAX_DEPTH, rand)
+            let mut counter = MAX_TRIES;
+
+            loop {
+                if counter == 0 {
+                    break None;
+                }
+
+                counter -= 1;
+
+                if let Some(term) = generate_term(signature, &def, MAX_DEPTH, rand) {
+                    break Some(term);
+                }
+            }
         })
         .collect_vec()
 }
