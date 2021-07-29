@@ -403,7 +403,7 @@ where
     fn display(&mut self, event_msg: String, sender_id: u32) {
         self.log_count += 1;
 
-        if self.log_count % 10 != 0 {
+        if self.log_count % 100 != 0 {
             return;
         }
 
