@@ -38,7 +38,7 @@ macro_rules! term {
         use $crate::term::signature::Signature;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(None)), $counter);
-        $crate::term::Term::Variable(var)
+        Term::Variable(var)
     }};
 
     //
@@ -55,7 +55,7 @@ macro_rules! term {
         use $crate::term::signature::Signature;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(Some($hs_type))), $counter);
-        $crate::term::Term::Variable(var)
+        Term::Variable(var)
     }};
 
     //
@@ -70,7 +70,7 @@ macro_rules! term {
         use $crate::term::signature::Signature;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::ApplicationData), $counter);
-        $crate::term::Term::Variable(var)
+        Term::Variable(var)
     }};
 
     //
@@ -98,24 +98,27 @@ macro_rules! term {
 
         let arguments = vec![$({
             let argument: &TypeShape = &func.shape().argument_types[i];
+            i += 1;
             $crate::term_arg!($args > argument.clone())
         }),*];
 
-        $crate::term::Term::Application(func, arguments)
+        Term::Application(func, arguments)
     }};
     // Shorthand for constants
     ($func:ident $(>$req_type:expr)?) => {{
         use $crate::term::signature::Signature;
 
         let func = Signature::new_function(&$func);
-        $crate::term::Term::Application(func, vec![])
+        Term::Application(func, vec![])
     }};
 
     //
     // Allows to use variables which already contain a term by starting with a `@`
     //
     (@$e:ident $(>$req_type:expr)?) => {{
-        let subterm: &$crate::term::Term = &$e;
+        use $crate::term::Term;
+
+        let subterm: &Term = &$e;
         subterm.clone()
     }};
 }
