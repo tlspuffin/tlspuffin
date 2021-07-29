@@ -14,29 +14,27 @@ use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term;
 use tlspuffin::trace::{Trace};
 use tlspuffin::term::dynamic_function::make_dynamic;
-use tlspuffin::tls::fn_impl::fn_hmac256;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::trace::TraceContext;
+use tlspuffin::tls::error::FnError;
+
+fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
+    Ok(*a * *a)
+}
 
 fn benchmark_dynamic(c: &mut Criterion) {
     let mut group = c.benchmark_group("op_hmac256");
 
-    group.bench_function("op_hmac256 static", |b| {
+    group.bench_function("fn_benchmark_example static", |b| {
         b.iter(|| {
-            let key_data = [0; 256];
-            let key = Key::new(HMAC_SHA256, &key_data);
-            let data = "test".as_bytes().to_vec();
-            fn_hmac256(&key, &data)
+            fn_benchmark_example(&5)
         })
     });
 
-    group.bench_function("op_hmac256 dyn", |b| {
+    group.bench_function("fn_benchmark_example dynamic", |b| {
         b.iter(|| {
-            let key_data = [0; 256];
-            let key = Key::new(HMAC_SHA256, &key_data);
-            let data = "test".as_bytes().to_vec();
-            let (_, dynamic_fn) = make_dynamic(&fn_hmac256);
-            let args: Vec<Box<dyn Any>> = vec![Box::new(key), Box::new(data)];
+            let (_, dynamic_fn) = make_dynamic(&fn_benchmark_example);
+            let args: Vec<Box<dyn Any>> = vec![Box::new(5)];
             dynamic_fn(&args)
         })
     });
@@ -69,39 +67,39 @@ fn benchmark_trace(c: &mut Criterion) {
 
     group.bench_function("term clone", |b| {
         let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_cipher_suite12
-            )),
-            fn_compressions,
-            (fn_client_extensions_append(
+              fn_client_hello(
+                fn_protocol_version12,
+                fn_new_random,
+                fn_new_session_id,
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                    fn_cipher_suite12
+                )),
+                fn_compressions,
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
-                                    fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_client_extensions_append(
+                                        fn_client_extensions_new,
+                                        fn_secp384r1_support_group_extension
+                                    )),
+                                    fn_signature_algorithm_extension
                                 )),
-                                fn_signature_algorithm_extension
+                                fn_ec_point_formats_extension
                             )),
-                            fn_ec_point_formats_extension
+                            fn_signed_certificate_timestamp_extension
                         )),
-                        fn_signed_certificate_timestamp
+                         // Enable Renegotiation
+                        (fn_renegotiation_info_extension(fn_empty_bytes_vec))
                     )),
-                     // Enable Renegotiation
-                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
-                )),
-                // Add signature cert extension
-                fn_signature_algorithm_cert_extension
-            ))
-        )
-    };
+                    // Add signature cert extension
+                    fn_signature_algorithm_cert_extension
+                ))
+            )
+        };
 
         b.iter(|| client_hello.clone())
     });
