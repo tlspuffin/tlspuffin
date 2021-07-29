@@ -18,11 +18,14 @@ asan = ["openssl/asan"]
 # Lastest OpenSSL 1.1.1
 openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls13", "session-resumption", "deterministic",
+    "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
 ]
 # Some LibreSSL version
-libressl = ["openssl/vendored-libressl", "tls13"]
+libressl = [
+    "openssl/vendored-libressl",
+    "tls13" # Supported features by openssl111
+]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -33,9 +36,9 @@ deterministic = []
 
 # Require the PUT to implement the claim-interface.h
 claims = []
-
 # Uses a random scheduler instead of minimizer
 no-minimizer = []
+# Save the corpus on disk
 disk-corpus = []
 introspection = ["libafl/introspection"]
 
