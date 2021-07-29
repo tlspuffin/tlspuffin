@@ -23,7 +23,7 @@ build-openssl111:
 
 build-libressl:
   script:
-    - cargo build --bin tlspuffin --no-default-features --features="libressl" --verbose
+    - cargo build --bin tlspuffin --no-default-features --features="libressl sancov_libafl introspection" --verbose
 
 pages:
   script:
