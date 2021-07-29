@@ -108,7 +108,6 @@ pub enum TlsMessageType {
     ChangeCipherSpec,
     Alert,
     Handshake(Option<HandshakeType>),
-    // TODO [Enhance]: more typing information can be added later, the public interface is the derived traits above
     ApplicationData,
     Heartbeat,
 }
