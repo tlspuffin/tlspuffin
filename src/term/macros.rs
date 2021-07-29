@@ -62,6 +62,10 @@ macro_rules! term {
     // Application TlsMessageType
     //
     (($agent:expr, $counter:expr) [A] / $typ:ty $(>$req_type:expr)?) => {{
+        use crate::term::dynamic_function::TypeShape;
+        term!(($agent, $counter) [A] > TypeShape::of::<$typ>())
+    }};
+    (($agent:expr, $counter:expr) [A] $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
 
