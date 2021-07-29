@@ -7,3 +7,6 @@
 [submodule "rust-libressl-src"]
 	path = rust-libressl-src
 	url = git@github.com:maxammann/libressl-src.git
+[submodule "rust-rustls"]
+	path = rust-rustls
+	url = git@github.com:maxammann/rustls.git

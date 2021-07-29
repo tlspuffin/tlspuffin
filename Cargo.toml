@@ -47,7 +47,7 @@ introspection = ["libafl/introspection"]
 #   * Message is cloneable
 #   * Disabled logical checks during parsing of messages
 #   * All modules exposed
-rustls = { git = "https://github.com/LCBH/rustls.git", branch = "remove-checks" }
+rustls = { path = "rust-rustls/rustls" }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 webpki-roots = "0.22.0"
 ring = { version = "0.16", features = ["std"] }
