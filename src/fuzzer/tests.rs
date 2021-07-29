@@ -168,7 +168,7 @@ fn test_skip_mutator() {
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let server = AgentName::first();
-    let mut mutator = SkipMutator::new(4);
+    let mut mutator = SkipMutator::new(2);
 
     loop {
         let mut trace = seed_client_attacker12(server);
@@ -193,7 +193,7 @@ fn test_swap_mutator() {
         let mut trace = seed_client_attacker12(server);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-        let last = if let Some(last) = trace.steps.iter().last() {
+        let is_last_not_encrypt = if let Some(last) = trace.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => Some(input.recipe.name() != fn_encrypt12.name()),
                 Action::Output(_) => None,
@@ -202,7 +202,7 @@ fn test_swap_mutator() {
             None
         };
 
-        let first = if let Some(first) = trace.steps.iter().nth(0) {
+        let is_first_not_ch = if let Some(first) = trace.steps.iter().nth(0) {
             match &first.action {
                 Action::Input(input) => Some(input.recipe.name() != fn_client_hello.name()),
                 Action::Output(_) => None,
@@ -211,8 +211,8 @@ fn test_swap_mutator() {
             None
         };
 
-        if let Some(first) = first {
-            if let Some(last) = last {
+        if let Some(first) = is_first_not_ch {
+            if let Some(last) = is_last_not_encrypt {
                 if first {
                     if last {
                         break;

@@ -77,7 +77,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 0)/Vec<u8>)
+                            ((server, 0)[A]/Vec<u8>)
                         )
                     },
                 }),
@@ -88,7 +88,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 1)/Vec<u8>)
+                            ((server, 1)[A]/Vec<u8>)
                         )
                     },
                 }),
@@ -99,7 +99,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 2)/Vec<u8>)
+                            ((server, 2)[A]/Vec<u8>)
                         )
                     },
                 }),
@@ -110,7 +110,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 3)/Vec<u8>)
+                            ((server, 3)[A]/Vec<u8>)
                         )
                     },
                 }),
@@ -121,7 +121,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 0)/Vec<u8>)
+                            ((client, 0)[A]/Vec<u8>)
                         )
                     },
                 }),
@@ -230,7 +230,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
             // IMPORTANT: We are using here OpaqueMessage as the parsing code in io.rs does
             // not know that the Handshake record message is encrypted. The parsed message from the
             // could be a HelloRequest if the encrypted data starts with a 0.
-            // todo remove TLS12EncryptedHandshake as this is the correct way of doing it
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -321,7 +320,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 4)/Vec<u8>)
+                    ((server, 4)[A]/Vec<u8>)
                 )
             },
         }),
@@ -332,7 +331,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 5)/Vec<u8>)
+                    ((server, 5)[A]/Vec<u8>)
                 )
             },
         }),
@@ -630,10 +629,6 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                 action: Action::Input(InputAction {
                     recipe: client_hello,
                 }),
-            },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction {}),
             },
             Step {
                 agent: server,
@@ -1168,7 +1163,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     let resumption_encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 6)/Message), // Encrypted Extensions
+            ((server, 6)[A]/Message), // Encrypted Extensions
             (@resumption_server_hello_transcript),
             fn_no_key_share,
             (fn_psk((@psk))),
@@ -1185,7 +1180,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     let resumption_server_finished = term! {
         fn_decrypt_handshake(
-            ((server, 7)/Message), // Server Handshake Finished
+            ((server, 7)[A]/Message), // Server Handshake Finished
             (@resumption_server_hello_transcript),
             fn_no_key_share,
             (fn_psk((@psk))),
@@ -1231,16 +1226,6 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
                 agent: server,
                 action: Action::Output(OutputAction {}),
             },
-            /*            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_debug(
-                            (@resumption_encrypted_extensions)
-                        )
-                    },
-                }),
-            },*/
             Step {
                 agent: server,
                 action: Action::Input(InputAction {

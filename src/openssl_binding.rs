@@ -213,7 +213,7 @@ pub fn log_io_error(error: &openssl::ssl::Error) -> Result<(), Error> {
         match io_error.kind() {
             ErrorKind::WouldBlock => {
                 // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                trace!("Would have blocked but the underlying stream is non-blocking!");
+                // trace!("Would have blocked but the underlying stream is non-blocking!");
                 Ok(())
             }
             _ => Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

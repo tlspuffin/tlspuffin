@@ -65,41 +65,43 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, fmt::Formatter};
 use std::any::Any;
 use std::cell::RefCell;
+use std::convert::TryFrom;
 use std::env::var;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
-use rustls::{CipherSuite, ProtocolVersion};
-use rustls::msgs::{
-    enums::{ContentType, HandshakeType},
-    message::MessagePayload,
-};
 use rustls::msgs::enums::Compression;
 use rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::{
+    enums::{ContentType, HandshakeType},
+    message::MessagePayload,
+};
+use rustls::{CipherSuite, ProtocolVersion};
 use security_claims::Claim;
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::error::Error;
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::io::{MessageResult, Stream};
+use crate::term::signature::Signature;
+use crate::tls::error::FnError;
+use crate::tls::fn_messages::fn_client_hello;
+use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::agent::{AgentDescriptor, TLSVersion};
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-use crate::io::{MessageResult, Stream};
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::term::signature::Signature;
-use crate::tls::error::FnError;
-use crate::tls::fn_messages::fn_client_hello;
-use crate::violation::is_violation;
+use crate::term::remove_prefix;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -115,44 +117,39 @@ pub enum TlsMessageType {
 impl PartialEq for TlsMessageType {
     fn eq(&self, other: &Self) -> bool {
         match self {
+            TlsMessageType::Handshake(handshake_type) => match other {
+                TlsMessageType::Handshake(other_handshake_type) => {
+                    *handshake_type == None || other_handshake_type == handshake_type
+                }
+                _ => false,
+            },
             TlsMessageType::ChangeCipherSpec => matches!(other, TlsMessageType::ChangeCipherSpec),
             TlsMessageType::Alert => matches!(other, TlsMessageType::Alert),
-            TlsMessageType::Handshake(handshake_type) => {
-                *handshake_type == None
-                    || match other {
-                        TlsMessageType::Handshake(other_handshake_type) => {
-                            other_handshake_type == handshake_type
-                        }
-                        _ => false,
-                    }
-            }
             TlsMessageType::Heartbeat => matches!(other, TlsMessageType::Heartbeat),
             TlsMessageType::ApplicationData => matches!(other, TlsMessageType::ApplicationData),
         }
     }
 }
 
-impl TlsMessageType {
-    fn from_message_result(message_result: &MessageResult) -> Option<Self> {
+impl TryFrom<&MessageResult> for TlsMessageType {
+    type Error = crate::error::Error;
+
+    fn try_from(message_result: &MessageResult) -> Result<Self, Self::Error> {
         let tls_opaque_type = message_result.1.typ;
         match (tls_opaque_type, message_result) {
-            (ContentType::Handshake, MessageResult(Some(message), _)) => {
-                match &message.payload {
-                    MessagePayload::Handshake(handshake_payload) => {
-                        Some(TlsMessageType::Handshake(Some(handshake_payload.typ)))
-                    }
-                    MessagePayload::TLS12EncryptedHandshake(handshake_payload) => {
-                        Some(TlsMessageType::Handshake(None))
-                    }
-                    _ => {
-                        debug_message_with_info(format!("[GRACEFUL ERROR] [SHOULD NEVER HAPPEN] MessageType computation for")
-                                                       .as_str(), &message);
-                        None
-                    }
+            (ContentType::Handshake, MessageResult(Some(message), _)) => match &message.payload {
+                MessagePayload::Handshake(handshake_payload) => {
+                    Ok(TlsMessageType::Handshake(Some(handshake_payload.typ)))
                 }
-            }
-            (ContentType::ApplicationData, _) => Some(TlsMessageType::ApplicationData),
-            _ => None,
+                MessagePayload::TLS12EncryptedHandshake(r) => Ok(TlsMessageType::Handshake(None)),
+                _ => Err(Error::Extraction(tls_opaque_type)),
+            },
+            (ContentType::Handshake, _) => Ok(TlsMessageType::Handshake(None)),
+            (ContentType::ApplicationData, _) => Ok(TlsMessageType::ApplicationData),
+            (ContentType::Heartbeat, _) => Ok(TlsMessageType::Heartbeat),
+            (ContentType::Alert, _) => Ok(TlsMessageType::Alert),
+            (ContentType::ChangeCipherSpec, _) => Ok(TlsMessageType::ChangeCipherSpec),
+            (ContentType::Unknown(_), _) => Err(Error::Extraction(tls_opaque_type)),
         }
     }
 }
@@ -428,8 +425,6 @@ impl Trace {
                 Action::Output(_) => {}
             }
 
-
-
             execution_listener(step);
         }
 
@@ -526,17 +521,17 @@ impl OutputAction {
             ctx.take_message_from_outbound(step.agent)?
         {
             let message_result = MessageResult(message_o, opaque_message);
-            let message_o = &message_result.0;
-            let opaque_message = &message_result.1;
-            match &message_o {
-                Some(ref message) => {
+            let MessageResult(message, opaque_message) = &message_result;
+            let tls_message_type = Some(TlsMessageType::try_from(&message_result)?);
+
+            match &message {
+                Some(message) => {
                     debug_message_with_info(format!("Output message").as_str(), &message);
                     let knowledge = extract_knowledge(&message)?;
 
                     trace!("Knowledge increased by {:?}", knowledge.len());
 
                     for variable in knowledge {
-                        let tls_message_type = TlsMessageType::from_message_result(&message_result);
                         let data_type_id = variable.as_ref().type_id();
                         let counter =
                             ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
@@ -545,7 +540,7 @@ impl OutputAction {
                             tls_message_type,
                             counter,
                         };
-                        trace!("New knowledge {}/{}", observed_id, variable.type_name());
+                        trace!("New knowledge {}/{}", observed_id, remove_prefix(variable.type_name()));
                         ctx.add_knowledge(observed_id, variable)
                     }
                 }
@@ -556,7 +551,7 @@ impl OutputAction {
                 format!("Output opaque message").as_str(),
                 &opaque_message,
             );
-            let tls_message_type = TlsMessageType::from_message_result(&message_result);
+
             let type_id = std::any::Any::type_id(opaque_message); //LH: not sure about that
             let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
             let observed_id = ObservedId {
@@ -567,7 +562,7 @@ impl OutputAction {
             trace!(
                 "New knowledge {}/{}",
                 observed_id,
-                opaque_message.type_name()
+                remove_prefix(opaque_message.type_name())
             );
             ctx.add_knowledge(observed_id, Box::new(message_result.1));
         }
