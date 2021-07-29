@@ -22,6 +22,7 @@ pub fn trace_mutations<R, C, S>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
+    fresh_zoo_after: u64
 ) -> tuple_list_type!(
        RepeatMutator<R, S>,
        SkipMutator<R, S>,
@@ -42,7 +43,7 @@ pub fn trace_mutations<R, C, S>(
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints),
         RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(constraints, None),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints)
     )
 }
@@ -296,7 +297,14 @@ mutator! {
         let rand = state.rand_mut();
 
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            let zoo = self.zoo.get_or_insert_with(|| generate_term_zoo(&SIGNATURE, rand));
+
+            self.mutation_counter += 1;
+
+            let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
+                self.zoo.insert(generate_term_zoo(&SIGNATURE, rand))
+            } else {
+                self.zoo.get_or_insert_with(|| generate_term_zoo(&SIGNATURE, rand))
+            };
 
             // Replace with generated term
             if let Some(term) = zoo.choose_filtered(
@@ -314,6 +322,8 @@ mutator! {
             Ok(MutationResult::Skipped)
         }
     },
+    mutation_counter: u64,
+    refresh_zoo_after: u64,
     constraints: TermConstraints,
     zoo: Option<Zoo>
 }

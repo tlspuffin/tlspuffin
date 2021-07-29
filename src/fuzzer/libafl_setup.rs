@@ -45,6 +45,8 @@ pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
 pub static MAX_TRACE_LENGTH: usize = 15;
 pub static MIN_TRACE_LENGTH: usize = 5;
 
+pub static FRESH_ZOO_AFTER: u64 = 100000;
+
 /// Below this term size we no longer mutate. Note that it is possible to reach
 /// smaller terms by having a mutation which removes all symbols in a single mutation.
 pub static MIN_TERM_SIZE: usize = 0;
@@ -144,6 +146,7 @@ pub fn start(
                     min_term_size: MIN_TERM_SIZE,
                     max_term_size: MAX_TERM_SIZE,
                 },
+                FRESH_ZOO_AFTER
             );
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
             let mut stages = tuple_list!(
