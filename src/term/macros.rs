@@ -89,17 +89,18 @@ macro_rules! term {
     // Function Applications
     //
     ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
-        use $crate::term::dynamic_function::TypeShape;
-        use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
 
         let func = Signature::new_function(&$func);
+        #[allow(unused_assignments, unused_variables, unused_mut)]
         let mut i = 0;
 
+        #[allow(unused_assignments)]
         let arguments = vec![$({
-            let argument: &TypeShape = &func.shape().argument_types[i];
+            #[allow(unused)]
+            let argument = func.shape().argument_types[i].clone();
             i += 1;
-            $crate::term_arg!($args > argument.clone())
+            $crate::term_arg!($args > argument)
         }),*];
 
         Term::Application(func, arguments)

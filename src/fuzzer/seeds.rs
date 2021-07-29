@@ -3,16 +3,6 @@
 
 use rustls::internal::msgs::enums::HandshakeType;
 
-use rustls::msgs::handshake::CertificatePayload;
-use rustls::msgs::message::{Message, OpaqueMessage};
-use rustls::{
-    internal::msgs::{
-        enums::Compression,
-        handshake::{ClientExtension, Random, ServerExtension, SessionID},
-    },
-    CipherSuite, ProtocolVersion,
-};
-
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::term;
 use crate::tls::fn_impl::*;
