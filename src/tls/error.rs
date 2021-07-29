@@ -1,7 +1,7 @@
+use rustls::msgs::message::MessageError;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use webpki::InvalidDnsNameError;
-use serde::{Serialize, Deserialize};
-use rustls::msgs::message::MessageError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FnError {
@@ -45,7 +45,7 @@ impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             FnError::Unknown(msg) => write!(f, "error in fn: {}", msg),
-            FnError::Rustls(msg) =>  write!(f, "error in fn from rustls: {}", msg),
+            FnError::Rustls(msg) => write!(f, "error in fn from rustls: {}", msg),
         }
     }
 }

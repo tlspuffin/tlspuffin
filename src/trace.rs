@@ -75,7 +75,6 @@ use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
 
-
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
@@ -86,7 +85,7 @@ use rustls::msgs::{
 use security_claims::Claim;
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentDescriptor};
+use crate::agent::AgentDescriptor;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
@@ -95,13 +94,13 @@ use crate::io::{MessageResult, Stream};
 
 use crate::tls::error::FnError;
 
+use crate::term::remove_prefix;
 use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
-use crate::term::remove_prefix;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -540,7 +539,11 @@ impl OutputAction {
                             tls_message_type,
                             counter,
                         };
-                        trace!("New knowledge {}/{}", observed_id, remove_prefix(variable.type_name()));
+                        trace!(
+                            "New knowledge {}/{}",
+                            observed_id,
+                            remove_prefix(variable.type_name())
+                        );
                         ctx.add_knowledge(observed_id, variable)
                     }
                 }

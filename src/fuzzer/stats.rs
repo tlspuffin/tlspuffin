@@ -2,12 +2,11 @@
 
 use core::{time, time::Duration};
 
-
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter};
+use std::io;
+use std::io::BufWriter;
 use std::path::PathBuf;
 use std::time::SystemTime;
-use std::{io};
 
 use libafl::stats::{PerfFeature, UserStats};
 use libafl::{
@@ -17,7 +16,7 @@ use libafl::{
 
 use serde::Serialize;
 
-use serde_json::{Serializer as JSONSerializer};
+use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
 

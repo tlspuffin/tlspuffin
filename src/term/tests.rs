@@ -4,17 +4,17 @@ use itertools::Itertools;
 use rustls::msgs::handshake::SessionID;
 use rustls::ProtocolVersion;
 
+use crate::agent::AgentName;
 use crate::term;
 use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
-use crate::{term::Term, trace::TraceContext};
-use ring::test::rand::FixedByteRandom;
-use ring::hmac::Key;
-use ring::hmac;
-use crate::agent::AgentName;
 use crate::trace::ObservedId;
+use crate::{term::Term, trace::TraceContext};
+use ring::hmac;
+use ring::hmac::Key;
+use ring::test::rand::FixedByteRandom;
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     let random = FixedByteRandom { byte: 12 };
@@ -85,7 +85,7 @@ fn example() {
     let observed_id = ObservedId {
         agent_name: AgentName::first(),
         tls_message_type: None,
-        counter: 0
+        counter: 0,
     };
     let variable = Signature::new_var::<Vec<u8>>(observed_id);
 
@@ -135,7 +135,7 @@ fn playground() {
     let observed_id = ObservedId {
         agent_name: AgentName::first(),
         tls_message_type: None,
-        counter: 0
+        counter: 0,
     };
     let constructed_term = Term::Application(
         Signature::new_function(&example_op_c),

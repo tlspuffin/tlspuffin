@@ -1,6 +1,5 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
@@ -38,7 +37,7 @@ impl Term {
     pub fn resistant_id(&self) -> u32 {
         match self {
             Term::Variable(v) => v.resistant_id,
-            Term::Application(f, _)=> f.resistant_id
+            Term::Application(f, _) => f.resistant_id,
         }
     }
 

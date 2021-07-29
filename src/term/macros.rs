@@ -23,10 +23,6 @@
 //! };
 //! ```
 
-
-
-
-
 #[macro_export]
 macro_rules! term {
     // Handshake Variable

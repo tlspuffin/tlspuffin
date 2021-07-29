@@ -109,9 +109,9 @@ mod util {
     use std::thread;
     use std::time::Duration;
 
+    use std::sync::mpsc::TryRecvError;
     use termion::event::Key;
     use termion::input::TermRead;
-    use std::sync::mpsc::TryRecvError;
 
     pub enum Event<I> {
         Input(I),

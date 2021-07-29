@@ -15,15 +15,13 @@ use crate::fuzzer::mutations::{
     SwapMutator,
 };
 use crate::fuzzer::seeds::*;
-use crate::fuzzer::term_zoo::{generate_term_zoo};
+use crate::fuzzer::term_zoo::generate_term_zoo;
 use crate::openssl_binding::make_deterministic;
 use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
-
-
 
 #[cfg(feature = "deterministic")]
 #[test]

@@ -64,12 +64,7 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(
-            f,
-            "[{}]/{}",
-            self.observed_id,
-            remove_prefix(self.typ.name)
-        )
+        write!(f, "[{}]/{}", self.observed_id, remove_prefix(self.typ.name))
     }
 }
 
@@ -160,9 +155,7 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::term::dynamic_function::{
-        DynamicFunction, DynamicFunctionShape, TypeShape,
-    };
+    use crate::term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
     use crate::tls::SIGNATURE;
 
     const NAME: &str = "name";
@@ -226,9 +219,10 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
-                de::Error::custom(format!("could not find function {}", name))
-            })?;
+            let (shape, dynamic_fn) = SIGNATURE
+                .functions_by_name
+                .get(name)
+                .ok_or_else(|| de::Error::custom(format!("could not find function {}", name)))?;
 
             if name != shape.name {
                 return Err(de::Error::custom("Function name does not match!"));

@@ -1,12 +1,12 @@
-use std::convert::{TryInto, TryFrom};
+use std::convert::{TryFrom, TryInto};
 
 use ring::test::rand::FixedByteRandom;
 use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
 use rustls::kx::{KeyExchange, KeyExchangeResult};
 use rustls::msgs::enums::NamedGroup;
 use rustls::msgs::handshake::{Random, ServerECDHParams};
-use rustls::{tls12, SupportedKxGroup, ALL_KX_GROUPS};
 use rustls::suites::Tls12CipherSuite;
+use rustls::{tls12, SupportedKxGroup, ALL_KX_GROUPS};
 
 use crate::tls::error::FnError;
 
@@ -85,7 +85,6 @@ mod tests {
     use rustls::kx_group::SECP384R1;
 
     use test_env_log::test;
-
 
     use crate::tls::key_exchange::deterministic_key_exchange;
 

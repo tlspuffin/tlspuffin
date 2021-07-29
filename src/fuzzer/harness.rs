@@ -1,9 +1,9 @@
 use libafl::executors::ExitKind;
 use rand::Rng;
 
-use crate::trace::{Trace, TraceContext, Action};
 use crate::error::Error;
 use crate::fuzzer::stats_observer::*;
+use crate::trace::{Action, Trace, TraceContext};
 
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();
@@ -21,15 +21,9 @@ pub fn harness(input: &Trace) -> ExitKind {
 
     if let Err(err) = input.execute(&mut ctx) {
         match &err {
-            Error::Fn(_) => {
-                FN_ERROR.increment()
-            },
-            Error::Term(_e) => {
-                TERM.increment()
-            },
-            Error::OpenSSL(_)=>  {
-                OPENSSL.increment()
-            },
+            Error::Fn(_) => FN_ERROR.increment(),
+            Error::Term(_e) => TERM.increment(),
+            Error::OpenSSL(_) => OPENSSL.increment(),
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),

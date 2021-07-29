@@ -9,18 +9,17 @@ use std::io::Read;
 use std::{env, fs, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
-use log::{LevelFilter};
+use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 
 use log4rs::config::{Appender, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::{Config};
-
+use log4rs::Config;
 
 use fuzzer::seeds::*;
-use trace::{TraceContext};
+use trace::TraceContext;
 
 use crate::experiment::*;
 use crate::fuzzer::start;
@@ -108,8 +107,14 @@ fn main() {
 
         let traces: Vec<(trace::Trace, &'static str)> = vec![
             (seed_successful(agent_a, agent_b), "seed_successful"),
-            (seed_successful_with_ccs(agent_a, agent_b), "seed_successful_with_ccs"),
-            (seed_successful_with_tickets(agent_a, agent_b), "seed_successful_with_tickets"),
+            (
+                seed_successful_with_ccs(agent_a, agent_b),
+                "seed_successful_with_ccs",
+            ),
+            (
+                seed_successful_with_tickets(agent_a, agent_b),
+                "seed_successful_with_tickets",
+            ),
             (seed_successful12(agent_a, agent_b), "seed_successful12"),
             (seed_client_attacker(agent_a), "seed_client_attacker"),
             (seed_client_attacker12(agent_a), "seed_client_attacker12"),

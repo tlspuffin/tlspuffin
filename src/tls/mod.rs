@@ -1,25 +1,9 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use fn_impl::*;
 
 use crate::define_signature;
-
 
 pub mod fn_constants;
 pub mod fn_extensions;
@@ -27,7 +11,6 @@ pub mod fn_fields;
 pub mod fn_messages;
 pub mod fn_utils;
 mod key_exchange;
-
 
 /// This modules contains all the concrete implementations of function symbols.
 pub mod fn_impl {
@@ -37,7 +20,9 @@ pub mod fn_impl {
     };
 }
 
-fn fn_debug(message: &rustls::msgs::message::Message) -> Result<rustls::msgs::message::Message, crate::tls::error::FnError> {
+fn fn_debug(
+    message: &rustls::msgs::message::Message,
+) -> Result<rustls::msgs::message::Message, crate::tls::error::FnError> {
     dbg!(message);
     Ok(message.clone())
 }

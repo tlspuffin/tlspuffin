@@ -1,12 +1,12 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use std::{io, fmt};
+use crate::term::{remove_prefix, Term};
+use crate::trace::{Action, Trace};
+use itertools::Itertools;
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
-use crate::trace::{Trace, Action};
-use crate::term::{Term, remove_prefix};
-use itertools::Itertools;
+use std::{fmt, io};
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")

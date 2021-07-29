@@ -3,7 +3,6 @@
 //! type. These types allow type checks during the runtime of the fuzzer.
 //! These checks restrict how[`Term`]scan be mutated in the *fuzzer* module.
 
-
 // Code in this directory is derived from https://github.com/joshrule/term-rewriting-rs/
 // and is licensed under:
 //
@@ -29,7 +28,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-pub use self::{term::*};
+pub use self::term::*;
 
 pub mod atoms;
 pub mod dynamic_function;

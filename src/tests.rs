@@ -263,7 +263,9 @@ pub mod serialization {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12};
+    use crate::fuzzer::seeds::{
+        seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12,
+    };
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},

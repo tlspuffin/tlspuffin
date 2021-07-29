@@ -1,15 +1,9 @@
-
 use std::io::ErrorKind;
 use std::mem::transmute;
 use std::os::raw::c_int;
 
-
-
-
-
-
 use openssl::error::ErrorStack;
-use openssl::ssl::{SslVersion, SslContextBuilder};
+use openssl::ssl::{SslContextBuilder, SslVersion};
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -23,7 +17,7 @@ use openssl::{
     },
 };
 
-use crate::agent::{TLSVersion};
+use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
 
@@ -162,7 +156,10 @@ pub fn make_deterministic() {
     warn!("Failed to make PUT determinisitic!");
 }
 
-fn set_max_protocol_version(ctx_builder: &mut SslContextBuilder, tls_version: &TLSVersion) -> Result<(), ErrorStack> {
+fn set_max_protocol_version(
+    ctx_builder: &mut SslContextBuilder,
+    tls_version: &TLSVersion,
+) -> Result<(), ErrorStack> {
     #[cfg(any(feature = "openssl111", feature = "libressl"))]
     match tls_version {
         TLSVersion::V1_3 => {
@@ -170,7 +167,7 @@ fn set_max_protocol_version(ctx_builder: &mut SslContextBuilder, tls_version: &T
             #[cfg(feature = "openssl111")]
             ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
             Ok(())
-        },
+        }
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
     }
 }

@@ -27,7 +27,6 @@ use crate::nyi_fn;
 use super::error::FnError;
 use rustls::msgs::message::OpaqueMessage;
 
-
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())
 }
@@ -36,7 +35,7 @@ pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
     Ok(OpaqueMessage {
         typ: ContentType::Handshake,
         version: ProtocolVersion::TLSv1_2,
-        payload: Payload::empty()
+        payload: Payload::empty(),
     })
 }
 

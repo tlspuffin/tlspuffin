@@ -4,7 +4,7 @@
 use itertools::Itertools;
 use libafl::bolts::rands::Rand;
 
-use crate::fuzzer::mutations::util::{Choosable};
+use crate::fuzzer::mutations::util::Choosable;
 use crate::term::atoms::Function;
 use crate::term::signature::{FunctionDefinition, Signature};
 use crate::term::Term;

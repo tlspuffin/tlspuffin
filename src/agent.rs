@@ -4,15 +4,14 @@
 //!
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
+use crate::error::Error;
+use crate::io::OpenSSLStream;
 use core::fmt;
 use serde::{Deserialize, Serialize};
-use crate::io::{OpenSSLStream};
-use crate::error::Error;
 
-
-use std::rc::Rc;
-use std::cell::RefCell;
 use crate::trace::VecClaimer;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Copyable reference to an [`Agent`]. LH: I assume this injectively identifies agents.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -57,18 +56,18 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new_openssl(descriptor: &AgentDescriptor, claimer: Rc<RefCell<VecClaimer>>) -> Result<Self, Error> {
+    pub fn new_openssl(
+        descriptor: &AgentDescriptor,
+        claimer: Rc<RefCell<VecClaimer>>,
+    ) -> Result<Self, Error> {
         let openssl_stream = OpenSSLStream::new(
             descriptor.server,
             &descriptor.tls_version,
             descriptor.name,
-            claimer
+            claimer,
         )?;
 
-        let agent = Self::from_stream(
-            descriptor,
-            openssl_stream
-        );
+        let agent = Self::from_stream(descriptor, openssl_stream);
 
         Ok(agent)
     }
@@ -78,6 +77,9 @@ impl Agent {
     }
 
     fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
-        Agent { descriptor: *descriptor, stream }
+        Agent {
+            descriptor: *descriptor,
+            stream,
+        }
     }
 }

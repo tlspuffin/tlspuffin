@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 
-
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::HandshakeType;
@@ -15,8 +14,8 @@ use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 use rustls::{key, Certificate};
 
 use super::error::FnError;
+use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
-use crate::tls::key_exchange::{tls12_new_secrets, tls12_key_exchange};
 
 // ----
 // seed_client_attacker()
@@ -110,7 +109,6 @@ pub fn fn_encrypt_application(
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-
     let (suite, key, _) = tls13_application_traffic_secret(
         &server_hello_transcript,
         &server_finished_transcript,
@@ -133,7 +131,6 @@ pub fn fn_derive_psk(
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
-
     let psk = tls13_derive_psk(
         server_hello,
         server_finished,

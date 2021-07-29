@@ -106,7 +106,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
 pub fn find_two_finished_messages(
     claims: &Vec<(AgentName, Claim)>,
 ) -> Option<(&(AgentName, Claim), &(AgentName, Claim))> {
-    let two_finishes: Option<(&(AgentName, Claim), &(AgentName, Claim))>  = claims
+    let two_finishes: Option<(&(AgentName, Claim), &(AgentName, Claim))> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();
@@ -114,10 +114,9 @@ pub fn find_two_finished_messages(
     if let Some(((agent_a, _), (agent_b, _))) = two_finishes {
         if agent_a == agent_b {
             // One agent finished twice because of session resumption
-            return None
+            return None;
         }
     }
-
 
     two_finishes
 }

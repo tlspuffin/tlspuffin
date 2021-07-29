@@ -1,26 +1,19 @@
 use core::time::Duration;
 use std::path::PathBuf;
 
-
 use itertools::Itertools;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
-    bolts::{
-        rands::StdRand,
-        tuples::{tuple_list},
-    },
+    bolts::{rands::StdRand, tuples::tuple_list},
     corpus::{
         Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
         QueueCorpusScheduler,
     },
     executors::{inprocess::InProcessExecutor, TimeoutExecutor},
     feedback_or,
-    feedbacks::{
-        CrashFeedback, MapFeedbackState, MaxMapFeedback,
-        TimeFeedback, TimeoutFeedback,
-    },
+    feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
     state::{HasCorpus, StdState},
@@ -31,7 +24,7 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinStats;
-use crate::fuzzer::stats_observer::{StatsStage};
+use crate::fuzzer::stats_observer::StatsStage;
 
 use crate::openssl_binding::make_deterministic;
 
@@ -77,7 +70,7 @@ pub fn start(
     )
     .unwrap();
 
-/*    let stats = MultiStats::new(
+    /*    let stats = MultiStats::new(
         |s| {
             info!("{}", s);
         }
@@ -96,12 +89,15 @@ pub fn start(
             let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
             #[cfg(feature = "no-minimizer")]
-                let feedback = feedback_or!(
-                MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, false, false)
-            );
+            let feedback = feedback_or!(MaxMapFeedback::new_tracking(
+                &edges_feedback_state,
+                &edges_observer,
+                false,
+                false
+            ));
 
             #[cfg(not(feature = "no-minimizer"))]
-                let feedback = feedback_or!(
+            let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
                 MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
@@ -109,7 +105,6 @@ pub fn start(
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::new_with_observer(&time_observer)
             );
-
 
             // A feedback to choose if an input is a solution or not
             let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
@@ -146,7 +141,7 @@ pub fn start(
                     min_term_size: MIN_TERM_SIZE,
                     max_term_size: MAX_TERM_SIZE,
                 },
-                FRESH_ZOO_AFTER
+                FRESH_ZOO_AFTER,
             );
             let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
             let mut stages = tuple_list!(
@@ -156,10 +151,10 @@ pub fn start(
 
             // A minimization+queue policy to get testcasess from the corpus
             #[cfg(not(feature = "no-minimizer"))]
-                let scheduler =
+            let scheduler =
                 IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
             #[cfg(feature = "no-minimizer")]
-                let scheduler = RandCorpusScheduler::new();
+            let scheduler = RandCorpusScheduler::new();
 
             let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 

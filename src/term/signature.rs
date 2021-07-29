@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::atoms::Function;
-use crate::agent::{AgentName};
+use crate::agent::AgentName;
 use crate::trace::TlsMessageType;
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
@@ -26,24 +26,22 @@ pub struct Signature {
     pub functions_by_name: HashMap<&'static str, FunctionDefinition>,
     pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
-    pub types_by_name: HashMap<&'static str, TypeShape>,  // LH: Why not owned String as in `function_by_name` or use `static there as well?
+    pub types_by_name: HashMap<&'static str, TypeShape>, // LH: Why not owned String as in `function_by_name` or use `static there as well?
 }
 
 impl Signature {
     /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
-        let functions_by_name: HashMap<&'static str, FunctionDefinition> =
-            definitions
-                .clone()
-                .into_iter()
-                .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
-                .collect();
+        let functions_by_name: HashMap<&'static str, FunctionDefinition> = definitions
+            .clone()
+            .into_iter()
+            .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
+            .collect();
 
-        let functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>> =
-            definitions
-                .clone()
-                .into_iter()
-                .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type);
+        let functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>> = definitions
+            .clone()
+            .into_iter()
+            .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type);
 
         let types_by_name: HashMap<&'static str, TypeShape> = definitions
             .clone()
@@ -90,7 +88,11 @@ impl Signature {
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)
     }
 
-    pub fn new_var_by_type<T: 'static>(agent_name: AgentName, tls_message_type: Option<TlsMessageType>,  counter: u16) -> Variable {
+    pub fn new_var_by_type<T: 'static>(
+        agent_name: AgentName,
+        tls_message_type: Option<TlsMessageType>,
+        counter: u16,
+    ) -> Variable {
         let observed_id = ObservedId {
             agent_name,
             tls_message_type,

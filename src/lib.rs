@@ -14,17 +14,17 @@
 extern crate log;
 
 pub mod agent;
+pub mod error;
 pub mod fuzzer;
+pub mod graphviz;
 pub mod io;
 pub mod term;
+pub mod tls;
 pub mod trace;
 pub mod variable_data;
-pub mod tls;
-pub mod error;
-pub mod graphviz;
 
 mod debug;
+mod experiment;
 mod openssl_binding;
 mod tests;
-mod experiment;
 mod violation;

@@ -8,8 +8,8 @@ use rustls::msgs::handshake::{
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 
 use super::error::FnError;
-use crate::tls::key_schedule::dhe_key_schedule;
 use crate::tls::key_exchange::tls12_new_secrets;
+use crate::tls::key_schedule::dhe_key_schedule;
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -43,7 +43,9 @@ pub fn fn_no_key_share() -> Result<Option<Vec<u8>>, FnError> {
     Ok(None)
 }
 
-pub fn fn_get_server_key_share(server_extensions: &Vec<ServerExtension>) -> Result<Option<Vec<u8>>, FnError> {
+pub fn fn_get_server_key_share(
+    server_extensions: &Vec<ServerExtension>,
+) -> Result<Option<Vec<u8>>, FnError> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
         .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;

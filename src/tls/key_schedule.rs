@@ -7,11 +7,11 @@ use rustls::key_schedule::{
 };
 
 use rustls::msgs::enums::NamedGroup;
-use rustls::{SupportedCipherSuite};
 use rustls::NoKeyLog;
+use rustls::SupportedCipherSuite;
 
 use crate::tls::error::FnError;
-use crate::tls::key_exchange::{tls13_key_exchange};
+use crate::tls::key_exchange::tls13_key_exchange;
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,

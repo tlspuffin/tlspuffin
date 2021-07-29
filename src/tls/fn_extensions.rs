@@ -4,20 +4,11 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
-
-
-
-
-
-
-
-
 use rustls::kx_group::SECP384R1;
 use rustls::msgs::base::{Payload, PayloadU24};
 use rustls::msgs::base::{PayloadU16, PayloadU8};
 use rustls::msgs::enums::*;
 use rustls::msgs::handshake::*;
-
 
 use rustls::{x509, ProtocolVersion, SignatureScheme};
 

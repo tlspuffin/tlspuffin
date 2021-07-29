@@ -6,17 +6,16 @@ use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::Mutator;
 use libafl::state::StdState;
 
-
 use tlspuffin::agent::AgentName;
-use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
 use tlspuffin::fuzzer::mutations::util::TermConstraints;
+use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
 use tlspuffin::fuzzer::seeds::*;
 use tlspuffin::term;
-use tlspuffin::trace::{Trace};
 use tlspuffin::term::dynamic_function::make_dynamic;
-use tlspuffin::tls::fn_impl::*;
-use tlspuffin::trace::TraceContext;
 use tlspuffin::tls::error::FnError;
+use tlspuffin::tls::fn_impl::*;
+use tlspuffin::trace::Trace;
+use tlspuffin::trace::TraceContext;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -26,9 +25,7 @@ fn benchmark_dynamic(c: &mut Criterion) {
     let mut group = c.benchmark_group("op_hmac256");
 
     group.bench_function("fn_benchmark_example static", |b| {
-        b.iter(|| {
-            fn_benchmark_example(&5)
-        })
+        b.iter(|| fn_benchmark_example(&5))
     });
 
     group.bench_function("fn_benchmark_example dynamic", |b| {
@@ -52,7 +49,7 @@ fn benchmark_mutations(c: &mut Criterion) {
         let client = AgentName::first();
         let mut mutator = ReplaceReuseMutator::new(TermConstraints {
             min_term_size: 0,
-            max_term_size: 200
+            max_term_size: 200,
         });
         let mut trace = seed_client_attacker12(client);
 
@@ -153,5 +150,11 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.finish()
 }
 
-criterion_group!(benches, benchmark_dynamic, benchmark_trace, benchmark_mutations, benchmark_seeds);
+criterion_group!(
+    benches,
+    benchmark_dynamic,
+    benchmark_trace,
+    benchmark_mutations,
+    benchmark_seeds
+);
 criterion_main!(benches);

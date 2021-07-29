@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! mutator {
     ($(#[$attr:meta])* $name:ident, $input_type:ident, $impl:item, $($arg_name:ident : $arg_type:ty),*) => {

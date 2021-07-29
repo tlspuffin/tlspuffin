@@ -3,6 +3,7 @@
 
 use std::any::{Any, TypeId};
 
+use crate::error::Error;
 use rustls::msgs::handshake::ServerKeyExchangePayload;
 use rustls::{
     internal::msgs::{
@@ -12,7 +13,6 @@ use rustls::{
     },
     CipherSuite,
 };
-use crate::error::Error;
 
 pub trait VariableData {
     fn clone_box(&self) -> Box<dyn VariableData>;
@@ -142,9 +142,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         Box::new(ticket.ticket.0.clone()),
                     ]
                 }
-                _ => {
-                    return Err(Error::Extraction(message.payload.content_type()))
-                }
+                _ => return Err(Error::Extraction(message.payload.content_type())),
             }
         }
         MessagePayload::ChangeCipherSpec(_ccs) => {
@@ -157,7 +155,10 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
             vec![Box::new(message.clone()), Box::new(h.payload.clone())]
         }
         MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
-            vec![Box::new(message.clone()), Box::new(tls12encrypted.0.clone())]
+            vec![
+                Box::new(message.clone()),
+                Box::new(tls12encrypted.0.clone()),
+            ]
         }
     })
 }

@@ -17,21 +17,21 @@
 //! If Bob is an [`Agent`], which has an underlying *OpenSSLStream* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
+use std::cell::RefCell;
+use std::convert::TryFrom;
+use std::rc::Rc;
 use std::{
     io,
     io::{Read, Write},
 };
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::rc::Rc;
 
 use foreign_types_shared::ForeignTypeRef;
 use openssl::ssl::SslStream;
-use rustls::msgs::{deframer::MessageDeframer, message::Message};
 use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::{deframer::MessageDeframer, message::Message};
+use security_claims::Claim;
 #[cfg(feature = "claims")]
 use security_claims::{deregister_claimer, register_claimer};
-use security_claims::Claim;
 
 use crate::agent::{AgentName, TLSVersion};
 use crate::debug::debug_opaque_message_with_info;
@@ -71,7 +71,12 @@ pub struct OpenSSLStream {
 }
 
 impl OpenSSLStream {
-    pub fn new(server: bool, tls_version: &TLSVersion, agent_name: AgentName, claimer: Rc<RefCell<VecClaimer>>) -> Result<Self, Error> {
+    pub fn new(
+        server: bool,
+        tls_version: &TLSVersion,
+        agent_name: AgentName,
+        claimer: Rc<RefCell<VecClaimer>>,
+    ) -> Result<Self, Error> {
         let memory_stream = MemoryStream::new();
         let openssl_stream = if server {
             //let (cert, pkey) = openssl_binding::generate_cert();
@@ -82,16 +87,15 @@ impl OpenSSLStream {
         };
 
         #[cfg(feature = "claims")]
-            register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
+        register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
             (*claimer).borrow_mut().claim(agent_name, claim)
         });
 
-        Ok(OpenSSLStream {
-            openssl_stream
-        })
+        Ok(OpenSSLStream { openssl_stream })
     }
 
-    pub fn describe_state(&self) -> &'static str {  // LH: Why 'static lifetime? Couldn't you use an owned value here?
+    pub fn describe_state(&self) -> &'static str {
+        // LH: Why 'static lifetime? Couldn't you use an owned value here?
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
@@ -186,18 +190,14 @@ impl Stream for MemoryStream {
                 );
 
                 let message = match Message::try_from(opaque_message.clone()) {
-                    Ok(message) => {
-                        Some(message)
-                    }
+                    Ok(message) => Some(message),
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}: {}", err, hex::encode(opaque_message.clone().encode()));
                         None
                     }
                 };
 
-                Ok(
-                    Some(MessageResult(message, opaque_message))
-                )
+                Ok(Some(MessageResult(message, opaque_message)))
             } else {
                 // no message to return
                 Ok(None)

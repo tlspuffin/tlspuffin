@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::events::{Event, EventFirer};
 use libafl::inputs::Input;
-use libafl::state::{HasClientPerfStats, HasRand, HasCorpus};
+use libafl::state::{HasClientPerfStats, HasCorpus, HasRand};
 use libafl::stats::UserStats;
 use libafl::{Error, Evaluator};
 
@@ -192,26 +192,25 @@ impl Fire for MinMaxMean {
 
 #[derive(Clone, Debug)]
 pub struct StatsStage<C, E, EM, I, R, S, Z>
-    where
-        C: Corpus<I>,
-        I: Input,
-        R: Rand,
-        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-        Z: Evaluator<E, EM, I, S>,
+where
+    C: Corpus<I>,
+    I: Input,
+    R: Rand,
+    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    Z: Evaluator<E, EM, I, S>,
 {
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(C, E, EM, I, R, S, Z)>
+    phantom: PhantomData<(C, E, EM, I, R, S, Z)>,
 }
 
-
 impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, Z>
-    where
-        C: Corpus<I>,
-        I: Input,
-        R: Rand,
-        EM: EventFirer<I, S>,
-        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-        Z: Evaluator<E, EM, I, S>,
+where
+    C: Corpus<I>,
+    I: Input,
+    R: Rand,
+    EM: EventFirer<I, S>,
+    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    Z: Evaluator<E, EM, I, S>,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -240,19 +239,17 @@ impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, 
     }
 }
 
-impl<C, E, EM, I,  R, S, Z> StatsStage<C, E, EM, I, R, S, Z>
-    where
-        C: Corpus<I>,
-        I: Input,
-        R: Rand,
-        S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-        Z: Evaluator<E, EM, I, S>,
+impl<C, E, EM, I, R, S, Z> StatsStage<C, E, EM, I, R, S, Z>
+where
+    C: Corpus<I>,
+    I: Input,
+    R: Rand,
+    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    Z: Evaluator<E, EM, I, S>,
 {
-
     pub fn new() -> Self {
         Self {
-            phantom: PhantomData
+            phantom: PhantomData,
         }
     }
 }
-
