@@ -2,7 +2,7 @@
 //! handshake or an execution which crahes OpenSSL.
 
 use rustls::internal::msgs::enums::HandshakeType;
-use rustls::msgs::enums::HandshakeType::ServerHello;
+
 use rustls::msgs::handshake::CertificatePayload;
 use rustls::msgs::message::{Message, OpaqueMessage};
 use rustls::{

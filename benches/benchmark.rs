@@ -5,7 +5,7 @@ use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::Mutator;
 use libafl::state::StdState;
-use ring::hmac::{Key, HMAC_SHA256};
+
 
 use tlspuffin::agent::AgentName;
 use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;

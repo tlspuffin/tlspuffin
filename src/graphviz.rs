@@ -48,7 +48,7 @@ impl Trace {
                             .dot_subgraph(tree_mode, i, subgraph_name.as_str())
                     )
                 }
-                Action::Output(output) => format!(
+                Action::Output(_) => format!(
                     "subgraph cluster{} {{ label=\"{}\" \"\" [color=\"#00000000\"]; }}",
                     i,
                     subgraph_name.as_str()

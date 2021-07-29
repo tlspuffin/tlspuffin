@@ -5,13 +5,13 @@ use rustls::key_schedule::{
     KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
     KeyScheduleTrafficWithClientFinishedPending,
 };
-use rustls::kx::KeyExchange;
+
 use rustls::msgs::enums::NamedGroup;
-use rustls::{SupportedCipherSuite, ALL_KX_GROUPS};
+use rustls::{SupportedCipherSuite};
 use rustls::NoKeyLog;
 
 use crate::tls::error::FnError;
-use crate::tls::key_exchange::{tls12_key_exchange, tls13_key_exchange};
+use crate::tls::key_exchange::{tls13_key_exchange};
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,
@@ -88,7 +88,7 @@ pub fn tls13_derive_psk(
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
-) -> Result<(Vec<u8>), FnError> {
+) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
     let (_, _, mut application_key_schedule) = tls13_application_traffic_secret(

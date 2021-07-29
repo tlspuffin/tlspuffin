@@ -68,33 +68,33 @@ use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::env::var;
+
 use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
-use rustls::msgs::enums::Compression;
-use rustls::msgs::handshake::{ClientExtension, Random, SessionID};
+
+
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::MessagePayload,
 };
-use rustls::{CipherSuite, ProtocolVersion};
-use security_claims::Claim;
-use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::agent::{AgentDescriptor, TLSVersion};
+use security_claims::Claim;
+use serde::{Deserialize, Serialize};
+
+use crate::agent::{AgentDescriptor};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
-use crate::term::signature::Signature;
+
 use crate::tls::error::FnError;
-use crate::tls::fn_messages::fn_client_hello;
+
 use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
@@ -141,7 +141,7 @@ impl TryFrom<&MessageResult> for TlsMessageType {
                 MessagePayload::Handshake(handshake_payload) => {
                     Ok(TlsMessageType::Handshake(Some(handshake_payload.typ)))
                 }
-                MessagePayload::TLS12EncryptedHandshake(r) => Ok(TlsMessageType::Handshake(None)),
+                MessagePayload::TLS12EncryptedHandshake(_) => Ok(TlsMessageType::Handshake(None)),
                 _ => Err(Error::Extraction(tls_opaque_type)),
             },
             (ContentType::Handshake, _) => Ok(TlsMessageType::Handshake(None)),

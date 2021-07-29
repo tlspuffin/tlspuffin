@@ -22,8 +22,8 @@ use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
-use crate::variable_data::VariableData;
-use std::iter::FromIterator;
+
+
 
 #[cfg(feature = "deterministic")]
 #[test]
@@ -311,7 +311,7 @@ fn test_term_generation() {
         .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
         .collect_vec();
 
-    let graph = format!(
+    let _graph = format!(
         "strict digraph \"Trace\" {{ splines=true; {} }}",
         subgraphs.join("\n")
     );

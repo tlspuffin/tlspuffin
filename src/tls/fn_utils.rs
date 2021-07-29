@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use ring::digest::Digest;
+
 use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::HandshakeType;
@@ -9,7 +9,7 @@ use rustls::msgs::base::PayloadU8;
 use rustls::msgs::codec::{Codec, Reader};
 use rustls::msgs::handshake::{
     CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload, Random,
-    ServerECDHParams, ServerExtension,
+    ServerECDHParams,
 };
 use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 use rustls::{key, Certificate};

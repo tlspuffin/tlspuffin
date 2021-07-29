@@ -1,30 +1,25 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
 
-use std::convert::{TryFrom, TryInto};
 
-use ring::digest::Digest;
-use ring::hkdf::Prk;
-use ring::{digest, hmac};
-use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
-use rustls::hash_hs::HandshakeHash;
-use rustls::key_schedule::{
-    KeySchedule, KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleNonSecret,
-    KeyScheduleTrafficWithClientFinishedPending,
-};
-use rustls::kx::{KeyExchange, KeyExchangeResult};
-use rustls::msgs::enums::{ExtensionType, NamedGroup};
-use rustls::msgs::handshake::{
-    HasServerExtensions, KeyShareEntry, Random, ServerECDHParams, ServerExtension,
-};
-use rustls::suites::Tls12CipherSuite;
-use rustls::NoKeyLog;
-use rustls::{tls12, SupportedCipherSuite, ALL_KX_GROUPS};
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 use fn_impl::*;
 
 use crate::define_signature;
-use crate::tls::error::FnError;
+
 
 pub mod fn_constants;
 pub mod fn_extensions;

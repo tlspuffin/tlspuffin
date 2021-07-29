@@ -14,9 +14,9 @@ use crate::{
 };
 
 use super::atoms::Function;
-use crate::agent::{Agent, AgentName};
+use crate::agent::{AgentName};
 use crate::trace::TlsMessageType;
-use rustls::msgs::{enums::{ContentType,HandshakeType}};
+
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
 /// Records a universe of functions.
