@@ -20,6 +20,7 @@ pub mod fn_impl {
     };
 }
 
+/// Function symbol which can be used for debugging
 fn fn_debug(
     message: &rustls::msgs::message::Message,
 ) -> Result<rustls::msgs::message::Message, crate::tls::error::FnError> {

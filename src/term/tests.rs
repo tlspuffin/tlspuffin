@@ -26,6 +26,7 @@ pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     Ok(Vec::from(tag.as_ref()))
 }
 
+#[allow(dead_code)]
 fn test_compilation() {
     // reminds me of Lisp, lol
     let client = AgentName::first();
