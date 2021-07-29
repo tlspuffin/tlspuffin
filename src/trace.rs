@@ -209,8 +209,7 @@ impl fmt::Display for ObservedId {
     }
 }
 
-/// [ObservedVariavble] describes an atomic TLS message (e.g., ClientHello(ProtocolVersion)).
-#[derive(Debug)]
+/// [ObservedVariable] describes an atomic TLS message (e.g., ClientHello(ProtocolVersion)).
 struct ObservedVariable {
     observed_id: ObservedId,
     data: Box<dyn VariableData>,
