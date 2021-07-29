@@ -90,19 +90,10 @@ impl Signature {
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)
     }
 
-    pub fn new_var_application_data<T: 'static>(agent_name: AgentName, counter: u16) -> Variable {
+    pub fn new_var_by_type<T: 'static>(agent_name: AgentName, tls_message_type: Option<TlsMessageType>,  counter: u16) -> Variable {
         let observed_id = ObservedId {
             agent_name,
-            tls_message_type: Some(TlsMessageType::ApplicationData),
-            counter,
-        };
-        Self::new_var_internal(TypeShape::of::<T>(), observed_id)
-    }
-
-    pub fn new_var_handshake<T: 'static>(agent_name: AgentName, tls_handshake_type: Option<HandshakeType>,  counter: u16) -> Variable {
-        let observed_id = ObservedId {
-            agent_name,
-            tls_message_type: Some(TlsMessageType::Handshake(tls_handshake_type)),
+            tls_message_type,
             counter,
         };
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)

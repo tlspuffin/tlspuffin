@@ -31,25 +31,33 @@ use rustls::msgs::enums::HandshakeType;
 macro_rules! term {
     // Handshake Variable
     (($agent:expr, $counter:expr) / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter);
-        $crate::term::Term::Variable(var)
-    }};
+        use crate::trace::TlsMessageType;
 
-    // Handshake Variable
-    (($agent:expr, $counter:expr) [H@$hs_type:expr] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, Some($hs_type), $counter);
+        let var = $crate::term::signature::Signature::new_var_by_type::<$typ>($agent, Some(TlsMessageType::Handshake(None)), $counter);
         $crate::term::Term::Variable(var)
     }};
 
     // Handshake Variable
     (($agent:expr, $counter:expr) [H] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_handshake::<$typ>($agent, None, $counter);
+        use crate::trace::TlsMessageType;
+
+        let var = $crate::term::signature::Signature::new_var_by_type::<$typ>($agent, Some(TlsMessageType::Handshake(None)), $counter);
+        $crate::term::Term::Variable(var)
+    }};
+
+    // Handshake Variable
+    (($agent:expr, $counter:expr) [H::$hs_type:expr] / $typ:ty) => {{
+        use crate::trace::TlsMessageType;
+
+        let var = $crate::term::signature::Signature::new_var_by_type::<$typ>($agent, Some(TlsMessageType::Handshake(Some($hs_type))), $counter);
         $crate::term::Term::Variable(var)
     }};
 
     // Application Data Variable
     (($agent:expr, $counter:expr) [A] / $typ:ty) => {{
-        let var = $crate::term::signature::Signature::new_var_application_data::<$typ>($agent, $counter);
+        use crate::trace::TlsMessageType;
+
+        let var = $crate::term::signature::Signature::new_var_by_type::<$typ>($agent, Some(TlsMessageType::ApplicationData), $counter);
         $crate::term::Term::Variable(var)
     }};
 
