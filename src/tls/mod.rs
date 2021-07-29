@@ -25,7 +25,6 @@ use fn_impl::*;
 
 use crate::define_signature;
 use crate::tls::error::FnError;
-use crate::tls::key_exchange::deterministic_key_exchange;
 
 pub mod fn_constants;
 pub mod fn_extensions;
@@ -33,8 +32,7 @@ pub mod fn_fields;
 pub mod fn_messages;
 pub mod fn_utils;
 mod key_exchange;
-#[cfg(test)]
-mod tests;
+
 
 /// This modules contains all the concrete implementations of function symbols.
 pub mod fn_impl {
@@ -44,200 +42,13 @@ pub mod fn_impl {
     };
 }
 
+fn fn_debug(message: &rustls::msgs::message::Message) -> Result<rustls::msgs::message::Message, crate::tls::error::FnError> {
+    dbg!(message);
+    Ok(message.clone())
+}
+
 pub mod error;
-
-fn tls13_handshake_traffic_secret(
-    server_hello: &HandshakeHash,
-    server_key_share: &Option<Vec<u8>>,
-    psk: &Option<Vec<u8>>,
-    server: bool,
-) -> Result<(&'static SupportedCipherSuite, Prk, KeyScheduleHandshake), FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
-
-    let server_secret = key_schedule.server_handshake_traffic_secret(
-        &server_hello.get_current_hash(),
-        &NoKeyLog {},
-        client_random,
-    );
-
-    let client_secret = key_schedule.client_handshake_traffic_secret(
-        &server_hello.get_current_hash(),
-        &NoKeyLog {},
-        client_random,
-    );
-
-    Ok((
-        suite,
-        if server { client_secret } else { server_secret },
-        key_schedule,
-    ))
-}
-
-fn tls13_application_traffic_secret(
-    server_hello: &HandshakeHash,
-    server_finished: &HandshakeHash,
-    server_key_share: &Option<Vec<u8>>,
-    psk: &Option<Vec<u8>>,
-    server: bool,
-) -> Result<
-    (
-        &'static SupportedCipherSuite,
-        Prk,
-        KeyScheduleTrafficWithClientFinishedPending,
-    ),
-    FnError,
-> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let (suite, _key, key_schedule) =
-        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
-
-    let mut application_key_schedule = key_schedule.into_traffic_with_client_finished_pending();
-
-    let server_secret = application_key_schedule.server_application_traffic_secret(
-        &server_finished.get_current_hash(),
-        &NoKeyLog {},
-        client_random,
-    );
-
-    let client_secret = application_key_schedule.client_application_traffic_secret(
-        &server_finished.get_current_hash(),
-        &NoKeyLog {},
-        client_random,
-    );
-
-    Ok((
-        suite,
-        if server { client_secret } else { server_secret },
-        application_key_schedule,
-    ))
-}
-
-fn tls13_derive_psk(
-    server_hello: &HandshakeHash,
-    server_finished: &HandshakeHash,
-    client_finished: &HandshakeHash,
-    server_key_share: &Option<Vec<u8>>,
-    new_ticket_nonce: &Vec<u8>,
-) -> Result<(Vec<u8>), FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-
-    let (_, _, mut application_key_schedule) = tls13_application_traffic_secret(
-        server_hello,
-        server_finished,
-        server_key_share,
-        &None,
-        true,
-    )?;
-
-    application_key_schedule.exporter_master_secret(
-        &server_finished.get_current_hash(), // todo
-        &NoKeyLog {},
-        client_random,
-    );
-
-    let psk = application_key_schedule
-        .into_traffic()
-        .resumption_master_secret_and_derive_ticket_psk(
-            &client_finished.get_current_hash(), // todo
-            new_ticket_nonce,
-        );
-
-    Ok(psk)
-}
-
-fn calc_shared_secret(server_key_share: &Vec<u8>, group: NamedGroup) -> Result<Vec<u8>, FnError> {
-    // Shared Secret
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError::Unknown(
-        "Failed to choose group in key exchange".to_string(),
-    ))?;
-    let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let shared = kx
-        .complete(server_key_share.as_slice())
-        .ok_or(FnError::Unknown(
-            "Failed to complete key exchange".to_string(),
-        ))?;
-    Ok(shared.shared_secret)
-}
-
-fn dhe_key_schedule(
-    suite: &SupportedCipherSuite,
-    group: NamedGroup,
-    server_key_share: &Option<Vec<u8>>,
-    psk: &Option<Vec<u8>>,
-) -> Result<KeyScheduleHandshake, FnError> {
-    // Key Schedule with or without PSK
-    let key_schedule = match (server_key_share, psk) {
-        (Some(server_key_share), Some(psk)) => {
-            let shared_secret = calc_shared_secret(server_key_share, group);
-            Ok(KeyScheduleEarly::new(suite.hkdf_algorithm, psk.as_slice())
-                .into_handshake(&shared_secret?))
-        }
-        (Some(server_key_share), None) => {
-            let shared_secret = calc_shared_secret(server_key_share, group);
-            Ok(KeyScheduleNonSecret::new(suite.hkdf_algorithm).into_handshake(&shared_secret?))
-        }
-        (None, Some(psk)) => {
-            // todo this empty secret is not specified in the RFC 8446
-            let zeroes = [0u8; digest::MAX_OUTPUT_LEN];
-            Ok(
-                KeyScheduleEarly::new(suite.hkdf_algorithm, psk.as_slice()).into_handshake(
-                    &zeroes[..suite
-                        .hkdf_algorithm
-                        .hmac_algorithm()
-                        .digest_algorithm()
-                        .output_len],
-                ),
-            )
-        }
-        (None, None) => Err(FnError::Unknown(
-            "Need at least a key share or a psk".to_owned(),
-        )),
-    };
-
-    key_schedule
-}
-
-// ----
-// seed_client_attacker12()
-// ----
-
-fn tls12_key_exchange(server_ecdh_params: &ServerECDHParams) -> Result<KeyExchangeResult, FnError> {
-    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
-        .ok_or("Failed to find key exchange group".to_string())?;
-    let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
-    Ok(kxd)
-}
-
-fn tls12_new_secrets(
-    server_random: &Random,
-    server_ecdh_params: &ServerECDHParams,
-) -> Result<ConnectionSecrets, FnError> {
-    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-
-    let mut server_random_bytes = vec![0; 32];
-
-    server_random.write_slice(&mut server_random_bytes);
-
-    let server_random = server_random_bytes
-        .try_into()
-        .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
-    let randoms = ConnectionRandoms {
-        we_are_client: true,
-        client: [1; 32], // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-        server: server_random,
-    };
-    let kxd = tls12_key_exchange(server_ecdh_params)?;
-    let suite12 = Tls12CipherSuite::try_from(suite)
-        .map_err(|_err| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
-    let secrets = ConnectionSecrets::new(&randoms, suite12, &kxd.shared_secret);
-    // master_secret is: 01 40 26 dd 53 3c 0a...
-    Ok(secrets)
-}
+mod key_schedule;
 
 #[macro_export]
 macro_rules! nyi_fn {

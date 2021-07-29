@@ -22,7 +22,7 @@ use rustls::ticketer::TimeBase;
 use rustls::{x509, ProtocolVersion, SignatureScheme};
 
 use crate::nyi_fn;
-use crate::tls::key_exchange::deterministic_key_exchange;
+use crate::tls::key_exchange::deterministic_key_share;
 
 use super::error::FnError;
 
@@ -473,8 +473,7 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
 }
 /// KeyShare => 0x0033,
 pub fn fn_key_share_deterministic_extension() -> Result<ClientExtension, FnError> {
-    let our_key_share: KeyExchange = deterministic_key_exchange(&SECP384R1)?;
-    fn_key_share_extension(&Vec::from(our_key_share.pubkey.as_ref()))
+    fn_key_share_extension(&deterministic_key_share(&SECP384R1)?)
 }
 pub fn fn_key_share_extension(key_share: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
@@ -483,8 +482,7 @@ pub fn fn_key_share_extension(key_share: &Vec<u8>) -> Result<ClientExtension, Fn
     }]))
 }
 pub fn fn_key_share_deterministic_server_extension() -> Result<ServerExtension, FnError> {
-    let our_key_share: KeyExchange = deterministic_key_exchange(&SECP384R1)?;
-    fn_key_share_server_extension(&Vec::from(our_key_share.pubkey.as_ref()))
+    fn_key_share_server_extension(&deterministic_key_share(&SECP384R1)?)
 }
 pub fn fn_key_share_server_extension(key_share: &Vec<u8>) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {

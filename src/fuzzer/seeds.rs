@@ -1260,8 +1260,3 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     trace
 }
-
-fn fn_debug(message: &Message) -> Result<Message, crate::tls::error::FnError> {
-    dbg!(message);
-    Ok(message.clone())
-}

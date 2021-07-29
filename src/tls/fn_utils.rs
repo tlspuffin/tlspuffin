@@ -15,6 +15,8 @@ use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 use rustls::{key, Certificate};
 
 use super::error::FnError;
+use crate::tls::key_schedule::*;
+use crate::tls::key_exchange::{tls12_new_secrets, tls12_key_exchange};
 
 // ----
 // seed_client_attacker()
@@ -44,7 +46,7 @@ pub fn fn_decrypt_handshake(
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let (suite, key, _) = super::tls13_handshake_traffic_secret(
+    let (suite, key, _) = tls13_handshake_traffic_secret(
         &server_hello_transcript,
         server_key_share,
         psk,
@@ -71,7 +73,7 @@ pub fn fn_decrypt_application(
     psk: &Option<Vec<u8>>,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let (suite, key, _) = super::tls13_application_traffic_secret(
+    let (suite, key, _) = tls13_application_traffic_secret(
         &server_hello_transcript,
         &server_finished_transcript,
         server_key_share,
@@ -91,7 +93,7 @@ pub fn fn_encrypt_handshake(
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) =
-        super::tls13_handshake_traffic_secret(&server_hello, server_key_share, psk, true)?;
+        tls13_handshake_traffic_secret(&server_hello, server_key_share, psk, true)?;
     let encrypter = new_tls13_write(suite, &key);
     let application_data = encrypter.encrypt(
         OpaqueMessage::from(some_message.clone()).borrow(),
@@ -109,7 +111,7 @@ pub fn fn_encrypt_application(
     sequence: &u64,
 ) -> Result<Message, FnError> {
 
-    let (suite, key, _) = super::tls13_application_traffic_secret(
+    let (suite, key, _) = tls13_application_traffic_secret(
         &server_hello_transcript,
         &server_finished_transcript,
         server_key_share,
@@ -132,7 +134,7 @@ pub fn fn_derive_psk(
     new_ticket_nonce: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
 
-    let psk = super::tls13_derive_psk(
+    let psk = tls13_derive_psk(
         server_hello,
         server_finished,
         client_finished,
@@ -246,7 +248,7 @@ pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError
 }
 
 pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Result<Vec<u8>, FnError> {
-    let kxd = super::tls12_key_exchange(server_ecdh_params)?;
+    let kxd = tls12_key_exchange(server_ecdh_params)?;
     let mut buf = Vec::new();
     let ecpoint = PayloadU8::new(Vec::from(kxd.pubkey.as_ref()));
     ecpoint.encode(&mut buf);
@@ -259,7 +261,7 @@ pub fn fn_encrypt12(
     server_ecdh_params: &ServerECDHParams,
     sequence: &u64,
 ) -> Result<Message, FnError> {
-    let secrets = super::tls12_new_secrets(server_random, server_ecdh_params)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
     let (_decrypter, encrypter) = new_tls12(&secrets);
     let encrypted = encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?;

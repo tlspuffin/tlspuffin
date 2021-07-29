@@ -8,6 +8,8 @@ use rustls::msgs::handshake::{
 use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 
 use super::error::FnError;
+use crate::tls::key_schedule::dhe_key_schedule;
+use crate::tls::key_exchange::tls12_new_secrets;
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -64,7 +66,7 @@ pub fn fn_verify_data(
 
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
-    let mut key_schedule = super::dhe_key_schedule(suite, group, server_key_share, psk)?;
+    let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     key_schedule.client_handshake_traffic_secret(
         &client_handshake_traffic_secret_transcript.get_current_hash(),
@@ -87,7 +89,7 @@ pub fn fn_sign_transcript(
     server_ecdh_params: &ServerECDHParams,
     transcript: &HandshakeHash,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = super::tls12_new_secrets(server_random, server_ecdh_params)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
