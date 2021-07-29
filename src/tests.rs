@@ -263,18 +263,16 @@ pub mod serialization {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{
-        seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12,
-    };
+    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12, seed_session_resumption_dhe};
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
 
     #[test]
-    fn test_serialisation_seed_client_attacker_json() {
+    fn test_serialisation_seed_seed_session_resumption_dhe_json() {
         let server = AgentName::first();
-        let trace = seed_client_attacker(server);
+        let trace = seed_session_resumption_dhe(server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
