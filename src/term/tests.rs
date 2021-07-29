@@ -49,6 +49,9 @@ fn test_compilation() {
        fn_client_hello((fn_protocol_version12()), fn_new_random, fn_new_random)
     };
 
+    let _test_simple_function2 = term! {
+       fn_new_random(((client,0)))
+    };
     let _test_simple_function1 = term! {
        fn_protocol_version12
     };

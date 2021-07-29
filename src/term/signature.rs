@@ -88,7 +88,8 @@ impl Signature {
         Self::new_var_internal(TypeShape::of::<T>(), observed_id)
     }
 
-    pub fn new_var_by_type<T: 'static>(
+    pub fn new_var_by_type_id(
+        type_shape: TypeShape,
         agent_name: AgentName,
         tls_message_type: Option<TlsMessageType>,
         counter: u16,
@@ -98,8 +99,9 @@ impl Signature {
             tls_message_type,
             counter,
         };
-        Self::new_var_internal(TypeShape::of::<T>(), observed_id)
+        Self::new_var_internal(type_shape, observed_id)
     }
+
 }
 
 impl fmt::Debug for Signature {
