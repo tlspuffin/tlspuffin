@@ -102,7 +102,9 @@ macro_rules! term {
         #[allow(unused_assignments)]
         let arguments = vec![$({
             #[allow(unused)]
-            let argument = func.shape().argument_types[i].clone();
+            let argument = func.shape().argument_types.get(i)
+                    .expect("too many arguments specified for function")
+                    .clone();
             i += 1;
             $crate::term_arg!($args > argument)
         }),*];
