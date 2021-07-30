@@ -5,20 +5,18 @@ extern crate log;
 
 use std::fs::File;
 use std::io::Read;
-
 use std::{env, fs, io::Write, path::PathBuf};
 
 use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
-
 use log4rs::config::{Appender, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::Config;
 
-use fuzzer::seeds::*;
+use fuzzer::seeds::create_corpus;
 use trace::TraceContext;
 
 use crate::experiment::*;
@@ -102,27 +100,7 @@ fn main() {
     info!("{}", openssl_binding::openssl_version());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        let agent_a = agent::AgentName::first();
-        let agent_b = agent_a.next();
-
-        let traces: Vec<(trace::Trace, &'static str)> = vec![
-            (seed_successful(agent_a, agent_b), "seed_successful"),
-            (
-                seed_successful_with_ccs(agent_a, agent_b),
-                "seed_successful_with_ccs",
-            ),
-            (
-                seed_successful_with_tickets(agent_a, agent_b),
-                "seed_successful_with_tickets",
-            ),
-            (seed_successful12(agent_a, agent_b), "seed_successful12"),
-            (seed_client_attacker(agent_a), "seed_client_attacker"),
-            (seed_client_attacker12(agent_a), "seed_client_attacker12"),
-            (seed_session_resumption_dhe(agent_a), "seed_session_resumption_dhe"),
-            (seed_session_resumption_ke(agent_a), "seed_session_resumption_ke"),
-        ];
-
-        for (trace, name) in traces {
+        for (trace, name) in create_corpus() {
             let mut file = File::create(format!("./corpus/{}.trace", name)).unwrap();
             let buffer = postcard::to_allocvec(&trace).unwrap();
             file.write_all(&buffer).unwrap();

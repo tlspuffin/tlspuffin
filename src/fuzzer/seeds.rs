@@ -1235,3 +1235,31 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     trace
 }
+
+pub fn create_corpus() -> [(Trace, &'static str); 8] {
+    let agent_a = AgentName::first();
+    let agent_b = agent_a.next();
+
+    [
+        (seed_successful(agent_a, agent_b), "seed_successful"),
+        (
+            seed_successful_with_ccs(agent_a, agent_b),
+            "seed_successful_with_ccs",
+        ),
+        (
+            seed_successful_with_tickets(agent_a, agent_b),
+            "seed_successful_with_tickets",
+        ),
+        (seed_successful12(agent_a, agent_b), "seed_successful12"),
+        (seed_client_attacker(agent_a), "seed_client_attacker"),
+        (seed_client_attacker12(agent_a), "seed_client_attacker12"),
+        (
+            seed_session_resumption_dhe(agent_a),
+            "seed_session_resumption_dhe",
+        ),
+        (
+            seed_session_resumption_ke(agent_a),
+            "seed_session_resumption_ke",
+        ),
+    ]
+}

@@ -5,7 +5,6 @@ use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
-
 use openssl::rand::rand_bytes;
 
 use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
@@ -111,7 +110,7 @@ fn test_remove_lift_mutator() {
 
     // Returns the amount of extensions in the trace
     fn sum_extension_appends(trace: &Trace) -> u16 {
-        util::count_functions_trace(trace, fn_client_extensions_append.name())
+        trace.count_functions_by_name(fn_client_extensions_append.name())
     }
 
     loop {
@@ -138,11 +137,11 @@ fn test_replace_reuse_mutator() {
     let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
 
     fn count_client_hello(trace: &Trace) -> u16 {
-        util::count_functions_trace(trace, fn_client_hello.name())
+        trace.count_functions_by_name(fn_client_hello.name())
     }
 
     fn count_finished(trace: &Trace) -> u16 {
-        util::count_functions_trace(trace, fn_finished.name())
+        trace.count_functions_by_name(fn_finished.name())
     }
 
     loop {
@@ -330,6 +329,29 @@ fn test_term_generation() {
     //println!("{}", graph);
 }
 
+#[test]
+fn test_corpus_term_size() {
+    let corpus = create_corpus();
+    let trace_term_sizes = corpus
+        .iter()
+        .map(|(trace, name)| {
+            ((
+                name,
+                trace
+                    .steps
+                    .iter()
+                    .map(|step| match &step.action {
+                        Action::Input(input) => input.recipe.size(),
+                        Action::Output(_) => 0,
+                    })
+                    .sum::<usize>(),
+            ))
+        })
+        .collect_vec();
+
+    println!("{:?}", trace_term_sizes);
+}
+
 mod util {
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
     use crate::graphviz::write_graphviz;
@@ -393,35 +415,38 @@ mod util {
         )
     }
 
-    pub(crate) fn count_functions_trace(trace: &Trace, find_name: &'static str) -> u16 {
-        trace
-            .steps
-            .iter()
-            .map(|step| match &step.action {
-                Action::Input(input) => count_functions_term(&input.recipe, find_name),
-                Action::Output(_) => 0,
-            })
-            .sum::<u16>()
+    impl Trace {
+        pub(crate) fn count_functions_by_name(&self, find_name: &'static str) -> u16 {
+            self.steps
+                .iter()
+                .map(|step| match &step.action {
+                    Action::Input(input) => input.recipe.count_functions_by_name(find_name),
+                    Action::Output(_) => 0,
+                })
+                .sum::<u16>()
+        }
+
+        pub(crate) fn write_plots(&self, i: u16) {
+            write_graphviz(
+                format!("test_mutation{}.svg", i).as_str(),
+                "svg",
+                self.dot_graph(true).as_str(),
+            )
+            .unwrap();
+        }
     }
 
-    pub(crate) fn count_functions_term(term: &Term, find_name: &'static str) -> u16 {
-        let mut found = 0;
-        for term in term.into_iter() {
-            if let Term::Application(func, _) = term {
-                if func.name() == find_name {
-                    found += 1;
+    impl Term {
+        pub(crate) fn count_functions_by_name(&self, find_name: &'static str) -> u16 {
+            let mut found = 0;
+            for term in self.into_iter() {
+                if let Term::Application(func, _) = term {
+                    if func.name() == find_name {
+                        found += 1;
+                    }
                 }
             }
+            found
         }
-        found
-    }
-
-    fn plot(trace: &Trace, i: u16) {
-        write_graphviz(
-            format!("test_mutation{}.svg", i).as_str(),
-            "svg",
-            trace.dot_graph(true).as_str(),
-        )
-        .unwrap();
     }
 }
