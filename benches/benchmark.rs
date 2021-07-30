@@ -147,14 +147,36 @@ fn benchmark_seeds(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("seed_session_resumption_dhe", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let trace = seed_session_resumption_dhe(client);
+
+            trace.execute(&mut ctx).unwrap();
+        })
+    });
+
+    group.bench_function("seed_session_resumption_ke", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let trace = seed_session_resumption_ke(client);
+
+            trace.execute(&mut ctx).unwrap();
+        })
+    });
+
     group.finish()
 }
+
+
 
 criterion_group!(
     benches,
     benchmark_dynamic,
     benchmark_trace,
     benchmark_mutations,
-    benchmark_seeds
+    benchmark_seeds,
 );
 criterion_main!(benches);
