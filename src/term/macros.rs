@@ -36,6 +36,7 @@ macro_rules! term {
     (($agent:expr, $counter:expr) $([H])? $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
+        use $crate::term::Term;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(None)), $counter);
         Term::Variable(var)
@@ -53,6 +54,7 @@ macro_rules! term {
     (($agent:expr, $counter:expr) [H::$hs_type:expr] $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
+        use $crate::term::Term;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(Some($hs_type))), $counter);
         Term::Variable(var)
@@ -68,6 +70,7 @@ macro_rules! term {
     (($agent:expr, $counter:expr) [A] $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
+        use $crate::term::Term;
 
         let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::ApplicationData), $counter);
         Term::Variable(var)
@@ -90,6 +93,7 @@ macro_rules! term {
     //
     ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
         use $crate::term::signature::Signature;
+        use $crate::term::Term;
 
         let func = Signature::new_function(&$func);
         #[allow(unused_assignments, unused_variables, unused_mut)]
@@ -108,6 +112,7 @@ macro_rules! term {
     // Shorthand for constants
     ($func:ident $(>$req_type:expr)?) => {{
         use $crate::term::signature::Signature;
+        use $crate::term::Term;
 
         let func = Signature::new_function(&$func);
         Term::Application(func, vec![])
