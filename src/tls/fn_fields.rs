@@ -58,8 +58,8 @@ pub fn fn_get_server_key_share(
 }
 
 pub fn fn_verify_data(
-    verify_transcript: &HandshakeHash,
-    client_handshake_traffic_secret_transcript: &HandshakeHash,
+    server_finished: &HandshakeHash,
+    server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
 ) -> Result<Vec<u8>, FnError> {
@@ -71,14 +71,14 @@ pub fn fn_verify_data(
     let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     key_schedule.client_handshake_traffic_secret(
-        &client_handshake_traffic_secret_transcript.get_current_hash(),
+        &server_hello.get_current_hash(),
         &NoKeyLog,
         client_random,
     );
 
     let pending = key_schedule.into_traffic_with_client_finished_pending();
 
-    let bytes = pending.sign_client_finish(&verify_transcript.get_current_hash());
+    let bytes = pending.sign_client_finish(&server_finished.get_current_hash());
     Ok(Vec::from(bytes.as_ref()))
 }
 

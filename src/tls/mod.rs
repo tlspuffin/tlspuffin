@@ -200,4 +200,5 @@ define_signature!(
     fn_new_transcript12
     fn_no_psk
     fn_psk
+    fn_empty_transcript
 );

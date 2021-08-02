@@ -100,7 +100,7 @@ pub fn tls13_derive_psk(
     )?;
 
     application_key_schedule.exporter_master_secret(
-        &server_finished.get_current_hash(), // todo
+        &server_finished.get_current_hash(),
         &NoKeyLog {},
         client_random,
     );
@@ -108,7 +108,7 @@ pub fn tls13_derive_psk(
     let psk = application_key_schedule
         .into_traffic()
         .resumption_master_secret_and_derive_ticket_psk(
-            &client_finished.get_current_hash(), // todo
+            &client_finished.get_current_hash(),
             new_ticket_nonce,
         );
 

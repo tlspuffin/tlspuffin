@@ -11,11 +11,14 @@ use rustls::msgs::handshake::{
     ServerECDHParams,
 };
 use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-use rustls::{key, Certificate};
+use rustls::{key, Certificate, ProtocolVersion};
 
-use super::error::FnError;
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
+
+use super::error::FnError;
+use rustls::msgs::alert::AlertMessagePayload;
+use rustls::msgs::enums::{AlertLevel, AlertDescription};
 
 // ----
 // seed_client_attacker()
@@ -322,4 +325,24 @@ pub fn fn_append_certificate_entry(
     });
 
     Ok(new_certs)
+}
+
+pub fn fn_empty_transcript() -> Result<HandshakeHash, FnError> {
+    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
+
+    let mut transcript = HandshakeHash::new();
+    transcript.start_hash(&suite.get_hash());
+    // dumpy message
+    transcript.add_message(&Message {
+        version: ProtocolVersion::TLSv1_3,
+        payload: MessagePayload::Alert(
+           AlertMessagePayload {
+               level: AlertLevel::Warning,
+               description: AlertDescription::CloseNotify
+           }
+        ),
+    });
+    transcript.get_current_hash();
+
+    Ok(transcript)
 }
