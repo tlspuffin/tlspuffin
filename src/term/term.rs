@@ -85,14 +85,15 @@ impl Term {
             Term::Variable(ref v) => format!("{}{}", tabs, v),
             Term::Application(ref func, ref args) => {
                 let op_str = remove_prefix(func.name());
+                let return_type = remove_prefix(func.shape().return_type.name);
                 if args.is_empty() {
-                    format!("{}{}", tabs, op_str)
+                    format!("{}{} -> {}", tabs, op_str, return_type)
                 } else {
                     let args_str = args
                         .iter()
                         .map(|arg| arg.display_at_depth(depth + 1))
                         .join(",\n");
-                    format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
+                    format!("{}{}(\n{}\n{}) -> {}", tabs, op_str, args_str, tabs, return_type)
                 }
             }
         }

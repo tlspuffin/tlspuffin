@@ -198,9 +198,15 @@ impl fmt::Display for ObservedId {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "@{}:{:?}#{}",
-            self.agent_name, self.tls_message_type, self.counter
-        )
+            "({}, {})",
+            self.agent_name, self.counter,
+        )?;
+
+        if let Some(tls_message_type) = self.tls_message_type {
+            write!(f, "/{:?}", tls_message_type)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -453,9 +459,9 @@ impl fmt::Debug for Trace {
 
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}\n", "Trace:")?;
+        write!(f, "{}", "Trace:")?;
         for step in &self.steps {
-            write!(f, "{} \t({})\n", step.agent, step.action)?;
+            write!(f, "\n{} -> {}", step.agent, step.action)?;
         }
         Ok(())
     }
@@ -618,6 +624,6 @@ impl InputAction {
 
 impl fmt::Display for InputAction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "recipe: {}", self.recipe)
+        write!(f, "InputAction:\n{}", self.recipe)
     }
 }
