@@ -126,8 +126,16 @@ pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
     )
 }
 
-pub fn fn_cipher_suite13() -> Result<CipherSuite, FnError> {
+pub fn fn_cipher_suite13_aes_128_gcm_sha256() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS13_AES_128_GCM_SHA256)
+}
+
+pub fn fn_cipher_suite13_aes_256_gcm_sha384() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS13_AES_256_GCM_SHA384)
+}
+
+pub fn fn_cipher_suite13_aes_128_ccm_sha256() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS13_AES_128_CCM_SHA256)
 }
 
 pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {

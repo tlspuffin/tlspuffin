@@ -167,7 +167,9 @@ define_signature!(
     // fields
     fn_append_cipher_suite
     fn_cipher_suite12
-    fn_cipher_suite13
+    fn_cipher_suite13_aes_128_gcm_sha256
+    fn_cipher_suite13_aes_256_gcm_sha384
+    fn_cipher_suite13_aes_128_ccm_sha256
     fn_compression
     fn_compressions
     fn_get_server_key_share
