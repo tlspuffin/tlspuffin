@@ -120,6 +120,118 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     }
 }
 
+/// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
+pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor {
+                name: client,
+                tls_version: TLSVersion::V1_3,
+                server: false,
+            },
+            AgentDescriptor {
+                name: server,
+                tls_version: TLSVersion::V1_3,
+                server: true,
+            },
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_hello(
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            (fn_append_cipher_suite(
+                                fn_new_cipher_suites,
+                                fn_cipher_suite13_aes_128_gcm_sha256
+                            )),
+                            ((client, 0)),
+                            ((client, 0))
+                        )
+                    },
+                }),
+            },
+            // Server Hello Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                    },
+                }),
+            },
+            // Encrypted Extensions Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 0)[A]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 1)[A]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Verify Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 2)[A]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Finish Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 3)[A]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Finished Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((client, 0)[A]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+        ],
+    }
+}
+
 pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
     Trace {
         prior_traces: vec![],
@@ -342,7 +454,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
             fn_new_session_id,
             (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
-                fn_cipher_suite13
+                fn_cipher_suite13_aes_128_gcm_sha256
             )),
             fn_compressions,
             (fn_client_extensions_append(
@@ -912,7 +1024,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             fn_new_session_id,
             (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
-                fn_cipher_suite13
+                fn_cipher_suite13_aes_128_gcm_sha256
             )),
             fn_compressions,
             (fn_client_extensions_append(
@@ -1086,7 +1198,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
             fn_new_session_id,
             (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
-                fn_cipher_suite13
+                fn_cipher_suite13_aes_128_gcm_sha256
             )),
             fn_compressions,
             (fn_client_extensions_append(
