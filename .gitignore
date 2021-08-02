@@ -14,3 +14,7 @@ experiments.ipynb
 .gdb_history
 
 plot*.svg
+
+flame.svg
+*.data
+*.data.old
