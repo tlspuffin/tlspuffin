@@ -158,6 +158,28 @@ pub mod seeds {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
+    #[should_panic(expected = "Not the best cipher choosen")]
+    fn test_seed_successful_mitm() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful_mitm(client, server);
+        println!("{}", trace);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", client_state);
+        println!("{}", server_state);
+        assert!(client_state.contains("SSL negotiation finished successfully"));
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
     fn test_seed_successful_with_ccs() {
         make_deterministic();
         let mut ctx = TraceContext::new();
