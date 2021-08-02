@@ -1,4 +1,4 @@
-//! This module provides a DLS for writing[`Term`]swithin Rust.
+//! This module provides a DLS for writing[`Term`]s within Rust.
 //!
 //! # Example
 //!
@@ -30,7 +30,9 @@ macro_rules! term {
     // `>$req_type:expr` must be the last part of the arm, even if it is not used.
     //
     (($agent:expr, $counter:expr) $([H])? / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
+        use $crate::term::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
         term!(($agent, $counter) [H] > TypeShape::of::<$typ>())
     }};
     (($agent:expr, $counter:expr) $([H])? $(>$req_type:expr)?) => {{
@@ -46,8 +48,9 @@ macro_rules! term {
     // Handshake TlsMessageType with `Some(x)` as `HandshakeType`, where `x` is `TypeShape::of::<$typ>()`
     //
     (($agent:expr, $counter:expr) [H::$hs_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
+        use $crate::term::dynamic_function::TypeShape;
 
+        // ignore $req_type as we are overriding it with $type
         term!(($agent, $counter) [H::$hs_type] > TypeShape::of::<$typ>())
     }};
     // Extended with custom $hs_type
@@ -64,7 +67,9 @@ macro_rules! term {
     // Application TlsMessageType
     //
     (($agent:expr, $counter:expr) [A] / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
+        use $crate::term::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
         term!(($agent, $counter) [A] > TypeShape::of::<$typ>())
     }};
     (($agent:expr, $counter:expr) [A] $(>$req_type:expr)?) => {{
