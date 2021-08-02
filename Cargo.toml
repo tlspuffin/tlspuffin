@@ -98,7 +98,7 @@ nix = "0.21"
 [profile.release]
 panic = "abort"
 lto = true
-codegen-units = 8
+codegen-units = 1
 opt-level = 3
 debug = true
 
