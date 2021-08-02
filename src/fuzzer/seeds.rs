@@ -444,7 +444,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
     let client_finished = term! {
         fn_finished(
             (fn_verify_data(
-                (@server_finished_transcript),
+                fn_empty_transcript,
                 fn_empty_transcript,
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk
@@ -953,7 +953,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
 
     let binder = term! {
         fn_derive_binder(
-            (@client_hello),
+            /*(@client_hello),*/
             (@psk)  // fixme contains huge decryption subterm
         )
     };
@@ -1012,7 +1012,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
     let resumption_client_finished = term! {
         fn_finished(
             (fn_verify_data(
-                (@resumption_server_finished_transcript),
+                fn_empty_transcript,
                 fn_empty_transcript,
                 (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
                 (fn_psk((@psk)))
@@ -1127,7 +1127,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     let binder = term! {
         fn_derive_binder(
-            (@client_hello),
+            /*(@client_hello),*/
             (@psk)
         )
     };
@@ -1186,7 +1186,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
     let resumption_client_finished = term! {
         fn_finished(
             (fn_verify_data(
-                (@resumption_server_finished_transcript),
+                fn_empty_transcript,
                 fn_empty_transcript,
                 fn_no_key_share,
                 (fn_psk((@psk)))

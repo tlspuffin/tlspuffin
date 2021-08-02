@@ -145,26 +145,30 @@ pub fn fn_derive_psk(
     Ok(psk)
 }
 
-pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Vec<u8>, FnError> {
-    let client_hello_payload: HandshakeMessagePayload = match full_client_hello.payload.clone() {
+pub fn fn_derive_binder(psk: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    /*let client_hello_payload: HandshakeMessagePayload = match full_client_hello.payload.clone() {
         MessagePayload::Handshake(payload) => Some(payload),
         _ => None,
     }
     .ok_or_else(|| {
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
-    })?;
+    })?;*/
 
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let hkdf_alg = suite.hkdf_algorithm;
     let suite_hash = suite.get_hash();
 
-    let transcript = HandshakeHash::new();
+    /*let transcript = HandshakeHash::new();*/
 
     // RFC: The "pre_shared_key" extension MUST be the last extension in the ClientHello
     // The binder is calculated over the clienthello, but doesn't include itself or its
     // length, or the length of its container.
-    let binder_plaintext = client_hello_payload.get_encoding_for_binder_signing();
-    let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
+    /*let binder_plaintext = client_hello_payload.get_encoding_for_binder_signing();
+    let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);*/
+
+    let transcript = fn_empty_transcript()?;
+    let handshake_hash = transcript.get_current_hash();
+
 
     // Run a fake key_schedule to simulate what the server will do if it chooses
     // to resume.
