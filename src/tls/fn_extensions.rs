@@ -16,6 +16,9 @@ use crate::nyi_fn;
 use crate::tls::key_exchange::deterministic_key_share;
 
 use super::error::FnError;
+use rustls::msgs::message::Message;
+use crate::tls::fn_utils::fn_get_ticket;
+use crate::tls::fn_impl::fn_get_ticket_age_add;
 
 pub fn fn_client_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])
@@ -346,11 +349,13 @@ pub fn fn_append_preshared_keys_identity(
 }
 
 pub fn fn_preshared_keys_extension_empty_binder(
-    ticket: &Vec<u8>,
-    age_add: &u64,
+    new_ticket: &Message
 ) -> Result<ClientExtension, FnError> {
+    let ticket: Vec<u8> = fn_get_ticket(new_ticket)?;
+    let age_add: u64= fn_get_ticket_age_add(new_ticket)?;
+
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
-    let obfuscated_ticket_age = ticket_age_millis.wrapping_add(*age_add as u32);
+    let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
     let resuming_suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let binder_len = resuming_suite.get_hash().output_len;

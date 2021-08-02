@@ -935,8 +935,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
-                    (fn_get_ticket((@new_ticket_message))),
-                    (fn_get_ticket_age_add((@new_ticket_message)))
+                    (@new_ticket_message) // fixme contains huge decryption subterm
                 ))
             ))
         )
@@ -948,14 +947,14 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                 (@server_finished_transcript),
                 (@client_finished_transcript),
                 (fn_get_server_key_share(((server, 0)[H::HandshakeType::ServerHello]))),
-                (fn_get_ticket_nonce((@new_ticket_message)))
+                (fn_get_ticket_nonce((@new_ticket_message))) // fixme contains huge decryption subterm
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk)  // fixme contains huge decryption subterm
         )
     };
 
@@ -981,7 +980,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             ((server, 6)[A]), // Encrypted Extensions
             (@resumption_server_hello_transcript),
             (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-            (fn_psk((@psk))),
+            (fn_psk((@psk))),  // fixme contains huge decryption subterm
             fn_seq_0  // sequence 0
         )
     };
@@ -998,7 +997,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             ((server, 7)[A]), // Server Handshake Finished
             (@resumption_server_hello_transcript),
             (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-            (fn_psk((@psk))),
+            (fn_psk((@psk))),  // fixme contains huge subterm
             fn_seq_1 // sequence 1
         )
     };
@@ -1049,7 +1048,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                             (@resumption_client_finished),
                             (@resumption_server_hello_transcript),
                             (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-                            (fn_psk((@psk))),
+                            (fn_psk((@psk))), // fixme contains huge subterm
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1110,8 +1109,7 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
-                    (fn_get_ticket((@new_ticket_message))),
-                    (fn_get_ticket_age_add((@new_ticket_message)))
+                    (@new_ticket_message)
                 ))
             ))
         )
