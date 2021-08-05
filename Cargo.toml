@@ -24,7 +24,8 @@ openssl111 = [
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
-    "tls13" # Supported features by openssl111
+    "tls13", # Supported features by openssl111
+    "claims",
 ]
 
 # PUT supports TLS 1.3
