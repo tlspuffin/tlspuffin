@@ -17,13 +17,13 @@ impl fmt::Display for Claim {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "\
             typ: {},\
-            writ: {},\
+            write: {},\
             version: {},\
             server: {},\
             session_id: {},\
             server_random: {},\
             client_random: {},\
-            cert: {},
+            cert: {},\
             peer_cert: {},\
             peer_tmp_skey_type: {},\
             peer_tmp_skey_security_bits: {},\
