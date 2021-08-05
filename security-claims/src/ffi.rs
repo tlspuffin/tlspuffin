@@ -16,37 +16,37 @@ include!(concat!(env!("OUT_DIR"), "/claim-interface.rs"));
 impl fmt::Display for Claim {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "\
-            typ: {},
-            writ: {},
-            version: {},
-            server: {},
-            session_id: {},
-            server_random: {},
-            client_random: {},
+            typ: {},\
+            writ: {},\
+            version: {},\
+            server: {},\
+            session_id: {},\
+            server_random: {},\
+            client_random: {},\
             cert: {},
-            peer_cert: {},
-            peer_tmp_skey_type: {},
-            peer_tmp_skey_security_bits: {},
-            tmp_skey_type: {},
-            tmp_skey_group_id: {},
-            signature_algorithm: {},
-            peer_signature_algorithm: {},
-            early_secret: {},
-            handshake_secret: {},
-            master_secret: {},
-            resumption_master_secret: {},
-            client_finished_secret: {},
-            server_finished_secret: {},
-            server_finished_hash: {},
-            handshake_traffic_hash: {},
-            client_app_traffic_secret: {},
-            server_app_traffic_secret: {},
-            exporter_master_secret: {},
-            early_exporter_master_secret: {},
-            master_secret_12: {},
-            available_ciphers: {},
-            chosen_cipher: {},
-            transcript: {},
+            peer_cert: {},\
+            peer_tmp_skey_type: {},\
+            peer_tmp_skey_security_bits: {},\
+            tmp_skey_type: {},\
+            tmp_skey_group_id: {},\
+            signature_algorithm: {},\
+            peer_signature_algorithm: {},\
+            early_secret: {},\
+            handshake_secret: {},\
+            master_secret: {},\
+            resumption_master_secret: {},\
+            client_finished_secret: {},\
+            server_finished_secret: {},\
+            server_finished_hash: {},\
+            handshake_traffic_hash: {},\
+            client_app_traffic_secret: {},\
+            server_app_traffic_secret: {},\
+            exporter_master_secret: {},\
+            early_exporter_master_secret: {},\
+            master_secret_12: {},\
+            available_ciphers: {},\
+            chosen_cipher: {},\
+            transcript: {},\
             ",
             self.typ,
             self.write,
