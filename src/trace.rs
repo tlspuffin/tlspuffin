@@ -431,12 +431,21 @@ impl Trace {
             }
 
             execution_listener(step);
+            let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
+
+            trace!(
+                "New Claims:\n{}",
+                &claims
+                    .iter()
+                    .map(|(name, claim)| format!("{}: {}", name, claim))
+                    .join("\n")
+            );
         }
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
 
         trace!(
-            "Claims:\n{}",
+            "All Claims:\n{}",
             &claims
                 .iter()
                 .map(|(name, claim)| format!("{}: {}", name, claim))
