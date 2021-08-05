@@ -253,7 +253,7 @@ pub fn create_openssl_client(
 }
 
 pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
-    if stream.ssl().state_string_long() == "SSL negotiation finished successfully" {
+    if stream.ssl().is_init_finished() {
         // todo improve this case
         let mut vec: Vec<u8> = Vec::from([1; 128]);
 
