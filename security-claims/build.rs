@@ -3,6 +3,14 @@ extern crate bindgen;
 use std::env;
 use std::path::PathBuf;
 
+use bindgen::callbacks::ParseCallbacks;
+
+#[derive(Debug)]
+struct MyParseCallbacks;
+
+impl ParseCallbacks for MyParseCallbacks {
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");
     let bindings = bindgen::Builder::default()
@@ -13,6 +21,7 @@ fn main() {
         .derive_debug(true)
         .derive_eq(true)
         .impl_debug(true)
+        .parse_callbacks(Box::new(MyParseCallbacks {}))
         .impl_partialeq(true)
         .derive_partialeq(true)
         .generate()
