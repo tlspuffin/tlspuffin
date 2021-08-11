@@ -11,7 +11,7 @@ pub mod seeds {
     use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::trace::Action;
     use crate::{
-        fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
+        fuzzer::seeds::*, trace::TraceContext,
     };
 
     fn expect_crash<R>(mut func: R)
@@ -106,6 +106,22 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_client_attacker_full() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let (trace, ..) = seed_client_attacker_full(server);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
@@ -113,6 +129,21 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_session_resumption_dhe(server);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[test]
+    fn test_seed_session_resumption_dhe_full() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let trace = seed_session_resumption_dhe_full(server);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -288,7 +319,7 @@ pub mod serialization {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12, seed_session_resumption_dhe, seed_session_resumption_ke};
+    use crate::fuzzer::seeds::*;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},

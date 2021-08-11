@@ -442,11 +442,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
     trace
 }
 
-pub fn seed_client_attacker(server: AgentName) -> Trace {
-    seed_client_attacker_(server).0
-}
-
-fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
+pub fn seed_client_attacker(server: AgentName) -> (Trace) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -473,86 +469,6 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
         )
     };
 
-    let server_hello_transcript = term! {
-        fn_append_transcript(
-            (fn_append_transcript(
-                fn_new_transcript,
-                (@client_hello) // ClientHello
-            )),
-            ((server, 0)[H::HandshakeType::ServerHello]) // plaintext ServerHello
-        )
-    };
-
-    // ((0, 1)) could be a CCS the server sends one
-
-    let encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 0)[A]), // Encrypted Extensions
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[H::HandshakeType::ServerHello]))),
-            fn_no_psk,
-            fn_seq_0  // sequence 0
-        )
-    };
-
-    let encrypted_extension_transcript = term! {
-        fn_append_transcript(
-            (@server_hello_transcript),
-            (@encrypted_extensions) // plaintext Encrypted Extensions
-        )
-    };
-
-    let server_certificate = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[A]),// Server Certificate
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_seq_1 // sequence 1
-        )
-    };
-
-    let server_certificate_transcript = term! {
-        fn_append_transcript(
-            (@encrypted_extension_transcript),
-            (@server_certificate) // plaintext Server Certificate
-        )
-    };
-
-    let server_certificate_verify = term! {
-        fn_decrypt_handshake(
-            ((server, 2)[A]), // Server Certificate Verify
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_seq_2 // sequence 2
-        )
-    };
-
-    let server_certificate_verify_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_transcript),
-            (@server_certificate_verify) // plaintext Server Certificate Verify
-        )
-    };
-
-    let server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 3)[A]), // Server Handshake Finished
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_seq_3 // sequence 3
-        )
-    };
-
-    let server_finished_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_verify_transcript),
-            (@server_finished) // plaintext Server Handshake Finished
-        )
-    };
-
     let client_finished = term! {
         fn_finished(
             (fn_verify_data(
@@ -561,13 +477,6 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk
             ))
-        )
-    };
-
-    let client_finished_transcript = term! {
-        fn_append_transcript(
-            (@server_finished_transcript),
-            (@client_finished)
         )
     };
 
@@ -612,12 +521,7 @@ fn seed_client_attacker_(server: AgentName) -> (Trace, Term, Term, Term) {
         ],
     };
 
-    (
-        trace,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
-    )
+    trace
 }
 
 pub fn seed_client_attacker12(server: AgentName) -> Trace {
@@ -999,10 +903,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
 }
 
 pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
-    let (
-        initial_handshake,
-        ..
-    ) = seed_client_attacker_(server);
+    let initial_handshake = seed_client_attacker(server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1123,10 +1024,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
 }
 
 pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
-    let (
-        initial_handshake,
-        ..
-    ) = seed_client_attacker_(server);
+    let initial_handshake = seed_client_attacker(server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1245,6 +1143,361 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     trace
 }
+
+
+/// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
+pub fn seed_client_attacker_full(server: AgentName) -> (Trace, Term, Term, Term) {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            fn_secp384r1_support_group_extension
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_key_share_deterministic_extension
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                (@client_hello) // ClientHello
+            )),
+            ((server, 0)[H::HandshakeType::ServerHello]) // plaintext ServerHello
+        )
+    };
+
+    // ((0, 1)) could be a CCS the server sends one
+
+    let encrypted_extensions = term! {
+        fn_decrypt_handshake(
+            ((server, 0)[A]), // Encrypted Extensions
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)[H::HandshakeType::ServerHello]))),
+            fn_no_psk,
+            fn_seq_0  // sequence 0
+        )
+    };
+
+    let encrypted_extension_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext Encrypted Extensions
+        )
+    };
+
+    let server_certificate = term! {
+        fn_decrypt_handshake(
+            ((server, 1)[A]),// Server Certificate
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_1 // sequence 1
+        )
+    };
+
+    let server_certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extension_transcript),
+            (@server_certificate) // plaintext Server Certificate
+        )
+    };
+
+    let server_certificate_verify = term! {
+        fn_decrypt_handshake(
+            ((server, 2)[A]), // Server Certificate Verify
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_2 // sequence 2
+        )
+    };
+
+    let server_certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_transcript),
+            (@server_certificate_verify) // plaintext Server Certificate Verify
+        )
+    };
+
+    let server_finished = term! {
+        fn_decrypt_handshake(
+            ((server, 3)[A]), // Server Handshake Finished
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_3 // sequence 3
+        )
+    };
+
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_verify_transcript),
+            (@server_finished) // plaintext Server Handshake Finished
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk
+            ))
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_finished_transcript),
+            (@client_finished)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            server: true,
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction {}),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (@server_hello_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction {}),
+            },
+        ],
+    };
+
+    (
+        trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
+    )
+}
+
+/// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
+/// exponentially.
+pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
+    let (
+        initial_handshake,
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
+    ) = seed_client_attacker_full(server);
+
+    let new_ticket_message = term! {
+        fn_decrypt_application(
+            ((server, 4)[A]), // Ticket?
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+        )
+    };
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    fn_secp384r1_support_group_extension
+                                )),
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_supported_versions13_extension
+                        )),
+                        fn_key_share_deterministic_extension
+                    )),
+                    fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+                // must be last in client_hello, and initially empty until filled by fn_fill_binder
+                (fn_preshared_keys_extension_empty_binder(
+                    (@new_ticket_message)
+                ))
+            ))
+        )
+    };
+
+    let psk = term! {
+        fn_derive_psk(
+                (@server_hello_transcript),
+                (@server_finished_transcript),
+                (@client_finished_transcript),
+                (fn_get_server_key_share(((server, 0)[H::HandshakeType::ServerHello]))),
+                (fn_get_ticket_nonce((@new_ticket_message)))
+        )
+    };
+
+    let binder = term! {
+        fn_derive_binder(
+            (@client_hello),
+            (@psk)
+        )
+    };
+
+    let full_client_hello = term! {
+        fn_fill_binder(
+            (@client_hello),
+            (@binder)
+        )
+    };
+
+    let resumption_server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                (@full_client_hello) // ClientHello
+            )),
+            ((server, 1)[H::HandshakeType::ServerHello]) // plaintext ServerHello
+        )
+    };
+
+    let resumption_encrypted_extensions = term! {
+        fn_decrypt_handshake(
+            ((server, 6)[A]), // Encrypted Extensions
+            (@resumption_server_hello_transcript),
+            (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
+            (fn_psk((@psk))),
+            fn_seq_0  // sequence 0
+        )
+    };
+
+    let resumption_encrypted_extension_transcript = term! {
+        fn_append_transcript(
+            (@resumption_server_hello_transcript),
+            (@resumption_encrypted_extensions) // plaintext Encrypted Extensions
+        )
+    };
+
+    let resumption_server_finished = term! {
+        fn_decrypt_handshake(
+            ((server, 7)[A]), // Server Handshake Finished
+            (@resumption_server_hello_transcript),
+            (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
+            (fn_psk((@psk))),
+            fn_seq_1 // sequence 1
+        )
+    };
+
+    let resumption_server_finished_transcript = term! {
+        fn_append_transcript(
+            (@resumption_encrypted_extension_transcript),
+            (@resumption_server_finished) // plaintext Server Handshake Finished
+        )
+    };
+
+    let resumption_client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@resumption_server_finished_transcript),
+                (@resumption_server_hello_transcript),
+                (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
+                (fn_psk((@psk)))
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![initial_handshake],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            server: true,
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @full_client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction {}),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@resumption_client_finished),
+                            (@resumption_server_hello_transcript),
+                            (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
+                            (fn_psk((@psk))),
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+
+
 
 pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
