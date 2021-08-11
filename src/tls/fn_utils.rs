@@ -327,23 +327,3 @@ pub fn fn_append_certificate_entry(
 
     Ok(new_certs)
 }
-
-pub fn fn_empty_transcript() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
-
-    let mut transcript = HandshakeHash::new();
-    transcript.start_hash(&suite.get_hash());
-    // dumpy message
-    transcript.add_message(&Message {
-        version: ProtocolVersion::TLSv1_3,
-        payload: MessagePayload::Alert(
-           AlertMessagePayload {
-               level: AlertLevel::Warning,
-               description: AlertDescription::CloseNotify
-           }
-        ),
-    });
-    transcript.get_current_hash();
-
-    Ok(transcript)
-}
