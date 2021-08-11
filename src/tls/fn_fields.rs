@@ -70,15 +70,15 @@ pub fn fn_verify_data(
 
     let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
-    key_schedule.client_handshake_traffic_secret(
-        &server_hello.get_current_hash(),
+    key_schedule.client_handshake_traffic_secret_raw(
+        &server_hello.get_current_hash_raw(),
         &NoKeyLog,
         client_random,
     );
 
     let pending = key_schedule.into_traffic_with_client_finished_pending();
 
-    let bytes = pending.sign_client_finish(&server_finished.get_current_hash());
+    let bytes = pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
     Ok(Vec::from(bytes.as_ref()))
 }
 

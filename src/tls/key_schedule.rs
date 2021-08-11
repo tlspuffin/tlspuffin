@@ -24,14 +24,14 @@ pub fn tls13_handshake_traffic_secret(
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
-    let server_secret = key_schedule.server_handshake_traffic_secret(
-        &server_hello.get_current_hash(),
+    let server_secret = key_schedule.server_handshake_traffic_secret_raw(
+        &server_hello.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );
 
-    let client_secret = key_schedule.client_handshake_traffic_secret(
-        &server_hello.get_current_hash(),
+    let client_secret = key_schedule.client_handshake_traffic_secret_raw(
+        &server_hello.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );
@@ -63,14 +63,14 @@ pub fn tls13_application_traffic_secret(
 
     let mut application_key_schedule = key_schedule.into_traffic_with_client_finished_pending();
 
-    let server_secret = application_key_schedule.server_application_traffic_secret(
-        &server_finished.get_current_hash(),
+    let server_secret = application_key_schedule.server_application_traffic_secret_raw(
+        &server_finished.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );
 
-    let client_secret = application_key_schedule.client_application_traffic_secret(
-        &server_finished.get_current_hash(),
+    let client_secret = application_key_schedule.client_application_traffic_secret_raw(
+        &server_finished.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );
@@ -99,16 +99,16 @@ pub fn tls13_derive_psk(
         true,
     )?;
 
-    application_key_schedule.exporter_master_secret(
-        &server_finished.get_current_hash(),
+    application_key_schedule.exporter_master_secret_raw(
+        &server_finished.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );
 
     let psk = application_key_schedule
         .into_traffic()
-        .resumption_master_secret_and_derive_ticket_psk(
-            &client_finished.get_current_hash(),
+        .resumption_master_secret_and_derive_ticket_psk_raw(
+            &client_finished.get_current_hash_raw(),
             new_ticket_nonce,
         );
 
