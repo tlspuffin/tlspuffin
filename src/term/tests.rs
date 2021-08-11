@@ -10,7 +10,7 @@ use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::ObservedId;
+use crate::trace::{ObservedId, QueryId};
 use crate::{term::Term, trace::TraceContext};
 use ring::hmac;
 use ring::hmac::Key;
@@ -88,10 +88,14 @@ fn example() {
 
     let observed_id = ObservedId {
         agent_name: AgentName::first(),
+        tls_message_type: None
+    };
+    let query_id = QueryId {
+        agent_name: AgentName::first(),
         tls_message_type: None,
         counter: 0,
     };
-    let variable = Signature::new_var::<Vec<u8>>(observed_id);
+    let variable = Signature::new_var::<Vec<u8>>(query_id);
 
     let generated_term = Term::Application(
         hmac256,
@@ -136,7 +140,7 @@ fn playground() {
     );
     println!("{}", Signature::new_function(&example_op_c).shape());
 
-    let observed_id = ObservedId {
+    let query_id = QueryId {
         agent_name: AgentName::first(),
         tls_message_type: None,
         counter: 0,
@@ -151,10 +155,10 @@ fn playground() {
                         Signature::new_function(&example_op_c),
                         vec![
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
-                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                            Term::Variable(Signature::new_var::<SessionID>(query_id)),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                    Term::Variable(Signature::new_var::<SessionID>(query_id)),
                 ],
             ),
             Term::Application(
@@ -163,11 +167,11 @@ fn playground() {
                     Term::Application(
                         Signature::new_function(&example_op_c),
                         vec![
-                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                            Term::Variable(Signature::new_var::<SessionID>(query_id)),
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                    Term::Variable(Signature::new_var::<SessionID>(query_id)),
                 ],
             ),
         ],

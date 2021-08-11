@@ -1,5 +1,5 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
-//! handshake or an execution which crahes OpenSSL.
+//! handshake or an execution which crashes OpenSSL.
 
 use rustls::internal::msgs::enums::HandshakeType;
 
@@ -329,7 +329,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 }),
             },
             // Client Handshake Finished, Client -> Server
-            // IMPORTANT: We are using here OpaqueMessage as the parsing code in io.rs does
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
             // not know that the Handshake record message is encrypted. The parsed message from the
             // could be a HelloRequest if the encrypted data starts with a 0.
             Step {
@@ -337,7 +337,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((client, 0)[H])
+                            ((client, 3)[X])
                         )
                     },
                 }),
@@ -369,7 +369,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_opaque_message(
-                            ((server, 0)[H])
+                            ((server, 6)[X])
                         )
                     },
                 }),
@@ -752,7 +752,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
                             (fn_decode_ecdh_params(
-                                ((server, 0)/Vec<u8>) // ServerECDHParams
+                                ((server, 0)[H::HandshakeType::ServerKeyExchange]/Vec<u8>) // ServerECDHParams
                             )),
                             fn_seq_0
                         )

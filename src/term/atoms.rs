@@ -13,6 +13,7 @@ use crate::{
     term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
     trace::ObservedId,
 };
+use crate::trace::QueryId;
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,20 +24,20 @@ pub struct Variable {
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
     pub typ: TypeShape,
-    pub observed_id: ObservedId,
+    pub query_id: QueryId,
 }
 
 impl Hash for Variable {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
-        self.observed_id.hash(state);
+        self.query_id.hash(state);
     }
 }
 
 impl Eq for Variable {}
 impl PartialEq for Variable {
     fn eq(&self, other: &Self) -> bool {
-        self.typ == other.typ && self.observed_id == other.observed_id
+        self.typ == other.typ && self.query_id == other.query_id
     }
 }
 
@@ -46,25 +47,25 @@ impl Clone for Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
-            observed_id: self.observed_id.clone(),
+            query_id: self.query_id.clone(),
         }
     }
 }
 
 impl Variable {
-    pub fn new(typ: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(typ: TypeShape, query_id: QueryId) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
             typ,
-            observed_id,
+            query_id,
         }
     }
 }
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "[{}]/{}", self.observed_id, remove_prefix(self.typ.name))
+        write!(f, "[{}]/{}", self.query_id, remove_prefix(self.typ.name))
     }
 }
 

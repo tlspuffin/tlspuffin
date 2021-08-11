@@ -8,7 +8,7 @@
 //!
 //! ```rust
 //! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion};
-//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, ObservedId, TlsMessageType};
+//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, QueryId, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
@@ -18,7 +18,7 @@
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
 //!
-//! let observed_id_ch = ObservedId {
+//! let query_id = QueryId {
 //!     agent_name: client,
 //!     tls_message_type: Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello))),
 //!     counter: 0
@@ -38,12 +38,12 @@
 //!                     recipe: Term::Application(
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
-//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(observed_id_ch)),
-//!                             Term::Variable(Signature::new_var::<Random>(observed_id_ch)),
-//!                             Term::Variable(Signature::new_var::<SessionID>(observed_id_ch)),
-//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(observed_id_ch)),
-//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(observed_id_ch)),
-//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(observed_id_ch)),
+//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(query_id)),
+//!                             Term::Variable(Signature::new_var::<Random>(query_id)),
+//!                             Term::Variable(Signature::new_var::<SessionID>(query_id)),
+//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(query_id)),
+//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(query_id)),
+//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(query_id)),
 //!                         ],
 //!                     ),
 //!                 }),
@@ -68,20 +68,17 @@ use core::fmt;
 use std::any::Any;
 use std::cell::RefCell;
 use std::convert::TryFrom;
-
 use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
 use itertools::Itertools;
-
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::MessagePayload,
 };
-
 use security_claims::{Claim, ClaimType};
 use serde::{Deserialize, Serialize};
 
@@ -91,10 +88,8 @@ use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
-
-use crate::tls::error::FnError;
-
 use crate::term::remove_prefix;
+use crate::tls::error::FnError;
 use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
@@ -104,7 +99,7 @@ use crate::{
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TlsMessageType {
     ChangeCipherSpec,
     Alert,
@@ -113,19 +108,25 @@ pub enum TlsMessageType {
     Heartbeat,
 }
 
-impl PartialEq for TlsMessageType {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            TlsMessageType::Handshake(handshake_type) => match other {
-                TlsMessageType::Handshake(other_handshake_type) => {
-                    *handshake_type == None || other_handshake_type == handshake_type
+impl QueryMatcher for HandshakeType {
+    fn matches(&self, query: &Self) -> bool {
+        query == self
+    }
+}
+
+impl QueryMatcher for TlsMessageType {
+    fn matches(&self, query: &TlsMessageType) -> bool {
+        match query {
+            TlsMessageType::Handshake(query_handshake_type) => match self {
+                TlsMessageType::Handshake(handshake_type) => {
+                    handshake_type.matches(query_handshake_type)
                 }
                 _ => false,
             },
-            TlsMessageType::ChangeCipherSpec => matches!(other, TlsMessageType::ChangeCipherSpec),
-            TlsMessageType::Alert => matches!(other, TlsMessageType::Alert),
-            TlsMessageType::Heartbeat => matches!(other, TlsMessageType::Heartbeat),
-            TlsMessageType::ApplicationData => matches!(other, TlsMessageType::ApplicationData),
+            TlsMessageType::ChangeCipherSpec => matches!(self, TlsMessageType::ChangeCipherSpec),
+            TlsMessageType::Alert => matches!(self, TlsMessageType::Alert),
+            TlsMessageType::Heartbeat => matches!(self, TlsMessageType::Heartbeat),
+            TlsMessageType::ApplicationData => matches!(self, TlsMessageType::ApplicationData),
         }
     }
 }
@@ -167,10 +168,15 @@ impl TlsMessageType {
     }
 }
 
-/// [ObservedId] is made of the agent that produced the output, the TLS message type, the internal type
-/// and a unique counter, which is useful only if this does not single out a message.
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash)]
+/// [ObservedId] is made of the agent that produced the output, the TLS message type and the internal type.
+#[derive(Debug)]
 pub struct ObservedId {
+    pub agent_name: AgentName,
+    pub tls_message_type: Option<TlsMessageType>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct QueryId {
     pub agent_name: AgentName,
     pub tls_message_type: Option<TlsMessageType>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
@@ -186,27 +192,33 @@ impl ObservedId {
     }
 }
 
-impl PartialEq for ObservedId {
-    fn eq(&self, other: &Self) -> bool {
-        self.agent_name == other.agent_name
-            && self.counter == other.counter
-            && (self.tls_message_type == None || self.tls_message_type == other.tls_message_type)
+impl<T> QueryMatcher for Option<T>
+where
+    T: QueryMatcher,
+{
+    fn matches(&self, query: &Self) -> bool {
+        match (self, query) {
+            (Some(inner), Some(inner_query)) => inner.matches(inner_query),
+            (Some(_), None) => true, // None matches everything as query -> True
+            (None, None) => true, // None == None => True
+            (None, Some(_)) => false, // None != Some => False
+        }
     }
 }
 
 impl fmt::Display for ObservedId {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "({})/{:?}", self.agent_name, self.tls_message_type)
+    }
+}
+
+impl fmt::Display for QueryId {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "({}, {})",
-            self.agent_name, self.counter,
-        )?;
-
-        if let Some(tls_message_type) = self.tls_message_type {
-            write!(f, "/{:?}", tls_message_type)?;
-        }
-
-        Ok(())
+            "({}, {})/{:?}",
+            self.agent_name, self.counter, self.tls_message_type
+        )
     }
 }
 
@@ -227,7 +239,10 @@ impl VecClaimer {
     }
 
     pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claims.iter().rev().find(|(name, claim)| claim.typ == typ)
+        self.claims
+            .iter()
+            .rev()
+            .find(|(name, claim)| claim.typ == typ)
     }
 
     pub fn find_first_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
@@ -249,6 +264,10 @@ pub struct TraceContext {
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
     pub claimer: Rc<RefCell<VecClaimer>>,
+}
+
+pub trait QueryMatcher {
+    fn matches(&self, query: &Self) -> bool;
 }
 
 impl TraceContext {
@@ -285,22 +304,27 @@ impl TraceContext {
         known_count as u16
     }
 
-    /// Returns the variable which matches best -> lowest specificity
-    /// If we want a variable with higher specificity, then we can just query more specific
+    /// Returns the variable which matches best -> highest specificity
+    /// If we want a variable with lower specificity, then we can just query less specific
     pub fn find_variable(
         &self,
-        type_shape: TypeShape,
-        observed_id: ObservedId,
+        query_type_shape: TypeShape,
+        query: QueryId,
     ) -> Option<&(dyn VariableData)> {
-        let type_id: TypeId = type_shape.into();
+        let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<&ObservedVariable> = Vec::new();
 
         for observed in &self.knowledge {
             let data: &dyn VariableData = observed.data.as_ref();
 
-            if type_id == data.type_id() && observed_id == observed.observed_id {
-                possibilities.push(observed);
+            if query_type_id == data.type_id() {
+                let observed_id = &observed.observed_id;
+                if query.agent_name == observed_id.agent_name
+                    && observed_id.tls_message_type.matches(&query.tls_message_type)
+                {
+                    possibilities.push(observed);
+                }
             }
         }
 
@@ -309,9 +333,22 @@ impl TraceContext {
                 .specificity()
                 .cmp(&b.observed_id.specificity())
         });
-        possibilities
-            .first()
-            .map(|possibility| possibility.data.as_ref())
+
+        if let Some(chosen) = possibilities.last() {
+            let chosen_message_typ = chosen.observed_id.tls_message_type;
+            let chosen_agent = chosen.observed_id.agent_name;
+
+            possibilities
+                .iter()
+                .filter(|variable| {
+                    variable.observed_id.tls_message_type == chosen_message_typ
+                        && variable.observed_id.agent_name == chosen_agent
+                })
+                .nth(query.counter as usize)
+                .map(|possibility| possibility.data.as_ref())
+        } else {
+            None
+        }
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -452,15 +489,6 @@ impl Trace {
         }
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
-
-        trace!(
-            "All Claims:\n{}",
-            &claims
-                .iter()
-                .map(|(name, claim)| format!("{}: {}", name, claim))
-                .join("\n")
-        );
-
         if let Some(msg) = is_violation(claims) {
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
@@ -551,21 +579,22 @@ impl OutputAction {
                 Some(message) => {
                     let knowledge = extract_knowledge(&message)?;
 
-                    trace!("Knowledge increased by {:?}", knowledge.len());
+                    trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
-                        let counter =
-                            ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
                         let observed_id = ObservedId {
                             agent_name: step.agent,
                             tls_message_type,
-                            counter,
                         };
+
+                        let counter =
+                            ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
                         trace!(
-                            "New knowledge {}/{}",
+                            "New knowledge {}: {} (counter: {})",
                             observed_id,
-                            remove_prefix(variable.type_name())
+                            remove_prefix(variable.type_name()),
+                            counter
                         );
                         ctx.add_knowledge(observed_id, variable)
                     }
@@ -573,17 +602,18 @@ impl OutputAction {
                 None => {}
             }
 
-            let type_id = std::any::Any::type_id(opaque_message); //LH: not sure about that
-            let counter = ctx.number_matching_message(step.agent, type_id, tls_message_type);
+            let type_id = std::any::Any::type_id(opaque_message);
             let observed_id = ObservedId {
                 agent_name: step.agent,
-                tls_message_type,
-                counter,
+                tls_message_type: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
             };
+
+            let counter = ctx.number_matching_message(step.agent, type_id, None);
             trace!(
-                "New knowledge {}/{}",
+                "New knowledge {}: {} (counter: {})",
                 observed_id,
-                remove_prefix(opaque_message.type_name())
+                remove_prefix(opaque_message.type_name()),
+                counter
             );
             ctx.add_knowledge(observed_id, Box::new(message_result.1));
         }

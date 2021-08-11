@@ -82,6 +82,25 @@ macro_rules! term {
     }};
 
     //
+    // None Message Type
+    //
+    (($agent:expr, $counter:expr) [X] / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::term::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
+        term!(($agent, $counter) [X] > TypeShape::of::<$typ>())
+    }};
+    (($agent:expr, $counter:expr) [X] $(>$req_type:expr)?) => {{
+        use $crate::trace::TlsMessageType;
+        use $crate::term::signature::Signature;
+        use $crate::term::Term;
+
+        let var = Signature::new_var_by_type_id($($req_type)?, $agent, None, $counter);
+        Term::Variable(var)
+    }};
+
+
+    //
     // Alert TlsMessageType todo
     //
 

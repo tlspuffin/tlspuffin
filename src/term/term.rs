@@ -110,7 +110,7 @@ impl Term {
                     Ok(claimer.clone_box_any())
                 } else {
                     context
-                        .find_variable(v.typ, v.observed_id)
+                        .find_variable(v.typ, v.query_id)
                         .map(|data| data.clone_box_any())
                         .ok_or(Error::Term(format!("Unable to find variable {}!", v)))
                 }
