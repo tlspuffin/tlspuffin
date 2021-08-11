@@ -12,7 +12,7 @@ use crate::term::Term;
 pub type Zoo = Vec<Term>;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
-const MAX_TRIES: u16 = 30; // How often we want to try to generate before failing
+const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
 pub fn generate_term_zoo<R: Rand>(signature: &Signature, rand: &mut R) -> Zoo {
     signature

@@ -158,7 +158,10 @@ pub mod seeds {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
-    #[should_panic(expected = "Not the best cipher choosen")]
+    #[should_panic(any(
+        expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript is ignored -> We detect the MITM and error
+        expected = "decryption failed or bad record mac"  // in case MITM attack did fail
+    ))]
     fn test_seed_successful_mitm() {
         make_deterministic();
         let mut ctx = TraceContext::new();
