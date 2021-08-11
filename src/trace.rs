@@ -168,12 +168,7 @@ impl TlsMessageType {
     }
 }
 
-/// [ObservedId] is made of the agent that produced the output, the TLS message type and the internal type.
-#[derive(Debug)]
-pub struct ObservedId {
-    pub agent_name: AgentName,
-    pub tls_message_type: Option<TlsMessageType>,
-}
+
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct QueryId {
@@ -182,7 +177,7 @@ pub struct QueryId {
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
-impl ObservedId {
+impl Knowledge {
     pub fn specificity(&self) -> u32 {
         if let Some(tls_message_type) = self.tls_message_type {
             1 + tls_message_type.specificity()
@@ -206,7 +201,7 @@ where
     }
 }
 
-impl fmt::Display for ObservedId {
+impl fmt::Display for Knowledge {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.agent_name, self.tls_message_type)
     }
@@ -222,10 +217,13 @@ impl fmt::Display for QueryId {
     }
 }
 
-/// [ObservedVariable] describes an atomic TLS message (e.g., ClientHello(ProtocolVersion)).
-struct ObservedVariable {
-    observed_id: ObservedId,
-    data: Box<dyn VariableData>,
+/// [Knowledge] describes an atomic piece of knowledge inferred
+/// by the [`crate::variable_data::extract_knowledge`] function
+/// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+pub struct Knowledge {
+    pub agent_name: AgentName,
+    pub tls_message_type: Option<TlsMessageType>,
+    pub data: Box<dyn VariableData>,
 }
 
 #[derive(Clone)]
@@ -261,7 +259,7 @@ impl VecClaimer {
 /// which have need exchanged and are not yet processed by an output step.
 pub struct TraceContext {
     /// The knowledge of the attacker
-    knowledge: Vec<ObservedVariable>,
+    knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
     pub claimer: Rc<RefCell<VecClaimer>>,
 }
@@ -281,8 +279,8 @@ impl TraceContext {
         }
     }
 
-    pub fn add_knowledge(&mut self, observed_id: ObservedId, data: Box<dyn VariableData>) {
-        self.knowledge.push(ObservedVariable { observed_id, data })
+    pub fn add_knowledge(&mut self, knowledge: Knowledge) {
+        self.knowledge.push(knowledge)
     }
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
@@ -296,8 +294,8 @@ impl TraceContext {
             .knowledge
             .iter()
             .filter(|knowledge| {
-                knowledge.observed_id.agent_name == agent
-                    && knowledge.observed_id.tls_message_type == tls_message_type
+                knowledge.agent_name == agent
+                    && knowledge.tls_message_type == tls_message_type
                     && knowledge.data.as_ref().type_id() == type_id
             })
             .count();
@@ -313,36 +311,34 @@ impl TraceContext {
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<&ObservedVariable> = Vec::new();
+        let mut possibilities: Vec<&Knowledge> = Vec::new();
 
-        for observed in &self.knowledge {
-            let data: &dyn VariableData = observed.data.as_ref();
+        for knowledge in &self.knowledge {
+            let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id() {
-                let observed_id = &observed.observed_id;
-                if query.agent_name == observed_id.agent_name
-                    && observed_id.tls_message_type.matches(&query.tls_message_type)
+                if query.agent_name == knowledge.agent_name
+                    && knowledge.tls_message_type.matches(&query.tls_message_type)
                 {
-                    possibilities.push(observed);
+                    possibilities.push(knowledge);
                 }
             }
         }
 
         possibilities.sort_by(|a, b| {
-            a.observed_id
-                .specificity()
-                .cmp(&b.observed_id.specificity())
+            a.specificity()
+                .cmp(&b.specificity())
         });
 
         if let Some(chosen) = possibilities.last() {
-            let chosen_message_typ = chosen.observed_id.tls_message_type;
-            let chosen_agent = chosen.observed_id.agent_name;
+            let chosen_message_typ = chosen.tls_message_type;
+            let chosen_agent = chosen.agent_name;
 
             possibilities
                 .iter()
                 .filter(|variable| {
-                    variable.observed_id.tls_message_type == chosen_message_typ
-                        && variable.observed_id.agent_name == chosen_agent
+                    variable.tls_message_type == chosen_message_typ
+                        && variable.agent_name == chosen_agent
                 })
                 .nth(query.counter as usize)
                 .map(|possibility| possibility.data.as_ref())
@@ -583,39 +579,41 @@ impl OutputAction {
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
-                        let observed_id = ObservedId {
-                            agent_name: step.agent,
-                            tls_message_type,
-                        };
 
                         let counter =
                             ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
+                        let knowledge = Knowledge {
+                            agent_name: step.agent,
+                            tls_message_type,
+                            data: variable
+                        };
                         trace!(
                             "New knowledge {}: {} (counter: {})",
-                            observed_id,
-                            remove_prefix(variable.type_name()),
+                            &knowledge,
+                            remove_prefix(knowledge.data.type_name()),
                             counter
                         );
-                        ctx.add_knowledge(observed_id, variable)
+                        ctx.add_knowledge(knowledge)
                     }
                 }
                 None => {}
             }
 
             let type_id = std::any::Any::type_id(opaque_message);
-            let observed_id = ObservedId {
+            let knowledge = Knowledge {
                 agent_name: step.agent,
                 tls_message_type: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
+                data: Box::new(message_result.1),
             };
 
             let counter = ctx.number_matching_message(step.agent, type_id, None);
             trace!(
                 "New knowledge {}: {} (counter: {})",
-                observed_id,
-                remove_prefix(opaque_message.type_name()),
+                &knowledge,
+                remove_prefix(knowledge.data.type_name()),
                 counter
             );
-            ctx.add_knowledge(observed_id, Box::new(message_result.1));
+            ctx.add_knowledge(knowledge);
         }
         Ok(())
     }

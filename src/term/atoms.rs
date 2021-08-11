@@ -10,8 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::term::atoms::fn_container::FnContainer;
 use crate::term::remove_prefix;
 use crate::{
-    term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-    trace::ObservedId,
+    term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape}
 };
 use crate::trace::QueryId;
 

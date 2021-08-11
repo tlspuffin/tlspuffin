@@ -9,8 +9,7 @@ use crate::{
         dynamic_function::{
             make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
         },
-    },
-    trace::ObservedId,
+    }
 };
 
 use super::atoms::Function;
