@@ -14,7 +14,7 @@ use crate::{
 
 use super::atoms::Function;
 use crate::agent::AgentName;
-use crate::trace::{TlsMessageType, QueryId};
+use crate::trace::{TlsMessageType, Query};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
@@ -78,9 +78,9 @@ impl Signature {
         func
     }
 
-    pub fn new_var<T: 'static>(query_id: QueryId) -> Variable {
+    pub fn new_var<T: 'static>(query: Query) -> Variable {
         let type_shape = TypeShape::of::<T>();
-        Variable::new(type_shape, query_id)
+        Variable::new(type_shape, query)
     }
 
     pub fn new_var_by_type_id(
@@ -89,12 +89,12 @@ impl Signature {
         tls_message_type: Option<TlsMessageType>,
         counter: u16,
     ) -> Variable {
-        let query_id = QueryId {
+        let query = Query {
             agent_name,
             tls_message_type,
             counter,
         };
-        Variable::new(type_shape, query_id)
+        Variable::new(type_shape, query)
     }
 }
 

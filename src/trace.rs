@@ -8,7 +8,7 @@
 //!
 //! ```rust
 //! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion};
-//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, QueryId, TlsMessageType};
+//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
@@ -18,7 +18,7 @@
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
 //!
-//! let query_id = QueryId {
+//! let query = Query {
 //!     agent_name: client,
 //!     tls_message_type: Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello))),
 //!     counter: 0
@@ -38,12 +38,12 @@
 //!                     recipe: Term::Application(
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
-//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(query_id)),
-//!                             Term::Variable(Signature::new_var::<Random>(query_id)),
-//!                             Term::Variable(Signature::new_var::<SessionID>(query_id)),
-//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(query_id)),
-//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(query_id)),
-//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(query_id)),
+//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(query)),
+//!                             Term::Variable(Signature::new_var::<Random>(query)),
+//!                             Term::Variable(Signature::new_var::<SessionID>(query)),
+//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(query)),
+//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(query)),
+//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(query)),
 //!                         ],
 //!                     ),
 //!                 }),
@@ -171,7 +171,7 @@ impl TlsMessageType {
 
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct QueryId {
+pub struct Query {
     pub agent_name: AgentName,
     pub tls_message_type: Option<TlsMessageType>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
@@ -207,7 +207,7 @@ impl fmt::Display for Knowledge {
     }
 }
 
-impl fmt::Display for QueryId {
+impl fmt::Display for Query {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
@@ -307,7 +307,7 @@ impl TraceContext {
     pub fn find_variable(
         &self,
         query_type_shape: TypeShape,
-        query: QueryId,
+        query: Query,
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
