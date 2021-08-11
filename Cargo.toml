@@ -24,7 +24,8 @@ openssl111 = [
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
-    "tls13" # Supported features by openssl111
+    "tls13", # Supported features by openssl111
+    "claims",
 ]
 
 # PUT supports TLS 1.3
@@ -98,7 +99,7 @@ nix = "0.21"
 [profile.release]
 panic = "abort"
 lto = true
-codegen-units = 8
+codegen-units = 1
 opt-level = 3
 debug = true
 

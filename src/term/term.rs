@@ -9,9 +9,12 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
-use crate::trace::TraceContext;
+use crate::trace::{TraceContext, VecClaimer};
 
 use super::atoms::{Function, Variable};
+use std::borrow::Borrow;
+use std::ops::Deref;
+use crate::variable_data::VariableData;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -85,14 +88,15 @@ impl Term {
             Term::Variable(ref v) => format!("{}{}", tabs, v),
             Term::Application(ref func, ref args) => {
                 let op_str = remove_prefix(func.name());
+                let return_type = remove_prefix(func.shape().return_type.name);
                 if args.is_empty() {
-                    format!("{}{}", tabs, op_str)
+                    format!("{}{} -> {}", tabs, op_str, return_type)
                 } else {
                     let args_str = args
                         .iter()
                         .map(|arg| arg.display_at_depth(depth + 1))
                         .join(",\n");
-                    format!("{}{}(\n{}\n{})", tabs, op_str, args_str, tabs)
+                    format!("{}{}(\n{}\n{}) -> {}", tabs, op_str, args_str, tabs, return_type)
                 }
             }
         }
@@ -100,10 +104,17 @@ impl Term {
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
-            Term::Variable(v) => context
-                .find_variable(v.typ, v.observed_id)
-                .map(|data| data.clone_box_any())
-                .ok_or(Error::Term(format!("Unable to find variable {}!", v))),
+            Term::Variable(v) => {
+                if v.typ == TypeShape::of::<VecClaimer>() {
+                    let claimer: &VecClaimer = &context.claimer.deref().borrow();
+                    Ok(claimer.clone_box_any())
+                } else {
+                    context
+                        .find_variable(v.typ, v.query)
+                        .map(|data| data.clone_box_any())
+                        .ok_or(Error::Term(format!("Unable to find variable {}!", v)))
+                }
+            },
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

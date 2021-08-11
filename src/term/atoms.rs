@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::term::atoms::fn_container::FnContainer;
 use crate::term::remove_prefix;
 use crate::{
-    term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-    trace::ObservedId,
+    term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape}
 };
+use crate::trace::Query;
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,20 +23,21 @@ pub struct Variable {
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
     pub typ: TypeShape,
-    pub observed_id: ObservedId,
+    /// The struct which holds information about how to query this variable from knowledge
+    pub query: Query,
 }
 
 impl Hash for Variable {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
-        self.observed_id.hash(state);
+        self.query.hash(state);
     }
 }
 
 impl Eq for Variable {}
 impl PartialEq for Variable {
     fn eq(&self, other: &Self) -> bool {
-        self.typ == other.typ && self.observed_id == other.observed_id
+        self.typ == other.typ && self.query == other.query
     }
 }
 
@@ -46,25 +47,25 @@ impl Clone for Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
-            observed_id: self.observed_id.clone(),
+            query: self.query.clone(),
         }
     }
 }
 
 impl Variable {
-    pub fn new(typ: TypeShape, observed_id: ObservedId) -> Self {
+    pub fn new(typ: TypeShape, query: Query) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
             typ,
-            observed_id,
+            query,
         }
     }
 }
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "[{}]/{}", self.observed_id, remove_prefix(self.typ.name))
+        write!(f, "[{}]/{}", self.query, remove_prefix(self.typ.name))
     }
 }
 

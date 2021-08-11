@@ -58,8 +58,8 @@ pub fn fn_get_server_key_share(
 }
 
 pub fn fn_verify_data(
-    verify_transcript: &HandshakeHash,
-    client_handshake_traffic_secret_transcript: &HandshakeHash,
+    server_finished: &HandshakeHash,
+    server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
 ) -> Result<Vec<u8>, FnError> {
@@ -70,15 +70,15 @@ pub fn fn_verify_data(
 
     let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
-    key_schedule.client_handshake_traffic_secret(
-        &client_handshake_traffic_secret_transcript.get_current_hash(),
+    key_schedule.client_handshake_traffic_secret_raw(
+        &server_hello.get_current_hash_raw(),
         &NoKeyLog,
         client_random,
     );
 
     let pending = key_schedule.into_traffic_with_client_finished_pending();
 
-    let bytes = pending.sign_client_finish(&verify_transcript.get_current_hash());
+    let bytes = pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
     Ok(Vec::from(bytes.as_ref()))
 }
 
@@ -126,8 +126,16 @@ pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
     )
 }
 
-pub fn fn_cipher_suite13() -> Result<CipherSuite, FnError> {
+pub fn fn_cipher_suite13_aes_128_gcm_sha256() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS13_AES_128_GCM_SHA256)
+}
+
+pub fn fn_cipher_suite13_aes_256_gcm_sha384() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS13_AES_256_GCM_SHA384)
+}
+
+pub fn fn_cipher_suite13_aes_128_ccm_sha256() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS13_AES_128_CCM_SHA256)
 }
 
 pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {

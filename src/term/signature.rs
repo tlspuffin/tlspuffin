@@ -9,13 +9,12 @@ use crate::{
         dynamic_function::{
             make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
         },
-    },
-    trace::ObservedId,
+    }
 };
 
 use super::atoms::Function;
 use crate::agent::AgentName;
-use crate::trace::TlsMessageType;
+use crate::trace::{TlsMessageType, Query};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
@@ -79,13 +78,9 @@ impl Signature {
         func
     }
 
-    fn new_var_internal(type_shape: TypeShape, observed_id: ObservedId) -> Variable {
-        let variable = Variable::new(type_shape, observed_id);
-        variable
-    }
-
-    pub fn new_var<T: 'static>(observed_id: ObservedId) -> Variable {
-        Self::new_var_internal(TypeShape::of::<T>(), observed_id)
+    pub fn new_var<T: 'static>(query: Query) -> Variable {
+        let type_shape = TypeShape::of::<T>();
+        Variable::new(type_shape, query)
     }
 
     pub fn new_var_by_type_id(
@@ -94,14 +89,13 @@ impl Signature {
         tls_message_type: Option<TlsMessageType>,
         counter: u16,
     ) -> Variable {
-        let observed_id = ObservedId {
+        let query = Query {
             agent_name,
             tls_message_type,
             counter,
         };
-        Self::new_var_internal(type_shape, observed_id)
+        Variable::new(type_shape, query)
     }
-
 }
 
 impl fmt::Debug for Signature {

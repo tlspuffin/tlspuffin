@@ -1,4 +1,4 @@
-//! This module provides a DLS for writing[`Term`]swithin Rust.
+//! This module provides a DLS for writing[`Term`]s within Rust.
 //!
 //! # Example
 //!
@@ -26,14 +26,16 @@
 #[macro_export]
 macro_rules! term {
     //
-    // Handshake TlsMessageType with `None` as `HandshakeType`
+    // Handshake with TlsMessageType
     // `>$req_type:expr` must be the last part of the arm, even if it is not used.
     //
-    (($agent:expr, $counter:expr) $([H])? / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
-        term!(($agent, $counter) [H] > TypeShape::of::<$typ>())
+    (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::term::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
+        term!(($agent, $counter) > TypeShape::of::<$typ>())
     }};
-    (($agent:expr, $counter:expr) $([H])? $(>$req_type:expr)?) => {{
+    (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
         use $crate::term::Term;
@@ -43,50 +45,23 @@ macro_rules! term {
     }};
 
     //
-    // Handshake TlsMessageType with `Some(x)` as `HandshakeType`, where `x` is `TypeShape::of::<$typ>()`
+    // Handshake TlsMessageType with `$message_type` as `TlsMessageType`
     //
-    (($agent:expr, $counter:expr) [H::$hs_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
+    (($agent:expr, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::term::dynamic_function::TypeShape;
 
-        term!(($agent, $counter) [H::$hs_type] > TypeShape::of::<$typ>())
+        // ignore $req_type as we are overriding it with $type
+        term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>())
     }};
-    // Extended with custom $hs_type
-    (($agent:expr, $counter:expr) [H::$hs_type:expr] $(>$req_type:expr)?) => {{
+    // Extended with custom $type
+    (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
         use $crate::term::Term;
 
-        let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(Some($hs_type))), $counter);
+        let var = Signature::new_var_by_type_id($($req_type)?, $agent, $message_type, $counter);
         Term::Variable(var)
     }};
-
-    //
-    // Application TlsMessageType
-    //
-    (($agent:expr, $counter:expr) [A] / $typ:ty $(>$req_type:expr)?) => {{
-        use crate::term::dynamic_function::TypeShape;
-        term!(($agent, $counter) [A] > TypeShape::of::<$typ>())
-    }};
-    (($agent:expr, $counter:expr) [A] $(>$req_type:expr)?) => {{
-        use $crate::trace::TlsMessageType;
-        use $crate::term::signature::Signature;
-        use $crate::term::Term;
-
-        let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::ApplicationData), $counter);
-        Term::Variable(var)
-    }};
-
-    //
-    // Alert TlsMessageType todo
-    //
-
-    //
-    // Heartbleed TlsMessageType todo
-    //
-
-    //
-    // ChangeCipherSpec TlsMessageType todo
-    //
 
     //
     // Function Applications

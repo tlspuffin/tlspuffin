@@ -10,7 +10,7 @@ use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::ObservedId;
+use crate::trace::{Query, Knowledge};
 use crate::{term::Term, trace::TraceContext};
 use ring::hmac;
 use ring::hmac::Key;
@@ -86,12 +86,12 @@ fn example() {
 
     println!("TypeId of vec array {:?}", data.type_id());
 
-    let observed_id = ObservedId {
+    let query = Query {
         agent_name: AgentName::first(),
         tls_message_type: None,
         counter: 0,
     };
-    let variable = Signature::new_var::<Vec<u8>>(observed_id);
+    let variable = Signature::new_var::<Vec<u8>>(query);
 
     let generated_term = Term::Application(
         hmac256,
@@ -103,7 +103,11 @@ fn example() {
 
     println!("{}", generated_term);
     let mut context = TraceContext::new();
-    context.add_knowledge(observed_id, Box::new(data));
+    context.add_knowledge(Knowledge {
+        agent_name: AgentName::first(),
+        tls_message_type: None,
+        data: Box::new(data)
+    });
 
     println!(
         "{:?}",
@@ -136,7 +140,7 @@ fn playground() {
     );
     println!("{}", Signature::new_function(&example_op_c).shape());
 
-    let observed_id = ObservedId {
+    let query = Query {
         agent_name: AgentName::first(),
         tls_message_type: None,
         counter: 0,
@@ -151,10 +155,10 @@ fn playground() {
                         Signature::new_function(&example_op_c),
                         vec![
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
-                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                            Term::Variable(Signature::new_var::<SessionID>(query)),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                    Term::Variable(Signature::new_var::<SessionID>(query)),
                 ],
             ),
             Term::Application(
@@ -163,11 +167,11 @@ fn playground() {
                     Term::Application(
                         Signature::new_function(&example_op_c),
                         vec![
-                            Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                            Term::Variable(Signature::new_var::<SessionID>(query)),
                             Term::Application(Signature::new_function(&example_op_c), vec![]),
                         ],
                     ),
-                    Term::Variable(Signature::new_var::<SessionID>(observed_id)),
+                    Term::Variable(Signature::new_var::<SessionID>(query)),
                 ],
             ),
         ],

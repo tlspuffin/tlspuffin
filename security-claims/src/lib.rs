@@ -3,9 +3,8 @@
 #![allow(non_snake_case)]
 #![allow(unused)]
 
-pub use ffi::{Claim, ClaimType, TLSLike, CLAIM_INTERFACE_H};
+pub use ffi::{*};
 pub use register::{register_claimer, deregister_claimer};
 
 pub mod register;
 mod ffi;
-pub mod check;

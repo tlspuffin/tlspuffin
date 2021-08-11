@@ -837,6 +837,7 @@ name = "libressl-src"
 version = "111.13.0+3.1.4"
 dependencies = [
  "autotools",
+ "security-claims",
 ]
 
 [[package]]

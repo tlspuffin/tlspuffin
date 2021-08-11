@@ -11,7 +11,7 @@ pub mod seeds {
     use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::trace::Action;
     use crate::{
-        fuzzer::seeds::seed_successful, fuzzer::seeds::seed_successful12, trace::TraceContext,
+        fuzzer::seeds::*, trace::TraceContext,
     };
 
     fn expect_crash<R>(mut func: R)
@@ -106,6 +106,22 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_client_attacker_full() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let (trace, ..) = seed_client_attacker_full(server);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
@@ -113,6 +129,21 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_session_resumption_dhe(server);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", server_state);
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[test]
+    fn test_seed_session_resumption_dhe_full() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let trace = seed_session_resumption_dhe_full(server);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -155,6 +186,31 @@ pub mod seeds {
         assert!(client_state.contains("SSL negotiation finished successfully"));
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    #[should_panic(any(
+        expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript is ignored -> We detect the MITM and error
+        expected = "decryption failed or bad record mac"  // in case MITM attack did fail
+    ))]
+    fn test_seed_successful_mitm() {
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful_mitm(client, server);
+        println!("{}", trace);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
+        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
+        println!("{}", client_state);
+        println!("{}", server_state);
+        assert!(client_state.contains("SSL negotiation finished successfully"));
+        assert!(server_state.contains("SSL negotiation finished successfully"));
+    }
+
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
@@ -263,7 +319,7 @@ pub mod serialization {
     use test_env_log::test;
 
     use crate::agent::AgentName;
-    use crate::fuzzer::seeds::{seed_client_attacker, seed_client_attacker12, seed_heartbleed, seed_successful12, seed_session_resumption_dhe};
+    use crate::fuzzer::seeds::*;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
@@ -273,6 +329,19 @@ pub mod serialization {
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {
         let server = AgentName::first();
         let trace = seed_session_resumption_dhe(server);
+
+        let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+
+        let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_serialisation_seed_seed_session_resumption_ke_json() {
+        let server = AgentName::first();
+        let trace = seed_session_resumption_ke(server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
