@@ -82,7 +82,7 @@ use rustls::msgs::{
     message::MessagePayload,
 };
 
-use security_claims::Claim;
+use security_claims::{Claim, ClaimType};
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentDescriptor;
@@ -216,6 +216,7 @@ struct ObservedVariable {
     data: Box<dyn VariableData>,
 }
 
+#[derive(Clone)]
 pub struct VecClaimer {
     claims: Vec<(AgentName, Claim)>,
 }
@@ -223,6 +224,14 @@ pub struct VecClaimer {
 impl VecClaimer {
     pub fn new() -> Self {
         Self { claims: vec![] }
+    }
+
+    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+        self.claims.iter().rev().find(|(name, claim)| claim.typ == typ)
+    }
+
+    pub fn find_first_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+        self.claims.iter().find(|(name, claim)| claim.typ == typ)
     }
 
     pub fn claim(&mut self, name: AgentName, claim: Claim) {
@@ -239,7 +248,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<ObservedVariable>,
     agents: Vec<Agent>,
-    claimer: Rc<RefCell<VecClaimer>>,
+    pub claimer: Rc<RefCell<VecClaimer>>,
 }
 
 impl TraceContext {
