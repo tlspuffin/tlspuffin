@@ -10,13 +10,14 @@ pub mod fn_extensions;
 pub mod fn_fields;
 pub mod fn_messages;
 pub mod fn_utils;
+pub mod fn_transcript;
 mod key_exchange;
 
 /// This modules contains all the concrete implementations of function symbols.
 pub mod fn_impl {
     pub use crate::{
         tls::fn_constants::*, tls::fn_extensions::*, tls::fn_fields::*, tls::fn_messages::*,
-        tls::fn_utils::*,
+        tls::fn_utils::*, tls::fn_transcript::*,
     };
 }
 
@@ -202,5 +203,10 @@ define_signature!(
     fn_new_transcript12
     fn_no_psk
     fn_psk
-    fn_empty_transcript
+    // transcript functions
+    fn_client_finished_transcript
+    fn_server_finished_transcript
+    fn_server_finished_transcript_previous_handshake
+    fn_server_hello_transcript
+    fn_server_hello_transcript_previous_handshake
 );
