@@ -1001,16 +1001,14 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
 pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
     let (
         initial_handshake,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
+        ..
     ) = seed_client_attacker_(server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
             ((server, 4)[A]), // Ticket?
-            (fn_server_hello_transcript_first(((server, 0)))),
-            (fn_server_finished_transcript_first(((server, 0)))),
+            (fn_server_hello_transcript_previous_handshake(((server, 0)))),
+            (fn_server_finished_transcript_previous_handshake(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
@@ -1047,7 +1045,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
-                    (@new_ticket_message) // fixme contains huge decryption subterm
+                    (@new_ticket_message)
                 ))
             ))
         )
@@ -1059,14 +1057,14 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_client_finished_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)[H::HandshakeType::ServerHello]))),
-                (fn_get_ticket_nonce((@new_ticket_message))) // fixme contains huge decryption subterm
+                (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)  // fixme contains huge decryption subterm
+            (@psk)
         )
     };
 
@@ -1077,56 +1075,12 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
         )
     };
 
-    let resumption_server_hello_transcript = term! {
-        fn_append_transcript(
-            (fn_append_transcript(
-                fn_new_transcript,
-                (@full_client_hello) // ClientHello
-            )),
-            ((server, 1)[H::HandshakeType::ServerHello]) // plaintext ServerHello
-        )
-    };
-
-    let resumption_encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 6)[A]), // Encrypted Extensions
-            (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-            (fn_psk((@psk))),  // fixme contains huge decryption subterm
-            fn_seq_0  // sequence 0
-        )
-    };
-
-    let resumption_encrypted_extension_transcript = term! {
-        fn_append_transcript(
-            (@resumption_server_hello_transcript),
-            (@resumption_encrypted_extensions) // plaintext Encrypted Extensions
-        )
-    };
-
-    let resumption_server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 7)[A]), // Server Handshake Finished
-            (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-            (fn_psk((@psk))),  // fixme contains huge subterm
-            fn_seq_1 // sequence 1
-        )
-    };
-
-    let resumption_server_finished_transcript = term! {
-        fn_append_transcript(
-            (@resumption_encrypted_extension_transcript),
-            (@resumption_server_finished) // plaintext Server Handshake Finished
-        )
-    };
-
     let resumption_client_finished = term! {
         fn_finished(
             (fn_verify_data(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
+                (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))),
                 (fn_psk((@psk)))
             ))
         )
@@ -1150,17 +1104,13 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction {}),
-            },
-            Step {
-                agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 1)[H::HandshakeType::ServerHello]))), //
-                            (fn_psk((@psk))), // fixme contains huge subterm
+                            (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1175,16 +1125,14 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
 pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
     let (
         initial_handshake,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
+        ..
     ) = seed_client_attacker_(server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
             ((server, 4)[A]), // Ticket?
-            (@server_hello_transcript),
-            (@server_finished_transcript),
+            (fn_server_hello_transcript_previous_handshake(((server, 0)))),
+            (fn_server_finished_transcript_previous_handshake(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
@@ -1229,9 +1177,9 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     let psk = term! {
         fn_derive_psk(
-                (@server_hello_transcript),
-                (@server_finished_transcript),
-                (@client_finished_transcript),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_client_finished_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 (fn_get_ticket_nonce((@new_ticket_message)))
         )
@@ -1251,55 +1199,11 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
         )
     };
 
-    let resumption_server_hello_transcript = term! {
-        fn_append_transcript(
-            (fn_append_transcript(
-                fn_new_transcript,
-                (@full_client_hello) // ClientHello
-            )),
-            ((server, 1)[H::HandshakeType::ServerHello]) // plaintext ServerHello
-        )
-    };
-
-    let resumption_encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 6)[A]), // Encrypted Extensions
-            (@resumption_server_hello_transcript),
-            fn_no_key_share,
-            (fn_psk((@psk))),
-            fn_seq_0  // sequence 0
-        )
-    };
-
-    let resumption_encrypted_extension_transcript = term! {
-        fn_append_transcript(
-            (@resumption_server_hello_transcript),
-            (@resumption_encrypted_extensions) // plaintext Encrypted Extensions
-        )
-    };
-
-    let resumption_server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 7)[A]), // Server Handshake Finished
-            (@resumption_server_hello_transcript),
-            fn_no_key_share,
-            (fn_psk((@psk))),
-            fn_seq_1 // sequence 1
-        )
-    };
-
-    let resumption_server_finished_transcript = term! {
-        fn_append_transcript(
-            (@resumption_encrypted_extension_transcript),
-            (@resumption_server_finished) // plaintext Server Handshake Finished
-        )
-    };
-
     let resumption_client_finished = term! {
         fn_finished(
             (fn_verify_data(
-                (@resumption_server_finished_transcript),
-                (@resumption_server_hello_transcript),
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
                 fn_no_key_share,
                 (fn_psk((@psk)))
             ))
@@ -1324,15 +1228,11 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction {}),
-            },
-            Step {
-                agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
-                            (@resumption_server_hello_transcript),
+                            (fn_server_hello_transcript(((server, 0)))),
                             fn_no_key_share,
                             (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
