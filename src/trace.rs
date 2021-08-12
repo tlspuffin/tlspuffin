@@ -168,8 +168,6 @@ impl TlsMessageType {
     }
 }
 
-
-
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query {
     pub agent_name: AgentName,
@@ -195,7 +193,7 @@ where
         match (self, query) {
             (Some(inner), Some(inner_query)) => inner.matches(inner_query),
             (Some(_), None) => true, // None matches everything as query -> True
-            (None, None) => true, // None == None => True
+            (None, None) => true,    // None == None => True
             (None, Some(_)) => false, // None != Some => False
         }
     }
@@ -226,9 +224,35 @@ pub struct Knowledge {
     pub data: Box<dyn VariableData>,
 }
 
+pub trait Claimer {
+    fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)>;
+}
+
 #[derive(Clone)]
 pub struct VecClaimer {
     claims: Vec<(AgentName, Claim)>,
+}
+
+/// Claimer which gets claims from a VecClaimer but filters by [`AgentName`]
+pub struct AgentClaimer {
+    claimer: VecClaimer,
+    agent: AgentName,
+}
+
+impl AgentClaimer {
+    pub fn new(claimer: VecClaimer, agent: AgentName) -> Self {
+        Self { claimer, agent }
+    }
+}
+
+impl Claimer for AgentClaimer {
+    fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+        self.claimer
+            .claims
+            .iter()
+            .rev()
+            .find(|(name, claim)| claim.typ == typ && self.agent == *name)
+    }
 }
 
 impl VecClaimer {
@@ -236,19 +260,17 @@ impl VecClaimer {
         Self { claims: vec![] }
     }
 
-    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+    pub fn claim(&mut self, name: AgentName, claim: Claim) {
+        self.claims.push((name, claim));
+    }
+}
+
+impl Claimer for VecClaimer {
+     fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
         self.claims
             .iter()
             .rev()
             .find(|(name, claim)| claim.typ == typ)
-    }
-
-    pub fn find_first_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claims.iter().find(|(name, claim)| claim.typ == typ)
-    }
-
-    pub fn claim(&mut self, name: AgentName, claim: Claim) {
-        self.claims.push((name, claim));
     }
 }
 
@@ -325,10 +347,7 @@ impl TraceContext {
             }
         }
 
-        possibilities.sort_by(|a, b| {
-            a.specificity()
-                .cmp(&b.specificity())
-        });
+        possibilities.sort_by(|a, b| a.specificity().cmp(&b.specificity()));
 
         if let Some(chosen) = possibilities.last() {
             let chosen_message_typ = chosen.tls_message_type;
@@ -423,13 +442,15 @@ pub struct Trace {
 impl Trace {
     fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            if !ctx
+            if let Some(mut reusable) = ctx
                 .agents
-                .iter()
-                .map(|agent| agent.descriptor)
-                .any(|existing| existing == *descriptor)
+                .iter_mut()
+                .find(|existing| existing.descriptor.is_reusable_with(descriptor))
             {
-                // only spawn if not yet existing
+                // rename if it already exists and we want to reuse
+                reusable.rename(ctx.claimer.clone(), descriptor.name);
+            } else {
+                // only spawn completely new if not yet existing
                 ctx.new_openssl_agent(&descriptor)?;
             }
         }
@@ -439,7 +460,7 @@ impl Trace {
 
     pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for trace in &self.prior_traces {
-            self.spawn_agents(ctx)?;
+            trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
             ctx.reset_agents();
         }
@@ -550,6 +571,7 @@ impl fmt::Display for Action {
 
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
+/// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OutputAction {}
 
@@ -585,7 +607,7 @@ impl OutputAction {
                         let knowledge = Knowledge {
                             agent_name: step.agent,
                             tls_message_type,
-                            data: variable
+                            data: variable,
                         };
                         trace!(
                             "New knowledge {}: {} (counter: {})",

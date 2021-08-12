@@ -127,8 +127,9 @@ pub mod seeds {
     fn test_seed_session_resumption_dhe() {
         make_deterministic();
         let mut ctx = TraceContext::new();
-        let server = AgentName::first();
-        let trace = seed_session_resumption_dhe(server);
+        let initial_server = AgentName::first();
+        let server = initial_server.next();
+        let trace = seed_session_resumption_dhe(initial_server, server);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -157,8 +158,9 @@ pub mod seeds {
     fn test_seed_session_resumption_ke() {
         make_deterministic();
         let mut ctx = TraceContext::new();
-        let server = AgentName::first();
-        let trace = seed_session_resumption_ke(server);
+        let initial_server = AgentName::first();
+        let server = initial_server.next();
+        let trace = seed_session_resumption_ke(initial_server, server);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -327,8 +329,9 @@ pub mod serialization {
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {
-        let server = AgentName::first();
-        let trace = seed_session_resumption_dhe(server);
+        let initial_server = AgentName::first();
+        let server = initial_server.next();
+        let trace = seed_session_resumption_dhe(initial_server, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -340,8 +343,9 @@ pub mod serialization {
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_ke_json() {
-        let server = AgentName::first();
-        let trace = seed_session_resumption_ke(server);
+        let initial_server = AgentName::first();
+        let server = initial_server.next();
+        let trace = seed_session_resumption_ke(initial_server, server);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 

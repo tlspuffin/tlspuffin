@@ -33,7 +33,7 @@ use security_claims::Claim;
 #[cfg(feature = "claims")]
 use security_claims::{deregister_claimer, register_claimer};
 
-use crate::agent::{AgentName, TLSVersion};
+use crate::agent::{AgentName, TLSVersion, AgentDescriptor};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
 use crate::openssl_binding;
@@ -86,12 +86,21 @@ impl OpenSSLStream {
             openssl_binding::create_openssl_client(memory_stream, tls_version)?
         };
 
+        let mut stream = OpenSSLStream { openssl_stream };
+        stream.register_claimer(claimer, agent_name);
+        Ok(stream)
+    }
+
+    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
-        register_claimer(openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
+        register_claimer(self.openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
             (*claimer).borrow_mut().claim(agent_name, claim)
         });
+    }
 
-        Ok(OpenSSLStream { openssl_stream })
+    fn deregister_claimer(&mut self) {
+        #[cfg(feature = "claims")]
+        deregister_claimer(self.openssl_stream.ssl().as_ptr().cast());
     }
 
     pub fn describe_state(&self) -> &'static str {
@@ -109,6 +118,11 @@ impl OpenSSLStream {
         Ok(openssl_binding::do_handshake(stream)?)
     }
 
+    pub fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+        self.deregister_claimer();
+        self.register_claimer(claimer, agent_name)
+    }
+
     pub fn reset(&mut self) {
         self.openssl_stream.clear();
     }
@@ -117,7 +131,7 @@ impl OpenSSLStream {
 #[cfg(feature = "claims")]
 impl Drop for OpenSSLStream {
     fn drop(&mut self) {
-        deregister_claimer(self.openssl_stream.ssl().as_ptr().cast());
+        self.deregister_claimer();
     }
 }
 

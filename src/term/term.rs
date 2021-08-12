@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
-use crate::trace::{TraceContext, VecClaimer};
+use crate::trace::{TraceContext, VecClaimer, AgentClaimer};
 
 use super::atoms::{Function, Variable};
 use std::borrow::Borrow;
@@ -105,9 +105,10 @@ impl Term {
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(v) => {
-                if v.typ == TypeShape::of::<VecClaimer>() {
+                if v.typ == TypeShape::of::<AgentClaimer>() {
                     let claimer: &VecClaimer = &context.claimer.deref().borrow();
-                    Ok(claimer.clone_box_any())
+                    let ret: Box<dyn Any> = Box::new(AgentClaimer::new(claimer.clone(), v.query.agent_name));
+                    Ok(ret)
                 } else {
                     context
                         .find_variable(v.typ, v.query)

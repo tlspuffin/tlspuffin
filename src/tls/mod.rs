@@ -206,7 +206,5 @@ define_signature!(
     // transcript functions
     fn_client_finished_transcript
     fn_server_finished_transcript
-    fn_server_finished_transcript_previous_handshake
     fn_server_hello_transcript
-    fn_server_hello_transcript_previous_handshake
 );

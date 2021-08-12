@@ -325,10 +325,8 @@ fn test_term_generation() {
 
     let ignored_functions = [
         // transcript functions -> VecClaimer is usually available as Variable
-        fn_server_hello_transcript_previous_handshake.name(),
         fn_decrypt_application.name(),
         fn_server_finished_transcript.name(),
-        fn_server_finished_transcript_previous_handshake.name(),
         fn_client_finished_transcript.name(),
         fn_server_hello_transcript.name(),
     ].iter().map(|fn_name| fn_name.to_string()).collect::<HashSet<String>>();

@@ -150,8 +150,9 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.bench_function("seed_session_resumption_dhe", |b| {
         b.iter(|| {
             let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let trace = seed_session_resumption_dhe(client);
+            let initial_server = AgentName::first();
+            let server = initial_server.next();
+            let trace = seed_session_resumption_dhe(initial_server, server);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -160,8 +161,9 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.bench_function("seed_session_resumption_ke", |b| {
         b.iter(|| {
             let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let trace = seed_session_resumption_ke(client);
+            let initial_server = AgentName::first();
+            let server = initial_server.next();
+            let trace = seed_session_resumption_ke(initial_server, server);
 
             trace.execute(&mut ctx).unwrap();
         })

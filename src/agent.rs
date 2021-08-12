@@ -43,6 +43,14 @@ pub struct AgentDescriptor {
     pub server: bool,
 }
 
+impl AgentDescriptor {
+
+    /// checks whether a agent with this descriptor is reusable with the other descriptor
+    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        return self.server == other.server && self.tls_version == other.tls_version
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TLSVersion {
     V1_3,
@@ -70,6 +78,11 @@ impl Agent {
         let agent = Self::from_stream(descriptor, openssl_stream);
 
         Ok(agent)
+    }
+
+    pub fn rename(&mut self, claimer: Rc<RefCell<VecClaimer>>, new_name: AgentName) {
+        self.descriptor.name = new_name;
+        self.stream.change_agent_name(claimer, new_name);
     }
 
     pub fn reset(&mut self) {

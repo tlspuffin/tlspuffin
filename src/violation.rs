@@ -119,7 +119,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                 }
             }
         } else {
-            return Some("Could not choose exactly one server and client");
+            // Could not choose exactly one server and client
+            // possibly two server because of session resumption
         }
     } else {
         // this is the case for seed_client_attacker12 which records only the server claims

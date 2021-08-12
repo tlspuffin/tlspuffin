@@ -498,10 +498,6 @@ pub fn seed_client_attacker(server: AgentName) -> (Trace) {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction {}),
-            },
-            Step {
-                agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_encrypt_handshake(
@@ -902,15 +898,15 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
     }
 }
 
-pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
-    let initial_handshake = seed_client_attacker(server);
+pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName) -> Trace {
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
-            (fn_server_hello_transcript_previous_handshake(((server, 0)))),
-            (fn_server_finished_transcript_previous_handshake(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
+            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
@@ -954,13 +950,14 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
 
     let psk = term! {
         fn_derive_psk(
-                (fn_server_hello_transcript(((server, 0)))),
-                (fn_server_finished_transcript(((server, 0)))),
-                (fn_client_finished_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                (fn_server_hello_transcript(((initial_server, 0)))),
+                (fn_server_finished_transcript(((initial_server, 0)))),
+                (fn_client_finished_transcript(((initial_server, 0)))),
+                (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
+
 
     let binder = term! {
         fn_derive_binder(
@@ -981,7 +978,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
             (fn_verify_data(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_psk((@psk)))
             ))
         )
@@ -1010,7 +1007,7 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
-                            (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+                            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
                         )
@@ -1023,15 +1020,15 @@ pub fn seed_session_resumption_dhe(server: AgentName) -> Trace {
     trace
 }
 
-pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
-    let initial_handshake = seed_client_attacker(server);
+pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName) -> Trace {
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
-            (fn_server_hello_transcript_previous_handshake(((server, 0)))),
-            (fn_server_finished_transcript_previous_handshake(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
+            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
@@ -1075,10 +1072,10 @@ pub fn seed_session_resumption_ke(server: AgentName) -> Trace {
 
     let psk = term! {
         fn_derive_psk(
-                (fn_server_hello_transcript(((server, 0)))),
-                (fn_server_finished_transcript(((server, 0)))),
-                (fn_client_finished_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 0)))),
+                (fn_server_hello_transcript(((initial_server, 0)))),
+                (fn_server_finished_transcript(((initial_server, 0)))),
+                (fn_client_finished_transcript(((initial_server, 0)))),
+                (fn_get_server_key_share(((initial_server, 0)))),
                 (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
@@ -1517,11 +1514,11 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
         (seed_client_attacker(agent_a), "seed_client_attacker"),
         (seed_client_attacker12(agent_a), "seed_client_attacker12"),
         (
-            seed_session_resumption_dhe(agent_a),
+            seed_session_resumption_dhe(agent_a, agent_b),
             "seed_session_resumption_dhe",
         ),
         (
-            seed_session_resumption_ke(agent_a),
+            seed_session_resumption_ke(agent_a, agent_b),
             "seed_session_resumption_ke",
         ),
     ]
