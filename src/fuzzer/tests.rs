@@ -329,7 +329,10 @@ fn test_term_generation() {
         fn_server_finished_transcript.name(),
         fn_client_finished_transcript.name(),
         fn_server_hello_transcript.name(),
-    ].iter().map(|fn_name| fn_name.to_string()).collect::<HashSet<String>>();
+    ]
+    .iter()
+    .map(|fn_name| fn_name.to_string())
+    .collect::<HashSet<String>>();
 
     successfully_built_functions.extend(ignored_functions);
 

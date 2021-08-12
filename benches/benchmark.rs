@@ -183,8 +183,6 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.finish()
 }
 
-
-
 criterion_group!(
     benches,
     benchmark_dynamic,

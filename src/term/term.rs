@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::term::dynamic_function::TypeShape;
 use crate::tls::error::FnError;
-use crate::trace::{TraceContext, VecClaimer, AgentClaimer};
+use crate::trace::{AgentClaimer, TraceContext, VecClaimer};
 
 use super::atoms::{Function, Variable};
+use crate::variable_data::VariableData;
 use std::borrow::Borrow;
 use std::ops::Deref;
-use crate::variable_data::VariableData;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -96,7 +96,10 @@ impl Term {
                         .iter()
                         .map(|arg| arg.display_at_depth(depth + 1))
                         .join(",\n");
-                    format!("{}{}(\n{}\n{}) -> {}", tabs, op_str, args_str, tabs, return_type)
+                    format!(
+                        "{}{}(\n{}\n{}) -> {}",
+                        tabs, op_str, args_str, tabs, return_type
+                    )
                 }
             }
         }
@@ -107,7 +110,8 @@ impl Term {
             Term::Variable(v) => {
                 if v.typ == TypeShape::of::<AgentClaimer>() {
                     let claimer: &VecClaimer = &context.claimer.deref().borrow();
-                    let ret: Box<dyn Any> = Box::new(AgentClaimer::new(claimer.clone(), v.query.agent_name));
+                    let ret: Box<dyn Any> =
+                        Box::new(AgentClaimer::new(claimer.clone(), v.query.agent_name));
                     Ok(ret)
                 } else {
                     context
@@ -115,7 +119,7 @@ impl Term {
                         .map(|data| data.clone_box_any())
                         .ok_or(Error::Term(format!("Unable to find variable {}!", v)))
                 }
-            },
+            }
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

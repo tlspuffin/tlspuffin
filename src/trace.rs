@@ -451,14 +451,6 @@ impl Trace {
             ctx.reset_agents();
         }
         self.spawn_agents(ctx)?;
-        self.execute_with_listener(ctx, |_step| {})
-    }
-
-    pub fn execute_with_listener(
-        &self,
-        ctx: &mut TraceContext,
-        execution_listener: fn(step: &Step) -> (),
-    ) -> Result<(), Error> {
         let steps = &self.steps;
         for i in 0..steps.len() {
             let step = &steps[i];
@@ -479,7 +471,6 @@ impl Trace {
                 Action::Output(_) => {}
             }
 
-            execution_listener(step);
             let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
 
             trace!(

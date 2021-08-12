@@ -10,7 +10,7 @@ use crate::term::signature::Signature;
 use crate::tls::fn_impl::*;
 use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
 use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::{Query, Knowledge};
+use crate::trace::{Knowledge, Query};
 use crate::{term::Term, trace::TraceContext};
 use ring::hmac;
 use ring::hmac::Key;
@@ -106,7 +106,7 @@ fn example() {
     context.add_knowledge(Knowledge {
         agent_name: AgentName::first(),
         tls_message_type: None,
-        data: Box::new(data)
+        data: Box::new(data),
     });
 
     println!(

@@ -44,10 +44,9 @@ pub struct AgentDescriptor {
 }
 
 impl AgentDescriptor {
-
     /// checks whether a agent with this descriptor is reusable with the other descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        return self.server == other.server && self.tls_version == other.tls_version
+        return self.server == other.server && self.tls_version == other.tls_version;
     }
 }
 

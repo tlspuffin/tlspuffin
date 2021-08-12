@@ -10,9 +10,7 @@ pub mod seeds {
     use crate::fuzzer::seeds::*;
     use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::trace::Action;
-    use crate::{
-        fuzzer::seeds::*, trace::TraceContext,
-    };
+    use crate::{fuzzer::seeds::*, trace::TraceContext};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -121,7 +119,6 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
-
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
@@ -213,7 +210,6 @@ pub mod seeds {
         assert!(client_state.contains("SSL negotiation finished successfully"));
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
-
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]

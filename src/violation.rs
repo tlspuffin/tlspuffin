@@ -86,8 +86,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                     if client.available_ciphers.length > 0 && server.available_ciphers.length > 0 {
                         let best_cipher = {
                             let mut cipher: Option<ClaimCipher> = None;
-                            for server_cipher in
-                                &server.available_ciphers.ciphers[..server.available_ciphers.length as usize]
+                            for server_cipher in &server.available_ciphers.ciphers
+                                [..server.available_ciphers.length as usize]
                             {
                                 if client.available_ciphers.ciphers.contains(server_cipher) {
                                     cipher.insert(*server_cipher);

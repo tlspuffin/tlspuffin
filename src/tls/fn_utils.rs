@@ -18,7 +18,7 @@ use crate::tls::key_schedule::*;
 
 use super::error::FnError;
 use rustls::msgs::alert::AlertMessagePayload;
-use rustls::msgs::enums::{AlertLevel, AlertDescription};
+use rustls::msgs::enums::{AlertDescription, AlertLevel};
 
 // ----
 // seed_client_attacker()
@@ -165,7 +165,6 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
     // length, or the length of its container.
     let binder_plaintext = client_hello_payload.get_encoding_for_binder_signing();
     let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
-
 
     // Run a fake key_schedule to simulate what the server will do if it chooses
     // to resume.

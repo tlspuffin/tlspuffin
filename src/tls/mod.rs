@@ -9,15 +9,15 @@ pub mod fn_constants;
 pub mod fn_extensions;
 pub mod fn_fields;
 pub mod fn_messages;
-pub mod fn_utils;
 pub mod fn_transcript;
+pub mod fn_utils;
 mod key_exchange;
 
 /// This modules contains all the concrete implementations of function symbols.
 pub mod fn_impl {
     pub use crate::{
         tls::fn_constants::*, tls::fn_extensions::*, tls::fn_fields::*, tls::fn_messages::*,
-        tls::fn_utils::*, tls::fn_transcript::*,
+        tls::fn_transcript::*, tls::fn_utils::*,
     };
 }
 

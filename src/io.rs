@@ -33,7 +33,7 @@ use security_claims::Claim;
 #[cfg(feature = "claims")]
 use security_claims::{deregister_claimer, register_claimer};
 
-use crate::agent::{AgentName, TLSVersion, AgentDescriptor};
+use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
 use crate::debug::debug_opaque_message_with_info;
 use crate::error::Error;
 use crate::openssl_binding;
@@ -93,9 +93,10 @@ impl OpenSSLStream {
 
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
-        register_claimer(self.openssl_stream.ssl().as_ptr().cast(), move |claim: Claim| {
-            (*claimer).borrow_mut().claim(agent_name, claim)
-        });
+        register_claimer(
+            self.openssl_stream.ssl().as_ptr().cast(),
+            move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
+        );
     }
 
     fn deregister_claimer(&mut self) {

@@ -3,18 +3,16 @@ use std::fmt;
 
 use itertools::Itertools;
 
-use crate::{
-    term::{
-        atoms::Variable,
-        dynamic_function::{
-            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
-        },
-    }
+use crate::term::{
+    atoms::Variable,
+    dynamic_function::{
+        make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+    },
 };
 
 use super::atoms::Function;
 use crate::agent::AgentName;
-use crate::trace::{TlsMessageType, Query};
+use crate::trace::{Query, TlsMessageType};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 

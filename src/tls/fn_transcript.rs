@@ -1,18 +1,26 @@
-use crate::trace::{VecClaimer, AgentClaimer};
-use security_claims::{ClaimType, Claim};
-use rustls::hash_hs::HandshakeHash;
 use crate::agent::AgentName;
 use crate::tls::error::FnError;
+use crate::trace::{AgentClaimer, VecClaimer};
+use rustls::hash_hs::HandshakeHash;
+use security_claims::{Claim, ClaimType};
 
-fn into_transcript(claim: Option<&(AgentName, Claim)>, typ: ClaimType) -> Result<HandshakeHash, FnError> {
+fn into_transcript(
+    claim: Option<&(AgentName, Claim)>,
+    typ: ClaimType,
+) -> Result<HandshakeHash, FnError> {
     if let Some((_, claim)) = claim {
-        return Ok(HandshakeHash::new_override(Vec::from(&claim.transcript.data[..claim.transcript.length as usize])))
+        return Ok(HandshakeHash::new_override(Vec::from(
+            &claim.transcript.data[..claim.transcript.length as usize],
+        )));
     }
 
-    Err(FnError::Unknown(format!("Failed to find {:?} transcript", typ)))
+    Err(FnError::Unknown(format!(
+        "Failed to find {:?} transcript",
+        typ
+    )))
 }
 
-fn find_transcript(claims: &AgentClaimer, typ: ClaimType)  -> Result<HandshakeHash, FnError> {
+fn find_transcript(claims: &AgentClaimer, typ: ClaimType) -> Result<HandshakeHash, FnError> {
     let claim = claims.find_last_claim(typ);
     into_transcript(claim, typ)
 }

@@ -958,7 +958,6 @@ pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName)
         )
     };
 
-
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
@@ -1140,7 +1139,6 @@ pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName) 
 
     trace
 }
-
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 pub fn seed_client_attacker_full(server: AgentName) -> (Trace, Term, Term, Term) {
@@ -1488,9 +1486,6 @@ pub fn seed_session_resumption_dhe_full(initial_server: AgentName, server: Agent
 
     trace
 }
-
-
-
 
 pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
