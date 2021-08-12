@@ -105,7 +105,6 @@ impl OpenSSLStream {
     }
 
     pub fn describe_state(&self) -> &'static str {
-        // LH: Why 'static lifetime? Couldn't you use an owned value here?
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return

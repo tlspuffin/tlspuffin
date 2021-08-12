@@ -13,7 +13,7 @@ use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// Copyable reference to an [`Agent`]. LH: I assume this injectively identifies agents.
+/// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
 

@@ -70,7 +70,7 @@ pub struct DynamicFunctionShape {
     pub return_type: TypeShape,
 }
 
-impl Eq for DynamicFunctionShape {} // LH: What is that? Why not deriving Eq on the struct?
+impl Eq for DynamicFunctionShape {}
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
         self.name.eq(other.name) // name is unique

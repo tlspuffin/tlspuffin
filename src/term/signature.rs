@@ -23,7 +23,7 @@ pub struct Signature {
     pub functions_by_name: HashMap<&'static str, FunctionDefinition>,
     pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
-    pub types_by_name: HashMap<&'static str, TypeShape>, // LH: Why not owned String as in `function_by_name` or use `static there as well?
+    pub types_by_name: HashMap<&'static str, TypeShape>,
 }
 
 impl Signature {
@@ -53,7 +53,7 @@ impl Signature {
                 used_types
             })
             .unique()
-            .flatten() // LH: I do not understand this, what is the intended returned TypeShape in the HashMap?
+            .flatten()
             .map(|typ| (typ.name, typ.clone()))
             .collect();
 
@@ -103,11 +103,14 @@ impl fmt::Debug for Signature {
 }
 
 #[macro_export]
-macro_rules! define_signature {   // LH: To document somewhere: it does not seem that your signature and the way you (de)serialize are robust to function name modifications (?)
+macro_rules! define_signature {
     ($name_signature:ident, $($f:path)+) => {
         use once_cell::sync::Lazy;
         use crate::term::signature::Signature;
-        /// Signature which contains all functions defined in the `tls` module.
+        /// Signature which contains all functions defined in the `tls` module. A signature is responsible
+        /// for linking function implementations to serialized data.
+        ///
+        /// Note: Changes in function symbols may cause deserialization of term to fail.
         pub static $name_signature: Lazy<Signature> = Lazy::new(|| {
             let definitions = vec![
                 $(crate::term::dynamic_function::make_dynamic(&$f)),*
