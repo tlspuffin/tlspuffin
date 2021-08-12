@@ -55,7 +55,6 @@ macro_rules! term {
     }};
     // Extended with custom $type
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
-        use $crate::trace::TlsMessageType;
         use $crate::term::signature::Signature;
         use $crate::term::Term;
 

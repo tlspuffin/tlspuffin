@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
+use rustls::msgs::enums::ProtocolVersion::TLSv1_2;
+use crate::agent::TLSVersion::Unknown;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -40,7 +42,11 @@ impl fmt::Display for AgentName {
 pub struct AgentDescriptor {
     pub name: AgentName,
     pub tls_version: TLSVersion,
+    /// Whether the agent which holds this descriptor is a server.
     pub server: bool,
+    /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
+    /// as openssl agents rotate ticket keys if they are recreated.
+    pub try_reuse: bool
 }
 
 impl AgentDescriptor {
@@ -54,6 +60,17 @@ impl AgentDescriptor {
 pub enum TLSVersion {
     V1_3,
     V1_2,
+    Unknown,
+}
+
+impl From<i32> for TLSVersion  {
+    fn from(value: i32) -> Self {
+       match value {
+           0x303 => TLSVersion::V1_2,
+           0x304 => TLSVersion::V1_3,
+           _ => TLSVersion::Unknown
+       }
+    }
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.

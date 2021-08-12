@@ -5,6 +5,7 @@ use rustls::internal::msgs::enums::HandshakeType;
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::term;
+use crate::trace::TlsMessageType;
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
@@ -20,11 +21,13 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 name: client,
                 tls_version: TLSVersion::V1_3,
                 server: false,
+                try_reuse: false,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
+                try_reuse: false,
             },
         ],
         steps: vec![
@@ -129,11 +132,13 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace {
                 name: client,
                 tls_version: TLSVersion::V1_3,
                 server: false,
+                try_reuse: false,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
+                try_reuse: false,
             },
         ],
         steps: vec![
@@ -240,11 +245,13 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace {
                 name: client,
                 tls_version: TLSVersion::V1_2,
                 server: false,
+                try_reuse: false,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
+                try_reuse: false,
             },
         ],
         steps: vec![
@@ -486,6 +493,7 @@ pub fn seed_client_attacker(server: AgentName) -> (Trace) {
             name: server,
             tls_version: TLSVersion::V1_3,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {
@@ -624,6 +632,7 @@ fn _seed_client_attacker12(server: AgentName) -> (Trace, Term) {
             name: server,
             tls_version: TLSVersion::V1_2,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {
@@ -767,11 +776,13 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace {
                 name: client,
                 tls_version: TLSVersion::V1_2,
                 server: false,
+                try_reuse: false,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
+                try_reuse: false,
             },
         ],
         steps: vec![
@@ -804,11 +815,13 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 name: client,
                 tls_version: TLSVersion::V1_2,
                 server: false,
+                try_reuse: false,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
+                try_reuse: false,
             },
         ],
         steps: vec![
@@ -989,6 +1002,7 @@ pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName)
             name: server,
             tls_version: TLSVersion::V1_3,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {
@@ -1110,6 +1124,7 @@ pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName) 
             name: server,
             tls_version: TLSVersion::V1_3,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {
@@ -1272,6 +1287,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> (Trace, Term, Term, Term)
             name: server,
             tls_version: TLSVersion::V1_3,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {
@@ -1457,6 +1473,7 @@ pub fn seed_session_resumption_dhe_full(initial_server: AgentName, server: Agent
             name: server,
             tls_version: TLSVersion::V1_3,
             server: true,
+            try_reuse: false,
         }],
         steps: vec![
             Step {

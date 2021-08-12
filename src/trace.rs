@@ -65,7 +65,6 @@
 //!
 
 use core::fmt;
-use std::any::Any;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::ops::Deref;
@@ -428,7 +427,7 @@ pub struct Trace {
 impl Trace {
     fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            if let Some(mut reusable) = ctx
+            if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
                 .find(|existing| existing.descriptor.is_reusable_with(descriptor))

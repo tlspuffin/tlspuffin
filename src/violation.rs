@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use security_claims::{Claim, ClaimCipher, ClaimType};
 
-use crate::agent::AgentName;
+use crate::agent::{AgentName, TLSVersion};
 
 pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
@@ -12,8 +12,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
 
             let version = claim_a.version;
 
-            match version.data {
-                0x303 => {
+            match version.data.into() {
+                TLSVersion::V1_2 => {
                     // TLS 1.2 Checks
                     if client.master_secret_12 != server.master_secret_12 {
                         return Some("Mismatching master secrets");
@@ -55,7 +55,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                         return Some("mismatching signature algorithms");
                     }
                 }
-                0x304 => {
+                TLSVersion::V1_3 => {
                     // TLS 1.3 Checks
                     if client.master_secret != server.master_secret {
                         return Some("Mismatching master secrets");

@@ -31,7 +31,6 @@ mod sancov_dummy;
 mod stages;
 mod stats_observer;
 mod term_zoo;
-mod terminal_stats;
 
 use crate::trace::Trace;
 use libafl::inputs::{HasLen, Input};

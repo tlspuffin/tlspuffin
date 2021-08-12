@@ -348,7 +348,7 @@ fn test_corpus_term_size() {
     let trace_term_sizes = corpus
         .iter()
         .map(|(trace, name)| {
-            ((
+            (
                 name,
                 trace
                     .steps
@@ -358,7 +358,7 @@ fn test_corpus_term_size() {
                         Action::Output(_) => 0,
                     })
                     .sum::<usize>(),
-            ))
+            )
         })
         .collect_vec();
 
@@ -419,6 +419,7 @@ mod util {
                     name: server,
                     tls_version: TLSVersion::V1_2,
                     server: true,
+                    try_reuse: false,
                 }],
                 steps: vec![Step {
                     agent: server,
