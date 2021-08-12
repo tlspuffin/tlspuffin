@@ -903,7 +903,7 @@ pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName)
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
@@ -950,11 +950,11 @@ pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName)
 
     let psk = term! {
         fn_derive_psk(
-                (fn_server_hello_transcript(((initial_server, 0)))),
-                (fn_server_finished_transcript(((initial_server, 0)))),
-                (fn_client_finished_transcript(((initial_server, 0)))),
-                (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
 
@@ -1025,7 +1025,7 @@ pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName) 
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
@@ -1072,11 +1072,11 @@ pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName) 
 
     let psk = term! {
         fn_derive_psk(
-                (fn_server_hello_transcript(((initial_server, 0)))),
-                (fn_server_finished_transcript(((initial_server, 0)))),
-                (fn_client_finished_transcript(((initial_server, 0)))),
-                (fn_get_server_key_share(((initial_server, 0)))),
-                (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
 
@@ -1319,20 +1319,20 @@ pub fn seed_client_attacker_full(server: AgentName) -> (Trace, Term, Term, Term)
 
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
-pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
+pub fn seed_session_resumption_dhe_full(initial_server: AgentName, server: AgentName) -> Trace {
     let (
         initial_handshake,
         server_hello_transcript,
         server_finished_transcript,
         client_finished_transcript,
-    ) = seed_client_attacker_full(server);
+    ) = seed_client_attacker_full(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
             (@server_hello_transcript),
             (@server_finished_transcript),
-            (fn_get_server_key_share(((server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
@@ -1379,7 +1379,7 @@ pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
                 (@server_hello_transcript),
                 (@server_finished_transcript),
                 (@client_finished_transcript),
-                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_get_ticket_nonce((@new_ticket_message)))
         )
     };
@@ -1404,15 +1404,15 @@ pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
                 fn_new_transcript,
                 (@full_client_hello) // ClientHello
             )),
-            ((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let resumption_encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 6)[Some(TlsMessageType::ApplicationData)]), // Encrypted Extensions
+            ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Encrypted Extensions
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
             fn_seq_0  // sequence 0
         )
@@ -1427,9 +1427,9 @@ pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
 
     let resumption_server_finished = term! {
         fn_decrypt_handshake(
-            ((server, 7)[Some(TlsMessageType::ApplicationData)]), // Server Handshake Finished
+            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Server Handshake Finished
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
             fn_seq_1 // sequence 1
         )
@@ -1447,7 +1447,7 @@ pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
             (fn_verify_data(
                 (@resumption_server_finished_transcript),
                 (@resumption_server_hello_transcript),
-                (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_psk((@psk)))
             ))
         )
@@ -1471,16 +1471,12 @@ pub fn seed_session_resumption_dhe_full(server: AgentName) -> Trace {
             },
             Step {
                 agent: server,
-                action: Action::Output(OutputAction {}),
-            },
-            Step {
-                agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (@resumption_server_hello_transcript),
-                            (fn_get_server_key_share(((server, 1)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
                         )

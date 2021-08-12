@@ -143,8 +143,9 @@ pub mod seeds {
     fn test_seed_session_resumption_dhe_full() {
         make_deterministic();
         let mut ctx = TraceContext::new();
-        let server = AgentName::first();
-        let trace = seed_session_resumption_dhe_full(server);
+        let initial_server = AgentName::first();
+        let server = initial_server.next();
+        let trace = seed_session_resumption_dhe_full(initial_server, server);
 
         trace.execute(&mut ctx).unwrap();
 
