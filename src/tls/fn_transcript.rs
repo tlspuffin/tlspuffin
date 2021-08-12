@@ -1,4 +1,4 @@
-use crate::trace::{VecClaimer, Claimer, AgentClaimer};
+use crate::trace::{VecClaimer, AgentClaimer};
 use security_claims::{ClaimType, Claim};
 use rustls::hash_hs::HandshakeHash;
 use crate::agent::AgentName;

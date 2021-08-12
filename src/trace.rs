@@ -224,10 +224,6 @@ pub struct Knowledge {
     pub data: Box<dyn VariableData>,
 }
 
-pub trait Claimer {
-    fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)>;
-}
-
 #[derive(Clone)]
 pub struct VecClaimer {
     claims: Vec<(AgentName, Claim)>,
@@ -243,10 +239,9 @@ impl AgentClaimer {
     pub fn new(claimer: VecClaimer, agent: AgentName) -> Self {
         Self { claimer, agent }
     }
-}
 
-impl Claimer for AgentClaimer {
-    fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+    /// finds the last claim matching `type`
+    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
         self.claimer
             .claims
             .iter()
@@ -262,15 +257,6 @@ impl VecClaimer {
 
     pub fn claim(&mut self, name: AgentName, claim: Claim) {
         self.claims.push((name, claim));
-    }
-}
-
-impl Claimer for VecClaimer {
-     fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claims
-            .iter()
-            .rev()
-            .find(|(name, claim)| claim.typ == typ)
     }
 }
 
