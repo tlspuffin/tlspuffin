@@ -169,6 +169,17 @@ fn benchmark_seeds(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("seed_session_resumption_dhe_full", |b| {
+        b.iter(|| {
+            let mut ctx = TraceContext::new();
+            let initial_server = AgentName::first();
+            let server = initial_server.next();
+            let trace = seed_session_resumption_dhe_full(initial_server, server);
+
+            trace.execute(&mut ctx).unwrap();
+        })
+    });
+
     group.finish()
 }
 
