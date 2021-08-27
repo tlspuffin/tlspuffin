@@ -54,6 +54,24 @@ impl AgentDescriptor {
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
         return self.server == other.server && self.tls_version == other.tls_version;
     }
+
+    pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
+        Self {
+            name,
+            tls_version,
+            server: true,
+            try_reuse: false
+        }
+    }
+
+    pub fn new_client(name: AgentName, tls_version: TLSVersion) -> Self {
+        Self {
+            name,
+            tls_version,
+            server: false,
+            try_reuse: false
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]

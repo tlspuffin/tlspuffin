@@ -7,7 +7,7 @@
 //! # Example
 //!
 //! ```rust
-//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion};
+//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
@@ -26,8 +26,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor { name: client, tls_version: TLSVersion::V1_3, server: false },
-//!         AgentDescriptor { name: server, tls_version: TLSVersion::V1_3, server: true },
+//!         AgentDescriptor::new_client(client, V1_3),
+//!         AgentDescriptor::new_server(server, V1_3)
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },
