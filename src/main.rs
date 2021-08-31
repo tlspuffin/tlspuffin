@@ -67,7 +67,7 @@ fn main() {
         .version(crate_version!())
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
-        .args_from_usage("-n, --num-cores=[n] 'Sets the amount of cores to use to fuzz'")
+        .args_from_usage("-c, --cores=[n] 'Sets the cores to use during fuzzing'")
         .args_from_usage("-s, --seed=[n] '(experimental) provide a seed for all clients'")
         .args_from_usage("-p, --port=[n] 'Port of the broker'")
         .args_from_usage("-i, --max-iters=[i] 'Maximum iterations to do'")
@@ -92,7 +92,7 @@ fn main() {
         ])
         .get_matches();
 
-    let num_cores = value_t!(matches, "num-cores", usize).unwrap_or(1);
+    let core_definition = value_t!(matches, "cores", String).unwrap_or_else(|_| "0".to_string());
     let port = value_t!(matches, "port", u16).unwrap_or(1337);
     let static_seed = value_t!(matches, "seed", u64).ok();
     let max_iters = value_t!(matches, "max-iters", u64).ok();
@@ -170,7 +170,7 @@ fn main() {
 
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
-            num_cores,
+            core_definition,
             experiment_path.join("stats.json"),
             experiment_path.join("corpus"),
             PathBuf::from("./corpus"),
@@ -200,7 +200,7 @@ fn main() {
 
         write_experiment_markdown(&experiment_path, title, description).unwrap();
         start(
-            num_cores,
+            core_definition,
             experiment_path.join("stats.json"),
             experiment_path.join("corpus"),
             PathBuf::from("./corpus"),
@@ -211,7 +211,7 @@ fn main() {
         );
     } else {
         start(
-            num_cores,
+            core_definition,
             PathBuf::from("stats.json"),
             PathBuf::from("disk-corpus"),
             PathBuf::from("corpus"),

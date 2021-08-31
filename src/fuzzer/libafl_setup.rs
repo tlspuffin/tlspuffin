@@ -30,6 +30,7 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
+use libafl::bolts::os::parse_core_bind_arg;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -48,7 +49,7 @@ pub static MAX_TERM_SIZE: usize = 300;
 
 /// Starts the fuzzing loop
 pub fn start(
-    num_cores: usize,
+    core_definition: String,
     stats_file: PathBuf,
     on_disk_corpus: PathBuf,
     corpus_dir: PathBuf,
@@ -57,7 +58,7 @@ pub fn start(
     max_iters: Option<u64>,
     static_seed: Option<u64>,
 ) {
-    info!("Running on {} cores", num_cores);
+    info!("Running on {} cores", core_definition);
 
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
@@ -210,7 +211,7 @@ pub fn start(
         .configuration("launcher default".into())
         .stats(stats)
         .run_client(&mut run_client)
-        .cores(&(0..num_cores).collect_vec()) // possibly replace by parse_core_bind_arg
+        .cores(&parse_core_bind_arg(core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
         //todo where should we log the output of the harness?
         /*.stdout_file(Some("/dev/null"))*/
