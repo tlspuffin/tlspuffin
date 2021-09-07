@@ -38,7 +38,7 @@ deterministic = []
 # Require the PUT to implement the claim-interface.h
 claims = []
 # Uses a random scheduler instead of minimizer
-no-minimizer = []
+no-minimizer = []  # [LH] [TODO] Why no minimizer?
 # Save the corpus on disk
 disk-corpus = []
 introspection = ["libafl/introspection"]

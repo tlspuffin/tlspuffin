@@ -93,7 +93,7 @@ pub fn start(
             let feedback = feedback_or!(MaxMapFeedback::new_tracking(
                 &edges_feedback_state,
                 &edges_observer,
-                false,
+                false,  // [TODO] [LH] Why are track_index and track_novelties are false?
                 false
             ));
 
@@ -109,6 +109,7 @@ pub fn start(
 
             // A feedback to choose if an input is a solution or not
             let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
+            // [LH] [TODO] Why not using feedback_or_fast?
 
             let sender_id = restarting_mgr.mgr_id();
             info!("Sender ID is {}", sender_id.id);
