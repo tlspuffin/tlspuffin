@@ -31,6 +31,7 @@ use crate::openssl_binding::make_deterministic;
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
 use libafl::bolts::os::parse_core_bind_arg;
+use libafl::corpus::RandCorpusScheduler;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
