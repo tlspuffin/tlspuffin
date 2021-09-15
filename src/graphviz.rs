@@ -8,12 +8,23 @@ use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
 
-const FONT: &'static str = "Latin Modern Roman";
+// Colorful theme
+/*const FONT: &'static str = "Latin Modern Roman";
 const SHAPE: &'static str = "box";
 const SHAPE_LEAVES: &'static str = "oval";
 const STYLE: &'static str = "filled";
 const COLOR: &'static str = "2";
 const COLOR_LEAVES: &'static str = "1";
+const SHOW_LABELS: bool = false */
+
+// Thesis theme
+const FONT: &'static str = "Latin Modern Roman";
+const SHAPE: &'static str = "none";
+const SHAPE_LEAVES: &'static str = "none";
+const STYLE: &'static str = "";
+const COLOR: &'static str = "#00000000";
+const COLOR_LEAVES: &'static str = "#00000000";
+const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")
@@ -64,11 +75,12 @@ impl Trace {
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \
-                        label=\"{}\";\
+                        color=\"#00000000\";\
+                        label=\"{label}\";\
                         \"\" [color=\"#00000000\"];\
                     }}",
                     i,
-                    subgraph_name.as_str()
+                    label=(if SHOW_LABELS { subgraph_name.as_str() } else {""}),
                 ),
             };
 
@@ -101,7 +113,7 @@ impl Term {
 
     fn node_attributes(displayable: impl fmt::Display, color: &str, shape: &str) -> String {
         format!(
-            "[label=\"{}\",style={style},colorscheme=dark28,fillcolor={},shape={}]",
+            "[label=\"{}\",style=\"{style}\",colorscheme=dark28,fillcolor=\"{}\",shape=\"{}\"]",
             displayable, color, shape,
             style=STYLE
         )
@@ -162,7 +174,7 @@ impl Term {
             }}",
             cluster_id,
             statements.iter().join("\n"),
-            label=label,
+            label=(if SHOW_LABELS { label } else {""}),
             font=FONT,
         )
     }
