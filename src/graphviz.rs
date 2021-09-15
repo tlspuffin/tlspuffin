@@ -8,6 +8,13 @@ use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
 
+const FONT: &'static str = "Latin Modern Roman";
+const SHAPE: &'static str = "box";
+const SHAPE_LEAVES: &'static str = "oval";
+const STYLE: &'static str = "filled";
+const COLOR: &'static str = "2";
+const COLOR_LEAVES: &'static str = "1";
+
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")
         .args(&["-o", output, "-T", format])
@@ -28,7 +35,13 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
 impl Trace {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
-            "strict digraph \"Trace\" {{ splines=true; {} }}",
+            "strict digraph \"Trace\" \
+            {{ \
+                splines=false;\
+                fontname=\"{}\";\
+                {} \
+            }}",
+            FONT,
             self.dot_subgraphs(tree_mode).join("\n")
         )
     }
@@ -49,7 +62,11 @@ impl Trace {
                     )
                 }
                 Action::Output(_) => format!(
-                    "subgraph cluster{} {{ label=\"{}\" \"\" [color=\"#00000000\"]; }}",
+                    "subgraph cluster{} \
+                    {{ \
+                        label=\"{}\";\
+                        \"\" [color=\"#00000000\"];\
+                    }}",
                     i,
                     subgraph_name.as_str()
                 ),
@@ -82,10 +99,11 @@ impl Term {
         }
     }
 
-    fn node_attributes(displayable: impl fmt::Display, color: u8, shape: &str) -> String {
+    fn node_attributes(displayable: impl fmt::Display, color: &str, shape: &str) -> String {
         format!(
-            "[label=\"{}\",style=filled,colorscheme=dark28,fillcolor={},shape={}]",
-            displayable, color, shape
+            "[label=\"{}\",style={style},colorscheme=dark28,fillcolor={},shape={}]",
+            displayable, color, shape,
+            style=STYLE
         )
     }
 
@@ -98,20 +116,22 @@ impl Term {
         match term {
             Term::Variable(variable) => {
                 statements.push(format!(
-                    "{} {};",
+                    "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
-                    Self::node_attributes(variable, 1, "oval")
+                    Self::node_attributes(variable, COLOR_LEAVES, SHAPE_LEAVES),
+                    FONT
                 ));
             }
             Term::Application(func, subterms) => {
                 statements.push(format!(
-                    "{} {};",
+                    "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
                         remove_prefix(func.name()),
-                        if func.arity() == 0 { 1 } else { 2 },
-                        "box"
-                    )
+                        if func.arity() == 0 { COLOR_LEAVES } else { COLOR },
+                        if func.arity() == 0 { SHAPE_LEAVES} else { SHAPE }
+                    ),
+                    FONT
                 ));
 
                 for subterm in subterms {
@@ -133,10 +153,17 @@ impl Term {
         let mut statements = Vec::new();
         Self::collect_statements(self, tree_mode, cluster_id, &mut statements);
         format!(
-            "subgraph cluster{} {{ label=\"{}\" \n{}\n}}",
+            "subgraph cluster{} \
+            {{ \
+                color=\"#00000000\";\
+                fontname=\"{font}\";\
+                label=\"{label}\";\
+                \n{}\n\
+            }}",
             cluster_id,
-            label,
-            statements.iter().join("\n")
+            statements.iter().join("\n"),
+            label=label,
+            font=FONT,
         )
     }
 }
