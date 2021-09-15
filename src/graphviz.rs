@@ -1,7 +1,7 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use crate::term::{remove_prefix, Term};
+use crate::term::{remove_prefix, Term, remove_fn_prefix};
 use crate::trace::{Action, Trace};
 use itertools::Itertools;
 use std::io::{ErrorKind, Write};
@@ -139,7 +139,7 @@ impl Term {
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
-                        remove_prefix(func.name()),
+                        remove_fn_prefix(&remove_prefix(func.name())),
                         if func.arity() == 0 { COLOR_LEAVES } else { COLOR },
                         if func.arity() == 0 { SHAPE_LEAVES} else { SHAPE }
                     ),

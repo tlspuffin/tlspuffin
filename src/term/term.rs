@@ -236,3 +236,7 @@ pub(crate) fn remove_prefix(str: &str) -> String {
         }
     }
 }
+
+pub(crate) fn remove_fn_prefix(str: &String) -> String {
+    str.replace("fn_", "")
+}
