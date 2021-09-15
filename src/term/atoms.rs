@@ -63,7 +63,7 @@ impl Variable {
 
 impl fmt::Display for Variable {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "[{}]/{}", self.query, remove_prefix(self.typ.name))
+        write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
 }
 

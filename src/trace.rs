@@ -208,7 +208,7 @@ impl fmt::Display for Query {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "({}, {})/{:?}",
+            "({}, {})[{:?}]",
             self.agent_name, self.counter, self.tls_message_type
         )
     }
