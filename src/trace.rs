@@ -334,21 +334,11 @@ impl TraceContext {
 
         possibilities.sort_by(|a, b| a.specificity().cmp(&b.specificity()));
 
-        if let Some(chosen) = possibilities.last() {
-            let chosen_message_typ = chosen.tls_message_type;
-            let chosen_agent = chosen.agent_name;
 
-            possibilities
-                .iter()
-                .filter(|variable| {
-                    variable.tls_message_type == chosen_message_typ
-                        && variable.agent_name == chosen_agent
-                })
-                .nth(query.counter as usize)
-                .map(|possibility| possibility.data.as_ref())
-        } else {
-            None
-        }
+        possibilities
+            .iter()
+            .nth(query.counter as usize)
+            .map(|possibility| possibility.data.as_ref())
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
