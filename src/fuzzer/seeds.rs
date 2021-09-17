@@ -825,6 +825,10 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
             },
         ],
         steps: vec![
+            Step {
+                agent: client,
+                action: Action::Output(OutputAction {}),
+            },
             // Client Hello, Client -> Server
             InputAction::new_step(
                 server,
@@ -862,7 +866,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_certificate(
-                            ((server, 1))
+                            ((server, 0))
                         )
                     },
                 }),
@@ -872,8 +876,8 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_server_key_exchange( // check whether the client rejects this if it does not support export
-                            ((server, 2)/Vec<u8>)
+                        fn_server_key_exchange(  // check whether the client rejects this if it does not support export
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -893,7 +897,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((client, 0)/Vec<u8>)
+                             ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
