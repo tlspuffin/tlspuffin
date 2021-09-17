@@ -28,6 +28,12 @@ cargo run --bin tlspuffin -- -n 3
 Note: After switching the Library Under Test or its version do a clean rebuild (`cargo clean`). 
 For example when switching from OpenSSL 1.0.1 to 1.1.1.
 
+### Supported LUTs
+
+* OpenSSL 1.1.1k
+* OpenSSL 1.0.1f
+* LibreSSL 3.3.x
+
 ### Running with asan
 
 ```bash
