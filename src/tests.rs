@@ -43,20 +43,16 @@ pub mod seeds {
         println!("{}", openssl_version());
     }
 
+    #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
     fn test_seed_hearbeat() {
-        if !openssl_version().contains("1.0.1f") {
-            return;
-        }
-        expect_crash(|| {
-            make_deterministic();
-            let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_heartbleed(client, server);
+        make_deterministic();
+        let mut ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_heartbleed(client, server);
 
-            trace.execute(&mut ctx).unwrap();
-        });
+        trace.execute(&mut ctx).unwrap();
     }
 
     #[test]
@@ -269,11 +265,10 @@ pub mod seeds {
         assert!(server_state.contains("SSL negotiation finished successfully"));
     }
 
+    // Vulnerable up until OpenSSL 1.0.1j
+    #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
     fn test_seed_freak() {
-        if !openssl_version().contains("1.0.1j") {
-            return;
-        }
         expect_crash(|| {
             make_deterministic();
             println!("{}", openssl_version());
