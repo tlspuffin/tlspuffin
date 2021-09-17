@@ -10,3 +10,6 @@
 [submodule "rust-rustls"]
 	path = rust-rustls
 	url = git@github.com:maxammann/rustls.git
+[submodule "openssl101f"]
+	path = openssl101f
+	url = https://github.com/openssl/openssl

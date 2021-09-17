@@ -25,6 +25,9 @@ Fuzz using three clients:
 cargo run --bin tlspuffin -- -n 3
 ```
 
+Note: After switching the Library Under Test or its version do a clean rebuild (`cargo clean`). 
+For example when switching from OpenSSL 1.0.1 to 1.1.1.
+
 ### Running with asan
 
 ```bash

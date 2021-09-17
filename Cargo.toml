@@ -21,6 +21,9 @@ openssl111 = [
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
 ]
+openssl101f = [
+    "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
