@@ -201,7 +201,7 @@ impl Stream for MemoryStream {
                 let message = match Message::try_from(opaque_message.clone()) {
                     Ok(message) => Some(message),
                     Err(err) => {
-                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}: {}", err, hex::encode(opaque_message.clone().encode()));
+                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
                         None
                     }
                 };
