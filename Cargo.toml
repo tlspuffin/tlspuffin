@@ -24,6 +24,9 @@ openssl111 = [
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
 ]
+openssl102u = [
+    "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",

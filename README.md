@@ -32,6 +32,7 @@ For example when switching from OpenSSL 1.0.1 to 1.1.1.
 
 * OpenSSL 1.1.1k
 * OpenSSL 1.0.1f
+* OpenSSL 1.0.2u
 * LibreSSL 3.3.x
 
 ### Running with asan
