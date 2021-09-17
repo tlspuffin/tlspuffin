@@ -46,13 +46,15 @@ pub mod seeds {
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
     fn test_seed_hearbeat() {
-        make_deterministic();
-        let mut ctx = TraceContext::new();
-        let client = AgentName::first();
-        let server = client.next();
-        let trace = seed_heartbleed(client, server);
+        expect_crash(|| {
+            make_deterministic();
+            let mut ctx = TraceContext::new();
+            let client = AgentName::first();
+            let server = client.next();
+            let trace = seed_heartbleed(client, server);
 
-        trace.execute(&mut ctx).unwrap();
+            trace.execute(&mut ctx).unwrap();
+        })
     }
 
     #[test]
@@ -268,6 +270,7 @@ pub mod seeds {
     // Vulnerable up until OpenSSL 1.0.1j
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
+    #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
         expect_crash(|| {
             make_deterministic();
