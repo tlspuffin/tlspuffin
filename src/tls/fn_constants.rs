@@ -54,7 +54,7 @@ pub fn fn_seq_16() -> Result<u64, FnError> {
 
 /// Used in heartbleed attack
 pub fn fn_large_length() -> Result<u64, FnError> {
-    Ok(16702)
+    Ok(32702) // chosen by experimenting
 }
 
 pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
