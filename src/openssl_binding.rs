@@ -192,12 +192,12 @@ pub fn create_openssl_server(
 
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
-    #[cfg(feature = "openssl101f")]
+    #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
         openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
     });
 
-    #[cfg(feature = "openssl101f")]
+    #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
     ctx_builder
         .set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
 
