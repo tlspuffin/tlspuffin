@@ -171,6 +171,8 @@ fn set_max_protocol_version(
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
         TLSVersion::Unknown => Ok(())
     }
+    #[cfg(not(any(feature = "openssl111", feature = "libressl")))]
+    Ok(())
 }
 
 pub fn create_openssl_server(
@@ -191,12 +193,12 @@ pub fn create_openssl_server(
 
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
-    #[cfg(feature = "openssl101")]
+    #[cfg(feature = "openssl101f")]
     ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
         openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
     });
 
-    #[cfg(feature = "openssl101")]
+    #[cfg(feature = "openssl101f")]
     ctx_builder
         .set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
 
