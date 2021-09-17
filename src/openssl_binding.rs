@@ -163,15 +163,14 @@ fn set_max_protocol_version(
     #[cfg(any(feature = "openssl111", feature = "libressl"))]
     match tls_version {
         TLSVersion::V1_3 => {
-            // do nothing as the maximum available TLS version is 1.3
             #[cfg(feature = "openssl111")]
             ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
+            // do nothing as the maximum available TLS version is 1.3
             Ok(())
         }
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
         TLSVersion::Unknown => Ok(())
-    }
-    #[cfg(not(any(feature = "openssl111", feature = "libressl")))]
+    }?;
     Ok(())
 }
 
