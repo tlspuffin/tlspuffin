@@ -9,6 +9,8 @@
     <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/boringssl" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/krb5" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl/pyca-cryptography" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl101f" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/rust-openssl-src/openssl102u" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rust-rustls" vcs="Git" />
   </component>
 </project>
