@@ -5,4 +5,7 @@ target = "x86_64-unknown-linux-gnu"
 #rustflags = ["-Z", "sanitizer=address"]
 
 [env]
-ASAN_OPTIONS = "verify_asan_link_order=1,detect_leaks=0"
+# We do not focus on leaks -> 0
+# Link order is important -> 1
+# We want to abort instead of exiting, else the children in our fuzzer fail to restart
+ASAN_OPTIONS = "verify_asan_link_order=1,detect_leaks=0,abort_on_error=1"

@@ -38,8 +38,11 @@ For example when switching from OpenSSL 1.0.1 to 1.1.1.
 ### Running with asan
 
 ```bash
-cargo run --bin tlspuffin --features asan -- -n1
+ASAN_OPTIONS=abort_on_error=1 cargo run --bin tlspuffin --features asan -- -n1
 ```
+
+
+It is important to enable `abort_on_error`, else the fuzzer children fail to restart on crashes.
 
 ## Generate Corpus Seeds
 
