@@ -75,7 +75,7 @@ impl Trace {
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \
-                        color=\"#00000000\";\
+                        peripheries=0;\
                         label=\"{label}\";\
                         \"\" [color=\"#00000000\"];\
                     }}",
@@ -167,7 +167,7 @@ impl Term {
         format!(
             "subgraph cluster{} \
             {{ \
-                color=\"#00000000\";\
+               	peripheries=0;\
                 fontname=\"{font}\";\
                 label=\"{label}\";\
                 \n{}\n\

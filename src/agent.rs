@@ -24,9 +24,13 @@ impl AgentName {
         AgentName(self.0 + 1)
     }
 
-    pub fn first() -> AgentName {
+    pub fn new() -> AgentName {
         const FIRST: AgentName = AgentName(0u8);
         FIRST
+    }
+
+    pub fn first() -> AgentName {
+        AgentName::new()
     }
 }
 
@@ -53,6 +57,24 @@ impl AgentDescriptor {
     /// checks whether a agent with this descriptor is reusable with the other descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
         return self.server == other.server && self.tls_version == other.tls_version;
+    }
+
+    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
+        Self {
+            name,
+            tls_version,
+            server: true,
+            try_reuse: true
+        }
+    }
+
+    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
+        Self {
+            name,
+            tls_version,
+            server: true,
+            try_reuse: true
+        }
     }
 
     pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
