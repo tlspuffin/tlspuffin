@@ -1,15 +1,13 @@
 [submodule "openssl-src"]
 	path = rust-openssl-src
-	url = git@github.com:maxammann/openssl-src-rs.git
+	url = git@github.com:tlspuffin/openssl-src-rs.git
 [submodule "rust-openssl"]
 	path = rust-openssl
-	url = git@github.com:maxammann/rust-openssl.git
+	url = git@github.com:tlspuffin/rust-openssl.git
 [submodule "rust-libressl-src"]
 	path = rust-libressl-src
-	url = git@github.com:maxammann/libressl-src.git
+	url = git@github.com:tlspuffin/libressl-src.git
 [submodule "rust-rustls"]
 	path = rust-rustls
-	url = git@github.com:maxammann/rustls.git
-[submodule "openssl101f"]
-	path = openssl101f
-	url = https://github.com/openssl/openssl
+	url = git@github.com:tlspuffin/rustls.git
+

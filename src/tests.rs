@@ -523,7 +523,7 @@ pub mod rustls {
         println!("{:#?}", Message::try_from(opaque_message).unwrap());
     }
 
-    /// https://github.com/maxammann/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d
+    /// https://github.com/tlspuffin/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d
     #[test]
     fn test_server_hello_parsing() {
         let hex = "160303004a020000460303de257a3941501c11fa7898af1b1b2aea4f5e39e521b35dc84ffab\
