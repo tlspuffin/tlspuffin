@@ -14,15 +14,15 @@ def main():
 
     if not args.ssh:
         stats_path = "%s/stats.json" % args.experiment
-        all_stats = load_json_slurpy(stats_path)
+        id_0_stats = load_json_slurpy(stats_path, 0)
     else:
-        all_stats = load_json_slurpy_ssh("pesto-calc.loria.fr", "/local-homes/mammann/tlspuffin", args.experiment)
+        id_0_stats = load_json_slurpy_ssh("pesto-calc.loria.fr", "/local-homes/mammann/tlspuffin", args.experiment, 0)
 
-    start_date = get_start_date(all_stats)
-    keys = get_keys(all_stats)
+    start_date = get_start_date(id_0_stats)
+    keys = get_keys(id_0_stats)
     print("Available keys: %s" % keys)
 
-    for group in group_by_id(all_stats):
+    for group in group_by_id(id_0_stats):
         plot_client_stats(start_date, group)
 
     plt.show()

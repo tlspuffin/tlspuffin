@@ -26,7 +26,7 @@ class IntrospectFeatures(DataclassFromDict):
 
 @dataclass
 class IntrospectStatistics(DataclassFromDict):
-    scheduler: Optional[float] = field_from_dict() # Remove optional
+    scheduler: Optional[float] = field_from_dict()  # Remove optional
     manager: Optional[float] = field_from_dict()
     elapsed_cycles: int = field_from_dict()
     introspect_features: IntrospectFeatures = field_from_dict()
@@ -74,4 +74,3 @@ class ClientStatistics(DataclassFromDict):
     # May not be available in old stats.json, therefore can be None
     intro: Optional[IntrospectStatistics] = field_from_dict(default_factory=lambda: None)
     trace: Optional[TraceStatistics] = field_from_dict(default_factory=lambda: None)
-
