@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["extract_knowledge","Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet or Handhake message (TLS 1.2), then only the message itself and the binary payload is returned."]],"trait":[["VariableData",""]]});
