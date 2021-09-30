@@ -57,7 +57,7 @@ introspection = ["libafl/introspection"]
 #   * Message is cloneable
 #   * Disabled logical checks during parsing of messages
 #   * All modules exposed
-rustls = { path = "rust-rustls/rustls" }
+rustls = { path = "deps/rust-rustls/rustls" }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 webpki-roots = "0.22.0"
 ring = { version = "0.16", features = ["std"] }
@@ -91,7 +91,7 @@ chrono = "0.4"
 
 # OpenSSL
 # Uses build scripts from './openssl-src'
-openssl = { path = "rust-openssl/openssl", features = ["sancov"] }
+openssl = { path = "deps/rust-openssl/openssl", features = ["sancov"] }
 foreign-types-shared = "0.1"
 security-claims = { path = "security-claims" }
 
