@@ -39,6 +39,28 @@ RED = '#ca0020'
 BLUE = '#0571b0'
 
 
+def plot_single(ax, times, data: List[ClientStatistics],
+                    selector: Callable[[ClientStatistics], Union[int, float]],
+                    name: str,
+                    smooth=False):
+    if not is_available(data[0], selector):
+        ax.set_ylabel("Data not available")
+        return
+
+    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%dh"))
+
+    y = [selector(row) for row in data]
+
+    if smooth:
+        kernel_size = int(len(y) / 50)
+        y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
+
+    ax.plot(times[:len(y)], y, label=name, color=RED)
+    ax.set_ylabel(name, color=RED)
+
+    plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+
+
 def plot_with_other(ax, times, data: List[ClientStatistics],
                     selector_a: Callable[[ClientStatistics], Union[int, float]],
                     name_a: str,
