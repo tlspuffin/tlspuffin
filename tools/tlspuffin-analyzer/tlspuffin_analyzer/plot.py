@@ -3,9 +3,10 @@ from typing import Callable, Union, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import ticker
 
 from tlspuffin_analyzer.stats_type import ClientStatistics
-from matplotlib import ticker
+
 
 def get_start_date(stats):
     return datetime.fromtimestamp(stats[0]['time']['secs_since_epoch'])
@@ -40,9 +41,9 @@ BLUE = '#0571b0'
 
 
 def plot_single(ax, times, data: List[ClientStatistics],
-                    selector: Callable[[ClientStatistics], Union[int, float]],
-                    name: str,
-                    smooth=False):
+                selector: Callable[[ClientStatistics], Union[int, float]],
+                name: str,
+                smooth=False):
     if not is_available(data[0], selector):
         ax.set_ylabel("Data not available")
         return
@@ -99,7 +100,7 @@ def spread_xy(start_date, client_stats):
         times.append(time - start_date)
         data.append(mapped)
 
-    times = [t.total_seconds() / 60 / 60 for t in times]    # in hours
+    times = [t.total_seconds() / 60 / 60 for t in times]  # in hours
 
     return times, data
 
