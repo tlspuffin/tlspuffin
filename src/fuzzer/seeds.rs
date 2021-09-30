@@ -1,17 +1,21 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crashes OpenSSL.
 
-use rustls::internal::msgs::enums::HandshakeType;
+use rustls::internal::msgs::enums::{HandshakeType, Compression};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::term;
 use crate::trace::TlsMessageType;
+use crate::trace::TlsMessageType::Handshake;
 use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
     term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
+use rustls::{ProtocolVersion, CipherSuite};
+use rustls::msgs::handshake::{SessionID, Random};
+use rustls::internal::msgs::handshake::ServerExtension;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {
@@ -54,12 +58,12 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_hello(
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0))
+                            ((server, 0)[Some(Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
                         )
                     },
                 }),
