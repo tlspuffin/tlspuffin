@@ -40,15 +40,23 @@ def load_json_slurpy_ssh(host, base_path, experiment, worker_id, user="mammann")
     file.prefetch()
     data = file.read()
 
-    return list(filter_by_id(JsonSlicer(BytesIO(data), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True), worker_id))
+    return list(
+        filter_by_id(JsonSlicer(BytesIO(data), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True),
+                     worker_id))
 
 
 def load_json_slurpy(json_path, worker_id):
+    filtered = []
+
     with open(json_path) as stats:
-        return list(filter_by_id(
-            JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True),
-            worker_id)
-        )
+        try:
+            for s in JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
+                if s["id"] != worker_id:
+                    filtered.append(s)
+        except:
+            return filtered
+
+    return filtered
 
 
 def group_by_id(all_stats):
