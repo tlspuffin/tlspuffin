@@ -18,3 +18,8 @@ plot*.svg
 flame.svg
 *.data
 *.data.old
+
+
+*.profraw
+coverage.info
+coverage/
