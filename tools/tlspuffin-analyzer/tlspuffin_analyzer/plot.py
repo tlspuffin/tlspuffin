@@ -43,6 +43,7 @@ BLUE = '#0571b0'
 def plot_single(ax, times, data: List[dict],
                 selector: Callable[[dict], Union[int, float]],
                 name: str,
+                color: str = RED,
                 smooth=False):
     if not is_available(data[0], selector):
         ax.set_ylabel("Data not available")
@@ -53,12 +54,12 @@ def plot_single(ax, times, data: List[dict],
     y = [selector(row) for row in data]
 
     if smooth:
-        ax.plot(times[:len(y)], y, label=name, color="#ca002032")
+        ax.plot(times[:len(y)], y, label=name, color=color + "32")
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
-    ax.plot(times[:len(y)], y, label=name, color=RED)
-    ax.set_ylabel(name, color=RED)
+    ax.plot(times[:len(y)], y, label=name, color=color)
+    ax.set_ylabel(name, color=color)
 
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
@@ -78,16 +79,20 @@ def plot_with_other(ax, times, data: List[dict],
     ax.plot(times, [selector_b(row) for row in data], label=name_b, color=BLUE)
     ax.set_ylabel(name_b, color=BLUE)
 
-    inner_ax = ax.twinx()
+    if sharey:
+        other_ax = ax
+    else:
+        other_ax = ax.twinx()
+
     y = [selector_a(row) for row in data]
 
     if smooth:
-        inner_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")
+        other_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
-    inner_ax.plot(times[:len(y)], y, label=name_a, color=RED)
-    inner_ax.set_ylabel(name_a, color=RED)
+    other_ax.plot(times[:len(y)], y, label=name_a, color=RED)
+    other_ax.set_ylabel(name_a, color=RED)
 
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
