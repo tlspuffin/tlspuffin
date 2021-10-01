@@ -130,8 +130,8 @@ def plot_client_stats(start_date, client_stats: List[dict]):
     plot_with_other(ax7, times, data, lambda stats: stats["trace"]["max_trace_length"], "Max Trace Length")
     plot_with_other(ax8, times, data, lambda stats: stats["trace"]["max_term_size"], "Max Term Size")
 
-    plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length", smooth=False)
-    plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size", smooth=False)
+    plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length", smooth=True)
+    plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size", smooth=True)
 
     plot_with_other(ax11, times, data, lambda stats: stats["trace"]["min_trace_length"], "Min Trace Length")
     plot_with_other(ax12, times, data, lambda stats: stats["trace"]["min_term_size"], "Min Tern Size")
