@@ -193,13 +193,23 @@ pub fn create_openssl_server(
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
     #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
-    ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
-        openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
-    });
+    {
+        ctx_builder.set_tmp_ecdh(openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1).as_ref().unwrap())?;
+        // TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback after fix
+        //ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
+        //   openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
+        //});
+    }
 
     #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
-    ctx_builder
-        .set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
+    {
+        ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref().unwrap())?;
+        // TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback use callback after fix
+        //ctx_builder.set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
+    }
+
+    // Allow EXPORT in server
+    ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
 
@@ -246,6 +256,7 @@ pub fn create_openssl_client(
 
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
+    // Disallow EXPORT in client
     ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
     let mut ssl = Ssl::new(&ctx_builder.build())?;
