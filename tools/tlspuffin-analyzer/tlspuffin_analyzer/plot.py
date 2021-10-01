@@ -27,11 +27,11 @@ def flatten(d):
     return out
 
 
-def is_available(stat: ClientStatistics, selector: Callable[[ClientStatistics], Union[int, float]]):
+def is_available(stat: dict, selector: Callable[[dict], Union[int, float]]):
     try:
         selector(stat)
         return True
-    except AttributeError:
+    except KeyError:
         return False
 
 
@@ -40,8 +40,8 @@ RED = '#ca0020'
 BLUE = '#0571b0'
 
 
-def plot_single(ax, times, data: List[ClientStatistics],
-                selector: Callable[[ClientStatistics], Union[int, float]],
+def plot_single(ax, times, data: List[dict],
+                selector: Callable[[dict], Union[int, float]],
                 name: str,
                 smooth=False):
     if not is_available(data[0], selector):
@@ -62,10 +62,10 @@ def plot_single(ax, times, data: List[ClientStatistics],
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def plot_with_other(ax, times, data: List[ClientStatistics],
-                    selector_a: Callable[[ClientStatistics], Union[int, float]],
+def plot_with_other(ax, times, data: List[dict],
+                    selector_a: Callable[[dict], Union[int, float]],
                     name_a: str,
-                    selector_b: Callable[[ClientStatistics], Union[int, float]] = lambda stats: stats.total_execs,
+                    selector_b: Callable[[dict], Union[int, float]] = lambda stats: stats["total_execs"],
                     name_b: str = 'Total Execs',
                     smooth=False):
     if not is_available(data[0], selector_a) or not is_available(data[0], selector_b):
@@ -95,10 +95,9 @@ def spread_xy(start_date, client_stats):
     data = []
 
     for client_stat in client_stats:
-        mapped = ClientStatistics.from_dict(client_stat)
-        time = datetime.fromtimestamp(mapped.time.secs_since_epoch)
+        time = datetime.fromtimestamp(client_stat["time"]["secs_since_epoch"])
         times.append(time - start_date)
-        data.append(mapped)
+        data.append(client_stat)
 
     times = [t.total_seconds() / 60 / 60 for t in times]  # in hours
 
@@ -112,31 +111,31 @@ def plot_client_stats(start_date, client_stats: List[dict]):
           (ax15, ax16)) = plt.subplots(8, 2, sharex="all")
 
     # Corpi
-    plot_with_other(ax1, times, data, lambda stats: stats.objective_size, "Objectives")
-    plot_with_other(ax2, times, data, lambda stats: stats.corpus_size, "Corpus Size")
+    plot_with_other(ax1, times, data, lambda stats: stats["objective_size"], "Objectives")
+    plot_with_other(ax2, times, data, lambda stats: stats["corpus_size"], "Corpus Size")
     # Errors
-    plot_with_other(ax3, times, data, lambda stats: stats.errors.ssl_error, "SSL Errors")
+    plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
     # Corpus vs Errors
-    plot_with_other(ax4, times, data, lambda stats: stats.objective_size, "Objectives",
-                    lambda stats: stats.errors.ssl_error, "SSL Errors")
+    plot_with_other(ax4, times, data, lambda stats: stats["objective_size"], "Objectives",
+                    lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
     # Coverage
-    plot_with_other(ax5, times, data, lambda stats: stats.coverage.discovered, "Coverage")
+    plot_with_other(ax5, times, data, lambda stats: stats["coverage"]["discovered"], "Coverage")
     # Performance
-    plot_with_other(ax6, times, data, lambda stats: stats.exec_per_sec, "Execs/s", smooth=True)
+    plot_with_other(ax6, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
     # Traces and Terms
-    plot_with_other(ax7, times, data, lambda stats: stats.trace.max_trace_length, "Max Trace Length")
-    plot_with_other(ax8, times, data, lambda stats: stats.trace.max_term_size, "Max Term Size")
+    plot_with_other(ax7, times, data, lambda stats: stats["trace"]["max_trace_length"], "Max Trace Length")
+    plot_with_other(ax8, times, data, lambda stats: stats["trace"]["max_term_size"], "Max Term Size")
 
-    plot_with_other(ax9, times, data, lambda stats: stats.trace.mean_trace_length, "Mean Trace Length", smooth=False)
-    plot_with_other(ax10, times, data, lambda stats: stats.trace.mean_term_size, "Mean Term Size", smooth=False)
+    plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length", smooth=False)
+    plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size", smooth=False)
 
-    plot_with_other(ax11, times, data, lambda stats: stats.trace.min_trace_length, "Min Trace Length")
-    plot_with_other(ax12, times, data, lambda stats: stats.trace.min_term_size, "Min Tern Size")
+    plot_with_other(ax11, times, data, lambda stats: stats["trace"]["min_trace_length"], "Min Trace Length")
+    plot_with_other(ax12, times, data, lambda stats: stats["trace"]["min_term_size"], "Min Tern Size")
 
-    plot_with_other(ax13, times, data, lambda stats: stats.intro.scheduler, "Scheduler Perf Share")
-    plot_with_other(ax14, times, data, lambda stats: stats.intro.elapsed_cycles, "Elapsed Cycles")
+    plot_with_other(ax13, times, data, lambda stats: stats["intro"]["scheduler"], "Scheduler Perf Share")
+    plot_with_other(ax14, times, data, lambda stats: stats["intro"]["elapsed_cycles"], "Elapsed Cycles")
 
-    plot_with_other(ax15, times, data, lambda stats: stats.intro.introspect_features.mutate, "Mutation Perf Share")
-    plot_with_other(ax16, times, data, lambda stats: stats.intro.introspect_features.target_execution, "PUT Perf Share")
+    plot_with_other(ax15, times, data, lambda stats: stats["intro"]["introspect_features"]["mutate"], "Mutation Perf Share")
+    plot_with_other(ax16, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"], "PUT Perf Share")
 
     return fig

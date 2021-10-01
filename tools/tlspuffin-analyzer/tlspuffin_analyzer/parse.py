@@ -2,10 +2,12 @@ from binascii import hexlify
 from io import BytesIO
 from itertools import groupby
 from operator import itemgetter
+from typing import List
 
 import paramiko as paramiko
 from jsonslicer import JsonSlicer
 
+from tlspuffin_analyzer.stats_type import ClientStatistics
 
 def agent_auth(transport, username):
     """
@@ -45,14 +47,18 @@ def load_json_slurpy_ssh(host, base_path, experiment, worker_id, user="mammann")
                      worker_id))
 
 
+#def dict_to_client_stats(dict: dict) -> ClientStatistics:
+#    ClientStatistics()
+
+
 def load_json_slurpy(json_path, worker_id):
     filtered = []
 
     with open(json_path) as stats:
         try:
-            for s in JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
-                if s["id"] != worker_id:
-                    filtered.append(s)
+            for dic in JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
+                if dic["id"] == worker_id:
+                    filtered.append(dic)
         except:
             return filtered
 
