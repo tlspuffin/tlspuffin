@@ -53,6 +53,7 @@ def plot_single(ax, times, data: List[dict],
     y = [selector(row) for row in data]
 
     if smooth:
+        ax.plot(times[:len(y)], y, label=name, color="#ca002032")
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
@@ -81,6 +82,7 @@ def plot_with_other(ax, times, data: List[dict],
     y = [selector_a(row) for row in data]
 
     if smooth:
+        inner_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
