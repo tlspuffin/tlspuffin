@@ -279,6 +279,17 @@
 <span id="276">276</span>
 <span id="277">277</span>
 <span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std::io::ErrorKind</span>;
 <span class="kw">use</span> <span class="ident">std::mem::transmute</span>;
@@ -475,13 +486,23 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl102u&quot;</span>))]</span>
-    <span class="ident">ctx_builder</span>.<span class="ident">set_tmp_ecdh_callback</span>(<span class="op">|</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">|</span> {
-        <span class="ident">openssl::ec::EcKey::from_curve_name</span>(<span class="ident">openssl::nid::Nid::SECP384R1</span>)
-    });
+    {
+        <span class="ident">ctx_builder</span>.<span class="ident">set_tmp_ecdh</span>(<span class="ident">openssl::ec::EcKey::from_curve_name</span>(<span class="ident">openssl::nid::Nid::SECP384R1</span>).<span class="ident">as_ref</span>().<span class="ident">unwrap</span>())<span class="question-mark">?</span>;
+        <span class="comment">// TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback after fix</span>
+        <span class="comment">//ctx_builder.set_tmp_ecdh_callback(|_, _, _| {</span>
+        <span class="comment">//   openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)</span>
+        <span class="comment">//});</span>
+    }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl102u&quot;</span>))]</span>
-    <span class="ident">ctx_builder</span>
-        .<span class="ident">set_tmp_rsa_callback</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">is_export</span>, <span class="ident">keylength</span><span class="op">|</span> <span class="ident">openssl::rsa::Rsa::generate</span>(<span class="ident">keylength</span>));
+    {
+        <span class="ident">ctx_builder</span>.<span class="ident">set_tmp_rsa</span>(<span class="ident">openssl::rsa::Rsa::generate</span>(<span class="number">512</span>).<span class="ident">as_ref</span>().<span class="ident">unwrap</span>())<span class="question-mark">?</span>;
+        <span class="comment">// TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback use callback after fix</span>
+        <span class="comment">//ctx_builder.set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));</span>
+    }
+
+    <span class="comment">// Allow EXPORT in server</span>
+    <span class="ident">ctx_builder</span>.<span class="ident">set_cipher_list</span>(<span class="string">&quot;ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2&quot;</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ssl</span> <span class="op">=</span> <span class="ident">Ssl::new</span>(<span class="kw-2">&amp;</span><span class="ident">ctx_builder</span>.<span class="ident">build</span>())<span class="question-mark">?</span>;
 
@@ -528,6 +549,7 @@ i7RrmCDnL/ue3MkPP+8=
 
     <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
 
+    <span class="comment">// Disallow EXPORT in client</span>
     <span class="ident">ctx_builder</span>.<span class="ident">set_cipher_list</span>(<span class="string">&quot;ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2&quot;</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ssl</span> <span class="op">=</span> <span class="ident">Ssl::new</span>(<span class="kw-2">&amp;</span><span class="ident">ctx_builder</span>.<span class="ident">build</span>())<span class="question-mark">?</span>;

@@ -1542,6 +1542,7 @@
 <span id="1539">1539</span>
 <span id="1540">1540</span>
 <span id="1541">1541</span>
+<span id="1542">1542</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Implementation of  special traces. Each may represent a special TLS execution like a full</span>
 <span class="doccomment">//! handshake or an execution which crashes OpenSSL.</span>
@@ -2421,6 +2422,7 @@
                 }),
             },
             <span class="comment">// Server Key Exchange, Server -&gt; Client</span>
+            <span class="comment">// If the KEX fails here, then no ephemeral KEX is used</span>
             <span class="ident">Step</span> {
                 <span class="ident">agent</span>: <span class="ident">client</span>,
                 <span class="ident">action</span>: <span class="ident">Action::Input</span>(<span class="ident">InputAction</span> {
