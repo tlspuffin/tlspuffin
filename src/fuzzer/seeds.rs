@@ -876,6 +876,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace {
                 }),
             },
             // Server Key Exchange, Server -> Client
+            // If the KEX fails here, then no ephemeral KEX is used
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
