@@ -79,10 +79,7 @@ def plot_with_other(ax, times, data: List[dict],
     ax.plot(times, [selector_b(row) for row in data], label=name_b, color=BLUE)
     ax.set_ylabel(name_b, color=BLUE)
 
-    if sharey:
-        other_ax = ax
-    else:
-        other_ax = ax.twinx()
+    other_ax = ax.twinx()
 
     y = [selector_a(row) for row in data]
 
