@@ -63,7 +63,7 @@ def plot_single(ax, times, data: List[dict],
     ax.plot(times[:len(y)], y, label=name, color=color)
     ax.set_ylabel(name, color=color)
 
-    plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+    #plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
 def plot_with_other(ax, times, data: List[dict],
@@ -93,7 +93,7 @@ def plot_with_other(ax, times, data: List[dict],
     other_ax.plot(times[:len(y)], y, label=name_a, color=RED)
     other_ax.set_ylabel(name_a, color=RED)
 
-    plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+    #plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
 def spread_xy(start_date, client_stats, trunc_minutes=None):
