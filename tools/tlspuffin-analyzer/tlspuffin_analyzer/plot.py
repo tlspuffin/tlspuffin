@@ -53,6 +53,8 @@ def plot_single(ax, times, data: List[dict],
 
     y = [selector(row) for row in data]
 
+    print("Max value in plotted data: " + str(np.max(y)))
+
     if smooth:
         ax.plot(times[:len(y)], y, label=name, color=color + "32")
         kernel_size = int(len(y) / 50)
