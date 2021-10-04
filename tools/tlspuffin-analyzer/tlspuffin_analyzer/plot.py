@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 
-from tlspuffin_analyzer.stats_type import ClientStatistics
+tick_formatter = ticker.FuncFormatter(lambda x, pos: "%dmin" % (x * 60) if x < 1 else "%dh" % x)
 
 
 def get_start_date(stats):
@@ -49,7 +49,7 @@ def plot_single(ax, times, data: List[dict],
         ax.set_ylabel("Data not available")
         return
 
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%dh"))
+    ax.xaxis.set_major_formatter(tick_formatter)
 
     y = [selector(row) for row in data]
 
@@ -74,7 +74,7 @@ def plot_with_other(ax, times, data: List[dict],
         ax.set_ylabel("Data not available")
         return
 
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%dh"))
+    ax.xaxis.set_major_formatter(tick_formatter)
 
     ax.plot(times, [selector_b(row) for row in data], label=name_b, color=BLUE)
     ax.set_ylabel(name_b, color=BLUE)
@@ -94,7 +94,7 @@ def plot_with_other(ax, times, data: List[dict],
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def spread_xy(start_date, client_stats):
+def spread_xy(start_date, client_stats, trunc_minutes=None):
     times = []
     data = []
 
@@ -104,6 +104,12 @@ def spread_xy(start_date, client_stats):
         data.append(client_stat)
 
     times = [t.total_seconds() / 60 / 60 for t in times]  # in hours
+
+    if trunc_minutes:
+        i = np.argwhere(np.array(times) >= trunc_minutes / 60)[0][0]
+        print(i)
+        times = times[:i]
+        data = data[:i]
 
     return times, data
 
