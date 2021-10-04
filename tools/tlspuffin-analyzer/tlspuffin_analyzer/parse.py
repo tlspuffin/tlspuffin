@@ -59,8 +59,9 @@ def load_json_slurpy(json_path, worker_id):
             for dic in JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
                 if worker_id is None or dic["id"] == worker_id:
                     filtered.append(dic)
-        except:
+        except Exception as e:
             print("Failed during parsing! Returning partial data!")
+            print(e)
             return filtered
 
     return filtered
