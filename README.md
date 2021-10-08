@@ -1,12 +1,12 @@
 <h1 align="center">tlspuffin</h1>
 <p align="center">
-  <img alt="Logo with Penguin" src="https://raw.githubusercontent.com/tlspuffin/tlspuffin/main/docs/logo.jpg">
+  <img width=200px alt="Logo with Penguin" src="https://raw.githubusercontent.com/tlspuffin/tlspuffin/main/docs/logo.jpg">
 </p>
 <div align="center">
   <strong>TLS Protocol Under FuzzINg</strong>
 </div>
 <div align="center">
-  A symbolic-model-guided fuzzer
+  A symbolic-model-guided fuzzer for TLS
 </div>
 
 <div align="center">
@@ -33,15 +33,60 @@
   </h3>
 </div>
 
+## Description
+
+Fuzzing implementations of cryptographic protocols is challenging.
+In contrast to traditional fuzzing of file formats, cryptographic protocols require a 
+specific flow of cryptographic and mutually dependent messages to reach deep protocol states.
+The specification of the TLS protocol describes sound flows of messages and cryptographic 
+operations.
+
+Although the specification has been formally verified multiple times with significant 
+results, a gap has emerged from the fact that implementations of the same protocol have 
+not undergone the same logical analysis.
+Because the development of cryptographic protocols is error-prone, multiple security 
+vulnerabilities have already been discovered in implementations in TLS which are not 
+present in its specification.
+
+Inspired by symbolic protocol verification, we present a reference implementation of a 
+fuzzer named tlspuffin which employs a concrete semantic to execute TLS 1.2 and 1.3 symbolic traces. 
+In fact attacks which mix \TLS versions are in scope of this implementation.
+This method allows us to utilize a genetic fuzzing algorithm to fuzz protocol flows,
+which is described by the following three stages.
+
+* By mutating traces we can deviate from the specification to test logical flaws.
+* Selection of interesting protocol flows advance the fuzzing procedure.
+* A security violation oracle supervises executions for the absence of vulnerabilities.
+
+
+The novel approach allows rediscovering known vulnerabilities, which are out-of-scope for 
+classical bit-level fuzzers. This proves that it is capable of reaching critical protocol 
+states.
+In contrast to the promising methodology no new vulnerabilities were found by tlspuffin. 
+This can can be explained by the fact that the implementation effort of TLS protocol 
+primitives and extensions is high and not all features of the specification have been 
+implemented.
+Nonetheless, the innovating approach is promising in terms of quickly reaching high edge 
+coverage, expressiveness of executable protocol traces and stable and extensible implementation.
+
+
 ## Features
+
+* Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
+* Fuzzer which is inspired by the [Dolev-Yao symbolic model](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
+* Domain specific mutators for Protocol Fuzzing!
 * Supported Libraries Under Test: OpenSSL 1.0.1f, 1.0.2u, 1.1.1k and LibreSSL 3.3.3
+* Reproducible for each LUT. We use Git submodules to link to forks this are in the  [tlspuffin organisation](https://github.com/tlspuffin)
+* 70% Test Coverage
+* Writtin in Rust!
+
 
 ## Building
 
-Now, build the project:
+Now, to build the project:
 
 ```bash
-git clone git@gitlab.inria.fr:mammann/tlspuffin.git
+git clone git@github.com/tlspuffin/tlspuffin
 git submodule update --init --recursive
 cargo build
 ```
@@ -73,8 +118,7 @@ The toolchain will be automatically downloaded when building this project. See [
 Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optionally, also install `llvm` to have additional tools like `sancov` available.
 Also make sure that you have the usual tools for building it like `make`, `gcc` etc. installed. They may be needed to build OpenSSL.
 
-
-## Advanced Usage
+## Advanced Features
 
 ### Running with ASAN
 
