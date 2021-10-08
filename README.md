@@ -102,11 +102,46 @@ cargo run --bin tlspuffin -- --cores 0-3
 Note: After switching the Library Under Test or its version do a clean rebuild (`cargo clean`).
 For example when switching from OpenSSL 1.0.1 to 1.1.1.
 
-### Testing
+## Testing
 
 ```bash
 cargo test
 ```
+
+## Command-line Interface
+
+The syntax for the command-line of is:
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tlspuffin [⟨options] [⟨sub-commands⟩]
+
+#### Global Options
+
+Before we explain each sub-command, we first go over the options in the following.
+
+* **-c, --cores ⟨spec⟩**
+  > This option specifies on which cores the fuzzer should assign its worker processes. It can either be specified as a list by using commas "0,1,2,7" or as a range "0-7". By default, it runs just on core 0.
+
+* **-i, --max-iters ⟨i⟩**
+  > This option allows to bound the amount of iterations the fuzzer does. If omitted, then infinite iterations are done.
+
+* **-p, --port ⟨n⟩**
+  > As specified in [sec:design-multiprocessing] the initial communication between the fuzzer broker and workers happens over TCP/IP. Therefore, the broker requires a port allocation. The default port is 1337.
+
+* **-s, --seed ⟨n⟩**
+  > Defines an initial seed for the prng used for mutations. Note that this does not make the fuzzing deterministic, because of randomness introduced by the multiprocessing (see [sec:design-multiprocessing]).
+
+#### Sub-commands
+
+Now we will go over the sub-commands execute, plot, experiment, and seed.
+
+* execute ⟨input⟩
+  > This sub-command executes a single trace persisted in a file. The path to the file is provided by the ⟨input⟩ argument.
+* plot ⟨input⟩ ⟨format⟩ ⟨output_prefix⟩
+  > This sub-command plots the trace stored at ⟨input⟩ in the format specified by ⟨format⟩. The created graphics are stored at a path provided by ⟨output_prefix⟩. The option --multiple can be provided to create for each step in the trace a separate file. If the option --tree is given, then only a single graphic which contains all steps is produced.
+* experiment
+  > This sub-command initiates an experiment. Experiments are stored in a directory named experiments/ in the current working directory. An experiment consists of a directory which contains . The title and description of the experiment can be specified with --title ⟨t⟩ and --description ⟨d⟩ respectively. Both strings are persisted in the metadata of the experiment, together with the current commit hash of , the version and the current date and time.
+* seed
+  > This sub-command serializes the default seed corpus in a directory named corpus/ in the current working directory. The default corpus is defined in the source code of using the trace dsl.
 
 
 ## Rust Setup
