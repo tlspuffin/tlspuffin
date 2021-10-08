@@ -11,10 +11,11 @@
 
 <div align="center">
   <img src="https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square" 
-      alt="Stability" />    
-  <img src="https://img.shields.io/github/workflow/status/tlspuffin/tlspuffin/Rust?style=flat-square"
-      alt="Build status" />
-
+      alt="Stability" />
+  <a href="https://github.com/tlspuffin/tlspuffin/actions/workflows/rust.yml">    
+    <img src="https://img.shields.io/github/workflow/status/tlspuffin/tlspuffin/Rust?style=flat-square"
+        alt="Build status" />
+  </a>
 </div>
 
 <div align="center">
@@ -27,7 +28,7 @@
       Thesis Presentation
     </a>
     <span> | </span>
-    <a href="https://tlspuffin.github.io/tlspuffin">
+    <a href="https://tlspuffin.github.io/tlspuffin/tlspuffin">
       Documentation
     </a>
   </h3>
@@ -134,13 +135,13 @@ Before we explain each sub-command, we first go over the options in the followin
 
 Now we will go over the sub-commands execute, plot, experiment, and seed.
 
-* execute ⟨input⟩
+* **execute ⟨input⟩**
   > This sub-command executes a single trace persisted in a file. The path to the file is provided by the ⟨input⟩ argument.
-* plot ⟨input⟩ ⟨format⟩ ⟨output_prefix⟩
+* **plot ⟨input⟩ ⟨format⟩ ⟨output_prefix⟩**
   > This sub-command plots the trace stored at ⟨input⟩ in the format specified by ⟨format⟩. The created graphics are stored at a path provided by ⟨output_prefix⟩. The option --multiple can be provided to create for each step in the trace a separate file. If the option --tree is given, then only a single graphic which contains all steps is produced.
-* experiment
+* **experiment**
   > This sub-command initiates an experiment. Experiments are stored in a directory named experiments/ in the current working directory. An experiment consists of a directory which contains . The title and description of the experiment can be specified with --title ⟨t⟩ and --description ⟨d⟩ respectively. Both strings are persisted in the metadata of the experiment, together with the current commit hash of , the version and the current date and time.
-* seed
+* **seed**
   > This sub-command serializes the default seed corpus in a directory named corpus/ in the current working directory. The default corpus is defined in the source code of using the trace dsl.
 
 
