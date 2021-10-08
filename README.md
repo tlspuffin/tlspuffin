@@ -24,7 +24,7 @@
       Master Thesis
     </a>
     <span> | </span>
-    <a href="https://tlspuffin.github.io/tlspuffin/">
+    <a href="https://docs.google.com/presentation/d/e/2PACX-1vS-AogsZAAWBAL19kf2b8f5gbOexg9DWmXAQp4Y8zL8K6RDQbTxgKa4b6vNRMq59IezIBVgwMw7KQq6/pub?start=false&loop=false&delayms=3000">
       Thesis Presentation
     </a>
     <span> | </span>
