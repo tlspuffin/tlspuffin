@@ -20,7 +20,7 @@
 
 <div align="center">
   <h3>
-    <a href="https://tlspuffin.github.io/tlspuffin/">
+    <a href="https://raw.githubusercontent.com/tlspuffin/tlspuffin/main/docs/masterarbeit.pdf">
       Master Thesis
     </a>
     <span> | </span>
