@@ -84,6 +84,8 @@ def plot_with_other(ax, times, data: List[dict],
     other_ax = ax.twinx()
 
     y = [selector_a(row) for row in data]
+    if smooth and int(len(y)) < 50:
+        smooth = False
 
     if smooth:
         #other_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")

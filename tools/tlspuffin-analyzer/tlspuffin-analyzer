@@ -10,19 +10,28 @@ def main():
     parser.add_argument('--ssh',
                         action='store_true',
                         help='Enable SSH mode')
+    parser.add_argument('--worker_id', type=int,
+                        default=1,
+                        help='Filter log entries from this worker id (deprecated, before was set to 0) but it seems that libAFL changed its logs.')
     args = parser.parse_args()
 
     if not args.ssh:
         stats_path = "%s/stats.json" % args.experiment
-        id_0_stats = load_json_slurpy(stats_path, 0)
+        print("Loading file \"%s\"." % stats_path)
+        id_0_stats = load_json_slurpy(stats_path, args.worker_id)
     else:
-        id_0_stats = load_json_slurpy_ssh("pesto-calc.loria.fr", "/local-homes/mammann/tlspuffin", args.experiment, 0)
+        id_0_stats = load_json_slurpy_ssh("pesto-calc.loria.fr", "/local-homes/mammann/tlspuffin", args.experiment, args.worker_id)
+
+    if id_0_stats == []:
+        print("Experiment log JSON is empty.")
+        exit(0)
 
     start_date = get_start_date(id_0_stats)
     keys = get_keys(id_0_stats)
     print("Available keys: %s" % keys)
 
     for group in group_by_id(id_0_stats):
+        print("Plotting group=\"%s\"" % group)
         plot_client_stats(start_date, group)
 
     plt.show()
