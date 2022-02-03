@@ -30,7 +30,7 @@ def agent_auth(transport, username):
             print("... nope.")
 
 
-def load_json_slurpy_ssh(host, base_path, experiment, worker_id, user="mammann"):
+def load_json_slurpy_ssh(host, base_path, experiment, user, worker_id=None):
     t = paramiko.Transport((host, 22))
     t.use_compression(True)
     t.start_client()
