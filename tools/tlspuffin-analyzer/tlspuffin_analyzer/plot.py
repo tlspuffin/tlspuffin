@@ -133,16 +133,16 @@ def spread_xy(start_date, client_data, trunc_minutes=None, log=False):
     return times, data
 
 
-def plot_client_stats(start_date, start_date_log, client_stats: List[dict], client_log: List[dict], short=False):
+def plot_client_stats(start_date, start_date_log, client_stats: List[dict], client_log: List[dict], fewer=False):
     times, data = spread_xy(start_date, client_stats)
     times_log, data_log = spread_xy(start_date_log, client_log, log=True)
 
     # print(times)
     # print(data)
 
-    if not(short):
+    if not(fewer):
         fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12), (ax13, ax14),
-              (ax15, ax16), (ax17, ax18)) = plt.subplots(9, 2, sharex="all")
+              (ax15, ax16), (ax17, ax18)) = plt.subplots(9, 2, sharex="all",  figsize=(10,15))
 
         # Corpi
         plot_with_other(ax1, times, data, lambda stats: stats["objective_size"], "Objectives")
@@ -182,7 +182,7 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
                         smooth=True, log=True)
 
     else:
-        fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1)
+        fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10,20))
 
         # Global Performance
         plot_with_other(ax1, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", smooth=True, log=True)
@@ -197,5 +197,6 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         # Performance
         plot_with_other(ax5, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
         plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"], "PUT Perf Share")
+        axes =  (ax1, ax2, ax3, ax4, ax5, ax6)
 
     return fig

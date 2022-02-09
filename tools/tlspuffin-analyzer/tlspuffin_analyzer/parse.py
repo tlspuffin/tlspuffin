@@ -41,16 +41,22 @@ def load_json_slurpy_ssh(host, base_path, experiment, user, worker_id=None):
 
     sftp = paramiko.SFTPClient.from_transport(t)
 
+    print("Pre-fetching %s/experiments/%s/stats.json ..." % (base_path, experiment))
     file_stats = sftp.open("%s/experiments/%s/stats.json" % (base_path, experiment), "r")
     file_stats.prefetch()
+    print("Reading... (if taking too much time, do not use --ssh)")
     data_stats = file_stats.read()
+    print("Parsing...")
     stats = list(
         filter_by_id(JsonSlicer(BytesIO(data_stats), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True),
                      worker_id))
+    print("Pre-fetching %s/experiments/%s/tlspuffin-log.json ..." % (base_path, experiment))
     file_log = sftp.open("%s/experiments/%s/tlspuffin-log.json" % (base_path, experiment), "r")
     file_log.prefetch()
+    print("Reading... (if taking too much time, do not use --ssh)")
     data_log = file_log.read()
     log = []
+    print("Parsing...")
     for dic in JsonSlicer(BytesIO(data_log), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
         if GLOBAL_LOG_STR in dic["message"]:
             item = log_parse_item(dic)

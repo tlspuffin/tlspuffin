@@ -25,7 +25,9 @@ def main():
     parser.add_argument('--user', type=str,
                         default=USER,
                         help='If --ssh is enabled, this defines the user name at the target machine.')
-    parser.add_argument('--small', dest='small', action='store_true',
+    parser.add_argument('--save', type=str,
+                        help='Save the output as a PDF at the given path.')
+    parser.add_argument('--fewer', dest='fewer', action='store_true',
                         help='Only displays most important tables.')
     args = parser.parse_args()
 
@@ -38,28 +40,36 @@ def main():
         log = load_json_slurpy_log(log_path)
     else:
         (id_0_stats,log) = load_json_slurpy_ssh(args.host, args.path, args.experiment, args.user, args.worker_id)
+    print("Files loaded.")
 
     if id_0_stats == []:
         print("Experiment log JSON is empty.")
         exit(0)
 
-    print(log[0])
+    # print(log[0])
 
-    start_date = get_start_date(id_0_stats)
-    keys_stats = get_keys(id_0_stats)
-    print("Available keys (stats): %s" % keys_stats)
+    # keys_stats = get_keys(id_0_stats)
+    # print("Available keys (stats): %s" % keys_stats)
 
     start_date_log = log[0]["time"]
+    start_date = get_start_date(id_0_stats)
     print("Stats started at %s while log started at %s." % (start_date, start_date_log))
 
-    keys_log = get_keys(log)
-    print("Available keys (log): %s" % keys_log)
+    # keys_log = get_keys(log)
+    # print("Available keys (log): %s" % keys_log)
 
     for group in group_by_id(id_0_stats):
         print("Plotting group=\"%s\"" % group)
-        plot_client_stats(start_date, start_date_log, group, log, short=args.small)
+        fig = plot_client_stats(start_date, start_date_log, group, log, fewer=args.fewer)
 
-    plt.show()
-
+    if args.save:
+        # print(fig.canvas.get_supported_filetypes())
+        # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
+        print("Saving files %s and %s..." % (args.save + ".svg", args.save + ".pdf"))
+        fig.savefig(args.save + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
+        fig.savefig(args.save + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
+    else:
+        print("Displaying the plot...")
+        plt.show()
 
 main()
