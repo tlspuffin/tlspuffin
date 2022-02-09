@@ -5,9 +5,12 @@ from operator import itemgetter
 from typing import List
 
 import paramiko as paramiko
+import dateparser
 from jsonslicer import JsonSlicer
 
 from tlspuffin_analyzer.stats_type import ClientStatistics
+
+GLOBAL_LOG_STR = "[Stats] (GLOBAL)"
 
 def agent_auth(transport, username):
     """
@@ -38,13 +41,22 @@ def load_json_slurpy_ssh(host, base_path, experiment, user, worker_id=None):
 
     sftp = paramiko.SFTPClient.from_transport(t)
 
-    file = sftp.open("%s/experiments/%s/stats.json" % (base_path, experiment), "r")
-    file.prefetch()
-    data = file.read()
-
-    return list(
-        filter_by_id(JsonSlicer(BytesIO(data), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True),
+    file_stats = sftp.open("%s/experiments/%s/stats.json" % (base_path, experiment), "r")
+    file_stats.prefetch()
+    data_stats = file_stats.read()
+    stats = list(
+        filter_by_id(JsonSlicer(BytesIO(data_stats), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True),
                      worker_id))
+    file_log = sftp.open("%s/experiments/%s/tlspuffin-log.json" % (base_path, experiment), "r")
+    file_log.prefetch()
+    data_log = file_log.read()
+    log = []
+    for dic in JsonSlicer(BytesIO(data_log), (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
+        if GLOBAL_LOG_STR in dic["message"]:
+            item = log_parse_item(dic)
+            log.append(item)
+
+    return(stats, log)
 
 
 #def dict_to_client_stats(dict: dict) -> ClientStatistics:
@@ -66,6 +78,22 @@ def load_json_slurpy(json_path, worker_id):
 
     return filtered
 
+def load_json_slurpy_log(json_path):
+    filtered = []
+
+    with open(json_path) as log:
+        try:
+            for dic in JsonSlicer(log, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
+                if GLOBAL_LOG_STR in dic["message"]:
+                    item = log_parse_item(dic)
+                    filtered.append(item)
+        except Exception as e:
+            print("Failed during log file parsing! Returning partial data!")
+            print(e)
+            return filtered
+
+    return filtered
+
 
 def group_by_id(all_stats):
     sortkeyfn = itemgetter("id")
@@ -74,3 +102,15 @@ def group_by_id(all_stats):
 
 def filter_by_id(all_stats, id):
     return [item for item in all_stats if item["id"] == id]
+
+def log_parse_item(dic):
+    item = {}
+    raw_data = [field.split(" ")[-1] for field in dic["message"].split(",")]
+    item = {"time": dateparser.parse(dic["time"]),
+            "clients" : raw_data[0],
+            "corpus":  raw_data[1],
+            "obj":  raw_data[2],
+            "total_execs":  raw_data[3],
+            "exec_per_sec":  raw_data[4],
+    }
+    return(item)
