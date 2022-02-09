@@ -72,8 +72,10 @@ def load_json_slurpy_ssh(host, base_path, experiment, user, worker_id=None):
 def load_json_slurpy(json_path, worker_id):
     filtered = []
 
+    print("Reading...")
     with open(json_path) as stats:
         try:
+            print("Parsing...")
             for dic in JsonSlicer(stats, (), yajl_allow_multiple_values=True, yajl_allow_partial_values=True):
                 if worker_id is None or dic["id"] == worker_id:
                     filtered.append(dic)
