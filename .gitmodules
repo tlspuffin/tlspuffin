@@ -11,3 +11,6 @@
 	path = deps/rust-rustls
 	url = git@github.com:tlspuffin/rustls.git
 
+[submodule "wolfssl-src"]
+	path = deps/rust-wolfssl-src
+	url = git@github.com:LCBH/wolfssl-src-rs.git
