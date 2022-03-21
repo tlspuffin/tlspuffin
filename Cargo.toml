@@ -33,6 +33,9 @@ libressl = [
     "tls13", # Supported features by openssl111
     "claims",
 ]
+wolfssl = [
+    "openssl/vendored-openssl101f"
+]
 
 # PUT supports TLS 1.3
 tls13 = []
