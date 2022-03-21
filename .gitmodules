@@ -3,7 +3,7 @@
 	url = git@github.com:tlspuffin/openssl-src-rs.git
 [submodule "rust-openssl"]
 	path = deps/rust-openssl
-	url = git@github.com:tlspuffin/rust-openssl.git
+	url = git@github.com:LCBH/rust-openssl.git
 [submodule "rust-libressl-src"]
 	path = deps/rust-libressl-src
 	url = git@github.com:tlspuffin/libressl-src.git
