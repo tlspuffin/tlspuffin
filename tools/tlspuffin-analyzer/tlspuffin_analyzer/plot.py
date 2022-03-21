@@ -153,7 +153,7 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         plot_with_other(ax4, times, data, lambda stats: stats["objective_size"], "Objectives",
                         lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
         # Coverage
-        plot_with_other(ax5, times, data, lambda stats: stats["coverage"]["discovered"], "Coverage")
+        plot_with_other(ax5, times, data, lambda stats: stats["coverage"]["discovered"], "Global coverage")
 
         # Performance
         plot_with_other(ax6, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
@@ -193,7 +193,7 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         # Errors
         plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
         # Coverage
-        plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "Coverage")
+        plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "Global coverage")
         # Performance
         plot_with_other(ax5, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
         plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"], "PUT Perf Share")
