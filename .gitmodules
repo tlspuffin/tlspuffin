@@ -3,18 +3,13 @@
 	url = git@github.com:tlspuffin/openssl-src-rs.git
 [submodule "rust-openssl"]
 	path = deps/rust-openssl
-	url = git@github.com:LCBH/rust-openssl.git
+	url = git@github.com:tlspuffin/rust-openssl.git
 [submodule "rust-libressl-src"]
 	path = deps/rust-libressl-src
 	url = git@github.com:tlspuffin/libressl-src.git
 [submodule "rust-rustls"]
 	path = deps/rust-rustls
 	url = git@github.com:tlspuffin/rustls.git
-
-[submodule "wolfssl-src"]
-	path = deps/rust-wolfssl-src
-	url = git@github.com:LCBH/wolfssl-src-rs.git
-
 [submodule "wolfssl-sys"]
   path = deps/wolfssl-sys
-  url = git@github.com:LCBH/wolfssl-sys.git
+  url = git@github.com:tlspuffin/wolfssl-sys.git
