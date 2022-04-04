@@ -14,3 +14,7 @@
 [submodule "wolfssl-src"]
 	path = deps/rust-wolfssl-src
 	url = git@github.com:LCBH/wolfssl-src-rs.git
+
+[submodule "wolfssl-sys"]
+  path = deps/wolfssl-sys
+  url = git@github.com:LCBH/wolfssl-sys.git

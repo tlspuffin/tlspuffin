@@ -171,6 +171,10 @@ fn set_max_protocol_version(
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
         TLSVersion::Unknown => Ok(())
     }?;
+
+    #[cfg(feature = "wolfssl520")] // TODO: review this file and add versions for wolfssl
+    assert!(false);
+
     Ok(())
 }
 
