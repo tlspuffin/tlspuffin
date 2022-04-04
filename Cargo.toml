@@ -35,8 +35,12 @@ libressl = [
 ]
 
 wolfssl520 = [
-    "wolfssl-sys/vendored-wolfssl520"
+    "wolfssl-sys/vendored-wolfssl520",
+    "wolfssl"
 ]
+
+# Some WolfSSL version
+wolfssl = []
 
 # PUT supports TLS 1.3
 tls13 = []

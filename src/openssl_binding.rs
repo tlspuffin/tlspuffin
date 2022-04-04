@@ -172,12 +172,12 @@ fn set_max_protocol_version(
         TLSVersion::Unknown => Ok(())
     }?;
 
-    #[cfg(feature = "wolfssl520")] // TODO: review this file and add versions for wolfssl
+    #[cfg(feature = "wolfssl")] // TODO: review this file and add versions for wolfssl
     assert!(false);
 
     Ok(())
 }
-
+#[cfg(feature = "wolfssl")] // TODO: review this file and add versions for wolfssl
 pub fn create_openssl_server(
     stream: MemoryStream,
     cert: &X509Ref,
