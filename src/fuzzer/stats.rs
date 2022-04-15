@@ -354,24 +354,24 @@ impl TraceStatistics {
                 RuntimeStats::TraceLength(mmm) => {
                     trace_stats
                         .min_trace_length
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
                     trace_stats
                         .max_trace_length
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats
                         .mean_trace_length
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 RuntimeStats::TermSize(mmm) => {
                     trace_stats
                         .min_term_size
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
                     trace_stats
                         .max_term_size
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats
                         .mean_term_size
-                        .insert(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}
             }

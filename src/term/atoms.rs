@@ -277,7 +277,7 @@ mod fn_container {
                 SIGNATURE
                     .functions_by_name
                     .get(name)
-                    .ok_or(de::Error::custom(format!(
+                    .ok_or_else(||de::Error::custom(format!(
                         "Failed to link function symbol: Could not find function {}",
                         name
                     )))?;
