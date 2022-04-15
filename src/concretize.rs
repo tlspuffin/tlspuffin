@@ -7,8 +7,8 @@ use tlspuffin::agent::TLSVersion;
 use tlspuffin::error::Error;
 use tlspuffin::io::Stream;
 
-/// An agent state for the PUT // [TODO::PUT] will become the current PUTState
-pub struct State {}
+/// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
+pub type Bts<'a> = &'a[u8];
 
 /// Static configuration for creating a new agent state for the PUT
 pub struct Config {
@@ -18,8 +18,11 @@ pub struct Config {
 }
 
 pub trait PUT: Stream + Drop {
+    /// An agent state for the PUT // [TODO::PUT] will become the current PUTState
+    type State;
+
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new (c: Config) -> Result<State,Error>;
+    fn new (c: Config) -> Result<PUT::State,Error>;
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress (&self) -> Result<(),Error>;
     /// In-place reset of the state
