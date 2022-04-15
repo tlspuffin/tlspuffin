@@ -24,7 +24,6 @@ use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 
 mod agent;
-mod concretize;
 mod debug;
 mod error;
 mod experiment;
@@ -38,6 +37,7 @@ mod tls;
 mod trace;
 mod variable_data;
 mod violation;
+mod concretize;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {

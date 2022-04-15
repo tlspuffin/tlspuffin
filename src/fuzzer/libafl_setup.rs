@@ -94,7 +94,7 @@ pub fn start(
             let feedback = feedback_or!(MaxMapFeedback::new_tracking(
                 &edges_feedback_state,
                 &edges_observer,
-                false, // [TODO] [LH] Why are track_index and track_novelties are false?
+                false,  // [TODO] [LH] Why are track_index and track_novelties are false?
                 false
             ));
 

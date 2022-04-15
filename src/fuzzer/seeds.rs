@@ -1,21 +1,21 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crashes OpenSSL.
 
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
+use rustls::internal::msgs::enums::{HandshakeType, Compression};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::term;
-use crate::tls::fn_impl::*;
 use crate::trace::TlsMessageType;
 use crate::trace::TlsMessageType::Handshake;
+use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
     term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
+use rustls::{ProtocolVersion, CipherSuite};
+use rustls::msgs::handshake::{SessionID, Random};
 use rustls::internal::msgs::handshake::ServerExtension;
-use rustls::msgs::handshake::{Random, SessionID};
-use rustls::{CipherSuite, ProtocolVersion};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {

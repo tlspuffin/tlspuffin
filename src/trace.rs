@@ -334,6 +334,7 @@ impl TraceContext {
 
         possibilities.sort_by(|a, b| a.specificity().cmp(&b.specificity()));
 
+
         possibilities
             .iter()
             .nth(query.counter as usize)

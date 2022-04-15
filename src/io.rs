@@ -28,7 +28,7 @@ use std::{
 use foreign_types_shared::ForeignTypeRef;
 use openssl::ssl::SslStream;
 
-#[cfg(feature = "wolfssl")] // Just a test:
+#[cfg(feature = "wolfssl")]  // Just a test:
 use wolfssl_sys::handShakeInfo_st;
 
 use rustls::msgs::message::OpaqueMessage;
