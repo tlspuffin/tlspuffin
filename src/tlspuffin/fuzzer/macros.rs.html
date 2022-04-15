@@ -57,7 +57,7 @@
             <span class="ident">S</span>: <span class="ident">libafl::state::HasRand</span>,
         {
             $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg_name</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg_type</span>,)<span class="op">*</span>
-            <span class="ident">phantom</span>: <span class="ident">std::marker::PhantomData</span><span class="op">&lt;</span>(<span class="ident">S</span>)<span class="op">&gt;</span>,
+            <span class="ident">phantom</span>: <span class="ident">std::marker::PhantomData</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
         }
 
         <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>

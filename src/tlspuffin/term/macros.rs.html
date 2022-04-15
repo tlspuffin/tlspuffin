@@ -118,6 +118,7 @@
 <span id="113">113</span>
 <span id="114">114</span>
 <span id="115">115</span>
+<span id="116">116</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module provides a DLS for writing[`Term`]s within Rust.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # Example</span>
@@ -194,6 +195,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0</span>;
 
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_assignments</span>)]</span>
+        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::eval_order_dependence</span>)]</span>
         <span class="kw">let</span> <span class="ident">arguments</span> <span class="op">=</span> <span class="macro">vec!</span>[$({
             <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
             <span class="kw">let</span> <span class="ident">argument</span> <span class="op">=</span> <span class="ident">func</span>.<span class="ident">shape</span>().<span class="ident">argument_types</span>.<span class="ident">get</span>(<span class="ident">i</span>)

@@ -199,14 +199,12 @@
 <span id="194">194</span>
 <span id="195">195</span>
 <span id="196">196</span>
-<span id="197">197</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::fmt</span>;
 <span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
 <span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
 
 <span class="kw">use</span> <span class="ident">libafl</span>::{<span class="ident">Error</span>, <span class="ident">Evaluator</span>};
 <span class="kw">use</span> <span class="ident">libafl::bolts::rands::Rand</span>;
-<span class="kw">use</span> <span class="ident">libafl::corpus::Corpus</span>;
 <span class="kw">use</span> <span class="ident">libafl::inputs::Input</span>;
 <span class="kw">use</span> <span class="ident">libafl::mutators</span>::{
     <span class="ident">ComposedByMutations</span>, <span class="ident">MutationResult</span>, <span class="ident">Mutator</span>, <span class="ident">MutatorsTuple</span>, <span class="ident">ScheduledMutator</span>,
@@ -250,7 +248,7 @@
     }
 
     <span class="doccomment">/// Gets the number of iterations as a random number</span>
-    <span class="kw">fn</span> <span class="ident">iterations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>, <span class="ident">corpus_idx</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">iterations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>, <span class="ident">_corpus_idx</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="number">1</span> <span class="op">+</span> <span class="ident">state</span>.<span class="ident">rand_mut</span>().<span class="ident">below</span>(<span class="self">self</span>.<span class="ident">max_iterations_per_stage</span>) <span class="kw">as</span> <span class="ident">usize</span>)
     }
 }

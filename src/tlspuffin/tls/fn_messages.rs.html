@@ -595,9 +595,9 @@
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::ClientHello</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::ClientHello</span>(<span class="ident">ClientHelloPayload</span> {
-                <span class="ident">client_version</span>: <span class="ident">client_version</span>.<span class="ident">clone</span>(),
+                <span class="ident">client_version</span>: <span class="kw-2">*</span><span class="ident">client_version</span>,
                 <span class="ident">random</span>: <span class="ident">random</span>.<span class="ident">clone</span>(),
-                <span class="ident">session_id</span>: <span class="ident">session_id</span>.<span class="ident">clone</span>(),
+                <span class="ident">session_id</span>: <span class="kw-2">*</span><span class="ident">session_id</span>,
                 <span class="ident">cipher_suites</span>: <span class="ident">cipher_suites</span>.<span class="ident">clone</span>(),
                 <span class="ident">compression_methods</span>: <span class="ident">compression_methods</span>.<span class="ident">clone</span>(),
                 <span class="ident">extensions</span>: <span class="ident">extensions</span>.<span class="ident">clone</span>(),
@@ -619,11 +619,11 @@
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::ServerHello</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::ServerHello</span>(<span class="ident">ServerHelloPayload</span> {
-                <span class="ident">legacy_version</span>: <span class="ident">legacy_version</span>.<span class="ident">clone</span>(),
+                <span class="ident">legacy_version</span>: <span class="kw-2">*</span><span class="ident">legacy_version</span>,
                 <span class="ident">random</span>: <span class="ident">random</span>.<span class="ident">clone</span>(),
-                <span class="ident">session_id</span>: <span class="ident">session_id</span>.<span class="ident">clone</span>(),
-                <span class="ident">cipher_suite</span>: <span class="ident">cipher_suite</span>.<span class="ident">clone</span>(),
-                <span class="ident">compression_method</span>: <span class="ident">compression_method</span>.<span class="ident">clone</span>(),
+                <span class="ident">session_id</span>: <span class="kw-2">*</span><span class="ident">session_id</span>,
+                <span class="ident">cipher_suite</span>: <span class="kw-2">*</span><span class="ident">cipher_suite</span>,
+                <span class="ident">compression_method</span>: <span class="kw-2">*</span><span class="ident">compression_method</span>,
                 <span class="ident">extensions</span>: <span class="ident">extensions</span>.<span class="ident">clone</span>(),
             }),
         }),
@@ -681,9 +681,9 @@
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::HelloRetryRequest</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::HelloRetryRequest</span>(<span class="ident">HelloRetryRequest</span> {
-                <span class="ident">legacy_version</span>: <span class="ident">legacy_version</span>.<span class="ident">clone</span>(),
-                <span class="ident">session_id</span>: <span class="ident">session_id</span>.<span class="ident">clone</span>(),
-                <span class="ident">cipher_suite</span>: <span class="ident">cipher_suite</span>.<span class="ident">clone</span>(),
+                <span class="ident">legacy_version</span>: <span class="kw-2">*</span><span class="ident">legacy_version</span>,
+                <span class="ident">session_id</span>: <span class="kw-2">*</span><span class="ident">session_id</span>,
+                <span class="ident">cipher_suite</span>: <span class="kw-2">*</span><span class="ident">cipher_suite</span>,
                 <span class="ident">extensions</span>: <span class="ident">extensions</span>.<span class="ident">clone</span>(),
             }),
         }),

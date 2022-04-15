@@ -333,6 +333,12 @@
 <span id="328">328</span>
 <span id="329">329</span>
 <span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module provides traits for calling rust functions dynamically.</span>
 <span class="doccomment">//! All functions which implement the DynamicFunction trait can be called by passing an array of</span>
 <span class="doccomment">//! [`Any`]s to it. The return value is again of type [`Any`].</span>
@@ -393,13 +399,12 @@
 };
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
-
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">de::Visitor</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls</span>::{<span class="ident">error::FnError</span>, <span class="ident">SIGNATURE</span>};
 
 <span class="doccomment">/// Describes the shape of a [`DynamicFunction`]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Hash</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DynamicFunctionShape</span> {
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
     <span class="kw">pub</span> <span class="ident">argument_types</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TypeShape</span><span class="op">&gt;</span>,
@@ -410,6 +415,12 @@
 <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">DynamicFunctionShape</span> {
     <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">eq</span>(<span class="ident">other</span>.<span class="ident">name</span>) <span class="comment">// name is unique</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">Hash</span> <span class="kw">for</span> <span class="ident">DynamicFunctionShape</span> {
+    <span class="kw">fn</span> <span class="ident">hash</span><span class="op">&lt;</span><span class="ident">H</span>: <span class="ident">Hasher</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">H</span>) {
+        <span class="self">self</span>.<span class="ident">name</span>.<span class="ident">hash</span>(<span class="ident">state</span>)
     }
 }
 
@@ -431,7 +442,7 @@
             <span class="self">self</span>.<span class="ident">name</span>,
             <span class="self">self</span>.<span class="ident">argument_types</span>
                 .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">typ</span><span class="op">|</span> <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">typ</span>.<span class="ident">name</span>))
+                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">typ</span><span class="op">|</span> <span class="ident">typ</span>.<span class="ident">name</span>.<span class="ident">to_string</span>())
                 .<span class="ident">join</span>(<span class="string">&quot;,&quot;</span>),
             <span class="self">self</span>.<span class="ident">return_type</span>.<span class="ident">name</span>
         )
@@ -539,6 +550,7 @@
 
                 <span class="kw">let</span> <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">res</span>, <span class="ident">FnError</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>($(
                        <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_assignments</span>)]</span>
+                       <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::eval_order_dependence</span>)]</span>
                        {
                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">arg_</span>) <span class="op">=</span> <span class="ident">args</span>.<span class="ident">get</span>(<span class="ident">index</span>)
                                     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> {
@@ -546,7 +558,7 @@
                                         <span class="ident">FnError::Unknown</span>(<span class="macro">format!</span>(<span class="string">&quot;Missing argument #{} while calling {}.&quot;</span>, <span class="ident">index</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">shape</span>.<span class="ident">name</span>))
                                     })<span class="question-mark">?</span>
                                     .<span class="ident">as_ref</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span><span class="op">&gt;</span>() {
-                               <span class="ident">index</span> <span class="op">=</span> <span class="ident">index</span> <span class="op">+</span> <span class="number">1</span>;
+                               <span class="ident">index</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
                                <span class="ident">arg_</span>
                            } <span class="kw">else</span> {
                                <span class="kw">let</span> <span class="ident">shape</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::shape</span>();
@@ -600,9 +612,9 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">TypeId</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TypeShape</span> {
-    <span class="kw">fn</span> <span class="ident">into</span>(<span class="self">self</span>) -&gt; <span class="ident">TypeId</span> {
-        <span class="self">self</span>.<span class="ident">inner_type_id</span>
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">TypeShape</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TypeId</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">shape</span>: <span class="ident">TypeShape</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident">shape</span>.<span class="ident">inner_type_id</span>
     }
 }
 
@@ -655,8 +667,8 @@
                 <span class="kw">let</span> <span class="ident">typ</span> <span class="op">=</span> <span class="ident">SIGNATURE</span>
                     .<span class="ident">types_by_name</span>
                     .<span class="ident">get</span>(<span class="ident">v</span>)
-                    .<span class="ident">ok_or</span>(<span class="ident">de::Error::missing_field</span>(<span class="string">&quot;could not find type&quot;</span>))<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(<span class="ident">typ</span>.<span class="ident">clone</span>())
+                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::missing_field</span>(<span class="string">&quot;could not find type&quot;</span>))<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(<span class="kw-2">*</span><span class="ident">typ</span>)
             }
         }
 

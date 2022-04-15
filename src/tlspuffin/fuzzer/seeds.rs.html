@@ -1545,8 +1545,10 @@
 <span id="1540">1540</span>
 <span id="1541">1541</span>
 <span id="1542">1542</span>
+<span id="1543">1543</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Implementation of  special traces. Each may represent a special TLS execution like a full</span>
 <span class="doccomment">//! handshake or an execution which crashes OpenSSL.</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
 <span class="kw">use</span> <span class="ident">rustls::internal::msgs::enums</span>::{<span class="ident">HandshakeType</span>, <span class="ident">Compression</span>};
 
@@ -2000,7 +2002,7 @@
     <span class="ident">trace</span>
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seed_client_attacker</span>(<span class="ident">server</span>: <span class="ident">AgentName</span>) -&gt; (<span class="ident">Trace</span>) {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seed_client_attacker</span>(<span class="ident">server</span>: <span class="ident">AgentName</span>) -&gt; <span class="ident">Trace</span> {
     <span class="kw">let</span> <span class="ident">client_hello</span> <span class="op">=</span> <span class="macro">term!</span> {
           <span class="ident">fn_client_hello</span>(
             <span class="ident">fn_protocol_version12</span>,

@@ -362,8 +362,8 @@
         <span class="ident">Variable</span> {
             <span class="ident">unique_id</span>: <span class="ident">random</span>(),
             <span class="ident">resistant_id</span>: <span class="self">self</span>.<span class="ident">resistant_id</span>,
-            <span class="ident">typ</span>: <span class="self">self</span>.<span class="ident">typ</span>.<span class="ident">clone</span>(),
-            <span class="ident">query</span>: <span class="self">self</span>.<span class="ident">query</span>.<span class="ident">clone</span>(),
+            <span class="ident">typ</span>: <span class="self">self</span>.<span class="ident">typ</span>,
+            <span class="ident">query</span>: <span class="self">self</span>.<span class="ident">query</span>,
         }
     }
 }
@@ -444,7 +444,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">fn_container</span>.<span class="ident">shape</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dynamic_fn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">DynamicFunction</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dynamic_fn</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw">dyn</span> <span class="ident">DynamicFunction</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">fn_container</span>.<span class="ident">dynamic_fn</span>
     }
 
@@ -595,7 +595,7 @@
                 <span class="ident">SIGNATURE</span>
                     .<span class="ident">functions_by_name</span>
                     .<span class="ident">get</span>(<span class="ident">name</span>)
-                    .<span class="ident">ok_or</span>(<span class="ident">de::Error::custom</span>(<span class="macro">format!</span>(
+                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span><span class="ident">de::Error::custom</span>(<span class="macro">format!</span>(
                         <span class="string">&quot;Failed to link function symbol: Could not find function {}&quot;</span>,
                         <span class="ident">name</span>
                     )))<span class="question-mark">?</span>;

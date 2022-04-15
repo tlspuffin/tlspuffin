@@ -955,11 +955,11 @@
     <span class="kw">let</span> <span class="ident">binder_len</span> <span class="op">=</span> <span class="ident">resuming_suite</span>.<span class="ident">get_hash</span>().<span class="ident">output_len</span>;
     <span class="kw">let</span> <span class="ident">binder</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="ident">binder_len</span>];
 
-    <span class="kw">let</span> <span class="ident">psk_identity</span> <span class="op">=</span> <span class="ident">PresharedKeyIdentity::new</span>(<span class="ident">ticket</span>.<span class="ident">clone</span>(), <span class="ident">obfuscated_ticket_age</span>);
+    <span class="kw">let</span> <span class="ident">psk_identity</span> <span class="op">=</span> <span class="ident">PresharedKeyIdentity::new</span>(<span class="ident">ticket</span>, <span class="ident">obfuscated_ticket_age</span>);
 
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::PresharedKey</span>(<span class="ident">PresharedKeyOffer::new</span>(
         <span class="ident">psk_identity</span>,
-        <span class="ident">binder</span>.<span class="ident">clone</span>(),
+        <span class="ident">binder</span>,
     )))
 }
 

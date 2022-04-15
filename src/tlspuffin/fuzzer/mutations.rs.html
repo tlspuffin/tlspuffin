@@ -572,9 +572,7 @@
 <span id="567">567</span>
 <span id="568">568</span>
 <span id="569">569</span>
-<span id="570">570</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">libafl::bolts::rands::Rand</span>;
-<span class="kw">use</span> <span class="ident">libafl::corpus::Corpus</span>;
 <span class="kw">use</span> <span class="ident">libafl::state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasMaxSize</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasRand</span>};
 <span class="kw">use</span> <span class="ident">libafl</span>::{
     <span class="ident">bolts::tuples</span>::{<span class="ident">tuple_list</span>, <span class="ident">tuple_list_type</span>},
@@ -1025,7 +1023,7 @@
                             <span class="ident">visited</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
 
                             <span class="comment">// consider in sampling</span>
-                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">None</span> <span class="op">=</span> <span class="ident">reservoir</span> {
+                            <span class="kw">if</span> <span class="ident">reservoir</span>.<span class="ident">is_none</span>() {
                                 <span class="comment">// fill initial reservoir</span>
                                 <span class="ident">reservoir</span> <span class="op">=</span> <span class="prelude-val">Some</span>((<span class="ident">term</span>, <span class="ident">path</span>)); <span class="comment">// todo Rust 1.53 use insert</span>
                             } <span class="kw">else</span> {
@@ -1126,7 +1124,7 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">choose_term_path</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="ident">Rand</span><span class="op">&gt;</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">choose_term_path</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rand</span><span class="op">&gt;</span>(
         <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">Trace</span>,
         <span class="ident">constraints</span>: <span class="ident">TermConstraints</span>,
         <span class="ident">rand</span>: <span class="kw-2">&amp;mut</span> <span class="ident">R</span>,
@@ -1134,7 +1132,7 @@
         <span class="ident">choose_term_path_filtered</span>(<span class="ident">trace</span>, <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="bool-val">true</span>, <span class="ident">constraints</span>, <span class="ident">rand</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">choose_term_path_filtered</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="ident">Rand</span>, <span class="ident">P</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">Term</span>) -&gt; <span class="ident">bool</span> <span class="op">+</span> <span class="ident">Copy</span><span class="op">&gt;</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">choose_term_path_filtered</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Rand</span>, <span class="ident">P</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">Term</span>) -&gt; <span class="ident">bool</span> <span class="op">+</span> <span class="ident">Copy</span><span class="op">&gt;</span>(
         <span class="ident">trace</span>: <span class="kw-2">&amp;</span><span class="ident">Trace</span>,
         <span class="ident">filter</span>: <span class="ident">P</span>,
         <span class="ident">constraints</span>: <span class="ident">TermConstraints</span>,

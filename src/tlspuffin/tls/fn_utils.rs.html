@@ -344,14 +344,14 @@
     <span class="ident">ServerECDHParams</span>,
 };
 <span class="kw">use</span> <span class="ident">rustls::msgs::message</span>::{<span class="ident">Message</span>, <span class="ident">MessagePayload</span>, <span class="ident">OpaqueMessage</span>};
-<span class="kw">use</span> <span class="ident">rustls</span>::{<span class="ident">key</span>, <span class="ident">Certificate</span>, <span class="ident">ProtocolVersion</span>};
+<span class="kw">use</span> <span class="ident">rustls</span>::{<span class="ident">key</span>, <span class="ident">Certificate</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_exchange</span>::{<span class="ident">tls12_key_exchange</span>, <span class="ident">tls12_new_secrets</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_schedule</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::error::FnError</span>;
-<span class="kw">use</span> <span class="ident">rustls::msgs::alert::AlertMessagePayload</span>;
-<span class="kw">use</span> <span class="ident">rustls::msgs::enums</span>::{<span class="ident">AlertDescription</span>, <span class="ident">AlertLevel</span>};
+
+
 
 <span class="comment">// ----</span>
 <span class="comment">// seed_client_attacker()</span>
@@ -361,7 +361,7 @@
     <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::suites::TLS13_AES_128_GCM_SHA256</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transcript</span> <span class="op">=</span> <span class="ident">HandshakeHash::new</span>();
-    <span class="ident">transcript</span>.<span class="ident">start_hash</span>(<span class="kw-2">&amp;</span><span class="ident">suite</span>.<span class="ident">get_hash</span>());
+    <span class="ident">transcript</span>.<span class="ident">start_hash</span>(<span class="ident">suite</span>.<span class="ident">get_hash</span>());
     <span class="prelude-val">Ok</span>(<span class="ident">transcript</span>)
 }
 
@@ -382,14 +382,14 @@
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_handshake_traffic_secret</span>(
-        <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
+        <span class="ident">server_hello_transcript</span>,
         <span class="ident">server_key_share</span>,
         <span class="ident">psk</span>,
         <span class="bool-val">false</span>, <span class="comment">// false, because only clients are decrypting right now, todo support both</span>
     )<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">decrypter</span> <span class="op">=</span> <span class="ident">new_tls13_read</span>(<span class="ident">suite</span>, <span class="kw-2">&amp;</span><span class="ident">key</span>);
     <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">decrypter</span>.<span class="ident">decrypt</span>(<span class="ident">OpaqueMessage::from</span>(<span class="ident">application_data</span>.<span class="ident">clone</span>()), <span class="kw-2">*</span><span class="ident">sequence</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>)
+    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">message</span>)<span class="question-mark">?</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_no_psk</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
@@ -409,15 +409,15 @@
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_application_traffic_secret</span>(
-        <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
-        <span class="kw-2">&amp;</span><span class="ident">server_finished_transcript</span>,
+        <span class="ident">server_hello_transcript</span>,
+        <span class="ident">server_finished_transcript</span>,
         <span class="ident">server_key_share</span>,
         <span class="ident">psk</span>,
         <span class="bool-val">false</span>, <span class="comment">// false, because only clients are decrypting right now, todo support both</span>
     )<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">decrypter</span> <span class="op">=</span> <span class="ident">new_tls13_read</span>(<span class="ident">suite</span>, <span class="kw-2">&amp;</span><span class="ident">key</span>);
     <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">decrypter</span>.<span class="ident">decrypt</span>(<span class="ident">OpaqueMessage::from</span>(<span class="ident">application_data</span>.<span class="ident">clone</span>()), <span class="kw-2">*</span><span class="ident">sequence</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>)
+    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">message</span>)<span class="question-mark">?</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_encrypt_handshake</span>(
@@ -428,13 +428,13 @@
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span>
-        <span class="ident">tls13_handshake_traffic_secret</span>(<span class="kw-2">&amp;</span><span class="ident">server_hello</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+        <span class="ident">tls13_handshake_traffic_secret</span>(<span class="ident">server_hello</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">encrypter</span> <span class="op">=</span> <span class="ident">new_tls13_write</span>(<span class="ident">suite</span>, <span class="kw-2">&amp;</span><span class="ident">key</span>);
     <span class="kw">let</span> <span class="ident">application_data</span> <span class="op">=</span> <span class="ident">encrypter</span>.<span class="ident">encrypt</span>(
         <span class="ident">OpaqueMessage::from</span>(<span class="ident">some_message</span>.<span class="ident">clone</span>()).<span class="ident">borrow</span>(),
         <span class="kw-2">*</span><span class="ident">sequence</span>,
     )<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">application_data</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>)
+    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">application_data</span>)<span class="question-mark">?</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_encrypt_application</span>(
@@ -446,8 +446,8 @@
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_application_traffic_secret</span>(
-        <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
-        <span class="kw-2">&amp;</span><span class="ident">server_finished_transcript</span>,
+        <span class="ident">server_hello_transcript</span>,
+        <span class="ident">server_finished_transcript</span>,
         <span class="ident">server_key_share</span>,
         <span class="ident">psk</span>,
         <span class="bool-val">true</span>,
@@ -457,7 +457,7 @@
         <span class="ident">OpaqueMessage::from</span>(<span class="ident">some_message</span>.<span class="ident">clone</span>()).<span class="ident">borrow</span>(),
         <span class="kw-2">*</span><span class="ident">sequence</span>,
     )<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">application_data</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>)
+    <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">application_data</span>)<span class="question-mark">?</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_derive_psk</span>(
@@ -501,7 +501,7 @@
 
     <span class="comment">// Run a fake key_schedule to simulate what the server will do if it chooses</span>
     <span class="comment">// to resume.</span>
-    <span class="kw">let</span> <span class="ident">key_schedule</span> <span class="op">=</span> <span class="ident">KeyScheduleEarly::new</span>(<span class="ident">hkdf_alg</span>, <span class="kw-2">&amp;</span><span class="ident">psk</span>);
+    <span class="kw">let</span> <span class="ident">key_schedule</span> <span class="op">=</span> <span class="ident">KeyScheduleEarly::new</span>(<span class="ident">hkdf_alg</span>, <span class="ident">psk</span>);
     <span class="kw">let</span> <span class="ident">real_binder</span> <span class="op">=</span> <span class="ident">key_schedule</span>.<span class="ident">resumption_psk_binder_key_and_sign_verify_data</span>(<span class="kw-2">&amp;</span><span class="ident">handshake_hash</span>);
 
     <span class="prelude-val">Ok</span>(<span class="ident">Vec::from</span>(<span class="ident">real_binder</span>.<span class="ident">as_ref</span>()))
@@ -511,7 +511,7 @@
     <span class="kw">match</span> <span class="ident">full_client_hello</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
         <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
             <span class="ident">HandshakePayload::ClientHello</span>(<span class="ident">payload</span>) =&gt; {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_payload</span> <span class="op">=</span> <span class="ident">payload</span>.<span class="ident">clone</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_payload</span> <span class="op">=</span> <span class="ident">payload</span>;
                 <span class="ident">new_payload</span>.<span class="ident">set_psk_binder</span>(<span class="ident">binder</span>.<span class="ident">clone</span>());
                 <span class="prelude-val">Some</span>(<span class="ident">Message</span> {
                     <span class="ident">version</span>: <span class="ident">full_client_hello</span>.<span class="ident">version</span>,
@@ -531,7 +531,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">new_ticket</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
         <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
-            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">ticket</span>.<span class="number">0</span>.<span class="ident">clone</span>()),
+            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">ticket</span>.<span class="number">0</span>),
             <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         },
         <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
@@ -569,13 +569,13 @@
     <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transcript</span> <span class="op">=</span> <span class="ident">HandshakeHash::new</span>();
-    <span class="ident">transcript</span>.<span class="ident">start_hash</span>(<span class="kw-2">&amp;</span><span class="ident">suite</span>.<span class="ident">get_hash</span>());
+    <span class="ident">transcript</span>.<span class="ident">start_hash</span>(<span class="ident">suite</span>.<span class="ident">get_hash</span>());
     <span class="prelude-val">Ok</span>(<span class="ident">transcript</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_decode_ecdh_params</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerECDHParams</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rd</span> <span class="op">=</span> <span class="ident">Reader::init</span>(<span class="ident">data</span>.<span class="ident">as_slice</span>());
-    <span class="ident">ServerECDHParams::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">rd</span>).<span class="ident">ok_or</span>(<span class="ident">FnError::Unknown</span>(
+    <span class="ident">ServerECDHParams::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">rd</span>).<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(
         <span class="string">&quot;Failed to create ServerECDHParams&quot;</span>.<span class="ident">to_string</span>(),
     ))
 }

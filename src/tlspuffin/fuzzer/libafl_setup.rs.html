@@ -268,8 +268,8 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::harness</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">EDGES_MAP</span>, <span class="ident">MAX_EDGES_NUM</span>};
-<span class="kw">use</span> <span class="ident">libafl::bolts::os</span>::{<span class="ident">Cores</span>, <span class="ident">parse_core_bind_arg</span>};
-<span class="kw">use</span> <span class="ident">libafl::corpus::RandCorpusScheduler</span>;
+<span class="kw">use</span> <span class="ident">libafl::bolts::os</span>::{<span class="ident">Cores</span>};
+
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Trace</span>;
 
 <span class="doccomment">/// Default value, how many iterations each stage gets, as an upper bound</span>
@@ -291,7 +291,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(
     <span class="ident">core_definition</span>: <span class="ident">String</span>,
     <span class="ident">monitor_file</span>: <span class="ident">PathBuf</span>,
-    <span class="ident">on_disk_corpus</span>: <span class="ident">PathBuf</span>,
+    <span class="ident">_on_disk_corpus</span>: <span class="ident">PathBuf</span>,
     <span class="ident">corpus_dir</span>: <span class="ident">PathBuf</span>,
     <span class="ident">objective_dir</span>: <span class="ident">PathBuf</span>,
     <span class="ident">broker_port</span>: <span class="ident">u16</span>,
@@ -307,7 +307,7 @@
         <span class="op">|</span><span class="ident">s</span><span class="op">|</span> {
             <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>);
         },
-        <span class="ident">monitor_file</span>.<span class="ident">clone</span>(),
+        <span class="ident">monitor_file</span>,
     )
     .<span class="ident">unwrap</span>();
 
@@ -319,7 +319,7 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">run_client</span> <span class="op">=</span>
         <span class="op">|</span><span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-         <span class="kw-2">mut</span> <span class="ident">restarting_mgr</span>: <span class="ident">LlmpRestartingEventManager</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">unknown</span>: <span class="ident">usize</span><span class="op">|</span> {
+         <span class="kw-2">mut</span> <span class="ident">restarting_mgr</span>: <span class="ident">LlmpRestartingEventManager</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">_unknown</span>: <span class="ident">usize</span><span class="op">|</span> {
             <span class="macro">info!</span>(<span class="string">&quot;We&#39;re a client, let&#39;s fuzz :)&quot;</span>);
 
             <span class="kw">let</span> <span class="ident">edges_observer</span> <span class="op">=</span> <span class="ident">HitcountsMapObserver::new</span>(<span class="ident">StdMapObserver::new</span>(<span class="string">&quot;edges&quot;</span>, <span class="kw">unsafe</span> {

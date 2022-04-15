@@ -196,9 +196,6 @@
 <span id="191">191</span>
 <span id="192">192</span>
 <span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
-<span id="196">196</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in</span>
 <span class="doccomment">//! this module can be passed to the command line utility `dot` which is part of graphviz.</span>
 
@@ -220,12 +217,12 @@ const COLOR_LEAVES: &amp;&#39;static str = &quot;1&quot;;
 const SHOW_LABELS: bool = false */</span>
 
 <span class="comment">// Thesis theme</span>
-<span class="kw">const</span> <span class="ident">FONT</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Latin Modern Roman&quot;</span>;
-<span class="kw">const</span> <span class="ident">SHAPE</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;none&quot;</span>;
-<span class="kw">const</span> <span class="ident">SHAPE_LEAVES</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;none&quot;</span>;
-<span class="kw">const</span> <span class="ident">STYLE</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>;
-<span class="kw">const</span> <span class="ident">COLOR</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;#00000000&quot;</span>;
-<span class="kw">const</span> <span class="ident">COLOR_LEAVES</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;#00000000&quot;</span>;
+<span class="kw">const</span> <span class="ident">FONT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;Latin Modern Roman&quot;</span>;
+<span class="kw">const</span> <span class="ident">SHAPE</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;none&quot;</span>;
+<span class="kw">const</span> <span class="ident">SHAPE_LEAVES</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;none&quot;</span>;
+<span class="kw">const</span> <span class="ident">STYLE</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;&quot;</span>;
+<span class="kw">const</span> <span class="ident">COLOR</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;#00000000&quot;</span>;
+<span class="kw">const</span> <span class="ident">COLOR_LEAVES</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;#00000000&quot;</span>;
 <span class="kw">const</span> <span class="ident">SHOW_LABELS</span>: <span class="ident">bool</span> <span class="op">=</span> <span class="bool-val">false</span>;
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_graphviz</span>(<span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">format</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">dot_script</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
@@ -238,7 +235,7 @@ const SHOW_LABELS: bool = false */</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dot_stdin</span> <span class="op">=</span> <span class="ident">child</span>
         .<span class="ident">stdin</span>
         .<span class="ident">take</span>()
-        .<span class="ident">ok_or</span>(<span class="ident">io::Error::new</span>(<span class="ident">ErrorKind::Other</span>, <span class="string">&quot;Failed to open stdin&quot;</span>))<span class="question-mark">?</span>;
+        .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">io::Error::new</span>(<span class="ident">ErrorKind::Other</span>, <span class="string">&quot;Failed to open stdin&quot;</span>))<span class="question-mark">?</span>;
     <span class="ident">dot_stdin</span>.<span class="ident">write_all</span>(<span class="ident">dot_script</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
     <span class="ident">drop</span>(<span class="ident">dot_stdin</span>);
     <span class="ident">child</span>.<span class="ident">wait</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to execute dot&quot;</span>);
@@ -267,12 +264,9 @@ const SHOW_LABELS: bool = false */</span>
 
             <span class="kw">let</span> <span class="ident">subgraph</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">action</span> {
                 <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; {
-                    <span class="macro">format!</span>(
-                        <span class="string">&quot;{}&quot;</span>,
-                        <span class="ident">input</span>
+                    <span class="ident">input</span>
                             .<span class="ident">recipe</span>
-                            .<span class="ident">dot_subgraph</span>(<span class="ident">tree_mode</span>, <span class="ident">i</span>, <span class="ident">subgraph_name</span>.<span class="ident">as_str</span>())
-                    )
+                            .<span class="ident">dot_subgraph</span>(<span class="ident">tree_mode</span>, <span class="ident">i</span>, <span class="ident">subgraph_name</span>.<span class="ident">as_str</span>()).<span class="ident">to_string</span>()
                 }
                 <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; <span class="macro">format!</span>(
                     <span class="string">&quot;subgraph cluster{} \
@@ -391,7 +385,7 @@ const SHOW_LABELS: bool = false */</span>
     <span class="kw">fn</span> <span class="ident">test_dot_graph</span>() {
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>(<span class="ident">server</span>);
-        <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">dot_graph</span>(<span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="ident">_string</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">dot_graph</span>(<span class="bool-val">true</span>);
         <span class="comment">//println!(&quot;{}&quot;, string);</span>
     }
 }

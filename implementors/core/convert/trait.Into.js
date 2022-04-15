@@ -1,3 +1,0 @@
-(function() {var implementors = {};
-implementors["tlspuffin"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.60.0/core/convert/trait.Into.html\" title=\"trait core::convert::Into\">Into</a>&lt;<a class=\"struct\" href=\"https://doc.rust-lang.org/1.60.0/core/any/struct.TypeId.html\" title=\"struct core::any::TypeId\">TypeId</a>&gt; for <a class=\"struct\" href=\"tlspuffin/term/dynamic_function/struct.TypeShape.html\" title=\"struct tlspuffin::term::dynamic_function::TypeShape\">TypeShape</a>","synthetic":false,"types":["tlspuffin::term::dynamic_function::TypeShape"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

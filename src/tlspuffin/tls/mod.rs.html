@@ -213,8 +213,12 @@
 <span id="208">208</span>
 <span id="209">209</span>
 <span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The *tls* module provides concrete implementations for the functions used in the term.</span>
 <span class="doccomment">//! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::ptr_arg</span>)]</span>
+<span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
 <span class="kw">use</span> <span class="ident">fn_impl</span>::<span class="kw-2">*</span>;
 

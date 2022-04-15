@@ -156,7 +156,7 @@
         <span class="kw">let</span> <span class="ident">functions_by_name</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">FunctionDefinition</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">definitions</span>
             .<span class="ident">clone</span>()
             .<span class="ident">into_iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>)<span class="op">|</span> (<span class="ident">shape</span>.<span class="ident">name</span>.<span class="ident">clone</span>(), (<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>)))
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>)<span class="op">|</span> (<span class="ident">shape</span>.<span class="ident">name</span>, (<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>)))
             .<span class="ident">collect</span>();
 
         <span class="kw">let</span> <span class="ident">functions_by_typ</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">TypeShape</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FunctionDefinition</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">definitions</span>
@@ -178,7 +178,7 @@
             })
             .<span class="ident">unique</span>()
             .<span class="ident">flatten</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">typ</span><span class="op">|</span> (<span class="ident">typ</span>.<span class="ident">name</span>, <span class="ident">typ</span>.<span class="ident">clone</span>()))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">typ</span><span class="op">|</span> (<span class="ident">typ</span>.<span class="ident">name</span>, <span class="ident">typ</span>))
             .<span class="ident">collect</span>();
 
         <span class="ident">Signature</span> {
@@ -196,8 +196,8 @@
         <span class="ident">F</span>: <span class="ident">DescribableFunction</span><span class="op">&lt;</span><span class="ident">Types</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> (<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>) <span class="op">=</span> <span class="ident">make_dynamic</span>(<span class="ident">f</span>);
-        <span class="kw">let</span> <span class="ident">func</span> <span class="op">=</span> <span class="ident">Function::new</span>(<span class="ident">shape</span>.<span class="ident">clone</span>(), <span class="ident">dynamic_fn</span>.<span class="ident">clone</span>());
-        <span class="ident">func</span>
+        
+        <span class="ident">Function::new</span>(<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>.<span class="ident">clone</span>())
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_var</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="ident">query</span>: <span class="ident">Query</span>) -&gt; <span class="ident">Variable</span> {

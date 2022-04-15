@@ -135,12 +135,12 @@
     <span class="ident">group</span>: <span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyExchangeResult</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// Shared Secret</span>
-    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="ident">group</span>, <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>).<span class="ident">ok_or</span>(<span class="ident">FnError::Unknown</span>(
+    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="ident">group</span>, <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>).<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span><span class="ident">FnError::Unknown</span>(
         <span class="string">&quot;Failed to choose group in key exchange&quot;</span>.<span class="ident">to_string</span>(),
     ))<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">kx</span>: <span class="ident">KeyExchange</span> <span class="op">=</span> <span class="ident">deterministic_key_exchange</span>(<span class="ident">skxg</span>)<span class="question-mark">?</span>;
     <span class="ident">kx</span>.<span class="ident">complete</span>(<span class="ident">server_key_share</span>.<span class="ident">as_slice</span>())
-        .<span class="ident">ok_or</span>(<span class="ident">FnError::Unknown</span>(
+        .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(
             <span class="string">&quot;Failed to complete key exchange&quot;</span>.<span class="ident">to_string</span>(),
         ))
 }
@@ -150,7 +150,7 @@
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyExchangeResult</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">group</span> <span class="op">=</span> <span class="ident">NamedGroup::secp384r1</span>; <span class="comment">// todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45</span>
     <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="ident">group</span>, <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>)
-        .<span class="ident">ok_or</span>(<span class="string">&quot;Failed to find key exchange group&quot;</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
+        .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;Failed to find key exchange group&quot;</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">kx</span>: <span class="ident">KeyExchange</span> <span class="op">=</span> <span class="ident">deterministic_key_exchange</span>(<span class="ident">skxg</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">kxd</span> <span class="op">=</span> <span class="ident">tls12::complete_ecdh</span>(<span class="ident">kx</span>, <span class="kw-2">&amp;</span><span class="ident">server_ecdh_params</span>.<span class="ident">public</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">kxd</span>)
@@ -187,7 +187,7 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">rustls::kx_group::SECP384R1</span>;
 
-    <span class="kw">use</span> <span class="ident">test_env_log::test</span>;
+    <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_exchange::deterministic_key_exchange</span>;
 
