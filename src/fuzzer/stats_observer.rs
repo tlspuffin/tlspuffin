@@ -2,8 +2,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::events::{Event, EventFirer};
 use libafl::inputs::Input;
-use libafl::state::{HasClientPerfStats, HasCorpus, HasRand};
-use libafl::stats::UserStats;
+use libafl::state::{HasCorpus, HasRand};
+use libafl::monitors::UserStats;
 use libafl::{Error, Evaluator};
 
 use libafl::bolts::rands::Rand;
@@ -191,25 +191,21 @@ impl Fire for MinMaxMean {
 }
 
 #[derive(Clone, Debug)]
-pub struct StatsStage<C, E, EM, I, R, S, Z>
+pub struct StatsStage<E, EM, I, S, Z>
 where
-    C: Corpus<I>,
     I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    S: HasCorpus<I> + HasRand,
     Z: Evaluator<E, EM, I, S>,
 {
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(C, E, EM, I, R, S, Z)>,
+    phantom: PhantomData<(E, EM, I, S, Z)>,
 }
 
-impl<C, E, EM, I, R, S, Z> Stage<E, EM, S, Z> for StatsStage<C, E, EM, I, R, S, Z>
+impl< E, EM, I, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, I, S, Z>
 where
-    C: Corpus<I>,
     I: Input,
-    R: Rand,
-    EM: EventFirer<I, S>,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    EM: EventFirer<I>,
+    S: HasCorpus<I> + HasRand,
     Z: Evaluator<E, EM, I, S>,
 {
     #[inline]
@@ -239,12 +235,10 @@ where
     }
 }
 
-impl<C, E, EM, I, R, S, Z> StatsStage<C, E, EM, I, R, S, Z>
+impl<E, EM, I, S, Z> StatsStage<E, EM, I, S, Z>
 where
-    C: Corpus<I>,
     I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
+    S:  HasCorpus<I> + HasRand,
     Z: Evaluator<E, EM, I, S>,
 {
     pub fn new() -> Self {

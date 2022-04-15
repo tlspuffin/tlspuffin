@@ -8,10 +8,10 @@ use std::io::BufWriter;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use libafl::stats::{PerfFeature, UserStats};
+use libafl::monitors::{Monitor, PerfFeature, UserStats};
 use libafl::{
     bolts::current_time,
-    stats::{ClientStats, Stats},
+    monitors::{ClientStats},
 };
 
 use serde::Serialize;
@@ -21,7 +21,7 @@ use serde_json::Serializer as JSONSerializer;
 use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
 
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
-pub struct PuffinStats<F>
+pub struct PuffinMonitor<F>
 where
     F: FnMut(String),
 {
@@ -33,7 +33,7 @@ where
     serializer: JSONSerializer<BufWriter<File>>,
 }
 
-impl<F> Clone for PuffinStats<F>
+impl<F> Clone for PuffinMonitor<F>
 where
     F: FnMut(String) + Clone,
 {
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<F> PuffinStats<F>
+impl<F> PuffinMonitor<F>
 where
     F: FnMut(String),
 {
@@ -63,7 +63,7 @@ where
 
         #[cfg(feature = "introspection")]
         let introspect_feature = {
-            let intro_stats = &client.introspection_stats;
+            let intro_stats = &client.introspection_monitor;
             let elapsed_cycles = intro_stats.elapsed_cycles();
             let elapsed = if elapsed_cycles == 0 {
                 1.0
@@ -119,7 +119,7 @@ where
         );
 
         // log edges
-        let coverage = if let Some(edges) = client.user_stats.get("edges") {
+        let coverage = if let Some(edges) = client.user_monitor.get("edges") {
             fmt += &format!(", {}: {}", "edges", edges);
 
             if let UserStats::Ratio(a, b) = edges {
@@ -327,7 +327,7 @@ impl ErrorStatistics {
 }
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
-    if let Some(user_stat) = user_stats.user_stats.get(name) {
+    if let Some(user_stat) = user_stats.user_monitor.get(name) {
         match user_stat {
             UserStats::Number(n) => *n,
             _ => 0u64,
@@ -381,7 +381,7 @@ impl TraceStatistics {
     }
 }
 
-impl<F> Stats for PuffinStats<F>
+impl<F> Monitor for PuffinMonitor<F>
 where
     F: FnMut(String),
 {
@@ -412,7 +412,7 @@ where
     }
 }
 
-impl<F> PuffinStats<F>
+impl<F> PuffinMonitor<F>
 where
     F: FnMut(String),
 {

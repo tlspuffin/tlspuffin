@@ -18,24 +18,22 @@ use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
-pub fn trace_mutations<R, C, S>(
+pub fn trace_mutations<S>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
 ) -> tuple_list_type!(
-       RepeatMutator<R, S>,
-       SkipMutator<R, S>,
-       ReplaceReuseMutator<R, S>,
-       ReplaceMatchMutator<R, S>,
-       RemoveAndLiftMutator<R, S>,
-       GenerateMutator<R, S>,
-       SwapMutator<R,S>
+       RepeatMutator<S>,
+       SkipMutator<S>,
+       ReplaceReuseMutator<S>,
+       ReplaceMatchMutator<S>,
+       RemoveAndLiftMutator<S>,
+       GenerateMutator<S>,
+       SwapMutator<S>
    )
 where
-    S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
-    C: Corpus<Trace>,
-    R: Rand,
+    S: HasCorpus<Trace> + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
