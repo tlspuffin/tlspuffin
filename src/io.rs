@@ -27,7 +27,6 @@ use std::{
 
 use foreign_types_shared::ForeignTypeRef;
 use openssl::ssl::SslStream;
-use wolfssl_binding::WolfStream;
 
 #[cfg(feature = "wolfssl")]  // Just a test:
 use wolfssl_sys::handShakeInfo_st;
@@ -71,12 +70,10 @@ pub struct MemoryStream {
 }
 
 /// A MemoryStream which wraps an SslStream.
-pub enum OpenSSLStream { // [TODO:WolfSSL] rename OpenSSLStream to PUTStream and allow multiple LUTs
-    OpenSslStream(SslStream<MemoryStream>),
-    WolfSslStream(WolfStream<MemoryStream>)
+pub struct OpenSSLStream {
+    openssl_stream: SslStream<MemoryStream>,
 }
 
-// [TODO::WolfSSL] OpenSSLStream should be renamed to PUTStream. Did not implement the modification yet
 impl OpenSSLStream {
     pub fn new(
         server: bool,
@@ -85,29 +82,15 @@ impl OpenSSLStream {
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
         let memory_stream = MemoryStream::new();
+        let openssl_stream = if server {
+            //let (cert, pkey) = openssl_binding::generate_cert();
+            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
+        } else {
+            openssl_binding::create_openssl_client(memory_stream, tls_version)?
+        };
 
-        let put_stream =
-            if cgf!(feature = "OpenSSL") {
-                if server {
-                    //let (cert, pkey) = openssl_binding::generate_cert();
-                    let (cert, pkey) = openssl_binding::static_rsa_cert()?;
-                    openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
-                } else {
-                    openssl_binding::create_openssl_client(memory_stream, tls_version)?
-                }
-            } else if cfg!(feature = "WolfSSL") {
-                if server {
-                    //let (cert, pkey) = openssl_binding::generate_cert();
-                    let (cert, pkey) = wolfssl_binding::static_rsa_cert()?;
-                    wolfssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
-                } else {
-                    wolfssl_binding::create_openssl_client(memory_stream, tls_version)?
-                }
-            } else {
-                return Err(Stream("Should not happen".to_string()));
-            };
-
-        let mut stream = OpenSSLStream { openssl_stream : put_stream };
+        let mut stream = OpenSSLStream { openssl_stream };
         stream.register_claimer(claimer, agent_name);
         Ok(stream)
     }

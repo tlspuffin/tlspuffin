@@ -31,7 +31,6 @@ mod fuzzer;
 mod graphviz;
 mod io;
 mod openssl_binding;
-mod wolfssl_binding;
 mod term;
 mod tests;
 mod tls;
