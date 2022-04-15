@@ -29,9 +29,9 @@ pub trait PUT: Stream + Drop {
     /// Create a new agent state for the PUT + set up buffers/BIOs
     fn new (c: Config) -> Result<<Self as PUT>::State,Error>;
     /// Process incoming buffer, internal progress, can fill in output buffer
-    fn progress (s: &<Self as PUT>::State) -> Result<(),Error>;
+    fn progress (s: &mut<Self as PUT>::State) -> Result<(),Error>;
     /// In-place reset of the state
-    fn reset(s: &<Self as PUT>::State) -> Result<(),Error>;
+    fn reset(s: &mut<Self as PUT>::State) -> Result<(),Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,6 +40,38 @@ pub trait PUT: Stream + Drop {
 
 pub struct OpenSSL {
     stream: SslStream<MemoryStream>,
+}
+
+impl Stream for OpenSSL {
+    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
+        todo!()
+    }
+
+    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
+        todo!()
+    }
+}
+
+impl Read for OpenSSL {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        todo!()
+    }
+}
+
+impl Write for OpenSSL {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        todo!()
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        todo!()
+    }
+}
+
+impl Drop for OpenSSL {
+    fn drop(&mut self) {
+        todo!()
+    }
 }
 
 impl PUT for OpenSSL {
@@ -58,7 +90,17 @@ impl PUT for OpenSSL {
         let mut stream = OpenSSL { stream };
         Ok(stream)
     }
+
+    fn progress(s: &mut<Self as PUT>::State) -> Result<(), Error> {
+        let stream = &mut s.stream;
+        openssl_binding::do_handshake(stream)
+    }
+
+    fn reset(s: &mut <Self as PUT>::State) -> () {
+        OK(s.stream.clear())
+    }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// WolfSSL specific-state
