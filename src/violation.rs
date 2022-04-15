@@ -20,10 +20,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                     }
 
                     // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
-                    if server.session_id.length != 0 {
-                        if client.session_id != server.session_id {
-                            return Some("Mismatching session ids");
-                        }
+                    if server.session_id.length != 0 && client.session_id != server.session_id {
+                        return Some("Mismatching session ids");
                     }
 
                     if client.server_random != server.server_random {
@@ -130,7 +128,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
 }
 
 pub fn find_two_finished_messages(
-    claims: &Vec<(AgentName, Claim)>,
+    claims: &[(AgentName, Claim)],
 ) -> Option<(&(AgentName, Claim), &(AgentName, Claim))> {
     let two_finishes: Option<(&(AgentName, Claim), &(AgentName, Claim))> = claims
         .iter()

@@ -134,7 +134,7 @@ impl Term {
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
-                result.map_err(|err| Error::Fn(err))
+                result.map_err(Error::Fn)
             }
         }
     }
@@ -221,7 +221,7 @@ impl Subterms for Vec<Term> {
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
-    let split: Option<(&str, &str)> = str.split_inclusive("<").collect_tuple();
+    let split: Option<(&str, &str)> = str.split_inclusive('<').collect_tuple();
 
     if let Some((non_generic, generic)) = split {
         if let Some(pos) = non_generic.rfind("::") {
@@ -229,15 +229,13 @@ pub(crate) fn remove_prefix(str: &str) -> String {
         } else {
             non_generic.to_string() + generic
         }
+    } else if let Some(pos) = str.rfind("::") {
+        str[pos + 2..].to_string()
     } else {
-        if let Some(pos) = str.rfind("::") {
-            str[pos + 2..].to_string()
-        } else {
-            str.to_string()
-        }
+        str.to_string()
     }
 }
 
-pub(crate) fn remove_fn_prefix(str: &String) -> String {
+pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }

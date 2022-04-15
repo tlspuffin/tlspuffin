@@ -44,8 +44,8 @@ impl Clone for Variable {
         Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
-            typ: self.typ.clone(),
-            query: self.query.clone(),
+            typ: self.typ,
+            query: self.query,
         }
     }
 }

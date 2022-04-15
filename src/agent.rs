@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
-use rustls::msgs::enums::ProtocolVersion::TLSv1_2;
-use crate::agent::TLSVersion::Unknown;
+
+
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -56,7 +56,7 @@ pub struct AgentDescriptor {
 impl AgentDescriptor {
     /// checks whether a agent with this descriptor is reusable with the other descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        return self.server == other.server && self.tls_version == other.tls_version;
+        self.server == other.server && self.tls_version == other.tls_version
     }
 
     pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {

@@ -53,7 +53,7 @@ impl Signature {
             })
             .unique()
             .flatten()
-            .map(|typ| (typ.name, typ.clone()))
+            .map(|typ| (typ.name, typ))
             .collect();
 
         Signature {
@@ -71,8 +71,8 @@ impl Signature {
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        let func = Function::new(shape.clone(), dynamic_fn.clone());
-        func
+        
+        Function::new(shape, dynamic_fn.clone())
     }
 
     pub fn new_var<T: 'static>(query: Query) -> Variable {

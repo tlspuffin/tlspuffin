@@ -6,9 +6,9 @@ use libafl::state::{HasCorpus, HasRand};
 use libafl::monitors::UserStats;
 use libafl::{Error, Evaluator};
 
-use libafl::bolts::rands::Rand;
 
-use libafl::corpus::Corpus;
+
+
 use libafl::stages::Stage;
 use std::marker::PhantomData;
 

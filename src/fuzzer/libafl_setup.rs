@@ -30,8 +30,8 @@ use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
-use libafl::bolts::os::{Cores, parse_core_bind_arg};
-use libafl::corpus::RandCorpusScheduler;
+use libafl::bolts::os::{Cores};
+
 use crate::trace::Trace;
 
 /// Default value, how many iterations each stage gets, as an upper bound
@@ -53,7 +53,7 @@ pub static MAX_TERM_SIZE: usize = 300;
 pub fn start(
     core_definition: String,
     monitor_file: PathBuf,
-    on_disk_corpus: PathBuf,
+    _on_disk_corpus: PathBuf,
     corpus_dir: PathBuf,
     objective_dir: PathBuf,
     broker_port: u16,
@@ -69,7 +69,7 @@ pub fn start(
         |s| {
             info!("{}", s);
         },
-        monitor_file.clone(),
+        monitor_file,
     )
     .unwrap();
 
@@ -81,7 +81,7 @@ pub fn start(
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,
-         mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>, unknown: usize| {
+         mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>, _unknown: usize| {
             info!("We're a client, let's fuzz :)");
 
             let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {

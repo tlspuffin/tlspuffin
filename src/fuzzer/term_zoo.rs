@@ -27,7 +27,7 @@ pub fn generate_term_zoo<R: Rand>(signature: &Signature, rand: &mut R) -> Zoo {
 
                 counter -= 1;
 
-                if let Some(term) = generate_term(signature, &def, MAX_DEPTH, rand) {
+                if let Some(term) = generate_term(signature, def, MAX_DEPTH, rand) {
                     break Some(term);
                 }
             }

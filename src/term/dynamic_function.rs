@@ -96,7 +96,7 @@ impl fmt::Display for DynamicFunctionShape {
             self.name,
             self.argument_types
                 .iter()
-                .map(|typ| format!("{}", typ.name))
+                .map(|typ| typ.name.to_string())
                 .join(","),
             self.return_type.name
         )
@@ -211,7 +211,7 @@ macro_rules! dynamic_fn {
                                         FnError::Unknown(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
                                     })?
                                     .as_ref().downcast_ref::<$arg>() {
-                               index = index + 1;
+                               index += 1;
                                arg_
                            } else {
                                let shape = Self::shape();
@@ -321,7 +321,7 @@ impl<'de> Deserialize<'de> for TypeShape {
                     .types_by_name
                     .get(v)
                     .ok_or(de::Error::missing_field("could not find type"))?;
-                Ok(typ.clone())
+                Ok(*typ)
             }
         }
 

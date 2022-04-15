@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+
 use itertools::Itertools;
 
 use ring::hmac;
@@ -22,7 +22,7 @@ pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
 }
 
 pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
-    let tag = hmac::sign(&key, msg);
+    let tag = hmac::sign(key, msg);
     Ok(Vec::from(tag.as_ref()))
 }
 
@@ -109,7 +109,7 @@ fn example() {
         data: Box::new(data),
     });
 
-    let string = generated_term
+    let _string = generated_term
         .evaluate(&context)
         .as_ref()
         .unwrap()
@@ -119,21 +119,21 @@ fn example() {
 
 #[test]
 fn playground() {
-    let var_data = fn_new_session_id();
+    let _var_data = fn_new_session_id();
 
     //println!("vec {:?}", TypeId::of::<Vec<u8>>());
     //println!("vec {:?}", TypeId::of::<Vec<u16>>());
 
     ////println!("{:?}", var_data.type_id());
 
-    let func = Signature::new_function(&example_op_c).clone();
+    let func = Signature::new_function(&example_op_c);
     let dynamic_fn = func.dynamic_fn();
-    let string = dynamic_fn(&vec![Box::new(1u8)])
+    let _string = dynamic_fn(&vec![Box::new(1u8)])
         .unwrap()
         .downcast_ref::<u16>()
         .unwrap();
     //println!("{:?}", string);
-    let string = Signature::new_function(&example_op_c).shape();
+    let _string = Signature::new_function(&example_op_c).shape();
     //println!("{}", string);
 
     let query = Query {
@@ -174,19 +174,19 @@ fn playground() {
     );
 
     //println!("{}", constructed_term);
-    let graph = constructed_term.dot_subgraph(true, 0, "test");
+    let _graph = constructed_term.dot_subgraph(true, 0, "test");
     //println!("{}", graph);
 }
 
 #[test]
 fn test_static_functions() {
-    let functions = SIGNATURE
+    let _functions = SIGNATURE
         .functions_by_name
         .iter()
         .map(|tuple| tuple.0)
         .join("\n");
     //println!("{}", functions);
-    let types = SIGNATURE
+    let _types = SIGNATURE
         .types_by_name
         .iter()
         .map(|tuple| tuple.0.to_string())

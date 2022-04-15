@@ -450,7 +450,7 @@ pub mod util {
                             visited += 1;
 
                             // consider in sampling
-                            if let None = reservoir {
+                            if reservoir.is_none() {
                                 // fill initial reservoir
                                 reservoir = Some((term, path)); // todo Rust 1.53 use insert
                             } else {

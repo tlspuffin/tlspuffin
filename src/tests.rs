@@ -13,7 +13,7 @@ pub mod seeds {
 
     fn expect_crash<R>(mut func: R)
     where
-        R: FnMut() -> (),
+        R: FnMut(),
     {
      match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
@@ -468,7 +468,7 @@ pub mod rustls {
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let message = Message::try_from(opaque_message).unwrap();
+        let _message = Message::try_from(opaque_message).unwrap();
         //println!("{:#?}", message);
     }
 
@@ -495,15 +495,15 @@ pub mod rustls {
         let hello_client = hex::decode(
             hello_client_hex
                 .to_string()
-                .replace(" ", "")
-                .replace("\n", ""),
+                .replace(' ', "")
+                .replace('\n', ""),
         )
         .unwrap();
         //hexdump::hexdump(&hello_client);
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let message = Message::try_from(opaque_message).unwrap();
+        let _message = Message::try_from(opaque_message).unwrap();
         //println!("{:#?}", message);
     }
 
@@ -522,7 +522,7 @@ pub mod rustls {
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let message = Message::try_from(opaque_message).unwrap();
+        let _message = Message::try_from(opaque_message).unwrap();
         //println!("{:#?}", message);
     }
 
@@ -533,7 +533,7 @@ pub mod rustls {
         e830e9a98ec20e1cb49645b1cd6e2d0aa5c87b5a3837bcf33334e96c37a77a79c9df63413dc15c02f00";
         let binary = hex::decode(hex).unwrap();
         let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
-        let message = Message::try_from(opaque_message).unwrap();
+        let _message = Message::try_from(opaque_message).unwrap();
         //println!("{:#?}", message);
     }
 
@@ -552,7 +552,7 @@ pub mod rustls {
         for hex in hexn {
             let binary = hex::decode(hex).unwrap();
             let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
-            let message = Message::try_from(opaque_message).unwrap();
+            let _message = Message::try_from(opaque_message).unwrap();
             //println!("{:#?}", message);
         }
     }
@@ -620,7 +620,7 @@ pub mod rustls {
         let mut opaque_message = OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
         // Required for choosing the correct parsing function
         opaque_message.version = TLSv1_3;
-        let message = Message::try_from(opaque_message).unwrap();
+        let _message = Message::try_from(opaque_message).unwrap();
         //println!("{:#?}", message);
     }
 
@@ -632,7 +632,7 @@ pub mod rustls {
             payload: Payload::new(vec![1, 2, 3]),
         };
 
-        let message = Message::try_from(opaque).unwrap();
+        let _message = Message::try_from(opaque).unwrap();
         //println!("{:?}", message);
     }
 
@@ -655,10 +655,10 @@ pub mod rustls {
         };
 
         let mut out: Vec<u8> = Vec::new();
-        out.append(&mut OpaqueMessage::from(message.clone()).encode());
+        out.append(&mut OpaqueMessage::from(message).encode());
         //hexdump::hexdump(&out);
 
-        let decoded_message =
+        let _decoded_message =
             Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap())
                 .unwrap();
 
@@ -688,17 +688,17 @@ pub mod rustls {
         let mut conn = rustls::ClientConnection::new(Arc::new(config), dns_name).unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-        tls.write(
+        let _written = tls.write(
             concat!(
-                "GET / HTTP/1.1\r\n",
-                "Host: google.com\r\n",
-                "Connection: close\r\n",
-                "Accept-Encoding: identity\r\n",
-                "\r\n"
+            "GET / HTTP/1.1\r\n",
+            "Host: google.com\r\n",
+            "Connection: close\r\n",
+            "Accept-Encoding: identity\r\n",
+            "\r\n"
             )
-            .as_bytes(),
+                .as_bytes(),
         )
-        .unwrap();
+            .unwrap();
         let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
         writeln!(
             &mut std::io::stderr(),

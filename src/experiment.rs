@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::fs::File;
 use std::io;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use chrono::Local;
@@ -22,7 +22,7 @@ pub fn format_title(title: Option<&String>, index: Option<usize>) -> String {
 pub fn get_git_ref() -> Result<String, io::Error> {
     let output = Command::new("git").args(&["rev-parse", "HEAD"]).output()?;
     Ok(String::from_utf8(output.stdout)
-        .unwrap_or("unknown".to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
         .trim()
         .to_string())
 }
@@ -38,7 +38,7 @@ pub fn get_git_msg() -> Result<String, io::Error> {
 }
 
 pub fn write_experiment_markdown(
-    directory: &PathBuf,
+    directory: &Path,
     title: impl Display,
     description_text: impl Display,
 ) -> Result<String, io::Error> {

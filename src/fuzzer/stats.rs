@@ -40,7 +40,7 @@ where
     fn clone(&self) -> Self {
         Self {
             print_fn: self.print_fn.clone(),
-            start_time: self.start_time.clone(),
+            start_time: self.start_time,
             client_stats: self.client_stats.clone(),
             log_count: self.log_count,
             stats_file: self.stats_file.clone(),
@@ -259,7 +259,7 @@ impl IntrospectFeatures {
         if *value == 0.0 {
             *value = new_value
         } else {
-            *value = (*value + new_value) / 2 as f32
+            *value = (*value + new_value) / 2_f32
         }
     }
 

@@ -48,7 +48,7 @@ for PuffinMutationalStage<E, EM, I, M, S, Z>
     }
 
     /// Gets the number of iterations as a random number
-    fn iterations(&self, state: &mut S, corpus_idx: usize) -> Result<usize, Error> {
+    fn iterations(&self, state: &mut S, _corpus_idx: usize) -> Result<usize, Error> {
         Ok(1 + state.rand_mut().below(self.max_iterations_per_stage) as usize)
     }
 }

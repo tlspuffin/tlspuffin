@@ -112,7 +112,7 @@ pub fn fn_append_cipher_suite(
     suite: &CipherSuite,
 ) -> Result<Vec<CipherSuite>, FnError> {
     let mut new: Vec<CipherSuite> = suites.clone();
-    new.push(suite.clone());
+    new.push(*suite);
     Ok(new)
 }
 

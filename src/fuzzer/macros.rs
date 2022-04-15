@@ -8,7 +8,7 @@ macro_rules! mutator {
             S: libafl::state::HasRand,
         {
             $($arg_name: $arg_type,)*
-            phantom: std::marker::PhantomData<(S)>,
+            phantom: std::marker::PhantomData<S>,
         }
 
         impl<S> $name<S>
