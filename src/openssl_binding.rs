@@ -177,7 +177,7 @@ fn set_max_protocol_version(
 
     Ok(())
 }
-#[cfg(feature = "wolfssl")] // TODO: review this file and add versions for wolfssl
+
 pub fn create_openssl_server(
     stream: MemoryStream,
     cert: &X509Ref,

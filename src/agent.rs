@@ -51,6 +51,8 @@ pub struct AgentDescriptor {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool
+    // [TODO::PUT] consider add a `PUTDescriptor` field that will be used to know how to instantiate
+    // a new state
 }
 
 impl AgentDescriptor {

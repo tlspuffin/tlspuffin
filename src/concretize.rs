@@ -4,11 +4,13 @@
 //!
 //! And specific implementations of PUT for the different PUTs.
 use std::io::{Read, Write};
+use openssl::ssl::SslStream;
 use rustls::msgs::message::OpaqueMessage;
 use tlspuffin::agent::TLSVersion;
 use tlspuffin::error::Error;
-use tlspuffin::io::Stream;
+use tlspuffin::io::{MemoryStream, Stream};
 use crate::io::MessageResult;
+use crate::openssl_binding;
 
 /// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
 pub type Bts<'a> = &'a[u8];
@@ -25,30 +27,48 @@ pub trait PUT: Stream + Drop {
     type State;
 
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new (c: Config) -> Result<PUT::State,Error>;
+    fn new (c: Config) -> Result<<Self as PUT>::State,Error>;
     /// Process incoming buffer, internal progress, can fill in output buffer
-    fn progress (&self) -> Result<(),Error>;
+    fn progress (s: &<Self as PUT>::State) -> Result<(),Error>;
     /// In-place reset of the state
-    fn reset(&self) -> Result<(),Error>;
+    fn reset(s: &<Self as PUT>::State) -> Result<(),Error>;
 }
 
-/// WolfSSL specific-state
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////// OpenSSL specific-state
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct OpenSSL {
+    stream: SslStream<MemoryStream>,
+}
+
+impl PUT for OpenSSL {
+    type State = OpenSSL;
+
+    fn new(c: Config) -> Result<OpenSSL, Error> { // [TODO::PUT] will replace io::PUTState::new
+        let memory_stream = MemoryStream::new();
+        let stream = if c.server {
+            //let (cert, pkey) = openssl_binding::generate_cert();
+            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, &c.tls_version)?
+        } else {
+            openssl_binding::create_openssl_client(memory_stream, &c.tls_version)?
+        };
+
+        let mut stream = OpenSSL { stream };
+        Ok(stream)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////// WolfSSL specific-state
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub struct WolfSSLState {
-   // [TODO::PUT]
+    // [TODO::PUT]
 }
 
 impl PUT for WolfSSLState {
     type State = WolfSSLState;
 
-    fn new(c: Config) -> Result<crate::concretize::State, Error> {
-        todo!()
-    }
-
-    fn progress(&self) -> Result<(), Error> {
-        todo!()
-    }
-
-    fn reset(&self) -> Result<(), Error> {
-        todo!()
-    }
 }
