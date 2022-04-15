@@ -1,5 +1,4 @@
 use libafl::bolts::rands::Rand;
-use libafl::corpus::Corpus;
 use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
 use libafl::{
     bolts::tuples::{tuple_list, tuple_list_type},
@@ -551,7 +550,7 @@ pub mod util {
         }
     }
 
-    pub fn choose_term_path<'a, R: Rand>(
+    pub fn choose_term_path<R: Rand>(
         trace: &Trace,
         constraints: TermConstraints,
         rand: &mut R,
@@ -559,7 +558,7 @@ pub mod util {
         choose_term_path_filtered(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term_path_filtered<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    pub fn choose_term_path_filtered<R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &Trace,
         filter: P,
         constraints: TermConstraints,

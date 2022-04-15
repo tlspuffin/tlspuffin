@@ -117,7 +117,7 @@ impl Term {
                     context
                         .find_variable(v.typ, v.query)
                         .map(|data| data.clone_box_any())
-                        .ok_or(Error::Term(format!("Unable to find variable {}!", v)))
+                        .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", v)))
                 }
             }
             Term::Application(func, args) => {
@@ -149,9 +149,9 @@ impl<'a> IntoIterator for &'a Term {
 
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
-            match term {
-                &Term::Variable(_) => {}
-                &Term::Application(_, ref subterms) => {
+            match *term {
+                Term::Variable(_) => {}
+                Term::Application(_, ref subterms) => {
                     for subterm in subterms {
                         append(subterm, v);
                     }

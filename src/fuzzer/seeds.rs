@@ -1,5 +1,6 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crashes OpenSSL.
+#![allow(dead_code)]
 
 use rustls::internal::msgs::enums::{HandshakeType, Compression};
 

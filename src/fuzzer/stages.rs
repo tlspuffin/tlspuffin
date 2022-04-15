@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 
 use libafl::{Error, Evaluator};
 use libafl::bolts::rands::Rand;
-use libafl::corpus::Corpus;
 use libafl::inputs::Input;
 use libafl::mutators::{
     ComposedByMutations, MutationResult, Mutator, MutatorsTuple, ScheduledMutator,

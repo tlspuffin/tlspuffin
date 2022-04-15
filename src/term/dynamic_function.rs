@@ -209,6 +209,7 @@ macro_rules! dynamic_fn {
 
                 let result: Result<$res, FnError> = self($(
                        #[allow(unused_assignments)]
+                       #[allow(clippy::eval_order_dependence)]
                        {
                            if let Some(arg_) = args.get(index)
                                     .ok_or_else(|| {
@@ -270,9 +271,9 @@ impl TypeShape {
     }
 }
 
-impl Into<TypeId> for TypeShape {
-    fn into(self) -> TypeId {
-        self.inner_type_id
+impl From<TypeShape> for TypeId {
+    fn from(shape: TypeShape) -> Self {
+        shape.inner_type_id
     }
 }
 
@@ -325,7 +326,7 @@ impl<'de> Deserialize<'de> for TypeShape {
                 let typ = SIGNATURE
                     .types_by_name
                     .get(v)
-                    .ok_or(de::Error::missing_field("could not find type"))?;
+                    .ok_or_else(|| de::Error::missing_field("could not find type"))?;
                 Ok(*typ)
             }
         }

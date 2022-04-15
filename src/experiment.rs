@@ -32,7 +32,7 @@ pub fn get_git_msg() -> Result<String, io::Error> {
         .args(&["log", "-1", "--pretty=%B"])
         .output()?;
     Ok(String::from_utf8(output.stdout)
-        .unwrap_or("unknown".to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
         .trim()
         .to_string())
 }

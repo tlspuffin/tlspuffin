@@ -181,7 +181,7 @@ impl Stream for MemoryStream {
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         let mut deframer = MessageDeframer::new();
-        if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
+        if deframer.read(&mut self.outbound.get_ref().as_slice()).is_ok() {
             let mut rest_buffer: Vec<u8> = Vec::new();
             let mut frames = deframer.frames;
 

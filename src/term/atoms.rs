@@ -126,7 +126,7 @@ impl Function {
         &self.fn_container.shape
     }
 
-    pub fn dynamic_fn(&self) -> &Box<dyn DynamicFunction> {
+    pub fn dynamic_fn(&self) -> &dyn DynamicFunction {
         &self.fn_container.dynamic_fn
     }
 
