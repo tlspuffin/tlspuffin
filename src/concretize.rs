@@ -3,9 +3,12 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
+use std::io::{Read, Write};
+use rustls::msgs::message::OpaqueMessage;
 use tlspuffin::agent::TLSVersion;
 use tlspuffin::error::Error;
 use tlspuffin::io::Stream;
+use crate::io::MessageResult;
 
 /// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
 pub type Bts<'a> = &'a[u8];
@@ -27,4 +30,25 @@ pub trait PUT: Stream + Drop {
     fn progress (&self) -> Result<(),Error>;
     /// In-place reset of the state
     fn reset(&self) -> Result<(),Error>;
+}
+
+/// WolfSSL specific-state
+pub struct WolfSSLState {
+   // [TODO::PUT]
+}
+
+impl PUT for WolfSSLState {
+    type State = WolfSSLState;
+
+    fn new(c: Config) -> Result<crate::concretize::State, Error> {
+        todo!()
+    }
+
+    fn progress(&self) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn reset(&self) -> Result<(), Error> {
+        todo!()
+    }
 }
