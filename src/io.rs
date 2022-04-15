@@ -14,7 +14,7 @@
 //!
 //! The [`Agent`] Alice can add data to the *inbound channel* of Bob.
 //! Bob can then read the data from his *inbound channel* and put data in his *outbound channel*.
-//! If Bob is an [`Agent`], which has an underlying *OpenSSLStream* then OpenSSL may write into the
+//! If Bob is an [`Agent`], which has an underlying *PUTState* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
 use std::cell::RefCell;
@@ -70,11 +70,11 @@ pub struct MemoryStream {
 }
 
 /// A MemoryStream which wraps an SslStream.
-pub struct OpenSSLStream {
+pub struct PUTState {
     openssl_stream: SslStream<MemoryStream>,
 }
 
-impl OpenSSLStream {
+impl PUTState {
     pub fn new(
         server: bool,
         tls_version: &TLSVersion,
@@ -90,7 +90,7 @@ impl OpenSSLStream {
             openssl_binding::create_openssl_client(memory_stream, tls_version)?
         };
 
-        let mut stream = OpenSSLStream { openssl_stream };
+        let mut stream = PUTState { openssl_stream };
         stream.register_claimer(claimer, agent_name);
         Ok(stream)
     }
@@ -133,13 +133,13 @@ impl OpenSSLStream {
 }
 
 #[cfg(feature = "claims")]
-impl Drop for OpenSSLStream {
+impl Drop for PUTState {
     fn drop(&mut self) {
         self.deregister_claimer();
     }
 }
 
-impl Stream for OpenSSLStream {
+impl Stream for PUTState {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         self.openssl_stream.get_mut().add_to_inbound(result)
     }
@@ -149,13 +149,13 @@ impl Stream for OpenSSLStream {
     }
 }
 
-impl Read for OpenSSLStream {
+impl Read for PUTState {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.openssl_stream.get_mut().read(buf)
     }
 }
 
-impl Write for OpenSSLStream {
+impl Write for PUTState {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.openssl_stream.get_mut().write(buf)
     }

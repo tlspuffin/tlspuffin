@@ -373,7 +373,7 @@ impl TraceContext {
     }
 
     pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new_openssl(descriptor, self.claimer.clone())?);
+        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
         return Ok(agent_name);
     }
 

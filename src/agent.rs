@@ -5,7 +5,7 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use crate::error::Error;
-use crate::io::OpenSSLStream;
+use crate::io::PUTState;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
@@ -116,15 +116,15 @@ impl From<i32> for TLSVersion  {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: OpenSSLStream,
+    pub stream: PUTState,
 }
 
 impl Agent {
-    pub fn new_openssl(
+    pub fn new(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
-        let openssl_stream = OpenSSLStream::new(
+        let openssl_stream = PUTState::new(
             descriptor.server,
             &descriptor.tls_version,
             descriptor.name,
@@ -145,7 +145,7 @@ impl Agent {
         self.stream.reset();
     }
 
-    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
+    fn from_stream(descriptor: &AgentDescriptor, stream: PUTState) -> Agent {
         Agent {
             descriptor: *descriptor,
             stream,
