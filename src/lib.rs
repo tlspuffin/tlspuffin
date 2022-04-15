@@ -19,7 +19,6 @@ pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
 pub mod term;
-#[allow(ptr_arg)]
 pub mod tls;
 pub mod trace;
 pub mod variable_data;

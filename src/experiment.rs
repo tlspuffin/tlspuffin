@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::fs::File;
 use std::io;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::process::Command;
 
 use chrono::Local;

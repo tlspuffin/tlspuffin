@@ -31,7 +31,7 @@ impl Signature {
         let functions_by_name: HashMap<&'static str, FunctionDefinition> = definitions
             .clone()
             .into_iter()
-            .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
+            .map(|(shape, dynamic_fn)| (shape.name, (shape, dynamic_fn)))
             .collect();
 
         let functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>> = definitions

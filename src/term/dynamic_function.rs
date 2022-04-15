@@ -58,13 +58,12 @@ use std::{
 };
 use itertools::Itertools;
 
-
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tls::{error::FnError, SIGNATURE};
 
 /// Describes the shape of a [`DynamicFunction`]
-#[derive(Serialize, Deserialize, Debug, Clone, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DynamicFunctionShape {
     pub name: &'static str,
     pub argument_types: Vec<TypeShape>,
@@ -75,6 +74,12 @@ impl Eq for DynamicFunctionShape {}
 impl PartialEq for DynamicFunctionShape {
     fn eq(&self, other: &Self) -> bool {
         self.name.eq(other.name) // name is unique
+    }
+}
+
+impl Hash for DynamicFunctionShape {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
     }
 }
 
