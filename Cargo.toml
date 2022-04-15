@@ -78,7 +78,7 @@ termion = "1.5"
 
 # Utils
 clap = "2"
-hexdump = "*"
+hexdump = "0.1"
 hex = "0.4"
 rand = "0.8"
 itertools = "0.10"
