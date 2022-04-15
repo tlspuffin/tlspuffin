@@ -3,7 +3,7 @@
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
-use itertools::Itertools;
+
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -14,6 +14,7 @@ use crate::trace::{AgentClaimer, TraceContext, VecClaimer};
 use super::atoms::{Function, Variable};
 use crate::variable_data::VariableData;
 use std::ops::Deref;
+use itertools::Itertools;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]

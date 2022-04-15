@@ -3,10 +3,11 @@
 
 use crate::term::{remove_prefix, Term, remove_fn_prefix};
 use crate::trace::{Action, Trace};
-use itertools::Itertools;
+
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
+use itertools::Itertools;
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";

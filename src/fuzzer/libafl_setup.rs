@@ -1,7 +1,7 @@
 use core::time::Duration;
 use std::path::PathBuf;
 
-use itertools::Itertools;
+
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};

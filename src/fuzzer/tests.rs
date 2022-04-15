@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use itertools::Itertools;
+
 use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
@@ -306,7 +306,7 @@ fn test_term_generation() {
         .iter()
         .enumerate()
         .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
-        .collect_vec();
+        .collect::<Vec<_>>();
 
     let _graph = format!(
         "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -360,7 +360,7 @@ fn test_corpus_term_size() {
                     .sum::<usize>(),
             )
         })
-        .collect_vec();
+        .collect::<Vec<_>>();
 
     //println!("{:?}", trace_term_sizes);
 }

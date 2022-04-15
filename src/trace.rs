@@ -71,7 +71,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-use itertools::Itertools;
+
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
@@ -95,6 +95,8 @@ use crate::{
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+
+use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].

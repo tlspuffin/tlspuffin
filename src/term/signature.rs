@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt;
-
 use itertools::Itertools;
 
 use crate::term::{
