@@ -94,7 +94,7 @@ security-claims = { path = "security-claims" }
 [dev-dependencies]
 criterion = "0.3"
 # Support logging in tests
-test-env-log = "0.2"
+test-log = "0.2"
 env_logger = "0.8" # Used for test-env-log
 nix = "0.21"
 

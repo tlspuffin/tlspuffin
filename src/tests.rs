@@ -4,7 +4,7 @@ pub mod seeds {
     use nix::sys::wait::WaitStatus::{Exited, Signaled};
     use nix::sys::wait::{waitpid, WaitPidFlag};
     use nix::unistd::{fork, ForkResult};
-    use test_env_log::test;
+    use test_log::test;
 
     use crate::agent::AgentName;
     use crate::openssl_binding::{make_deterministic, openssl_version};
@@ -312,7 +312,7 @@ pub mod seeds {
 
 #[cfg(test)]
 pub mod serialization {
-    use test_env_log::test;
+    use test_log::test;
 
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::*;
@@ -450,7 +450,7 @@ pub mod rustls {
         },
         Connection, ProtocolVersion, RootCertStore,
     };
-    use test_env_log::test;
+    use test_log::test;
 
     #[test]
     fn test_rustls_message_stability_ch() {

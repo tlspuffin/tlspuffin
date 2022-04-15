@@ -84,7 +84,7 @@ pub fn tls12_new_secrets(
 mod tests {
     use rustls::kx_group::SECP384R1;
 
-    use test_env_log::test;
+    use test_log::test;
 
     use crate::tls::key_exchange::deterministic_key_exchange;
 
