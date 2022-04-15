@@ -32,12 +32,12 @@ pub fn tls13_key_exchange(
     group: NamedGroup,
 ) -> Result<KeyExchangeResult, FnError> {
     // Shared Secret
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or(FnError::Unknown(
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or_else(||FnError::Unknown(
         "Failed to choose group in key exchange".to_string(),
     ))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     kx.complete(server_key_share.as_slice())
-        .ok_or(FnError::Unknown(
+        .ok_or_else(|| FnError::Unknown(
             "Failed to complete key exchange".to_string(),
         ))
 }
@@ -47,7 +47,7 @@ pub fn tls12_key_exchange(
 ) -> Result<KeyExchangeResult, FnError> {
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
-        .ok_or("Failed to find key exchange group".to_string())?;
+        .ok_or_else(|| "Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
     Ok(kxd)
@@ -84,7 +84,7 @@ pub fn tls12_new_secrets(
 mod tests {
     use rustls::kx_group::SECP384R1;
 
-    use test_env_log::test;
+    use test_log::test;
 
     use crate::tls::key_exchange::deterministic_key_exchange;
 

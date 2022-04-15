@@ -1,5 +1,4 @@
 use std::io::ErrorKind;
-use std::mem::transmute;
 use std::os::raw::c_int;
 
 use openssl::error::ErrorStack;
@@ -146,7 +145,7 @@ pub fn make_deterministic() {
     warn!("OpenSSL is no longer random!");
     unsafe {
         make_openssl_deterministic();
-        let mut seed: [u8; 4] = transmute(42u32.to_le());
+        let mut seed: [u8; 4] = 42u32.to_le().to_ne_bytes();
         let buf = seed.as_mut_ptr();
         RAND_seed(buf, 4);
     }
@@ -276,13 +275,11 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
         } else {
             // Reading succeeded
         }
+    } else if let Err(error) = stream.do_handshake() {
+        log_io_error(&error)?;
+        log_ssl_error(&error)?;
     } else {
-        if let Err(error) = stream.do_handshake() {
-            log_io_error(&error)?;
-            log_ssl_error(&error)?;
-        } else {
-            // Handshake is done
-        }
+        // Handshake is done
     }
 
     Ok(())

@@ -361,11 +361,11 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let binder_len = resuming_suite.get_hash().output_len;
     let binder = vec![0u8; binder_len];
 
-    let psk_identity = PresharedKeyIdentity::new(ticket.clone(), obfuscated_ticket_age);
+    let psk_identity = PresharedKeyIdentity::new(ticket, obfuscated_ticket_age);
 
     Ok(ClientExtension::PresharedKey(PresharedKeyOffer::new(
         psk_identity,
-        binder.clone(),
+        binder,
     )))
 }
 

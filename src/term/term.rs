@@ -3,7 +3,7 @@
 use std::fmt::Formatter;
 use std::{any::Any, fmt};
 
-use itertools::Itertools;
+
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -14,6 +14,7 @@ use crate::trace::{AgentClaimer, TraceContext, VecClaimer};
 use super::atoms::{Function, Variable};
 use crate::variable_data::VariableData;
 use std::ops::Deref;
+use itertools::Itertools;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -116,7 +117,7 @@ impl Term {
                     context
                         .find_variable(v.typ, v.query)
                         .map(|data| data.clone_box_any())
-                        .ok_or(Error::Term(format!("Unable to find variable {}!", v)))
+                        .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", v)))
                 }
             }
             Term::Application(func, args) => {
@@ -133,7 +134,7 @@ impl Term {
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
-                result.map_err(|err| Error::Fn(err))
+                result.map_err(Error::Fn)
             }
         }
     }
@@ -148,9 +149,9 @@ impl<'a> IntoIterator for &'a Term {
 
     fn into_iter(self) -> Self::IntoIter {
         fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
-            match term {
-                &Term::Variable(_) => {}
-                &Term::Application(_, ref subterms) => {
+            match *term {
+                Term::Variable(_) => {}
+                Term::Application(_, ref subterms) => {
                     for subterm in subterms {
                         append(subterm, v);
                     }
@@ -220,7 +221,7 @@ impl Subterms for Vec<Term> {
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
-    let split: Option<(&str, &str)> = str.split_inclusive("<").collect_tuple();
+    let split: Option<(&str, &str)> = str.split_inclusive('<').collect_tuple();
 
     if let Some((non_generic, generic)) = split {
         if let Some(pos) = non_generic.rfind("::") {
@@ -228,15 +229,13 @@ pub(crate) fn remove_prefix(str: &str) -> String {
         } else {
             non_generic.to_string() + generic
         }
+    } else if let Some(pos) = str.rfind("::") {
+        str[pos + 2..].to_string()
     } else {
-        if let Some(pos) = str.rfind("::") {
-            str[pos + 2..].to_string()
-        } else {
-            str.to_string()
-        }
+        str.to_string()
     }
 }
 
-pub(crate) fn remove_fn_prefix(str: &String) -> String {
+pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }

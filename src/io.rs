@@ -33,8 +33,8 @@ use security_claims::Claim;
 #[cfg(feature = "claims")]
 use security_claims::{deregister_claimer, register_claimer};
 
-use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
-use crate::debug::debug_opaque_message_with_info;
+use crate::agent::{AgentName, TLSVersion};
+
 use crate::error::Error;
 use crate::openssl_binding;
 use crate::trace::VecClaimer;
@@ -115,7 +115,7 @@ impl OpenSSLStream {
 
     pub fn next_state(&mut self) -> Result<(), Error> {
         let stream = &mut self.openssl_stream;
-        Ok(openssl_binding::do_handshake(stream)?)
+        openssl_binding::do_handshake(stream)
     }
 
     pub fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
@@ -181,7 +181,7 @@ impl Stream for MemoryStream {
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         let mut deframer = MessageDeframer::new();
-        if let Ok(_) = deframer.read(&mut self.outbound.get_ref().as_slice()) {
+        if deframer.read(&mut self.outbound.get_ref().as_slice()).is_ok() {
             let mut rest_buffer: Vec<u8> = Vec::new();
             let mut frames = deframer.frames;
 

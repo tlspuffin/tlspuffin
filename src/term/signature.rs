@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt;
-
 use itertools::Itertools;
 
 use crate::term::{
@@ -32,7 +31,7 @@ impl Signature {
         let functions_by_name: HashMap<&'static str, FunctionDefinition> = definitions
             .clone()
             .into_iter()
-            .map(|(shape, dynamic_fn)| (shape.name.clone(), (shape, dynamic_fn)))
+            .map(|(shape, dynamic_fn)| (shape.name, (shape, dynamic_fn)))
             .collect();
 
         let functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>> = definitions
@@ -54,7 +53,7 @@ impl Signature {
             })
             .unique()
             .flatten()
-            .map(|typ| (typ.name, typ.clone()))
+            .map(|typ| (typ.name, typ))
             .collect();
 
         Signature {
@@ -72,8 +71,8 @@ impl Signature {
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        let func = Function::new(shape.clone(), dynamic_fn.clone());
-        func
+        
+        Function::new(shape, dynamic_fn.clone())
     }
 
     pub fn new_var<T: 'static>(query: Query) -> Variable {

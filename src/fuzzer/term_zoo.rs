@@ -1,7 +1,6 @@
 //! Generates a zoo of terms form a [`Signature`]. For each function symbol in the signature
 //! a closed term is generated and added to the zoo.
 
-use itertools::Itertools;
 use libafl::bolts::rands::Rand;
 
 use crate::fuzzer::mutations::util::Choosable;
@@ -28,12 +27,12 @@ pub fn generate_term_zoo<R: Rand>(signature: &Signature, rand: &mut R) -> Zoo {
 
                 counter -= 1;
 
-                if let Some(term) = generate_term(signature, &def, MAX_DEPTH, rand) {
+                if let Some(term) = generate_term(signature, def, MAX_DEPTH, rand) {
                     break Some(term);
                 }
             }
         })
-        .collect_vec()
+        .collect::<Vec<_>>()
 }
 
 fn generate_term<R: Rand>(

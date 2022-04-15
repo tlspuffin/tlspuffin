@@ -74,6 +74,7 @@ macro_rules! term {
         let mut i = 0;
 
         #[allow(unused_assignments)]
+        #[allow(clippy::eval_order_dependence)]
         let arguments = vec![$({
             #[allow(unused)]
             let argument = func.shape().argument_types.get(i)
