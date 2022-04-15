@@ -198,15 +198,17 @@
 <span id="193">193</span>
 <span id="194">194</span>
 <span id="195">195</span>
+<span id="196">196</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in</span>
 <span class="doccomment">//! this module can be passed to the command line utility `dot` which is part of graphviz.</span>
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::term</span>::{<span class="ident">remove_prefix</span>, <span class="ident">Term</span>, <span class="ident">remove_fn_prefix</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace</span>::{<span class="ident">Action</span>, <span class="ident">Trace</span>};
-<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
+
 <span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std::process</span>::{<span class="ident">Command</span>, <span class="ident">Stdio</span>};
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">io</span>};
+<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
 <span class="comment">// Colorful theme</span>
 <span class="comment">/*const FONT: &amp;&#39;static str = &quot;Latin Modern Roman&quot;;

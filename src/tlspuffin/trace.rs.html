@@ -666,6 +666,8 @@
 <span id="661">661</span>
 <span id="662">662</span>
 <span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -739,7 +741,7 @@
 <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">any::TypeId</span>, <span class="ident">fmt::Formatter</span>};
 
-<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
+
 <span class="kw">use</span> <span class="ident">rustls::msgs::message::Message</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs</span>::{
@@ -763,6 +765,8 @@
     <span class="ident">term</span>::{<span class="ident">dynamic_function::TypeShape</span>, <span class="ident">Term</span>},
     <span class="ident">variable_data</span>::{<span class="ident">extract_knowledge</span>, <span class="ident">VariableData</span>},
 };
+
+<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
 <span class="doccomment">/// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields</span>
 <span class="doccomment">/// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].</span>

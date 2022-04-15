@@ -332,6 +332,7 @@
 <span id="327">327</span>
 <span id="328">328</span>
 <span id="329">329</span>
+<span id="330">330</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module provides traits for calling rust functions dynamically.</span>
 <span class="doccomment">//! All functions which implement the DynamicFunction trait can be called by passing an array of</span>
 <span class="doccomment">//! [`Any`]s to it. The return value is again of type [`Any`].</span>
@@ -390,8 +391,9 @@
     <span class="ident">fmt::Formatter</span>,
     <span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>},
 };
-
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
+
+
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">de::Visitor</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls</span>::{<span class="ident">error::FnError</span>, <span class="ident">SIGNATURE</span>};
