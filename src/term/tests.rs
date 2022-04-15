@@ -1,20 +1,20 @@
 use std::any::{Any, TypeId};
 
 use itertools::Itertools;
-use rustls::msgs::handshake::SessionID;
-use rustls::ProtocolVersion;
-
-use crate::agent::AgentName;
-use crate::term;
-use crate::term::signature::Signature;
-use crate::tls::fn_impl::*;
-use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
-use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::{Knowledge, Query};
-use crate::{term::Term, trace::TraceContext};
 use ring::hmac;
 use ring::hmac::Key;
 use ring::test::rand::FixedByteRandom;
+use rustls::msgs::handshake::SessionID;
+use rustls::ProtocolVersion;
+
+use crate::{term::Term, trace::TraceContext};
+use crate::agent::AgentName;
+use crate::term;
+use crate::term::signature::Signature;
+use crate::tls::{error::FnError, SIGNATURE};
+use crate::tls::fn_impl::*;
+use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
+use crate::trace::{Knowledge, Query};
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     let random = FixedByteRandom { byte: 12 };
@@ -183,20 +183,16 @@ fn playground() {
 
 #[test]
 fn test_static_functions() {
-    println!(
-        "{}",
-        SIGNATURE
-            .functions_by_name
-            .iter()
-            .map(|tuple| tuple.0)
-            .join("\n")
-    );
-    println!(
-        "{}",
-        SIGNATURE
-            .types_by_name
-            .iter()
-            .map(|tuple| tuple.0.to_string())
-            .join("\n")
-    );
+    let functions = SIGNATURE
+        .functions_by_name
+        .iter()
+        .map(|tuple| tuple.0)
+        .join("\n");
+    //println!("{}", functions);
+    let types = SIGNATURE
+        .types_by_name
+        .iter()
+        .map(|tuple| tuple.0.to_string())
+        .join("\n");
+    //println!("{}", types);
 }

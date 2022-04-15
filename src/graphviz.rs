@@ -189,6 +189,7 @@ mod tests {
     fn test_dot_graph() {
         let server = AgentName::first();
         let trace = seed_client_attacker12(server);
-        println!("{}", trace.dot_graph(true));
+        let string = trace.dot_graph(true);
+        //println!("{}", string);
     }
 }
