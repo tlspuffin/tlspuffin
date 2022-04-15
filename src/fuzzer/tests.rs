@@ -362,7 +362,7 @@ fn test_corpus_term_size() {
         })
         .collect_vec();
 
-    println!("{:?}", trace_term_sizes);
+    //println!("{:?}", trace_term_sizes);
 }
 
 mod util {

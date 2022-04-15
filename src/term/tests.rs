@@ -84,7 +84,7 @@ fn example() {
 
     let data = "hello".as_bytes().to_vec();
 
-    println!("TypeId of vec array {:?}", data.type_id());
+    //println!("TypeId of vec array {:?}", data.type_id());
 
     let query = Query {
         agent_name: AgentName::first(),
@@ -101,7 +101,7 @@ fn example() {
         ],
     );
 
-    println!("{}", generated_term);
+    //println!("{}", generated_term);
     let mut context = TraceContext::new();
     context.add_knowledge(Knowledge {
         agent_name: AgentName::first(),
@@ -109,36 +109,32 @@ fn example() {
         data: Box::new(data),
     });
 
-    println!(
-        "{:?}",
-        generated_term
-            .evaluate(&context)
-            .as_ref()
-            .unwrap()
-            .downcast_ref::<Vec<u8>>()
-    );
+    let string = generated_term
+        .evaluate(&context)
+        .as_ref()
+        .unwrap()
+        .downcast_ref::<Vec<u8>>();
+    //println!("{:?}", string);
 }
 
 #[test]
 fn playground() {
     let var_data = fn_new_session_id();
 
-    println!("vec {:?}", TypeId::of::<Vec<u8>>());
-    println!("vec {:?}", TypeId::of::<Vec<u16>>());
+    //println!("vec {:?}", TypeId::of::<Vec<u8>>());
+    //println!("vec {:?}", TypeId::of::<Vec<u16>>());
 
-    println!("{:?}", TypeId::of::<SessionID>());
-    println!("{:?}", var_data.type_id());
+    ////println!("{:?}", var_data.type_id());
 
     let func = Signature::new_function(&example_op_c).clone();
     let dynamic_fn = func.dynamic_fn();
-    println!(
-        "{:?}",
-        dynamic_fn(&vec![Box::new(1u8)])
-            .unwrap()
-            .downcast_ref::<u16>()
-            .unwrap()
-    );
-    println!("{}", Signature::new_function(&example_op_c).shape());
+    let string = dynamic_fn(&vec![Box::new(1u8)])
+        .unwrap()
+        .downcast_ref::<u16>()
+        .unwrap();
+    //println!("{:?}", string);
+    let string = Signature::new_function(&example_op_c).shape();
+    //println!("{}", string);
 
     let query = Query {
         agent_name: AgentName::first(),
@@ -177,8 +173,9 @@ fn playground() {
         ],
     );
 
-    println!("{}", constructed_term);
-    println!("{}", constructed_term.dot_subgraph(true, 0, "test"));
+    //println!("{}", constructed_term);
+    let graph = constructed_term.dot_subgraph(true, 0, "test");
+    //println!("{}", graph);
 }
 
 #[test]
