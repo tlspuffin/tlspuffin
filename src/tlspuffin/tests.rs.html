@@ -1,7 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/tests.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tests.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../tlspuffin/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/tests.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>tests.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../tlspuffin/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -707,8 +709,14 @@
 <span id="704">704</span>
 <span id="705">705</span>
 <span id="706">706</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+</pre><pre class="rust"><code><span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">seeds</span> {
     <span class="kw">use</span> <span class="ident">nix::sys::signal::Signal</span>;
     <span class="kw">use</span> <span class="ident">nix::sys::wait::WaitStatus</span>::{<span class="ident">Exited</span>, <span class="ident">Signaled</span>};
@@ -716,17 +724,17 @@
     <span class="kw">use</span> <span class="ident">nix::unistd</span>::{<span class="ident">fork</span>, <span class="ident">ForkResult</span>};
     <span class="kw">use</span> <span class="ident">test_env_log::test</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::agent::AgentName</span>;
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::openssl_binding</span>::{<span class="ident">make_deterministic</span>, <span class="ident">openssl_version</span>};
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::trace::Action</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding</span>::{<span class="ident">make_deterministic</span>, <span class="ident">openssl_version</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Action</span>;
     <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">fuzzer::seeds</span>::<span class="kw-2">*</span>, <span class="ident">trace::TraceContext</span>};
 
     <span class="kw">fn</span> <span class="ident">expect_crash</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">func</span>: <span class="ident">R</span>)
     <span class="kw">where</span>
-        <span class="ident">R</span>: <span class="ident">FnMut</span>() <span class="op">-</span><span class="op">&gt;</span> (),
+        <span class="ident">R</span>: <span class="ident">FnMut</span>() -&gt; (),
     {
-        <span class="kw">match</span> <span class="kw">unsafe</span> { <span class="ident">fork</span>() } {
-            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Parent</span> { <span class="ident">child</span>, .. }) <span class="op">=</span><span class="op">&gt;</span> {
+     <span class="kw">match</span> <span class="kw">unsafe</span> { <span class="ident">fork</span>() } {
+            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Parent</span> { <span class="ident">child</span>, .. }) =&gt; {
                 <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">waitpid</span>(<span class="ident">child</span>, <span class="ident">Option::from</span>(<span class="ident">WaitPidFlag::empty</span>())).<span class="ident">unwrap</span>();
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Signaled</span>(<span class="kw">_</span>, <span class="ident">signal</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">status</span> {
@@ -734,18 +742,18 @@
                         <span class="macro">panic!</span>(<span class="string">&quot;Trace did not crash with SIGSEGV/SIGABRT!&quot;</span>)
                     }
                 } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Exited</span>(<span class="kw">_</span>, <span class="ident">code</span>) <span class="op">=</span> <span class="ident">status</span> {
-                    <span class="kw">if</span> <span class="ident">code</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
+                    <span class="kw">if</span> <span class="ident">code</span> <span class="op">==</span> <span class="number">0</span> {
                         <span class="macro">panic!</span>(<span class="string">&quot;Trace did not crash exit with non-zero code (AddressSanitizer)!&quot;</span>)
                     }
                 } <span class="kw">else</span> {
                     <span class="macro">panic!</span>(<span class="string">&quot;Trace did not signal!&quot;</span>)
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Child</span>) <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Child</span>) =&gt; {
                 <span class="ident">func</span>();
                 <span class="ident">std::process::exit</span>(<span class="number">0</span>);
             }
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic!</span>(<span class="string">&quot;Fork failed&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Fork failed&quot;</span>),
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -763,7 +771,7 @@
             <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
             <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_heartbleed</span>(<span class="ident">client</span>, <span class="ident">server</span>);
 
-            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
         })
     }
 
@@ -778,7 +786,7 @@
             <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
             <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_cve_2021_3449</span>(<span class="ident">server</span>);
 
-            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
         });
     }
 
@@ -789,10 +797,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>(<span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -804,10 +812,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker</span>(<span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -819,10 +827,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> (<span class="ident">trace</span>, ..) <span class="op">=</span> <span class="ident">seed_client_attacker_full</span>(<span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -835,10 +843,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">initial_server</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe</span>(<span class="ident">initial_server</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -851,10 +859,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">initial_server</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe_full</span>(<span class="ident">initial_server</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -867,10 +875,10 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">initial_server</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_ke</span>(<span class="ident">initial_server</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
@@ -882,14 +890,14 @@
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful</span>(<span class="ident">client</span>, <span class="ident">server</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">trace</span>);
+        <span class="comment">//println!(&quot;{}&quot;, trace);</span>
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_state</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, client_state);</span>
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">client_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
@@ -906,14 +914,14 @@
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful_mitm</span>(<span class="ident">client</span>, <span class="ident">server</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">trace</span>);
+        <span class="comment">//println!(&quot;{}&quot;, trace);</span>
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_state</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, client_state);</span>
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">client_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
@@ -927,12 +935,12 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful_with_ccs</span>(<span class="ident">client</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_state</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, client_state);</span>
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">client_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
@@ -948,31 +956,31 @@
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful_with_tickets</span>(<span class="ident">client</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_state</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, client_state);</span>
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">client_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_successful12</span>() {
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">openssl_version</span>());
+        <span class="comment">// println!(&quot;{}&quot;, openssl_version());</span>
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>();
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful12</span>(<span class="ident">client</span>, <span class="ident">server</span>);
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
         <span class="kw">let</span> <span class="ident">server_state</span> <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">stream</span>.<span class="ident">describe_state</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_state</span>);
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">server_state</span>);
+        <span class="comment">//println!(&quot;{}&quot;, client_state);</span>
+        <span class="comment">//println!(&quot;{}&quot;, server_state);</span>
         <span class="macro">assert!</span>(<span class="ident">client_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
         <span class="macro">assert!</span>(<span class="ident">server_state</span>.<span class="ident">contains</span>(<span class="string">&quot;SSL negotiation finished successfully&quot;</span>));
     }
@@ -984,14 +992,14 @@
     <span class="kw">fn</span> <span class="ident">test_seed_freak</span>() {
         <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
             <span class="ident">make_deterministic</span>();
-            <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">openssl_version</span>());
+            <span class="comment">//println!(&quot;{}&quot;, openssl_version());</span>
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>();
             <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
             <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
             <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_freak</span>(<span class="ident">client</span>, <span class="ident">server</span>);
 
-            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+            <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
         });
     }
 
@@ -1009,11 +1017,11 @@
         ] {
             <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">steps</span> {
                 <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">action</span> {
-                    <span class="ident">Action::Input</span>(<span class="ident">input</span>) <span class="op">=</span><span class="op">&gt;</span> {
+                    <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; {
                         <span class="comment">// should be below 200, else we should increase MAX_TERM_SIZE in fuzzer setup</span>
                         <span class="macro">assert!</span>(<span class="ident">input</span>.<span class="ident">recipe</span>.<span class="ident">size</span>() <span class="op">&lt;</span> <span class="number">200</span>);
                     }
-                    <span class="ident">Action::Output</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {}
+                    <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; {}
                 }
             }
         }
@@ -1024,8 +1032,8 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">serialization</span> {
     <span class="kw">use</span> <span class="ident">test_env_log::test</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::agent::AgentName</span>;
-    <span class="kw">use</span> <span class="kw">crate</span><span class="ident">::fuzzer::seeds</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::fuzzer::seeds</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">fuzzer::seeds::seed_successful</span>,
         <span class="ident">trace</span>::{<span class="ident">Trace</span>, <span class="ident">TraceContext</span>},
@@ -1074,17 +1082,17 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_serialisation_seed_successful_json</span>() {
-        <span class="kw">let</span> <span class="ident">_ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>();
-        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
-        <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_successful</span>(<span class="ident">client</span>, <span class="ident">server</span>);
+        <span class="comment">/*let _ctx = TraceContext::new();
+        let client = AgentName::first();
+        let server = client.next();
+        let trace = seed_successful(client, server);
 
-        <span class="kw">let</span> <span class="ident">serialized1</span> <span class="op">=</span> <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">trace</span>).<span class="ident">unwrap</span>();
+        let serialized1 = serde_json::to_string_pretty(&amp;trace).unwrap();
 
-        <span class="kw">let</span> <span class="ident">deserialized_trace</span> <span class="op">=</span> <span class="ident">serde_json::from_str</span>::<span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&gt;</span>(<span class="ident">serialized1</span>.<span class="ident">as_str</span>()).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">serialized2</span> <span class="op">=</span> <span class="ident">serde_json::to_string_pretty</span>(<span class="kw-2">&amp;</span><span class="ident">deserialized_trace</span>).<span class="ident">unwrap</span>();
+        let deserialized_trace = serde_json::from_str::&lt;Trace&gt;(serialized1.as_str()).unwrap();
+        let serialized2 = serde_json::to_string_pretty(&amp;deserialized_trace).unwrap();
 
-        <span class="macro">assert_eq!</span>(<span class="ident">serialized1</span>, <span class="ident">serialized2</span>);
+        assert_eq!(serialized1, serialized2);*/</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1174,11 +1182,12 @@
         5ab4cdf01b04e9ffc0fc50&quot;</span>;
 
         <span class="kw">let</span> <span class="ident">hello_client</span> <span class="op">=</span> <span class="ident">hex::decode</span>(<span class="ident">hello_client_hex</span>).<span class="ident">unwrap</span>();
-        <span class="ident">hexdump::hexdump</span>(<span class="kw-2">&amp;</span><span class="ident">hello_client</span>);
+        <span class="comment">//hexdump::hexdump(&amp;hello_client);</span>
 
         <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span>
-            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1208,11 +1217,12 @@
                 .<span class="ident">replace</span>(<span class="string">&quot;\n&quot;</span>, <span class="string">&quot;&quot;</span>),
         )
         .<span class="ident">unwrap</span>();
-        <span class="ident">hexdump::hexdump</span>(<span class="kw-2">&amp;</span><span class="ident">hello_client</span>);
+        <span class="comment">//hexdump::hexdump(&amp;hello_client);</span>
 
         <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span>
-            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1226,11 +1236,12 @@
         80809080a080b080408050806040105010601030302030301020103020202040205020602&quot;</span>;
 
         <span class="kw">let</span> <span class="ident">hello_client</span> <span class="op">=</span> <span class="ident">hex::decode</span>(<span class="ident">hello_client_hex</span>).<span class="ident">unwrap</span>();
-        <span class="ident">hexdump::hexdump</span>(<span class="kw-2">&amp;</span><span class="ident">hello_client</span>);
+        <span class="comment">//hexdump::hexdump(&amp;hello_client);</span>
 
         <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span>
-            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+            <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">hello_client</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
     }
 
     <span class="doccomment">/// https://github.com/tlspuffin/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d</span>
@@ -1239,8 +1250,9 @@
         <span class="kw">let</span> <span class="ident">hex</span> <span class="op">=</span> <span class="string">&quot;160303004a020000460303de257a3941501c11fa7898af1b1b2aea4f5e39e521b35dc84ffab\
         e830e9a98ec20e1cb49645b1cd6e2d0aa5c87b5a3837bcf33334e96c37a77a79c9df63413dc15c02f00&quot;</span>;
         <span class="kw">let</span> <span class="ident">binary</span> <span class="op">=</span> <span class="ident">hex::decode</span>(<span class="ident">hex</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">binary</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
-        <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">binary</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1257,8 +1269,9 @@
 
         <span class="kw">for</span> <span class="ident">hex</span> <span class="kw">in</span> <span class="ident">hexn</span> {
             <span class="kw">let</span> <span class="ident">binary</span> <span class="op">=</span> <span class="ident">hex::decode</span>(<span class="ident">hex</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">binary</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
-            <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+            <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">binary</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+            <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1320,12 +1333,13 @@
         1c8ee637128a82c053b77ef9b5e0364f051d1e485535cb00297d47ec634d2ce1000e4b1df3ac2ea17be0000&quot;</span>;
 
         <span class="kw">let</span> <span class="ident">cert</span> <span class="op">=</span> <span class="ident">hex::decode</span>(<span class="ident">cert_hex</span>).<span class="ident">unwrap</span>();
-        <span class="ident">hexdump::hexdump</span>(<span class="kw-2">&amp;</span><span class="ident">cert</span>);
+        <span class="comment">//hexdump::hexdump(&amp;cert);</span>
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">cert</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">cert</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>();
         <span class="comment">// Required for choosing the correct parsing function</span>
         <span class="ident">opaque_message</span>.<span class="ident">version</span> <span class="op">=</span> <span class="ident">TLSv1_3</span>;
-        <span class="macro">println!</span>(<span class="string">&quot;{:#?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:#?}&quot;, message);</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1336,7 +1350,8 @@
             <span class="ident">payload</span>: <span class="ident">Payload::new</span>(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>]),
         };
 
-        <span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">Message::try_from</span>(<span class="ident">opaque</span>).<span class="ident">unwrap</span>());
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque</span>).<span class="ident">unwrap</span>();
+        <span class="comment">//println!(&quot;{:?}&quot;, message);</span>
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1358,14 +1373,14 @@
         };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="ident">out</span>.<span class="ident">append</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">OpaqueMessage::from</span>(<span class="ident">message</span>.<span class="ident">clone</span>()).<span class="ident">encode</span>());
-        <span class="ident">hexdump::hexdump</span>(<span class="kw-2">&amp;</span><span class="ident">out</span>);
+        <span class="ident">out</span>.<span class="ident">append</span>(<span class="kw-2">&amp;mut</span> <span class="ident">OpaqueMessage::from</span>(<span class="ident">message</span>.<span class="ident">clone</span>()).<span class="ident">encode</span>());
+        <span class="comment">//hexdump::hexdump(&amp;out);</span>
 
         <span class="kw">let</span> <span class="ident">decoded_message</span> <span class="op">=</span>
-            <span class="ident">Message::try_from</span>(<span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Reader::init</span>(<span class="ident">out</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>())
+            <span class="ident">Message::try_from</span>(<span class="ident">OpaqueMessage::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">Reader::init</span>(<span class="ident">out</span>.<span class="ident">as_slice</span>())).<span class="ident">unwrap</span>())
                 .<span class="ident">unwrap</span>();
 
-        <span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">decoded_message</span>);
+        <span class="comment">//println!(&quot;{:?}&quot;, decoded_message);</span>
     }
 
     <span class="doccomment">/// This is the simplest possible client using rustls that does something useful:</span>
@@ -1390,7 +1405,7 @@
         <span class="kw">let</span> <span class="ident">dns_name</span> <span class="op">=</span> <span class="ident">webpki::DnsNameRef::try_from_ascii_str</span>(<span class="string">&quot;google.com&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">rustls::ClientConnection::new</span>(<span class="ident">Arc::new</span>(<span class="ident">config</span>), <span class="ident">dns_name</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sock</span> <span class="op">=</span> <span class="ident">TcpStream::connect</span>(<span class="string">&quot;google.com:443&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tls</span> <span class="op">=</span> <span class="ident">rustls::Stream::new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">conn</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sock</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tls</span> <span class="op">=</span> <span class="ident">rustls::Stream::new</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>, <span class="kw-2">&amp;mut</span> <span class="ident">sock</span>);
         <span class="ident">tls</span>.<span class="ident">write</span>(
             <span class="macro">concat!</span>(
                 <span class="string">&quot;GET / HTTP/1.1\r\n&quot;</span>,
@@ -1404,16 +1419,16 @@
         .<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">ciphersuite</span> <span class="op">=</span> <span class="ident">tls</span>.<span class="ident">conn</span>.<span class="ident">negotiated_cipher_suite</span>().<span class="ident">unwrap</span>();
         <span class="macro">writeln!</span>(
-            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">std::io::stderr</span>(),
+            <span class="kw-2">&amp;mut</span> <span class="ident">std::io::stderr</span>(),
             <span class="string">&quot;Current ciphersuite: {:?}&quot;</span>,
             <span class="ident">ciphersuite</span>.<span class="ident">suite</span>
         )
         .<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
-        <span class="ident">tls</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">plaintext</span>).<span class="ident">unwrap</span>();
+        <span class="ident">tls</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;mut</span> <span class="ident">plaintext</span>).<span class="ident">unwrap</span>();
         <span class="ident">stdout</span>().<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>).<span class="ident">unwrap</span>();
     }
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
-    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
+</body></html>

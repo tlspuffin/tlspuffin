@@ -1,7 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/tls/fn_utils.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_utils.rs - source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled ><script id="default-settings"></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../../tlspuffin/index.html'><div class='logo-container rust-logo'><img src='../../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
-                <a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/tls/fn_utils.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -329,8 +331,7 @@
 <span id="326">326</span>
 <span id="327">327</span>
 <span id="328">328</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
 
 <span class="kw">use</span> <span class="ident">rustls::cipher</span>::{<span class="ident">new_tls12</span>, <span class="ident">new_tls13_read</span>, <span class="ident">new_tls13_write</span>};
 <span class="kw">use</span> <span class="ident">rustls::hash_hs::HandshakeHash</span>;
@@ -345,10 +346,10 @@
 <span class="kw">use</span> <span class="ident">rustls::msgs::message</span>::{<span class="ident">Message</span>, <span class="ident">MessagePayload</span>, <span class="ident">OpaqueMessage</span>};
 <span class="kw">use</span> <span class="ident">rustls</span>::{<span class="ident">key</span>, <span class="ident">Certificate</span>, <span class="ident">ProtocolVersion</span>};
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::tls::key_exchange</span>::{<span class="ident">tls12_key_exchange</span>, <span class="ident">tls12_new_secrets</span>};
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::tls::key_schedule</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_exchange</span>::{<span class="ident">tls12_key_exchange</span>, <span class="ident">tls12_new_secrets</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_schedule</span>::<span class="kw-2">*</span>;
 
-<span class="kw">use</span> <span class="kw">super</span><span class="ident">::error::FnError</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">super</span>::error::FnError</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs::alert::AlertMessagePayload</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs::enums</span>::{<span class="ident">AlertDescription</span>, <span class="ident">AlertLevel</span>};
 
@@ -356,7 +357,7 @@
 <span class="comment">// seed_client_attacker()</span>
 <span class="comment">// ----</span>
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_transcript</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_transcript</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::suites::TLS13_AES_128_GCM_SHA256</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transcript</span> <span class="op">=</span> <span class="ident">HandshakeHash::new</span>();
@@ -367,7 +368,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_append_transcript</span>(
     <span class="ident">transcript</span>: <span class="kw-2">&amp;</span><span class="ident">HandshakeHash</span>,
     <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_transcript</span>: <span class="ident">HandshakeHash</span> <span class="op">=</span> <span class="ident">transcript</span>.<span class="ident">clone</span>();
     <span class="ident">new_transcript</span>.<span class="ident">add_message</span>(<span class="ident">message</span>);
     <span class="prelude-val">Ok</span>(<span class="ident">new_transcript</span>)
@@ -379,7 +380,7 @@
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_handshake_traffic_secret</span>(
         <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
         <span class="ident">server_key_share</span>,
@@ -391,11 +392,11 @@
     <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">message</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_no_psk</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_no_psk</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_psk</span>(<span class="ident">some</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_psk</span>(<span class="ident">some</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">some</span>.<span class="ident">clone</span>()))
 }
 
@@ -406,7 +407,7 @@
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_application_traffic_secret</span>(
         <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
         <span class="kw-2">&amp;</span><span class="ident">server_finished_transcript</span>,
@@ -425,7 +426,7 @@
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span>
         <span class="ident">tls13_handshake_traffic_secret</span>(<span class="kw-2">&amp;</span><span class="ident">server_hello</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">encrypter</span> <span class="op">=</span> <span class="ident">new_tls13_write</span>(<span class="ident">suite</span>, <span class="kw-2">&amp;</span><span class="ident">key</span>);
@@ -443,7 +444,7 @@
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">tls13_application_traffic_secret</span>(
         <span class="kw-2">&amp;</span><span class="ident">server_hello_transcript</span>,
         <span class="kw-2">&amp;</span><span class="ident">server_finished_transcript</span>,
@@ -465,7 +466,7 @@
     <span class="ident">client_finished</span>: <span class="kw-2">&amp;</span><span class="ident">HandshakeHash</span>,
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">new_ticket_nonce</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">psk</span> <span class="op">=</span> <span class="ident">tls13_derive_psk</span>(
         <span class="ident">server_hello</span>,
         <span class="ident">server_finished</span>,
@@ -477,10 +478,10 @@
     <span class="prelude-val">Ok</span>(<span class="ident">psk</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_derive_binder</span>(<span class="ident">full_client_hello</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>, <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_derive_binder</span>(<span class="ident">full_client_hello</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>, <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">client_hello_payload</span>: <span class="ident">HandshakeMessagePayload</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">full_client_hello</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
-        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">payload</span>),
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>),
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }
     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> {
         <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Only can fill binder in HandshakeMessagePayload&quot;</span>.<span class="ident">to_owned</span>())
@@ -506,10 +507,10 @@
     <span class="prelude-val">Ok</span>(<span class="ident">Vec::from</span>(<span class="ident">real_binder</span>.<span class="ident">as_ref</span>()))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_fill_binder</span>(<span class="ident">full_client_hello</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>, <span class="ident">binder</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_fill_binder</span>(<span class="ident">full_client_hello</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>, <span class="ident">binder</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">full_client_hello</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
-        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
-            <span class="ident">HandshakePayload::ClientHello</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
+            <span class="ident">HandshakePayload::ClientHello</span>(<span class="ident">payload</span>) =&gt; {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_payload</span> <span class="op">=</span> <span class="ident">payload</span>.<span class="ident">clone</span>();
                 <span class="ident">new_payload</span>.<span class="ident">set_psk_binder</span>(<span class="ident">binder</span>.<span class="ident">clone</span>());
                 <span class="prelude-val">Some</span>(<span class="ident">Message</span> {
@@ -520,42 +521,42 @@
                     }),
                 })
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         },
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }
     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Could not find ticket in message&quot;</span>.<span class="ident">to_owned</span>()))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">new_ticket</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
-        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
-            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">ticket</span>.<span class="number">0</span>.<span class="ident">clone</span>()),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
+            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">ticket</span>.<span class="number">0</span>.<span class="ident">clone</span>()),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         },
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }
     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Could not find ticket in message&quot;</span>.<span class="ident">to_owned</span>()))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket_age_add</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket_age_add</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">new_ticket</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
-        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
-            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">age_add</span> <span class="kw">as</span> <span class="ident">u64</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
+            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">age_add</span> <span class="kw">as</span> <span class="ident">u64</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         },
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }
     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Could not find ticket in message&quot;</span>.<span class="ident">to_owned</span>()))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket_nonce</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_get_ticket_nonce</span>(<span class="ident">new_ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Message</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">new_ticket</span>.<span class="ident">payload</span>.<span class="ident">clone</span>() {
-        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
-            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">nonce</span>.<span class="number">0</span>),
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="ident">MessagePayload::Handshake</span>(<span class="ident">payload</span>) =&gt; <span class="kw">match</span> <span class="ident">payload</span>.<span class="ident">payload</span> {
+            <span class="ident">HandshakePayload::NewSessionTicketTLS13</span>(<span class="ident">payload</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">payload</span>.<span class="ident">nonce</span>.<span class="number">0</span>),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
         },
-        <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> =&gt; <span class="prelude-val">None</span>,
     }
     .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Could not find ticket in message&quot;</span>.<span class="ident">to_owned</span>()))
 }
@@ -564,7 +565,7 @@
 <span class="comment">// seed_client_attacker12()</span>
 <span class="comment">// ----</span>
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_transcript12</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_transcript12</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transcript</span> <span class="op">=</span> <span class="ident">HandshakeHash::new</span>();
@@ -572,18 +573,18 @@
     <span class="prelude-val">Ok</span>(<span class="ident">transcript</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_decode_ecdh_params</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerECDHParams</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_decode_ecdh_params</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerECDHParams</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rd</span> <span class="op">=</span> <span class="ident">Reader::init</span>(<span class="ident">data</span>.<span class="ident">as_slice</span>());
-    <span class="ident">ServerECDHParams::read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rd</span>).<span class="ident">ok_or</span>(<span class="ident">FnError::Unknown</span>(
+    <span class="ident">ServerECDHParams::read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">rd</span>).<span class="ident">ok_or</span>(<span class="ident">FnError::Unknown</span>(
         <span class="string">&quot;Failed to create ServerECDHParams&quot;</span>.<span class="ident">to_string</span>(),
     ))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_pubkey12</span>(<span class="ident">server_ecdh_params</span>: <span class="kw-2">&amp;</span><span class="ident">ServerECDHParams</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_pubkey12</span>(<span class="ident">server_ecdh_params</span>: <span class="kw-2">&amp;</span><span class="ident">ServerECDHParams</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">kxd</span> <span class="op">=</span> <span class="ident">tls12_key_exchange</span>(<span class="ident">server_ecdh_params</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
     <span class="kw">let</span> <span class="ident">ecpoint</span> <span class="op">=</span> <span class="ident">PayloadU8::new</span>(<span class="ident">Vec::from</span>(<span class="ident">kxd</span>.<span class="ident">pubkey</span>.<span class="ident">as_ref</span>()));
-    <span class="ident">ecpoint</span>.<span class="ident">encode</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>);
+    <span class="ident">ecpoint</span>.<span class="ident">encode</span>(<span class="kw-2">&amp;mut</span> <span class="ident">buf</span>);
     <span class="prelude-val">Ok</span>(<span class="ident">buf</span>)
 }
 
@@ -592,7 +593,7 @@
     <span class="ident">server_random</span>: <span class="kw-2">&amp;</span><span class="ident">Random</span>,
     <span class="ident">server_ecdh_params</span>: <span class="kw-2">&amp;</span><span class="ident">ServerECDHParams</span>,
     <span class="ident">sequence</span>: <span class="kw-2">&amp;</span><span class="ident">u64</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">secrets</span> <span class="op">=</span> <span class="ident">tls12_new_secrets</span>(<span class="ident">server_random</span>, <span class="ident">server_ecdh_params</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> (<span class="ident">_decrypter</span>, <span class="ident">encrypter</span>) <span class="op">=</span> <span class="ident">new_tls12</span>(<span class="kw-2">&amp;</span><span class="ident">secrets</span>);
@@ -600,7 +601,7 @@
     <span class="prelude-val">Ok</span>(<span class="ident">Message::try_from</span>(<span class="ident">encrypted</span>)<span class="question-mark">?</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificate</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">key::Certificate</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificate</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">key::Certificate</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">der_cert</span> <span class="op">=</span> <span class="ident">hex::decode</span>(
         <span class="string">&quot;308203473082022fa003020102021406f7fb1d20\
     b39f71b9a222e8f03a0ab0a79ec54d300d060\
@@ -627,21 +628,21 @@
     })<span class="question-mark">?</span>))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificates</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">key::Certificate</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificates</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">key::Certificate</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_append_certificate</span>(
     <span class="ident">certs</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">key::Certificate</span><span class="op">&gt;</span>,
     <span class="ident">cert</span>: <span class="kw-2">&amp;</span><span class="ident">key::Certificate</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Certificate</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Certificate</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_certs</span> <span class="op">=</span> <span class="ident">certs</span>.<span class="ident">clone</span>();
     <span class="ident">new_certs</span>.<span class="ident">push</span>(<span class="ident">cert</span>.<span class="ident">clone</span>());
 
     <span class="prelude-val">Ok</span>(<span class="ident">new_certs</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificate_entries</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateEntry</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_certificate_entries</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateEntry</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
 }
 
@@ -649,7 +650,7 @@
     <span class="ident">certs</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateEntry</span><span class="op">&gt;</span>,
     <span class="ident">cert</span>: <span class="kw-2">&amp;</span><span class="ident">key::Certificate</span>,
     <span class="ident">extensions</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateExtension</span><span class="op">&gt;</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateEntry</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CertificateEntry</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_certs</span> <span class="op">=</span> <span class="ident">certs</span>.<span class="ident">clone</span>();
     <span class="ident">new_certs</span>.<span class="ident">push</span>(<span class="ident">CertificateEntry</span> {
         <span class="ident">cert</span>: <span class="ident">cert</span>.<span class="ident">clone</span>(),
@@ -658,6 +659,6 @@
 
     <span class="prelude-val">Ok</span>(<span class="ident">new_certs</span>)
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-search-index-js="../../../search-index.js" data-search-js="../../../search.js"></div>
-    <script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
+</body></html>

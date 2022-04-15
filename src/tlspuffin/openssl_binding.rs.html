@@ -1,7 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/openssl_binding.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>openssl_binding.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
-<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
-<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../tlspuffin/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
-                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/openssl_binding.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>openssl_binding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../tlspuffin/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -290,8 +292,7 @@
 <span id="287">287</span>
 <span id="288">288</span>
 <span id="289">289</span>
-</pre><div class="example-wrap"><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std::io::ErrorKind</span>;
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::io::ErrorKind</span>;
 <span class="kw">use</span> <span class="ident">std::mem::transmute</span>;
 <span class="kw">use</span> <span class="ident">std::os::raw::c_int</span>;
 
@@ -310,9 +311,9 @@
     },
 };
 
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::agent::TLSVersion</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::error::Error</span>;
-<span class="kw">use</span> <span class="kw">crate</span><span class="ident">::io::MemoryStream</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::TLSVersion</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::MemoryStream</span>;
 
 <span class="kw">const</span> <span class="ident">PRIVATE_KEY</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
@@ -371,7 +372,7 @@ i7RrmCDnL/ue3MkPP+8=
    cd openssl-src/openssl
    git checkout OpenSSL_1_1_1j
 */</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_rsa_cert</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">X509</span>, <span class="ident">PKey</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">static_rsa_cert</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">X509</span>, <span class="ident">PKey</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">rsa</span> <span class="op">=</span> <span class="ident">openssl::rsa::Rsa::private_key_from_pem</span>(<span class="ident">PRIVATE_KEY</span>.<span class="ident">as_bytes</span>())<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">pkey</span> <span class="op">=</span> <span class="ident">PKey::from_rsa</span>(<span class="ident">rsa</span>)<span class="question-mark">?</span>;
 
@@ -379,7 +380,7 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="prelude-val">Ok</span>((<span class="ident">cert</span>, <span class="ident">pkey</span>))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_cert</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">X509</span>, <span class="ident">PKey</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_cert</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">X509</span>, <span class="ident">PKey</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">rsa</span> <span class="op">=</span> <span class="ident">openssl::rsa::Rsa::generate</span>(<span class="number">2048</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">pkey</span> <span class="op">=</span> <span class="ident">PKey::from_rsa</span>(<span class="ident">rsa</span>)<span class="question-mark">?</span>;
 
@@ -424,14 +425,14 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="prelude-val">Ok</span>((<span class="ident">cert</span>, <span class="ident">pkey</span>))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">openssl_version</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">openssl_version</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
     <span class="ident">version</span>()
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_openssl_deterministic</span>();
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">RAND_seed</span>(<span class="ident">buf</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">num</span>: <span class="ident">c_int</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">RAND_seed</span>(<span class="ident">buf</span>: <span class="kw-2">*mut</span> <span class="ident">u8</span>, <span class="ident">num</span>: <span class="ident">c_int</span>);
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
@@ -450,19 +451,19 @@ i7RrmCDnL/ue3MkPP+8=
 }
 
 <span class="kw">fn</span> <span class="ident">set_max_protocol_version</span>(
-    <span class="ident">ctx_builder</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SslContextBuilder</span>,
+    <span class="ident">ctx_builder</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SslContextBuilder</span>,
     <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;libressl&quot;</span>))]</span>
     <span class="kw">match</span> <span class="ident">tls_version</span> {
-        <span class="ident">TLSVersion::V1_3</span> <span class="op">=</span><span class="op">&gt;</span> {
+        <span class="ident">TLSVersion::V1_3</span> =&gt; {
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
             <span class="ident">ctx_builder</span>.<span class="ident">set_max_proto_version</span>(<span class="prelude-val">Some</span>(<span class="ident">SslVersion::TLS1_3</span>))<span class="question-mark">?</span>;
             <span class="comment">// do nothing as the maximum available TLS version is 1.3</span>
             <span class="prelude-val">Ok</span>(())
         }
-        <span class="ident">TLSVersion::V1_2</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ctx_builder</span>.<span class="ident">set_max_proto_version</span>(<span class="prelude-val">Some</span>(<span class="ident">SslVersion::TLS1_2</span>)),
-        <span class="ident">TLSVersion::Unknown</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Ok</span>(())
+        <span class="ident">TLSVersion::V1_2</span> =&gt; <span class="ident">ctx_builder</span>.<span class="ident">set_max_proto_version</span>(<span class="prelude-val">Some</span>(<span class="ident">SslVersion::TLS1_2</span>)),
+        <span class="ident">TLSVersion::Unknown</span> =&gt; <span class="prelude-val">Ok</span>(())
     }<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
@@ -472,7 +473,7 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="ident">cert</span>: <span class="kw-2">&amp;</span><span class="ident">X509Ref</span>,
     <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">PKeyRef</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>,
     <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx_builder</span> <span class="op">=</span> <span class="ident">SslContext::builder</span>(<span class="ident">SslMethod::tls</span>())<span class="question-mark">?</span>;
     <span class="ident">ctx_builder</span>.<span class="ident">set_certificate</span>(<span class="ident">cert</span>)<span class="question-mark">?</span>;
     <span class="ident">ctx_builder</span>.<span class="ident">set_private_key</span>(<span class="ident">key</span>)<span class="question-mark">?</span>;
@@ -483,7 +484,7 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
     <span class="ident">ctx_builder</span>.<span class="ident">set_options</span>(<span class="ident">SslOptions::ALLOW_NO_DHE_KEX</span>);
 
-    <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
+    <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl102u&quot;</span>))]</span>
     {
@@ -510,22 +511,22 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="ident">SslStream::new</span>(<span class="ident">ssl</span>, <span class="ident">stream</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log_io_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">openssl::ssl::Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log_io_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">openssl::ssl::Error</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">io_error</span>) <span class="op">=</span> <span class="ident">error</span>.<span class="ident">io_error</span>() {
         <span class="kw">match</span> <span class="ident">io_error</span>.<span class="ident">kind</span>() {
-            <span class="ident">ErrorKind::WouldBlock</span> <span class="op">=</span><span class="op">&gt;</span> {
+            <span class="ident">ErrorKind::WouldBlock</span> =&gt; {
                 <span class="comment">// Not actually an error, we just reached the end of the stream, thrown in MemoryStream</span>
                 <span class="comment">// trace!(&quot;Would have blocked but the underlying stream is non-blocking!&quot;);</span>
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_</span> <span class="op">=</span><span class="op">&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error::IO</span>(<span class="macro">format!</span>(<span class="string">&quot;Unexpected IO Error: {}&quot;</span>, <span class="ident">io_error</span>))),
+            <span class="kw">_</span> =&gt; <span class="prelude-val">Err</span>(<span class="ident">Error::IO</span>(<span class="macro">format!</span>(<span class="string">&quot;Unexpected IO Error: {}&quot;</span>, <span class="ident">io_error</span>))),
         }
     } <span class="kw">else</span> {
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log_ssl_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">openssl::ssl::Error</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log_ssl_error</span>(<span class="ident">error</span>: <span class="kw-2">&amp;</span><span class="ident">openssl::ssl::Error</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ssl_error</span>) <span class="op">=</span> <span class="ident">error</span>.<span class="ident">ssl_error</span>() {
         <span class="comment">// OpenSSL threw an error, that means that there should be an Alert message in the</span>
         <span class="comment">// outbound channel</span>
@@ -538,7 +539,7 @@ i7RrmCDnL/ue3MkPP+8=
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_openssl_client</span>(
     <span class="ident">stream</span>: <span class="ident">MemoryStream</span>,
     <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
-) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx_builder</span> <span class="op">=</span> <span class="ident">SslContext::builder</span>(<span class="ident">SslMethod::tls</span>())<span class="question-mark">?</span>;
     <span class="comment">// Not sure whether we want this disabled or enabled: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/26</span>
     <span class="comment">// The tests become simpler if disabled to maybe that&#39;s what we want. Lets leave it default</span>
@@ -547,7 +548,7 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
     <span class="ident">ctx_builder</span>.<span class="ident">clear_options</span>(<span class="ident">SslOptions::ENABLE_MIDDLEBOX_COMPAT</span>);
 
-    <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
+    <span class="ident">set_max_protocol_version</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx_builder</span>, <span class="ident">tls_version</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Disallow EXPORT in client</span>
     <span class="ident">ctx_builder</span>.<span class="ident">set_cipher_list</span>(<span class="string">&quot;ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2&quot;</span>)<span class="question-mark">?</span>;
@@ -558,12 +559,12 @@ i7RrmCDnL/ue3MkPP+8=
     <span class="ident">SslStream::new</span>(<span class="ident">ssl</span>, <span class="ident">stream</span>)
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">do_handshake</span>(<span class="ident">stream</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">state_string_long</span>() <span class="op">=</span><span class="op">=</span> <span class="string">&quot;SSL negotiation finished successfully&quot;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">do_handshake</span>(<span class="ident">stream</span>: <span class="kw-2">&amp;mut</span> <span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">if</span> <span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">state_string_long</span>() <span class="op">==</span> <span class="string">&quot;SSL negotiation finished successfully&quot;</span> {
         <span class="comment">// todo improve this case</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vec</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::from</span>([<span class="number">1</span>; <span class="number">128</span>]);
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">ssl_read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vec</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">ssl_read</span>(<span class="kw-2">&amp;mut</span> <span class="ident">vec</span>) {
             <span class="ident">log_io_error</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>)<span class="question-mark">?</span>;
             <span class="ident">log_ssl_error</span>(<span class="kw-2">&amp;</span><span class="ident">error</span>)<span class="question-mark">?</span>;
         } <span class="kw">else</span> {
@@ -580,6 +581,6 @@ i7RrmCDnL/ue3MkPP+8=
 
     <span class="prelude-val">Ok</span>(())
 }
-</pre></div>
-</section><section id="search" class="content hidden"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-search-index-js="../../search-index.js" data-search-js="../../search.js"></div>
-    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script></body></html>
+</code></pre></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
+</body></html>
