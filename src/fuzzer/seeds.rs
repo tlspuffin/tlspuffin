@@ -2,21 +2,21 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use rustls::internal::msgs::enums::{HandshakeType, Compression};
+use rustls::internal::msgs::enums::{Compression, HandshakeType};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::term;
+use crate::tls::fn_impl::*;
 use crate::trace::TlsMessageType;
 use crate::trace::TlsMessageType::Handshake;
-use crate::tls::fn_impl::*;
 use crate::{
     agent::AgentName,
     term::Term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
-use rustls::{ProtocolVersion, CipherSuite};
-use rustls::msgs::handshake::{SessionID, Random};
 use rustls::internal::msgs::handshake::ServerExtension;
+use rustls::msgs::handshake::{Random, SessionID};
+use rustls::{CipherSuite, ProtocolVersion};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace {
     Trace {

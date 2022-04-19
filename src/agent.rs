@@ -13,8 +13,6 @@ use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
-
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
@@ -50,9 +48,8 @@ pub struct AgentDescriptor {
     pub server: bool,
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
-    pub try_reuse: bool
-    // [TODO::PUT] consider add a `PUTDescriptor` field that will be used to know how to instantiate
-    // a new state
+    pub try_reuse: bool, // [TODO::PUT] consider add a `PUTDescriptor` field that will be used to know how to instantiate
+                         // a new state
 }
 
 impl AgentDescriptor {
@@ -66,7 +63,7 @@ impl AgentDescriptor {
             name,
             tls_version,
             server: true,
-            try_reuse: true
+            try_reuse: true,
         }
     }
 
@@ -75,7 +72,7 @@ impl AgentDescriptor {
             name,
             tls_version,
             server: true,
-            try_reuse: true
+            try_reuse: true,
         }
     }
 
@@ -84,7 +81,7 @@ impl AgentDescriptor {
             name,
             tls_version,
             server: true,
-            try_reuse: false
+            try_reuse: false,
         }
     }
 
@@ -93,7 +90,7 @@ impl AgentDescriptor {
             name,
             tls_version,
             server: false,
-            try_reuse: false
+            try_reuse: false,
         }
     }
 }
@@ -105,13 +102,13 @@ pub enum TLSVersion {
     Unknown,
 }
 
-impl From<i32> for TLSVersion  {
+impl From<i32> for TLSVersion {
     fn from(value: i32) -> Self {
-       match value {
-           0x303 => TLSVersion::V1_2,
-           0x304 => TLSVersion::V1_3,
-           _ => TLSVersion::Unknown
-       }
+        match value {
+            0x303 => TLSVersion::V1_2,
+            0x304 => TLSVersion::V1_3,
+            _ => TLSVersion::Unknown,
+        }
     }
 }
 

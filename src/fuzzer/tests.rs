@@ -1,13 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-
 use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
-use crate::agent::{AgentName};
+use crate::agent::AgentName;
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,

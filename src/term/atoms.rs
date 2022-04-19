@@ -273,14 +273,12 @@ mod fn_container {
             }
 
             let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-            let (shape, dynamic_fn) =
-                SIGNATURE
-                    .functions_by_name
-                    .get(name)
-                    .ok_or_else(||de::Error::custom(format!(
-                        "Failed to link function symbol: Could not find function {}",
-                        name
-                    )))?;
+            let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
+                de::Error::custom(format!(
+                    "Failed to link function symbol: Could not find function {}",
+                    name
+                ))
+            })?;
 
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;

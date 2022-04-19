@@ -23,14 +23,14 @@ pub fn trace_mutations<S>(
     constraints: TermConstraints,
     fresh_zoo_after: u64,
 ) -> tuple_list_type!(
-       RepeatMutator<S>,
-       SkipMutator<S>,
-       ReplaceReuseMutator<S>,
-       ReplaceMatchMutator<S>,
-       RemoveAndLiftMutator<S>,
-       GenerateMutator<S>,
-       SwapMutator<S>
-   )
+    RepeatMutator<S>,
+    SkipMutator<S>,
+    ReplaceReuseMutator<S>,
+    ReplaceMatchMutator<S>,
+    RemoveAndLiftMutator<S>,
+    GenerateMutator<S>,
+    SwapMutator<S>
+)
 where
     S: HasCorpus<Trace> + HasMetadata + HasMaxSize + HasRand,
 {

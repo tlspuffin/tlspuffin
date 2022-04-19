@@ -28,7 +28,7 @@ use std::{
 use foreign_types_shared::ForeignTypeRef;
 use openssl::ssl::SslStream;
 
-#[cfg(feature = "wolfssl")]  // Just a test:
+#[cfg(feature = "wolfssl")] // Just a test:
 use wolfssl_sys::handShakeInfo_st;
 
 use rustls::msgs::message::OpaqueMessage;
@@ -185,7 +185,10 @@ impl Stream for MemoryStream {
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         let mut deframer = MessageDeframer::new();
-        if deframer.read(&mut self.outbound.get_ref().as_slice()).is_ok() {
+        if deframer
+            .read(&mut self.outbound.get_ref().as_slice())
+            .is_ok()
+        {
             let mut rest_buffer: Vec<u8> = Vec::new();
             let mut frames = deframer.frames;
 

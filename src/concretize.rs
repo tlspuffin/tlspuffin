@@ -3,17 +3,17 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::io::{Read, Write};
+use crate::io::MessageResult;
+use crate::openssl_binding;
 use openssl::ssl::SslStream;
 use rustls::msgs::message::OpaqueMessage;
+use std::io::{Read, Write};
 use tlspuffin::agent::TLSVersion;
 use tlspuffin::error::Error;
 use tlspuffin::io::{MemoryStream, Stream};
-use crate::io::MessageResult;
-use crate::openssl_binding;
 
 /// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
-pub type Bts<'a> = &'a[u8];
+pub type Bts<'a> = &'a [u8];
 
 /// Static configuration for creating a new agent state for the PUT
 pub struct Config {
@@ -27,11 +27,11 @@ pub trait PUT: Stream + Drop {
     type State;
 
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new (c: Config) -> Result<<Self as PUT>::State,Error>;
+    fn new(c: Config) -> Result<<Self as PUT>::State, Error>;
     /// Process incoming buffer, internal progress, can fill in output buffer
-    fn progress (s: &mut<Self as PUT>::State) -> Result<(),Error>;
+    fn progress(s: &mut <Self as PUT>::State) -> Result<(), Error>;
     /// In-place reset of the state
-    fn reset(s: &mut<Self as PUT>::State) -> Result<(),Error>;
+    fn reset(s: &mut <Self as PUT>::State) -> Result<(), Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,8 @@ impl Drop for OpenSSL {
 impl PUT for OpenSSL {
     type State = OpenSSL;
 
-    fn new(c: Config) -> Result<OpenSSL, Error> { // [TODO::PUT] will replace io::PUTState::new
+    fn new(c: Config) -> Result<OpenSSL, Error> {
+        // [TODO::PUT] will replace io::PUTState::new
         let memory_stream = MemoryStream::new();
         let stream = if c.server {
             //let (cert, pkey) = openssl_binding::generate_cert();
@@ -91,7 +92,7 @@ impl PUT for OpenSSL {
         Ok(stream)
     }
 
-    fn progress(s: &mut<Self as PUT>::State) -> Result<(), Error> {
+    fn progress(s: &mut <Self as PUT>::State) -> Result<(), Error> {
         let stream = &mut s.stream;
         openssl_binding::do_handshake(stream)
     }
@@ -100,7 +101,6 @@ impl PUT for OpenSSL {
         OK(s.stream.clear())
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// WolfSSL specific-state
@@ -112,5 +112,4 @@ pub struct WolfSSLState {
 
 impl PUT for WolfSSLState {
     type State = WolfSSLState;
-
 }

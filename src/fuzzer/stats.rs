@@ -9,10 +9,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use libafl::monitors::{Monitor, PerfFeature, UserStats};
-use libafl::{
-    bolts::current_time,
-    monitors::{ClientStats},
-};
+use libafl::{bolts::current_time, monitors::ClientStats};
 
 use serde::Serialize;
 
@@ -352,26 +349,20 @@ impl TraceStatistics {
         for stat_definition in &STATS {
             match stat_definition {
                 RuntimeStats::TraceLength(mmm) => {
-                    trace_stats
-                        .min_trace_length
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
-                    trace_stats
-                        .max_trace_length
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
-                    trace_stats
-                        .mean_trace_length
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                    trace_stats.min_trace_length =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_trace_length =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_trace_length =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 RuntimeStats::TermSize(mmm) => {
-                    trace_stats
-                        .min_term_size
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
-                    trace_stats
-                        .max_term_size
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
-                    trace_stats
-                        .mean_term_size
-                         = Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                    trace_stats.min_term_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_term_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_term_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}
             }

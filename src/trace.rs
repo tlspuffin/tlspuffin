@@ -71,7 +71,6 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
@@ -325,13 +324,15 @@ impl TraceContext {
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
-            if query_type_id == data.type_id() && query.agent_name == knowledge.agent_name && knowledge.tls_message_type.matches(&query.tls_message_type) {
+            if query_type_id == data.type_id()
+                && query.agent_name == knowledge.agent_name
+                && knowledge.tls_message_type.matches(&query.tls_message_type)
+            {
                 possibilities.push(knowledge);
             }
         }
 
         possibilities.sort_by_key(|a| a.specificity());
-
 
         possibilities
             .get(query.counter as usize)
@@ -378,19 +379,23 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
-            )))
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "Could not find agent {}. Did you forget to call spawn_agents?",
+                    name
+                ))
+            })
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
-            )))
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "Could not find agent {}. Did you forget to call spawn_agents?",
+                    name
+                ))
+            })
     }
 
     pub fn reset_agents(&mut self) {

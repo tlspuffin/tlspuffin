@@ -15,7 +15,7 @@ pub mod seeds {
     where
         R: FnMut(),
     {
-     match unsafe { fork() } {
+        match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
 
@@ -688,16 +688,17 @@ pub mod rustls {
         let mut conn = rustls::ClientConnection::new(Arc::new(config), dns_name).unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-        let _written = tls.write(
-            concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
-            )
+        let _written = tls
+            .write(
+                concat!(
+                    "GET / HTTP/1.1\r\n",
+                    "Host: google.com\r\n",
+                    "Connection: close\r\n",
+                    "Accept-Encoding: identity\r\n",
+                    "\r\n"
+                )
                 .as_bytes(),
-        )
+            )
             .unwrap();
         let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
         writeln!(

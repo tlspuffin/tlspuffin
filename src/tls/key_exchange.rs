@@ -32,14 +32,11 @@ pub fn tls13_key_exchange(
     group: NamedGroup,
 ) -> Result<KeyExchangeResult, FnError> {
     // Shared Secret
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS).ok_or_else(||FnError::Unknown(
-        "Failed to choose group in key exchange".to_string(),
-    ))?;
+    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
+        .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     kx.complete(server_key_share.as_slice())
-        .ok_or_else(|| FnError::Unknown(
-            "Failed to complete key exchange".to_string(),
-        ))
+        .ok_or_else(|| FnError::Unknown("Failed to complete key exchange".to_string()))
 }
 
 pub fn tls12_key_exchange(

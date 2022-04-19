@@ -1,13 +1,13 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use crate::term::{remove_prefix, Term, remove_fn_prefix};
+use crate::term::{remove_fn_prefix, remove_prefix, Term};
 use crate::trace::{Action, Trace};
 
+use itertools::Itertools;
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
-use itertools::Itertools;
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -65,11 +65,10 @@ impl Trace {
             let subgraph_name = format!("Step #{} (Agent  {})", i, step.agent);
 
             let subgraph = match &step.action {
-                Action::Input(input) => {
-                    input
-                            .recipe
-                            .dot_subgraph(tree_mode, i, subgraph_name.as_str()).to_string()
-                }
+                Action::Input(input) => input
+                    .recipe
+                    .dot_subgraph(tree_mode, i, subgraph_name.as_str())
+                    .to_string(),
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \
@@ -78,7 +77,11 @@ impl Trace {
                         \"\" [color=\"#00000000\"];\
                     }}",
                     i,
-                    label=(if SHOW_LABELS { subgraph_name.as_str() } else {""}),
+                    label = (if SHOW_LABELS {
+                        subgraph_name.as_str()
+                    } else {
+                        ""
+                    }),
                 ),
             };
 
@@ -112,8 +115,10 @@ impl Term {
     fn node_attributes(displayable: impl fmt::Display, color: &str, shape: &str) -> String {
         format!(
             "[label=\"{}\",style=\"{style}\",colorscheme=dark28,fillcolor=\"{}\",shape=\"{}\"]",
-            displayable, color, shape,
-            style=STYLE
+            displayable,
+            color,
+            shape,
+            style = STYLE
         )
     }
 
@@ -138,8 +143,16 @@ impl Term {
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
                         remove_fn_prefix(&remove_prefix(func.name())),
-                        if func.arity() == 0 { COLOR_LEAVES } else { COLOR },
-                        if func.arity() == 0 { SHAPE_LEAVES} else { SHAPE }
+                        if func.arity() == 0 {
+                            COLOR_LEAVES
+                        } else {
+                            COLOR
+                        },
+                        if func.arity() == 0 {
+                            SHAPE_LEAVES
+                        } else {
+                            SHAPE
+                        }
                     ),
                     FONT
                 ));
@@ -172,8 +185,8 @@ impl Term {
             }}",
             cluster_id,
             statements.iter().join("\n"),
-            label=(if SHOW_LABELS { label } else {""}),
-            font=FONT,
+            label = (if SHOW_LABELS { label } else { "" }),
+            font = FONT,
         )
     }
 }
