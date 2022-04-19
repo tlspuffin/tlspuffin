@@ -1,42 +1,38 @@
+use std::fmt;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use libafl::{Error, Evaluator};
 use libafl::bolts::rands::Rand;
-use libafl::corpus::Corpus;
 use libafl::inputs::Input;
 use libafl::mutators::{
     ComposedByMutations, MutationResult, Mutator, MutatorsTuple, ScheduledMutator,
 };
 use libafl::stages::{MutationalStage, Stage};
-use libafl::state::{HasClientPerfStats, HasCorpus, HasRand};
-use libafl::{Error, Evaluator};
-use std::fmt;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use libafl::state::{HasClientPerfMonitor, HasCorpus, HasRand};
 
 /// The default mutational stage
 #[derive(Clone, Debug)]
-pub struct PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
-where
-    C: Corpus<I>,
-    M: Mutator<I, S>,
-    I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-    Z: Evaluator<E, EM, I, S>,
+pub struct PuffinMutationalStage<E, EM, I, M, S, Z>
+    where
+        M: Mutator<I, S>,
+        I: Input,
+        S:  HasClientPerfMonitor + HasCorpus<I> + HasRand,
+        Z: Evaluator<E, EM, I, S>,
 {
     mutator: M,
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(C, E, EM, I, R, S, Z)>,
+    phantom: PhantomData<(E, EM, I, S, Z)>,
     max_iterations_per_stage: u64,
 }
 
-impl<C, E, EM, I, M, R, S, Z> MutationalStage<C, E, EM, I, M, S, Z>
-    for PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
-where
-    C: Corpus<I>,
-    M: Mutator<I, S>,
-    I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-    Z: Evaluator<E, EM, I, S>,
+impl<E, EM, I, M,  S, Z> MutationalStage<E, EM, I, M, S, Z>
+for PuffinMutationalStage<E, EM, I, M, S, Z>
+    where
+        M: Mutator<I, S>,
+        I: Input,
+        S: HasClientPerfMonitor +  HasClientPerfMonitor + HasCorpus<I> + HasRand,
+        Z: Evaluator<E, EM, I, S>,
 {
     /// The mutator, added to this stage
     #[inline]
@@ -51,19 +47,17 @@ where
     }
 
     /// Gets the number of iterations as a random number
-    fn iterations(&self, state: &mut S) -> usize {
-        1 + state.rand_mut().below(self.max_iterations_per_stage) as usize
+    fn iterations(&self, state: &mut S, _corpus_idx: usize) -> Result<usize, Error> {
+        Ok(1 + state.rand_mut().below(self.max_iterations_per_stage) as usize)
     }
 }
 
-impl<C, E, EM, I, M, R, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
-where
-    C: Corpus<I>,
-    M: Mutator<I, S>,
-    I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-    Z: Evaluator<E, EM, I, S>,
+impl<E, EM, I, M, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<E, EM, I, M, S, Z>
+    where
+        M: Mutator<I, S>,
+        I: Input,
+        S: HasClientPerfMonitor +  HasClientPerfMonitor + HasCorpus<I> + HasRand,
+        Z: Evaluator<E, EM, I, S>,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -78,20 +72,18 @@ where
         let ret = self.perform_mutational(fuzzer, executor, state, manager, corpus_idx);
 
         #[cfg(feature = "introspection")]
-        state.introspection_stats_mut().finish_stage();
+        state.introspection_monitor_mut().finish_stage();
 
         ret
     }
 }
 
-impl<C, E, EM, I, M, R, S, Z> PuffinMutationalStage<C, E, EM, I, M, R, S, Z>
-where
-    C: Corpus<I>,
-    M: Mutator<I, S>,
-    I: Input,
-    R: Rand,
-    S: HasClientPerfStats + HasCorpus<C, I> + HasRand<R>,
-    Z: Evaluator<E, EM, I, S>,
+impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, M, S, Z>
+    where
+        M: Mutator<I, S>,
+        I: Input,
+        S:  HasClientPerfMonitor + HasCorpus<I> + HasRand,
+        Z: Evaluator<E, EM, I, S>,
 {
     /// Creates a new default mutational stage
     pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
@@ -106,24 +98,22 @@ where
 //-----------------------------
 
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
-pub struct PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+pub struct PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     mutations: MT,
-    phantom: PhantomData<(I, R, S)>,
+    phantom: PhantomData<(I, S)>,
     max_mutations_per_iteration: u64,
 }
 
-impl<I, MT, R, S> Debug for PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+impl<I, MT, S> Debug for PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -135,12 +125,11 @@ where
     }
 }
 
-impl<I, MT, R, S> Mutator<I, S> for PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+impl<I, MT, S> Mutator<I, S> for PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     #[inline]
     fn mutate(
@@ -153,12 +142,11 @@ where
     }
 }
 
-impl<I, MT, R, S> ComposedByMutations<I, MT, S> for PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+impl<I, MT, S> ComposedByMutations<I, MT, S> for PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     /// Get the mutations
     #[inline]
@@ -173,12 +161,11 @@ where
     }
 }
 
-impl<I, MT, R, S> ScheduledMutator<I, MT, S> for PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+impl<I, MT, S> ScheduledMutator<I, MT, S> for PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
@@ -192,12 +179,11 @@ where
     }
 }
 
-impl<I, MT, R, S> PuffinScheduledMutator<I, MT, R, S>
-where
-    I: Input,
-    MT: MutatorsTuple<I, S>,
-    R: Rand,
-    S: HasRand<R>,
+impl<I, MT, S> PuffinScheduledMutator<I, MT, S>
+    where
+        I: Input,
+        MT: MutatorsTuple<I, S>,
+        S: HasRand,
 {
     /// Create a new [`StdScheduledMutator`] instance specifying mutations
     pub fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {

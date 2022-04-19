@@ -11,14 +11,14 @@ use rustls::msgs::handshake::{
     ServerECDHParams,
 };
 use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-use rustls::{key, Certificate, ProtocolVersion};
+use rustls::{key, Certificate};
 
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
 
 use super::error::FnError;
-use rustls::msgs::alert::AlertMessagePayload;
-use rustls::msgs::enums::{AlertDescription, AlertLevel};
+
+
 
 // ----
 // seed_client_attacker()
@@ -28,7 +28,7 @@ pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
-    transcript.start_hash(&suite.get_hash());
+    transcript.start_hash(suite.get_hash());
     Ok(transcript)
 }
 
@@ -49,14 +49,14 @@ pub fn fn_decrypt_handshake(
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_handshake_traffic_secret(
-        &server_hello_transcript,
+        server_hello_transcript,
         server_key_share,
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
     let decrypter = new_tls13_read(suite, &key);
     let message = decrypter.decrypt(OpaqueMessage::from(application_data.clone()), *sequence)?;
-    Ok(Message::try_from(message.clone())?)
+    Ok(Message::try_from(message)?)
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -76,15 +76,15 @@ pub fn fn_decrypt_application(
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
-        &server_hello_transcript,
-        &server_finished_transcript,
+        server_hello_transcript,
+        server_finished_transcript,
         server_key_share,
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
     let decrypter = new_tls13_read(suite, &key);
     let message = decrypter.decrypt(OpaqueMessage::from(application_data.clone()), *sequence)?;
-    Ok(Message::try_from(message.clone())?)
+    Ok(Message::try_from(message)?)
 }
 
 pub fn fn_encrypt_handshake(
@@ -95,13 +95,13 @@ pub fn fn_encrypt_handshake(
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) =
-        tls13_handshake_traffic_secret(&server_hello, server_key_share, psk, true)?;
+        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
     let encrypter = new_tls13_write(suite, &key);
     let application_data = encrypter.encrypt(
         OpaqueMessage::from(some_message.clone()).borrow(),
         *sequence,
     )?;
-    Ok(Message::try_from(application_data.clone())?)
+    Ok(Message::try_from(application_data)?)
 }
 
 pub fn fn_encrypt_application(
@@ -113,8 +113,8 @@ pub fn fn_encrypt_application(
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
-        &server_hello_transcript,
-        &server_finished_transcript,
+        server_hello_transcript,
+        server_finished_transcript,
         server_key_share,
         psk,
         true,
@@ -124,7 +124,7 @@ pub fn fn_encrypt_application(
         OpaqueMessage::from(some_message.clone()).borrow(),
         *sequence,
     )?;
-    Ok(Message::try_from(application_data.clone())?)
+    Ok(Message::try_from(application_data)?)
 }
 
 pub fn fn_derive_psk(
@@ -168,7 +168,7 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
 
     // Run a fake key_schedule to simulate what the server will do if it chooses
     // to resume.
-    let key_schedule = KeyScheduleEarly::new(hkdf_alg, &psk);
+    let key_schedule = KeyScheduleEarly::new(hkdf_alg, psk);
     let real_binder = key_schedule.resumption_psk_binder_key_and_sign_verify_data(&handshake_hash);
 
     Ok(Vec::from(real_binder.as_ref()))
@@ -178,7 +178,7 @@ pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<M
     match full_client_hello.payload.clone() {
         MessagePayload::Handshake(payload) => match payload.payload {
             HandshakePayload::ClientHello(payload) => {
-                let mut new_payload = payload.clone();
+                let mut new_payload = payload;
                 new_payload.set_psk_binder(binder.clone());
                 Some(Message {
                     version: full_client_hello.version,
@@ -198,7 +198,7 @@ pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<M
 pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
     match new_ticket.payload.clone() {
         MessagePayload::Handshake(payload) => match payload.payload {
-            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.ticket.0.clone()),
+            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.ticket.0),
             _ => None,
         },
         _ => None,
@@ -236,13 +236,13 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let mut transcript = HandshakeHash::new();
-    transcript.start_hash(&suite.get_hash());
+    transcript.start_hash(suite.get_hash());
     Ok(transcript)
 }
 
 pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd).ok_or(FnError::Unknown(
+    ServerECDHParams::read(&mut rd).ok_or_else(|| FnError::Unknown(
         "Failed to create ServerECDHParams".to_string(),
     ))
 }

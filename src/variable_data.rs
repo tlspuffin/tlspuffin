@@ -53,22 +53,22 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
         MessagePayload::Alert(alert) => {
             vec![
                 Box::new(message.clone()),
-                Box::new(alert.description.clone()),
-                Box::new(alert.level.clone()),
+                Box::new(alert.description),
+                Box::new(alert.level),
             ]
         }
         MessagePayload::Handshake(hs) => {
             match &hs.payload {
                 HandshakePayload::HelloRequest => {
-                    vec![Box::new(message.clone()), Box::new(hs.typ.clone())]
+                    vec![Box::new(message.clone()), Box::new(hs.typ)]
                 }
                 HandshakePayload::ClientHello(ch) => {
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         Box::new(message.clone()),
-                        Box::new(hs.typ.clone()),
+                        Box::new(hs.typ),
                         Box::new(ch.random.clone()),
-                        Box::new(ch.session_id.clone()),
-                        Box::new(ch.client_version.clone()),
+                        Box::new(ch.session_id),
+                        Box::new(ch.client_version),
                         Box::new(ch.extensions.clone()),
                         Box::new(ch.compression_methods.clone()),
                         Box::new(ch.cipher_suites.clone()),
@@ -81,11 +81,11 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         ch.compression_methods
                             .iter()
                             .map(|compression: &Compression| {
-                                Box::new(compression.clone()) as Box<dyn VariableData>
+                                Box::new(*compression) as Box<dyn VariableData>
                             });
                     let cipher_suites =
                         ch.cipher_suites.iter().map(|cipher_suite: &CipherSuite| {
-                            Box::new(cipher_suite.clone()) as Box<dyn VariableData>
+                            Box::new(*cipher_suite) as Box<dyn VariableData>
                         });
 
                     vars.into_iter()
@@ -99,10 +99,10 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         Box::new(message.clone()),
                         hs.typ.clone_box(),
                         Box::new(sh.random.clone()),
-                        Box::new(sh.session_id.clone()),
-                        Box::new(sh.cipher_suite.clone()),
-                        Box::new(sh.compression_method.clone()),
-                        Box::new(sh.legacy_version.clone()),
+                        Box::new(sh.session_id),
+                        Box::new(sh.cipher_suite),
+                        Box::new(sh.compression_method),
+                        Box::new(sh.legacy_version),
                         Box::new(sh.extensions.clone()),
                     ];
 

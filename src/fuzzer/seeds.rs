@@ -1,5 +1,6 @@
 //! Implementation of  special traces. Each may represent a special TLS execution like a full
 //! handshake or an execution which crashes OpenSSL.
+#![allow(dead_code)]
 
 use rustls::internal::msgs::enums::{HandshakeType, Compression};
 
@@ -453,7 +454,7 @@ pub fn seed_successful_with_tickets(client: AgentName, server: AgentName) -> Tra
     trace
 }
 
-pub fn seed_client_attacker(server: AgentName) -> (Trace) {
+pub fn seed_client_attacker(server: AgentName) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,

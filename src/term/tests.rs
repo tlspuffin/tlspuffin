@@ -1,20 +1,20 @@
-use std::any::{Any, TypeId};
 
 use itertools::Itertools;
-use rustls::msgs::handshake::SessionID;
-use rustls::ProtocolVersion;
 
-use crate::agent::AgentName;
-use crate::term;
-use crate::term::signature::Signature;
-use crate::tls::fn_impl::*;
-use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
-use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::{Knowledge, Query};
-use crate::{term::Term, trace::TraceContext};
 use ring::hmac;
 use ring::hmac::Key;
 use ring::test::rand::FixedByteRandom;
+use rustls::msgs::handshake::SessionID;
+use rustls::ProtocolVersion;
+
+use crate::{term::Term, trace::TraceContext};
+use crate::agent::AgentName;
+use crate::term;
+use crate::term::signature::Signature;
+use crate::tls::{error::FnError, SIGNATURE};
+use crate::tls::fn_impl::*;
+use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
+use crate::trace::{Knowledge, Query};
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     let random = FixedByteRandom { byte: 12 };
@@ -22,7 +22,7 @@ pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
 }
 
 pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
-    let tag = hmac::sign(&key, msg);
+    let tag = hmac::sign(key, msg);
     Ok(Vec::from(tag.as_ref()))
 }
 
@@ -84,7 +84,7 @@ fn example() {
 
     let data = "hello".as_bytes().to_vec();
 
-    println!("TypeId of vec array {:?}", data.type_id());
+    //println!("TypeId of vec array {:?}", data.type_id());
 
     let query = Query {
         agent_name: AgentName::first(),
@@ -101,7 +101,7 @@ fn example() {
         ],
     );
 
-    println!("{}", generated_term);
+    //println!("{}", generated_term);
     let mut context = TraceContext::new();
     context.add_knowledge(Knowledge {
         agent_name: AgentName::first(),
@@ -109,36 +109,32 @@ fn example() {
         data: Box::new(data),
     });
 
-    println!(
-        "{:?}",
-        generated_term
-            .evaluate(&context)
-            .as_ref()
-            .unwrap()
-            .downcast_ref::<Vec<u8>>()
-    );
+    let _string = generated_term
+        .evaluate(&context)
+        .as_ref()
+        .unwrap()
+        .downcast_ref::<Vec<u8>>();
+    //println!("{:?}", string);
 }
 
 #[test]
 fn playground() {
-    let var_data = fn_new_session_id();
+    let _var_data = fn_new_session_id();
 
-    println!("vec {:?}", TypeId::of::<Vec<u8>>());
-    println!("vec {:?}", TypeId::of::<Vec<u16>>());
+    //println!("vec {:?}", TypeId::of::<Vec<u8>>());
+    //println!("vec {:?}", TypeId::of::<Vec<u16>>());
 
-    println!("{:?}", TypeId::of::<SessionID>());
-    println!("{:?}", var_data.type_id());
+    ////println!("{:?}", var_data.type_id());
 
-    let func = Signature::new_function(&example_op_c).clone();
+    let func = Signature::new_function(&example_op_c);
     let dynamic_fn = func.dynamic_fn();
-    println!(
-        "{:?}",
-        dynamic_fn(&vec![Box::new(1u8)])
-            .unwrap()
-            .downcast_ref::<u16>()
-            .unwrap()
-    );
-    println!("{}", Signature::new_function(&example_op_c).shape());
+    let _string = dynamic_fn(&vec![Box::new(1u8)])
+        .unwrap()
+        .downcast_ref::<u16>()
+        .unwrap();
+    //println!("{:?}", string);
+    let _string = Signature::new_function(&example_op_c).shape();
+    //println!("{}", string);
 
     let query = Query {
         agent_name: AgentName::first(),
@@ -177,26 +173,23 @@ fn playground() {
         ],
     );
 
-    println!("{}", constructed_term);
-    println!("{}", constructed_term.dot_subgraph(true, 0, "test"));
+    //println!("{}", constructed_term);
+    let _graph = constructed_term.dot_subgraph(true, 0, "test");
+    //println!("{}", graph);
 }
 
 #[test]
 fn test_static_functions() {
-    println!(
-        "{}",
-        SIGNATURE
-            .functions_by_name
-            .iter()
-            .map(|tuple| tuple.0)
-            .join("\n")
-    );
-    println!(
-        "{}",
-        SIGNATURE
-            .types_by_name
-            .iter()
-            .map(|tuple| tuple.0.to_string())
-            .join("\n")
-    );
+    let _functions = SIGNATURE
+        .functions_by_name
+        .iter()
+        .map(|tuple| tuple.0)
+        .join("\n");
+    //println!("{}", functions);
+    let _types = SIGNATURE
+        .types_by_name
+        .iter()
+        .map(|tuple| tuple.0.to_string())
+        .join("\n");
+    //println!("{}", types);
 }

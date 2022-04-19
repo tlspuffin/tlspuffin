@@ -3,7 +3,9 @@ use security_claims::{Claim, ClaimCipher, ClaimType};
 
 use crate::agent::{AgentName, TLSVersion};
 
-pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
+type ClaimMessage = (AgentName, Claim);
+
+pub fn is_violation(claims: &[ClaimMessage]) -> Option<&'static str> {
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
@@ -20,10 +22,8 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                     }
 
                     // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
-                    if server.session_id.length != 0 {
-                        if client.session_id != server.session_id {
-                            return Some("Mismatching session ids");
-                        }
+                    if server.session_id.length != 0 && client.session_id != server.session_id {
+                        return Some("Mismatching session ids");
                     }
 
                     if client.server_random != server.server_random {
@@ -90,7 +90,7 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
                                 [..server.available_ciphers.length as usize]
                             {
                                 if client.available_ciphers.ciphers.contains(server_cipher) {
-                                    cipher.insert(*server_cipher);
+                                    cipher = Some(*server_cipher);
                                     break;
                                 }
                             }
@@ -130,9 +130,9 @@ pub fn is_violation(claims: &Vec<(AgentName, Claim)>) -> Option<&'static str> {
 }
 
 pub fn find_two_finished_messages(
-    claims: &Vec<(AgentName, Claim)>,
-) -> Option<(&(AgentName, Claim), &(AgentName, Claim))> {
-    let two_finishes: Option<(&(AgentName, Claim), &(AgentName, Claim))> = claims
+    claims: &[ClaimMessage],
+) -> Option<(&ClaimMessage, &ClaimMessage)> {
+    let two_finishes: Option<(&ClaimMessage, &ClaimMessage)> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();
