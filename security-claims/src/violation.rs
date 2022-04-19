@@ -5,10 +5,10 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 // Will be instantiated with (AgentName,Claim)
-pub type ClaimMessage<A>
+pub type ClaimMessage<AgentName>
 where
-    A: Copy + Clone + Debug + Eq + PartialEq + Hash,
-= (A, Claim);
+    AgentName: Copy + Clone + Debug + Eq + PartialEq + Hash,
+= (AgentName, Claim);
 
 // This code is duplicated from super::super::agent, which is unfortunate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
