@@ -37,7 +37,6 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
-mod violation;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {

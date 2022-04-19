@@ -33,7 +33,7 @@ use wolfssl_sys::handShakeInfo_st;
 
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{deframer::MessageDeframer, message::Message};
-use security_claims::Claim;
+use security_claims::{Claim, TLSLike};
 #[cfg(feature = "claims")]
 use security_claims::{deregister_claimer, register_claimer};
 

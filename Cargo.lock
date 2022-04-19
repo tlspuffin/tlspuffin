@@ -1569,6 +1569,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "hex",
+ "itertools 0.10.3",
 ]
 
 [[package]]

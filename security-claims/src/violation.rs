@@ -1,11 +1,35 @@
+use crate::{Claim, ClaimCipher, ClaimType};
 use itertools::Itertools;
-use security_claims::{Claim, ClaimCipher, ClaimType};
+use std::any::Any;
+use std::fmt::Debug;
+use std::hash::Hash;
 
-use crate::agent::{AgentName, TLSVersion};
+// Will be instantiated with (AgentName,Claim)
+pub type ClaimMessage<A>
+where
+    A: Copy + Clone + Debug + Eq + PartialEq + Hash,
+= (A, Claim);
 
-type ClaimMessage = (AgentName, Claim);
+// This code is duplicated from super::super::agent, which is unfortunate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TLSVersion {
+    V1_3,
+    V1_2,
+    Unknown,
+}
+// This code is duplicated from super::super::agent, which is unfortunate.
+impl From<i32> for TLSVersion {
+    fn from(value: i32) -> Self {
+        match value {
+            0x303 => TLSVersion::V1_2,
+            0x304 => TLSVersion::V1_3,
+            _ => TLSVersion::Unknown,
+        }
+    }
+}
 
-pub fn is_violation(claims: &[ClaimMessage]) -> Option<&'static str> {
+pub fn is_violation<A>(claims: &[ClaimMessage<A>]) -> Option<&'static str>
+    where A: Eq {
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
@@ -129,10 +153,11 @@ pub fn is_violation(claims: &[ClaimMessage]) -> Option<&'static str> {
     None
 }
 
-pub fn find_two_finished_messages(
-    claims: &[ClaimMessage],
-) -> Option<(&ClaimMessage, &ClaimMessage)> {
-    let two_finishes: Option<(&ClaimMessage, &ClaimMessage)> = claims
+pub fn find_two_finished_messages<A>(
+    claims: &[ClaimMessage<A>],
+) -> Option<(&ClaimMessage<A>, &ClaimMessage<A>)>
+    where A:Eq {
+    let two_finishes: Option<(&ClaimMessage<A>, &ClaimMessage<A>)> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();

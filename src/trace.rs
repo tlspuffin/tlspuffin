@@ -88,7 +88,7 @@ use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
 use crate::term::remove_prefix;
 use crate::tls::error::FnError;
-use crate::violation::is_violation;
+use security_claims::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
@@ -473,7 +473,7 @@ impl Trace {
         }
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
-        if let Some(msg) = is_violation(claims) {
+        if let Some(msg) = is_violation(claims) { // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 

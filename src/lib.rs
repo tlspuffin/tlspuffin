@@ -28,4 +28,3 @@ mod debug;
 mod experiment;
 mod openssl_binding;
 mod tests;
-mod violation;
