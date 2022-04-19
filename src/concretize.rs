@@ -98,7 +98,7 @@ impl PUT for OpenSSL {
     }
 
     fn reset(s: &mut <Self as PUT>::State) -> () {
-        OK(s.stream.clear())
+        s.stream.clear();
     }
 }
 
