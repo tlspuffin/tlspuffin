@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::concretize::{PUT,OpenSSL,Config};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -115,7 +116,7 @@ impl From<i32> for TLSVersion {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: PUTState,
+    pub stream: OpenSSL,
 }
 
 impl Agent {
@@ -123,14 +124,14 @@ impl Agent {
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
-        let openssl_stream = PUTState::new(
-            descriptor.server,
-            &descriptor.tls_version,
-            descriptor.name,
-            claimer,
-        )?;
-
-        let agent = Self::from_stream(descriptor, openssl_stream);
+        let c = Config {
+            tls_version: descriptor.tls_version,
+            server: descriptor.server,
+            agent_name: descriptor.name,
+            claimer
+        };
+        let stream = OpenSSL::new(c)?;
+        let agent = Self::from_stream(descriptor, stream);
 
         Ok(agent)
     }
@@ -141,10 +142,10 @@ impl Agent {
     }
 
     pub fn reset(&mut self) {
-        self.stream.reset();
+        OpenSSL::reset(&mut self.stream);
     }
 
-    fn from_stream(descriptor: &AgentDescriptor, stream: PUTState) -> Agent {
+    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSL) -> Agent {
         Agent {
             descriptor: *descriptor,
             stream,

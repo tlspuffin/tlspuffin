@@ -26,5 +26,6 @@ pub mod variable_data;
 
 mod debug;
 mod experiment;
-mod openssl_binding;
+pub mod openssl_binding;
+pub mod concretize;
 mod tests;

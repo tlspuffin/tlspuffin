@@ -96,6 +96,7 @@ use crate::{
 };
 
 use itertools::Itertools;
+use crate::concretize::{OpenSSL, PUT};
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -351,7 +352,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.next_state()
+        OpenSSL::progress(&mut agent.stream)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
