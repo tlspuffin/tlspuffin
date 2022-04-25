@@ -113,6 +113,7 @@ impl PUT for OpenSSL {
         };
 
         let mut stream = OpenSSL { stream };
+        OpenSSL::register_claimer(&mut stream, c.claimer, c.agent_name);
         Ok(stream)
     }
 
