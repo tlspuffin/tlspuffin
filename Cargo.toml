@@ -2,8 +2,7 @@
 name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
-edition = "2018"
-resolver = "2"
+edition = "2021"
 
 [features]
 default = ["sancov_libafl", "openssl111", "introspection"]
