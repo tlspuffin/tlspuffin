@@ -44,8 +44,8 @@ impl Clone for Variable {
         Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
-            typ: self.typ.clone(),
-            query: self.query.clone(),
+            typ: self.typ,
+            query: self.query,
         }
     }
 }
@@ -126,7 +126,7 @@ impl Function {
         &self.fn_container.shape
     }
 
-    pub fn dynamic_fn(&self) -> &Box<dyn DynamicFunction> {
+    pub fn dynamic_fn(&self) -> &dyn DynamicFunction {
         &self.fn_container.dynamic_fn
     }
 
@@ -277,7 +277,7 @@ mod fn_container {
                 SIGNATURE
                     .functions_by_name
                     .get(name)
-                    .ok_or(de::Error::custom(format!(
+                    .ok_or_else(||de::Error::custom(format!(
                         "Failed to link function symbol: Could not find function {}",
                         name
                     )))?;

@@ -71,7 +71,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-use itertools::Itertools;
+
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
@@ -95,6 +95,8 @@ use crate::{
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+
+use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -323,21 +325,16 @@ impl TraceContext {
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
-            if query_type_id == data.type_id() {
-                if query.agent_name == knowledge.agent_name
-                    && knowledge.tls_message_type.matches(&query.tls_message_type)
-                {
-                    possibilities.push(knowledge);
-                }
+            if query_type_id == data.type_id() && query.agent_name == knowledge.agent_name && knowledge.tls_message_type.matches(&query.tls_message_type) {
+                possibilities.push(knowledge);
             }
         }
 
-        possibilities.sort_by(|a, b| a.specificity().cmp(&b.specificity()));
+        possibilities.sort_by_key(|a| a.specificity());
 
 
         possibilities
-            .iter()
-            .nth(query.counter as usize)
+            .get(query.counter as usize)
             .map(|possibility| possibility.data.as_ref())
     }
 
@@ -353,7 +350,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        Ok(agent.stream.next_state()?)
+        agent.stream.next_state()
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -363,25 +360,25 @@ impl TraceContext {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        Ok(agent.stream.take_message_from_outbound()?)
+        agent.stream.take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
         let name = agent.descriptor.name;
         self.agents.push(agent);
-        return name;
+        name
     }
 // [TODO::WolfSSL] Rename openssl -> PUT and make it generic here
     pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
         let agent_name = self.add_agent(Agent::new_openssl(descriptor, self.claimer.clone())?);
-        return Ok(agent_name);
+        Ok(agent_name)
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or(Error::Agent(format!(
+            .ok_or_else(|| Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
             )))
@@ -390,7 +387,7 @@ impl TraceContext {
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or(Error::Agent(format!(
+            .ok_or_else(|| Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
             )))
@@ -426,7 +423,7 @@ impl Trace {
                 reusable.rename(ctx.claimer.clone(), descriptor.name);
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_openssl_agent(&descriptor)?;
+                ctx.new_openssl_agent(descriptor)?;
             }
         }
 
@@ -441,8 +438,7 @@ impl Trace {
         }
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
-        for i in 0..steps.len() {
-            let step = &steps[i];
+        for (i, step) in steps.iter().enumerate() {
             trace!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
@@ -488,7 +484,7 @@ impl fmt::Debug for Trace {
 
 impl fmt::Display for Trace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", "Trace:")?;
+        write!(f, "Trace:")?;
         for step in &self.steps {
             write!(f, "\n{} -> {}", step.agent, step.action)?;
         }
@@ -561,7 +557,7 @@ impl OutputAction {
 
             match &message {
                 Some(message) => {
-                    let knowledge = extract_knowledge(&message)?;
+                    let knowledge = extract_knowledge(message)?;
 
                     trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
@@ -636,12 +632,12 @@ impl InputAction {
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
-            debug_message_with_info(format!("Input message").as_str(), msg);
+            debug_message_with_info("Input message".to_string().as_str(), msg);
 
             ctx.add_to_inbound(step.agent, &OpaqueMessage::from(msg.clone()))?;
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
             debug_opaque_message_with_info(
-                format!("Input opaque message").as_str(),
+                "Input opaque message".to_string().as_str(),
                 opaque_message,
             );
             ctx.add_to_inbound(step.agent, opaque_message)?;

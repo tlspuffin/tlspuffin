@@ -155,9 +155,9 @@ pub fn fn_client_hello(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ClientHello,
             payload: HandshakePayload::ClientHello(ClientHelloPayload {
-                client_version: client_version.clone(),
+                client_version: *client_version,
                 random: random.clone(),
-                session_id: session_id.clone(),
+                session_id: *session_id,
                 cipher_suites: cipher_suites.clone(),
                 compression_methods: compression_methods.clone(),
                 extensions: extensions.clone(),
@@ -179,11 +179,11 @@ pub fn fn_server_hello(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ServerHello,
             payload: HandshakePayload::ServerHello(ServerHelloPayload {
-                legacy_version: legacy_version.clone(),
+                legacy_version: *legacy_version,
                 random: random.clone(),
-                session_id: session_id.clone(),
-                cipher_suite: cipher_suite.clone(),
-                compression_method: compression_method.clone(),
+                session_id: *session_id,
+                cipher_suite: *cipher_suite,
+                compression_method: *compression_method,
                 extensions: extensions.clone(),
             }),
         }),
@@ -241,9 +241,9 @@ pub fn fn_hello_retry_request(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::HelloRetryRequest,
             payload: HandshakePayload::HelloRetryRequest(HelloRetryRequest {
-                legacy_version: legacy_version.clone(),
-                session_id: session_id.clone(),
-                cipher_suite: cipher_suite.clone(),
+                legacy_version: *legacy_version,
+                session_id: *session_id,
+                cipher_suite: *cipher_suite,
                 extensions: extensions.clone(),
             }),
         }),

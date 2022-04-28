@@ -3,10 +3,11 @@
 
 use crate::term::{remove_prefix, Term, remove_fn_prefix};
 use crate::trace::{Action, Trace};
-use itertools::Itertools;
+
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::{fmt, io};
+use itertools::Itertools;
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -18,12 +19,12 @@ const COLOR_LEAVES: &'static str = "1";
 const SHOW_LABELS: bool = false */
 
 // Thesis theme
-const FONT: &'static str = "Latin Modern Roman";
-const SHAPE: &'static str = "none";
-const SHAPE_LEAVES: &'static str = "none";
-const STYLE: &'static str = "";
-const COLOR: &'static str = "#00000000";
-const COLOR_LEAVES: &'static str = "#00000000";
+const FONT: &str = "Latin Modern Roman";
+const SHAPE: &str = "none";
+const SHAPE_LEAVES: &str = "none";
+const STYLE: &str = "";
+const COLOR: &str = "#00000000";
+const COLOR_LEAVES: &str = "#00000000";
 const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -36,7 +37,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     let mut dot_stdin = child
         .stdin
         .take()
-        .ok_or(io::Error::new(ErrorKind::Other, "Failed to open stdin"))?;
+        .ok_or_else(|| io::Error::new(ErrorKind::Other, "Failed to open stdin"))?;
     dot_stdin.write_all(dot_script.as_bytes().as_ref())?;
     drop(dot_stdin);
     child.wait().expect("failed to execute dot");
@@ -65,12 +66,9 @@ impl Trace {
 
             let subgraph = match &step.action {
                 Action::Input(input) => {
-                    format!(
-                        "{}",
-                        input
+                    input
                             .recipe
-                            .dot_subgraph(tree_mode, i, subgraph_name.as_str())
-                    )
+                            .dot_subgraph(tree_mode, i, subgraph_name.as_str()).to_string()
                 }
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
@@ -189,6 +187,7 @@ mod tests {
     fn test_dot_graph() {
         let server = AgentName::first();
         let trace = seed_client_attacker12(server);
-        println!("{}", trace.dot_graph(true));
+        let _string = trace.dot_graph(true);
+        //println!("{}", string);
     }
 }

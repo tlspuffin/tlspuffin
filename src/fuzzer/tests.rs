@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use itertools::Itertools;
+
 use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
-use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
+use crate::agent::{AgentName};
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
@@ -20,7 +20,7 @@ use crate::term::dynamic_function::DescribableFunction;
 use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
-use crate::trace::{Action, InputAction, Step, Trace, TraceContext};
+use crate::trace::{Action, Step, Trace};
 
 #[cfg(feature = "deterministic")]
 #[test]
@@ -199,7 +199,7 @@ fn test_swap_mutator() {
             None
         };
 
-        let is_first_not_ch = if let Some(first) = trace.steps.iter().nth(0) {
+        let is_first_not_ch = if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => Some(input.recipe.name() != fn_client_hello.name()),
                 Action::Output(_) => None,
@@ -210,10 +210,8 @@ fn test_swap_mutator() {
 
         if let Some(first) = is_first_not_ch {
             if let Some(last) = is_last_not_encrypt {
-                if first {
-                    if last {
-                        break;
-                    }
+                if first && last {
+                    break;
                 }
             }
         }
@@ -306,7 +304,7 @@ fn test_term_generation() {
         .iter()
         .enumerate()
         .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
-        .collect_vec();
+        .collect::<Vec<_>>();
 
     let _graph = format!(
         "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -345,7 +343,7 @@ fn test_term_generation() {
 #[test]
 fn test_corpus_term_size() {
     let corpus = create_corpus();
-    let trace_term_sizes = corpus
+    let _trace_term_sizes = corpus
         .iter()
         .map(|(trace, name)| {
             (
@@ -360,9 +358,9 @@ fn test_corpus_term_size() {
                     .sum::<usize>(),
             )
         })
-        .collect_vec();
+        .collect::<Vec<_>>();
 
-    println!("{:?}", trace_term_sizes);
+    //println!("{:?}", trace_term_sizes);
 }
 
 mod util {

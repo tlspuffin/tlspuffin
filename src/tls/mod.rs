@@ -1,5 +1,7 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
 
 use fn_impl::*;
 

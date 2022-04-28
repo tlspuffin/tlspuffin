@@ -1,5 +1,4 @@
 use libafl::bolts::rands::Rand;
-use libafl::corpus::Corpus;
 use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
 use libafl::{
     bolts::tuples::{tuple_list, tuple_list_type},
@@ -18,24 +17,22 @@ use crate::term::{Subterms, Term};
 use crate::tls::SIGNATURE;
 use crate::trace::Trace;
 
-pub fn trace_mutations<R, C, S>(
+pub fn trace_mutations<S>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
 ) -> tuple_list_type!(
-       RepeatMutator<R, S>,
-       SkipMutator<R, S>,
-       ReplaceReuseMutator<R, S>,
-       ReplaceMatchMutator<R, S>,
-       RemoveAndLiftMutator<R, S>,
-       GenerateMutator<R, S>,
-       SwapMutator<R,S>
+       RepeatMutator<S>,
+       SkipMutator<S>,
+       ReplaceReuseMutator<S>,
+       ReplaceMatchMutator<S>,
+       RemoveAndLiftMutator<S>,
+       GenerateMutator<S>,
+       SwapMutator<S>
    )
 where
-    S: HasCorpus<C, Trace> + HasMetadata + HasMaxSize + HasRand<R>,
-    C: Corpus<Trace>,
-    R: Rand,
+    S: HasCorpus<Trace> + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
@@ -452,7 +449,7 @@ pub mod util {
                             visited += 1;
 
                             // consider in sampling
-                            if let None = reservoir {
+                            if reservoir.is_none() {
                                 // fill initial reservoir
                                 reservoir = Some((term, path)); // todo Rust 1.53 use insert
                             } else {
@@ -553,7 +550,7 @@ pub mod util {
         }
     }
 
-    pub fn choose_term_path<'a, R: Rand>(
+    pub fn choose_term_path<R: Rand>(
         trace: &Trace,
         constraints: TermConstraints,
         rand: &mut R,
@@ -561,7 +558,7 @@ pub mod util {
         choose_term_path_filtered(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term_path_filtered<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
+    pub fn choose_term_path_filtered<R: Rand, P: Fn(&Term) -> bool + Copy>(
         trace: &Trace,
         filter: P,
         constraints: TermConstraints,

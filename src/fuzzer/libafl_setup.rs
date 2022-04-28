@@ -1,7 +1,7 @@
 use core::time::Duration;
 use std::path::PathBuf;
 
-use itertools::Itertools;
+
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 
 use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
@@ -23,15 +23,16 @@ use libafl::{
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
-use crate::fuzzer::stats::PuffinStats;
+use crate::fuzzer::stats::PuffinMonitor;
 use crate::fuzzer::stats_observer::StatsStage;
 
 use crate::openssl_binding::make_deterministic;
 
 use super::harness;
 use super::{EDGES_MAP, MAX_EDGES_NUM};
-use libafl::bolts::os::parse_core_bind_arg;
-use libafl::corpus::RandCorpusScheduler;
+use libafl::bolts::os::{Cores};
+
+use crate::trace::Trace;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -51,8 +52,8 @@ pub static MAX_TERM_SIZE: usize = 300;
 /// Starts the fuzzing loop
 pub fn start(
     core_definition: String,
-    stats_file: PathBuf,
-    on_disk_corpus: PathBuf,
+    monitor_file: PathBuf,
+    _on_disk_corpus: PathBuf,
     corpus_dir: PathBuf,
     objective_dir: PathBuf,
     broker_port: u16,
@@ -64,11 +65,11 @@ pub fn start(
     make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
-    let stats = PuffinStats::new(
+    let monitor = PuffinMonitor::new(
         |s| {
             info!("{}", s);
         },
-        stats_file.clone(),
+        monitor_file,
     )
     .unwrap();
 
@@ -80,7 +81,7 @@ pub fn start(
 
     let mut run_client =
         |state: Option<StdState<_, _, _, _, _>>,
-         mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>| {
+         mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>, _unknown: usize| {
             info!("We're a client, let's fuzz :)");
 
             let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
@@ -137,7 +138,7 @@ pub fn start(
                 )
             });
 
-            let mutations = trace_mutations(
+            let mutations = trace_mutations::<StdState<_, _, Trace, _, _>>(
                 MIN_TRACE_LENGTH,
                 MAX_TRACE_LENGTH,
                 TermConstraints {
@@ -196,8 +197,8 @@ pub fn start(
             if let Some(max_iters) = max_iters {
                 fuzzer.fuzz_loop_for(
                     &mut stages,
-                    &mut state,
                     &mut executor,
+                    &mut state,
                     &mut restarting_mgr,
                     max_iters,
                 )?;
@@ -211,9 +212,9 @@ pub fn start(
     if let Err(error) = libafl::bolts::launcher::Launcher::builder()
         .shmem_provider(shmem_provider)
         .configuration("launcher default".into())
-        .stats(stats)
+        .monitor(monitor)
         .run_client(&mut run_client)
-        .cores(&parse_core_bind_arg(core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
+        .cores(&Cores::from_cmdline(core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
         .broker_port(broker_port)
         //todo where should we log the output of the harness?
         /*.stdout_file(Some("/dev/null"))*/

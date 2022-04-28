@@ -126,7 +126,7 @@ fn main() {
         write_graphviz(
             format!("{}_{}.{}", output_prefix, "all", format).as_str(),
             format,
-            &trace.dot_graph(is_tree).as_str(),
+            trace.dot_graph(is_tree).as_str(),
         )
         .expect("Failed to generate graph.");
 
