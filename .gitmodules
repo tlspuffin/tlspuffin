@@ -10,6 +10,3 @@
 [submodule "rust-rustls"]
 	path = deps/rust-rustls
 	url = git@github.com:tlspuffin/rustls.git
-[submodule "wolfssl-sys"]
-  path = deps/wolfssl-sys
-  url = git@github.com:tlspuffin/wolfssl-sys.git
