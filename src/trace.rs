@@ -352,7 +352,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        OpenSSL::progress(&mut agent.stream)
+        PUT::progress(&mut agent.stream)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".

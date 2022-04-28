@@ -32,7 +32,7 @@ pub struct Config {
 }
 
 pub trait PUT: Stream + Drop {
-    /// An agent state for the PUT // [TODO::PUT] will become the current PUTState
+    /// An agent state for the PUT
     type State;
 
     /// Create a new agent state for the PUT + set up buffers/BIOs
@@ -65,9 +65,9 @@ pub struct OpenSSL {
     stream: SslStream<MemoryStream>,
 }
 
-#[cfg(feature = "claims")]
 impl Drop for OpenSSL {
     fn drop(&mut self) {
+        #[cfg(feature = "claims")]
         OpenSSL::deregister_claimer(self);
     }
 }
@@ -155,11 +155,11 @@ impl OpenSSL {
 ////////////// WolfSSL specific-state
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct WolfSSLState {
+pub struct WolfSSL {
     // [TODO::PUT]
 }
 
-impl Stream for WolfSSLState {
+impl Stream for WolfSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         todo!()
     }
@@ -169,13 +169,13 @@ impl Stream for WolfSSLState {
     }
 }
 
-impl Read for WolfSSLState {
+impl Read for WolfSSL {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         todo!()
     }
 }
 
-impl Write for WolfSSLState {
+impl Write for WolfSSL {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         todo!()
     }
@@ -185,14 +185,14 @@ impl Write for WolfSSLState {
     }
 }
 
-impl Drop for WolfSSLState {
+impl Drop for WolfSSL {
     fn drop(&mut self) {
         todo!()
     }
 }
 
-impl PUT for WolfSSLState {
-    type State = WolfSSLState;
+impl PUT for WolfSSL {
+    type State = WolfSSL;
 
     fn new(c: Config) -> Result<<Self as PUT>::State, Error> {
         todo!()
@@ -211,6 +211,12 @@ impl PUT for WolfSSLState {
     }
 
     fn deregister_claimer(s: &mut <Self as PUT>::State) -> () {
+        todo!()
+    }
+}
+
+impl WolfSSL {
+    pub fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         todo!()
     }
 }

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::concretize::{PUT,OpenSSL,Config};
+use crate::concretize::{PUT,OpenSSL,WolfSSL,Config};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -115,6 +115,11 @@ impl From<i32> for TLSVersion {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
+
+    #[cfg(feature = "wolfssl")]
+    pub stream: WolfSSL,
+
+    #[cfg(feature = "openssl")]
     pub stream: OpenSSL,
 }
 
@@ -129,8 +134,11 @@ impl Agent {
             agent_name: descriptor.name,
             claimer
         };
+        #[cfg(feature = "wolfssl")]
+        let stream = WolfSSL::new(c)?;
+        #[cfg(feature = "openssl")]
         let stream = OpenSSL::new(c)?;
-        let agent = Self::from_stream(descriptor, stream);
+        let agent = Agent{ descriptor: *descriptor, stream };
 
         Ok(agent)
     }
@@ -141,13 +149,8 @@ impl Agent {
     }
 
     pub fn reset(&mut self) {
-        OpenSSL::reset(&mut self.stream);
-    }
-
-    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSL) -> Agent {
-        Agent {
-            descriptor: *descriptor,
-            stream,
-        }
+        PUT::reset(&mut self.stream); // [TODO::PUT] I do not want to have conditional compiling
+        // again here since there are a couple of places where I would then need to do that.
+        // Instead, I want to use the reset method of the type of self.stream. How can I do that?
     }
 }
