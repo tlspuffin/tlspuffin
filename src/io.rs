@@ -69,101 +69,7 @@ pub struct MemoryStream {
     outbound: Channel,
 }
 
-/// A MemoryStream which wraps an SslStream.
-pub struct PUTState {
-    openssl_stream: SslStream<MemoryStream>,
-}
-
-impl PUTState {
-    pub fn new(
-        server: bool,
-        tls_version: &TLSVersion,
-        agent_name: AgentName,
-        claimer: Rc<RefCell<VecClaimer>>,
-    ) -> Result<Self, Error> {
-        let memory_stream = MemoryStream::new();
-        let openssl_stream = if server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
-            openssl_binding::create_openssl_server(memory_stream, &cert, &pkey, tls_version)?
-        } else {
-            openssl_binding::create_openssl_client(memory_stream, tls_version)?
-        };
-
-        let mut stream = PUTState { openssl_stream };
-        stream.register_claimer(claimer, agent_name);
-        Ok(stream)
-    }
-
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
-        register_claimer(
-            self.openssl_stream.ssl().as_ptr().cast(),
-            move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
-        );
-    }
-
-    fn deregister_claimer(&mut self) {
-        #[cfg(feature = "claims")]
-        deregister_claimer(self.openssl_stream.ssl().as_ptr().cast());
-    }
-
-    pub fn describe_state(&self) -> &'static str {
-        // Very useful for nonblocking according to docs:
-        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
-        // When using nonblocking sockets, the function call performing the handshake may return
-        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
-        // so that SSL_state_string[_long]() may be called.
-        self.openssl_stream.ssl().state_string_long()
-    }
-
-    pub fn next_state(&mut self) -> Result<(), Error> {
-        let stream = &mut self.openssl_stream;
-        openssl_binding::do_handshake(stream)
-    }
-
-    pub fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        self.deregister_claimer();
-        self.register_claimer(claimer, agent_name)
-    }
-
-    pub fn reset(&mut self) {
-        self.openssl_stream.clear();
-    }
-}
-
-#[cfg(feature = "claims")]
-impl Drop for PUTState {
-    fn drop(&mut self) {
-        self.deregister_claimer();
-    }
-}
-
-impl Stream for PUTState {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        self.openssl_stream.get_mut().add_to_inbound(result)
-    }
-
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        self.openssl_stream.get_mut().take_message_from_outbound()
-    }
-}
-
-impl Read for PUTState {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.openssl_stream.get_mut().read(buf)
-    }
-}
-
-impl Write for PUTState {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.openssl_stream.get_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.openssl_stream.get_mut().flush()
-    }
-}
+pub struct MessageResult(pub Option<Message>, pub OpaqueMessage);
 
 impl MemoryStream {
     pub fn new() -> Self {
@@ -173,8 +79,6 @@ impl MemoryStream {
         }
     }
 }
-
-pub struct MessageResult(pub Option<Message>, pub OpaqueMessage);
 
 impl Stream for MemoryStream {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {

@@ -5,7 +5,6 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use crate::error::Error;
-use crate::io::PUTState;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
