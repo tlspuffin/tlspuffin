@@ -1550,21 +1550,21 @@
 <span class="doccomment">//! handshake or an execution which crashes OpenSSL.</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
-<span class="kw">use</span> <span class="ident">rustls::internal::msgs::enums</span>::{<span class="ident">HandshakeType</span>, <span class="ident">Compression</span>};
+<span class="kw">use</span> <span class="ident">rustls::internal::msgs::enums</span>::{<span class="ident">Compression</span>, <span class="ident">HandshakeType</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent</span>::{<span class="ident">AgentDescriptor</span>, <span class="ident">TLSVersion</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::term</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::fn_impl</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::TlsMessageType</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::TlsMessageType::Handshake</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::fn_impl</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">agent::AgentName</span>,
     <span class="ident">term::Term</span>,
     <span class="ident">trace</span>::{<span class="ident">Action</span>, <span class="ident">InputAction</span>, <span class="ident">OutputAction</span>, <span class="ident">Step</span>, <span class="ident">Trace</span>},
 };
-<span class="kw">use</span> <span class="ident">rustls</span>::{<span class="ident">ProtocolVersion</span>, <span class="ident">CipherSuite</span>};
-<span class="kw">use</span> <span class="ident">rustls::msgs::handshake</span>::{<span class="ident">SessionID</span>, <span class="ident">Random</span>};
 <span class="kw">use</span> <span class="ident">rustls::internal::msgs::handshake::ServerExtension</span>;
+<span class="kw">use</span> <span class="ident">rustls::msgs::handshake</span>::{<span class="ident">Random</span>, <span class="ident">SessionID</span>};
+<span class="kw">use</span> <span class="ident">rustls</span>::{<span class="ident">CipherSuite</span>, <span class="ident">ProtocolVersion</span>};
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seed_successful</span>(<span class="ident">client</span>: <span class="ident">AgentName</span>, <span class="ident">server</span>: <span class="ident">AgentName</span>) -&gt; <span class="ident">Trace</span> {
     <span class="ident">Trace</span> {

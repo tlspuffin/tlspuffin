@@ -234,11 +234,8 @@
 <span id="229">229</span>
 <span id="230">230</span>
 <span id="231">231</span>
-<span id="232">232</span>
-<span id="233">233</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">core::time::Duration</span>;
 <span class="kw">use</span> <span class="ident">std::path::PathBuf</span>;
-
 
 <span class="kw">use</span> <span class="ident">libafl::bolts::shmem</span>::{<span class="ident">ShMemProvider</span>, <span class="ident">StdShMemProvider</span>};
 
@@ -268,7 +265,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::harness</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">EDGES_MAP</span>, <span class="ident">MAX_EDGES_NUM</span>};
-<span class="kw">use</span> <span class="ident">libafl::bolts::os</span>::{<span class="ident">Cores</span>};
+<span class="kw">use</span> <span class="ident">libafl::bolts::os::Cores</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Trace</span>;
 
@@ -317,135 +314,134 @@
         }
     );*/</span>
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">run_client</span> <span class="op">=</span>
-        <span class="op">|</span><span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-         <span class="kw-2">mut</span> <span class="ident">restarting_mgr</span>: <span class="ident">LlmpRestartingEventManager</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">_unknown</span>: <span class="ident">usize</span><span class="op">|</span> {
-            <span class="macro">info!</span>(<span class="string">&quot;We&#39;re a client, let&#39;s fuzz :)&quot;</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">run_client</span> <span class="op">=</span> <span class="op">|</span><span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+                          <span class="kw-2">mut</span> <span class="ident">restarting_mgr</span>: <span class="ident">LlmpRestartingEventManager</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>,
+                          <span class="ident">_unknown</span>: <span class="ident">usize</span><span class="op">|</span> {
+        <span class="macro">info!</span>(<span class="string">&quot;We&#39;re a client, let&#39;s fuzz :)&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">edges_observer</span> <span class="op">=</span> <span class="ident">HitcountsMapObserver::new</span>(<span class="ident">StdMapObserver::new</span>(<span class="string">&quot;edges&quot;</span>, <span class="kw">unsafe</span> {
-                <span class="kw-2">&amp;mut</span> <span class="ident">EDGES_MAP</span>[<span class="number">0</span>..<span class="ident">MAX_EDGES_NUM</span>]
-            }));
-            <span class="kw">let</span> <span class="ident">time_observer</span> <span class="op">=</span> <span class="ident">TimeObserver::new</span>(<span class="string">&quot;time&quot;</span>);
+        <span class="kw">let</span> <span class="ident">edges_observer</span> <span class="op">=</span> <span class="ident">HitcountsMapObserver::new</span>(<span class="ident">StdMapObserver::new</span>(<span class="string">&quot;edges&quot;</span>, <span class="kw">unsafe</span> {
+            <span class="kw-2">&amp;mut</span> <span class="ident">EDGES_MAP</span>[<span class="number">0</span>..<span class="ident">MAX_EDGES_NUM</span>]
+        }));
+        <span class="kw">let</span> <span class="ident">time_observer</span> <span class="op">=</span> <span class="ident">TimeObserver::new</span>(<span class="string">&quot;time&quot;</span>);
 
-            <span class="kw">let</span> <span class="ident">edges_feedback_state</span> <span class="op">=</span> <span class="ident">MapFeedbackState::with_observer</span>(<span class="kw-2">&amp;</span><span class="ident">edges_observer</span>);
+        <span class="kw">let</span> <span class="ident">edges_feedback_state</span> <span class="op">=</span> <span class="ident">MapFeedbackState::with_observer</span>(<span class="kw-2">&amp;</span><span class="ident">edges_observer</span>);
 
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>)]</span>
-            <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(<span class="ident">MaxMapFeedback::new_tracking</span>(
-                <span class="kw-2">&amp;</span><span class="ident">edges_feedback_state</span>,
-                <span class="kw-2">&amp;</span><span class="ident">edges_observer</span>,
-                <span class="bool-val">false</span>,  <span class="comment">// [TODO] [LH] Why are track_index and track_novelties are false?</span>
-                <span class="bool-val">false</span>
-            ));
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>)]</span>
+        <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(<span class="ident">MaxMapFeedback::new_tracking</span>(
+            <span class="kw-2">&amp;</span><span class="ident">edges_feedback_state</span>,
+            <span class="kw-2">&amp;</span><span class="ident">edges_observer</span>,
+            <span class="bool-val">false</span>, <span class="comment">// [TODO] [LH] Why are track_index and track_novelties are false?</span>
+            <span class="bool-val">false</span>
+        ));
 
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>))]</span>
-            <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(
-                <span class="comment">// New maximization map feedback linked to the edges observer and the feedback state</span>
-                <span class="comment">// `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler</span>
-                <span class="ident">MaxMapFeedback::new_tracking</span>(<span class="kw-2">&amp;</span><span class="ident">edges_feedback_state</span>, <span class="kw-2">&amp;</span><span class="ident">edges_observer</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>),
-                <span class="comment">// Time feedback, this one does not need a feedback state</span>
-                <span class="comment">// needed for IndexesLenTimeMinimizerCorpusScheduler</span>
-                <span class="ident">TimeFeedback::new_with_observer</span>(<span class="kw-2">&amp;</span><span class="ident">time_observer</span>)
-            );
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>))]</span>
+        <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(
+            <span class="comment">// New maximization map feedback linked to the edges observer and the feedback state</span>
+            <span class="comment">// `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler</span>
+            <span class="ident">MaxMapFeedback::new_tracking</span>(<span class="kw-2">&amp;</span><span class="ident">edges_feedback_state</span>, <span class="kw-2">&amp;</span><span class="ident">edges_observer</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>),
+            <span class="comment">// Time feedback, this one does not need a feedback state</span>
+            <span class="comment">// needed for IndexesLenTimeMinimizerCorpusScheduler</span>
+            <span class="ident">TimeFeedback::new_with_observer</span>(<span class="kw-2">&amp;</span><span class="ident">time_observer</span>)
+        );
 
-            <span class="comment">// A feedback to choose if an input is a solution or not</span>
-            <span class="kw">let</span> <span class="ident">objective</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(<span class="ident">CrashFeedback::new</span>(), <span class="ident">TimeoutFeedback::new</span>());
-            <span class="comment">// [LH] [TODO] Why not using feedback_or_fast?</span>
+        <span class="comment">// A feedback to choose if an input is a solution or not</span>
+        <span class="kw">let</span> <span class="ident">objective</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(<span class="ident">CrashFeedback::new</span>(), <span class="ident">TimeoutFeedback::new</span>());
+        <span class="comment">// [LH] [TODO] Why not using feedback_or_fast?</span>
 
-            <span class="kw">let</span> <span class="ident">sender_id</span> <span class="op">=</span> <span class="ident">restarting_mgr</span>.<span class="ident">mgr_id</span>();
-            <span class="macro">info!</span>(<span class="string">&quot;Sender ID is {}&quot;</span>, <span class="ident">sender_id</span>.<span class="ident">id</span>);
+        <span class="kw">let</span> <span class="ident">sender_id</span> <span class="op">=</span> <span class="ident">restarting_mgr</span>.<span class="ident">mgr_id</span>();
+        <span class="macro">info!</span>(<span class="string">&quot;Sender ID is {}&quot;</span>, <span class="ident">sender_id</span>.<span class="ident">id</span>);
 
-            <span class="comment">// If not restarting, create a State from scratch</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">seed</span> <span class="op">=</span> <span class="ident">static_seed</span>.<span class="ident">unwrap_or</span>(<span class="ident">sender_id</span>.<span class="ident">id</span> <span class="kw">as</span> <span class="ident">u64</span>);
-                <span class="macro">info!</span>(<span class="string">&quot;Seed is {}&quot;</span>, <span class="ident">seed</span>);
-                <span class="ident">StdState::new</span>(
-                    <span class="ident">StdRand::with_seed</span>(<span class="ident">seed</span>),
+        <span class="comment">// If not restarting, create a State from scratch</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">seed</span> <span class="op">=</span> <span class="ident">static_seed</span>.<span class="ident">unwrap_or</span>(<span class="ident">sender_id</span>.<span class="ident">id</span> <span class="kw">as</span> <span class="ident">u64</span>);
+            <span class="macro">info!</span>(<span class="string">&quot;Seed is {}&quot;</span>, <span class="ident">seed</span>);
+            <span class="ident">StdState::new</span>(
+                <span class="ident">StdRand::with_seed</span>(<span class="ident">seed</span>),
+                {
+                    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;disk-corpus&quot;</span>))]</span>
                     {
-                        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;disk-corpus&quot;</span>))]</span>
-                        {
-                            <span class="ident">InMemoryCorpus::new</span>()
-                        }
-                        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;disk-corpus&quot;</span>)]</span>
-                        {
-                            <span class="ident">OnDiskCorpus::new</span>(<span class="ident">on_disk_corpus</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>()
-                        }
-                    },
-                    <span class="ident">OnDiskCorpus::new</span>(<span class="ident">objective_dir</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>(),
-                    <span class="comment">// They are the data related to the feedbacks that you want to persist in the State.</span>
-                    <span class="macro">tuple_list!</span>(<span class="ident">edges_feedback_state</span>),
-                )
-            });
-
-            <span class="kw">let</span> <span class="ident">mutations</span> <span class="op">=</span> <span class="ident">trace_mutations</span>::<span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">Trace</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(
-                <span class="ident">MIN_TRACE_LENGTH</span>,
-                <span class="ident">MAX_TRACE_LENGTH</span>,
-                <span class="ident">TermConstraints</span> {
-                    <span class="ident">min_term_size</span>: <span class="ident">MIN_TERM_SIZE</span>,
-                    <span class="ident">max_term_size</span>: <span class="ident">MAX_TERM_SIZE</span>,
+                        <span class="ident">InMemoryCorpus::new</span>()
+                    }
+                    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;disk-corpus&quot;</span>)]</span>
+                    {
+                        <span class="ident">OnDiskCorpus::new</span>(<span class="ident">on_disk_corpus</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>()
+                    }
                 },
-                <span class="ident">FRESH_ZOO_AFTER</span>,
-            );
-            <span class="kw">let</span> <span class="ident">mutator</span> <span class="op">=</span> <span class="ident">PuffinScheduledMutator::new</span>(<span class="ident">mutations</span>, <span class="ident">MAX_MUTATIONS_PER_ITERATION</span>);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stages</span> <span class="op">=</span> <span class="macro">tuple_list!</span>(
-                <span class="ident">PuffinMutationalStage::new</span>(<span class="ident">mutator</span>, <span class="ident">MAX_ITERATIONS_PER_STAGE</span>),
-                <span class="ident">StatsStage::new</span>()
-            );
+                <span class="ident">OnDiskCorpus::new</span>(<span class="ident">objective_dir</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>(),
+                <span class="comment">// They are the data related to the feedbacks that you want to persist in the State.</span>
+                <span class="macro">tuple_list!</span>(<span class="ident">edges_feedback_state</span>),
+            )
+        });
 
-            <span class="comment">// A minimization+queue policy to get testcasess from the corpus</span>
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>))]</span>
-            <span class="kw">let</span> <span class="ident">scheduler</span> <span class="op">=</span>
-                <span class="ident">IndexesLenTimeMinimizerCorpusScheduler::new</span>(<span class="ident">QueueCorpusScheduler::new</span>());
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>)]</span>
-            <span class="kw">let</span> <span class="ident">scheduler</span> <span class="op">=</span> <span class="ident">RandCorpusScheduler::new</span>();
+        <span class="kw">let</span> <span class="ident">mutations</span> <span class="op">=</span> <span class="ident">trace_mutations</span>::<span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">Trace</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(
+            <span class="ident">MIN_TRACE_LENGTH</span>,
+            <span class="ident">MAX_TRACE_LENGTH</span>,
+            <span class="ident">TermConstraints</span> {
+                <span class="ident">min_term_size</span>: <span class="ident">MIN_TERM_SIZE</span>,
+                <span class="ident">max_term_size</span>: <span class="ident">MAX_TERM_SIZE</span>,
+            },
+            <span class="ident">FRESH_ZOO_AFTER</span>,
+        );
+        <span class="kw">let</span> <span class="ident">mutator</span> <span class="op">=</span> <span class="ident">PuffinScheduledMutator::new</span>(<span class="ident">mutations</span>, <span class="ident">MAX_MUTATIONS_PER_ITERATION</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stages</span> <span class="op">=</span> <span class="macro">tuple_list!</span>(
+            <span class="ident">PuffinMutationalStage::new</span>(<span class="ident">mutator</span>, <span class="ident">MAX_ITERATIONS_PER_STAGE</span>),
+            <span class="ident">StatsStage::new</span>()
+        );
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fuzzer</span> <span class="op">=</span> <span class="ident">StdFuzzer::new</span>(<span class="ident">scheduler</span>, <span class="ident">feedback</span>, <span class="ident">objective</span>);
+        <span class="comment">// A minimization+queue policy to get testcasess from the corpus</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>))]</span>
+        <span class="kw">let</span> <span class="ident">scheduler</span> <span class="op">=</span> <span class="ident">IndexesLenTimeMinimizerCorpusScheduler::new</span>(<span class="ident">QueueCorpusScheduler::new</span>());
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;no-minimizer&quot;</span>)]</span>
+        <span class="kw">let</span> <span class="ident">scheduler</span> <span class="op">=</span> <span class="ident">RandCorpusScheduler::new</span>();
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">harness_fn</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">harness::harness</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fuzzer</span> <span class="op">=</span> <span class="ident">StdFuzzer::new</span>(<span class="ident">scheduler</span>, <span class="ident">feedback</span>, <span class="ident">objective</span>);
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">executor</span> <span class="op">=</span> <span class="ident">TimeoutExecutor::new</span>(
-                <span class="ident">InProcessExecutor::new</span>(
-                    <span class="kw-2">&amp;mut</span> <span class="ident">harness_fn</span>,
-                    <span class="comment">// hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)</span>
-                    <span class="macro">tuple_list!</span>(<span class="ident">edges_observer</span>, <span class="ident">time_observer</span>),
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">harness_fn</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">harness::harness</span>;
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">executor</span> <span class="op">=</span> <span class="ident">TimeoutExecutor::new</span>(
+            <span class="ident">InProcessExecutor::new</span>(
+                <span class="kw-2">&amp;mut</span> <span class="ident">harness_fn</span>,
+                <span class="comment">// hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)</span>
+                <span class="macro">tuple_list!</span>(<span class="ident">edges_observer</span>, <span class="ident">time_observer</span>),
+                <span class="kw-2">&amp;mut</span> <span class="ident">fuzzer</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">state</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>,
+            )<span class="question-mark">?</span>,
+            <span class="ident">Duration::new</span>(<span class="number">2</span>, <span class="number">0</span>),
+        );
+
+        <span class="comment">// In case the corpus is empty (on first run), reset</span>
+        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>() <span class="op">&lt;</span> <span class="number">1</span> {
+            <span class="ident">state</span>
+                .<span class="ident">load_initial_inputs</span>(
                     <span class="kw-2">&amp;mut</span> <span class="ident">fuzzer</span>,
-                    <span class="kw-2">&amp;mut</span> <span class="ident">state</span>,
-                    <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>,
-                )<span class="question-mark">?</span>,
-                <span class="ident">Duration::new</span>(<span class="number">2</span>, <span class="number">0</span>),
-            );
-
-            <span class="comment">// In case the corpus is empty (on first run), reset</span>
-            <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>() <span class="op">&lt;</span> <span class="number">1</span> {
-                <span class="ident">state</span>
-                    .<span class="ident">load_initial_inputs</span>(
-                        <span class="kw-2">&amp;mut</span> <span class="ident">fuzzer</span>,
-                        <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>,
-                        <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>,
-                        <span class="kw-2">&amp;</span>[<span class="ident">corpus_dir</span>.<span class="ident">clone</span>()],
-                    )
-                    .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
-                        <span class="macro">panic!</span>(
-                            <span class="string">&quot;Failed to load initial corpus at {:?}: {}&quot;</span>,
-                            <span class="kw-2">&amp;</span><span class="ident">corpus_dir</span>, <span class="ident">err</span>
-                        )
-                    });
-                <span class="macro">println!</span>(<span class="string">&quot;We imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
-            }
-
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_iters</span>) <span class="op">=</span> <span class="ident">max_iters</span> {
-                <span class="ident">fuzzer</span>.<span class="ident">fuzz_loop_for</span>(
-                    <span class="kw-2">&amp;mut</span> <span class="ident">stages</span>,
                     <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>,
-                    <span class="kw-2">&amp;mut</span> <span class="ident">state</span>,
                     <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>,
-                    <span class="ident">max_iters</span>,
-                )<span class="question-mark">?</span>;
-            } <span class="kw">else</span> {
-                <span class="ident">fuzzer</span>.<span class="ident">fuzz_loop</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stages</span>, <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>, <span class="kw-2">&amp;mut</span> <span class="ident">state</span>, <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>)<span class="question-mark">?</span>;
-            }
+                    <span class="kw-2">&amp;</span>[<span class="ident">corpus_dir</span>.<span class="ident">clone</span>()],
+                )
+                .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                    <span class="macro">panic!</span>(
+                        <span class="string">&quot;Failed to load initial corpus at {:?}: {}&quot;</span>,
+                        <span class="kw-2">&amp;</span><span class="ident">corpus_dir</span>, <span class="ident">err</span>
+                    )
+                });
+            <span class="macro">println!</span>(<span class="string">&quot;We imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
+        }
 
-            <span class="prelude-val">Ok</span>(())
-        };
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_iters</span>) <span class="op">=</span> <span class="ident">max_iters</span> {
+            <span class="ident">fuzzer</span>.<span class="ident">fuzz_loop_for</span>(
+                <span class="kw-2">&amp;mut</span> <span class="ident">stages</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">state</span>,
+                <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>,
+                <span class="ident">max_iters</span>,
+            )<span class="question-mark">?</span>;
+        } <span class="kw">else</span> {
+            <span class="ident">fuzzer</span>.<span class="ident">fuzz_loop</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stages</span>, <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>, <span class="kw-2">&amp;mut</span> <span class="ident">state</span>, <span class="kw-2">&amp;mut</span> <span class="ident">restarting_mgr</span>)<span class="question-mark">?</span>;
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    };
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">libafl::bolts::launcher::Launcher::builder</span>()
         .<span class="ident">shmem_provider</span>(<span class="ident">shmem_provider</span>)

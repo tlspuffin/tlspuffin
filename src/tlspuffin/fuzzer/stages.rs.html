@@ -203,7 +203,6 @@
 <span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
 <span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
 
-<span class="kw">use</span> <span class="ident">libafl</span>::{<span class="ident">Error</span>, <span class="ident">Evaluator</span>};
 <span class="kw">use</span> <span class="ident">libafl::bolts::rands::Rand</span>;
 <span class="kw">use</span> <span class="ident">libafl::inputs::Input</span>;
 <span class="kw">use</span> <span class="ident">libafl::mutators</span>::{
@@ -211,15 +210,16 @@
 };
 <span class="kw">use</span> <span class="ident">libafl::stages</span>::{<span class="ident">MutationalStage</span>, <span class="ident">Stage</span>};
 <span class="kw">use</span> <span class="ident">libafl::state</span>::{<span class="ident">HasClientPerfMonitor</span>, <span class="ident">HasCorpus</span>, <span class="ident">HasRand</span>};
+<span class="kw">use</span> <span class="ident">libafl</span>::{<span class="ident">Error</span>, <span class="ident">Evaluator</span>};
 
 <span class="doccomment">/// The default mutational stage</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PuffinMutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">S</span>:  <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
-        <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+<span class="kw">where</span>
+    <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+    <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
 {
     <span class="ident">mutator</span>: <span class="ident">M</span>,
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::type_complexity</span>)]</span>
@@ -227,13 +227,13 @@
     <span class="ident">max_iterations_per_stage</span>: <span class="ident">u64</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>,  <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">MutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
-<span class="kw">for</span> <span class="ident">PuffinMutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span>  <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
-        <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">MutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
+    <span class="kw">for</span> <span class="ident">PuffinMutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+    <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
 {
     <span class="doccomment">/// The mutator, added to this stage</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -254,11 +254,11 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">Stage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">PuffinMutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span>  <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
-        <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+<span class="kw">where</span>
+    <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+    <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::let_and_return</span>)]</span>
@@ -280,11 +280,11 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">PuffinMutationalStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">M</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">S</span>:  <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
-        <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+<span class="kw">where</span>
+    <span class="ident">M</span>: <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">S</span>: <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+    <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
 {
     <span class="doccomment">/// Creates a new default mutational stage</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">mutator</span>: <span class="ident">M</span>, <span class="ident">max_iterations_per_stage</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {
@@ -300,10 +300,10 @@
 
 <span class="doccomment">/// A [`Mutator`] that schedules one of the embedded mutations on each call.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="ident">mutations</span>: <span class="ident">MT</span>,
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">I</span>, <span class="ident">S</span>)<span class="op">&gt;</span>,
@@ -311,10 +311,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="macro">write!</span>(
@@ -327,10 +327,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">mutate</span>(
@@ -344,10 +344,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">ComposedByMutations</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="doccomment">/// Get the mutations</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -363,10 +363,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">ScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="doccomment">/// Compute the number of iterations used to apply stacked mutations</span>
     <span class="kw">fn</span> <span class="ident">iterations</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">u64</span> {
@@ -381,10 +381,10 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">PuffinScheduledMutator</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">MT</span>, <span class="ident">S</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">I</span>: <span class="ident">Input</span>,
-        <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
-        <span class="ident">S</span>: <span class="ident">HasRand</span>,
+<span class="kw">where</span>
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">MT</span>: <span class="ident">MutatorsTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="doccomment">/// Create a new [`StdScheduledMutator`] instance specifying mutations</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">mutations</span>: <span class="ident">MT</span>, <span class="ident">max_mutations_per_iteration</span>: <span class="ident">u64</span>) -&gt; <span class="self">Self</span> {

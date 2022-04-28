@@ -716,6 +716,7 @@
 <span id="711">711</span>
 <span id="712">712</span>
 <span id="713">713</span>
+<span id="714">714</span>
 </pre><pre class="rust"><code><span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">seeds</span> {
     <span class="kw">use</span> <span class="ident">nix::sys::signal::Signal</span>;
@@ -733,7 +734,7 @@
     <span class="kw">where</span>
         <span class="ident">R</span>: <span class="ident">FnMut</span>(),
     {
-     <span class="kw">match</span> <span class="kw">unsafe</span> { <span class="ident">fork</span>() } {
+        <span class="kw">match</span> <span class="kw">unsafe</span> { <span class="ident">fork</span>() } {
             <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Parent</span> { <span class="ident">child</span>, .. }) =&gt; {
                 <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">waitpid</span>(<span class="ident">child</span>, <span class="ident">Option::from</span>(<span class="ident">WaitPidFlag::empty</span>())).<span class="ident">unwrap</span>();
 
@@ -1406,16 +1407,17 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">conn</span> <span class="op">=</span> <span class="ident">rustls::ClientConnection::new</span>(<span class="ident">Arc::new</span>(<span class="ident">config</span>), <span class="ident">dns_name</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sock</span> <span class="op">=</span> <span class="ident">TcpStream::connect</span>(<span class="string">&quot;google.com:443&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tls</span> <span class="op">=</span> <span class="ident">rustls::Stream::new</span>(<span class="kw-2">&amp;mut</span> <span class="ident">conn</span>, <span class="kw-2">&amp;mut</span> <span class="ident">sock</span>);
-        <span class="kw">let</span> <span class="ident">_written</span> <span class="op">=</span> <span class="ident">tls</span>.<span class="ident">write</span>(
-            <span class="macro">concat!</span>(
-            <span class="string">&quot;GET / HTTP/1.1\r\n&quot;</span>,
-            <span class="string">&quot;Host: google.com\r\n&quot;</span>,
-            <span class="string">&quot;Connection: close\r\n&quot;</span>,
-            <span class="string">&quot;Accept-Encoding: identity\r\n&quot;</span>,
-            <span class="string">&quot;\r\n&quot;</span>
-            )
+        <span class="kw">let</span> <span class="ident">_written</span> <span class="op">=</span> <span class="ident">tls</span>
+            .<span class="ident">write</span>(
+                <span class="macro">concat!</span>(
+                    <span class="string">&quot;GET / HTTP/1.1\r\n&quot;</span>,
+                    <span class="string">&quot;Host: google.com\r\n&quot;</span>,
+                    <span class="string">&quot;Connection: close\r\n&quot;</span>,
+                    <span class="string">&quot;Accept-Encoding: identity\r\n&quot;</span>,
+                    <span class="string">&quot;\r\n&quot;</span>
+                )
                 .<span class="ident">as_bytes</span>(),
-        )
+            )
             .<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">ciphersuite</span> <span class="op">=</span> <span class="ident">tls</span>.<span class="ident">conn</span>.<span class="ident">negotiated_cipher_suite</span>().<span class="ident">unwrap</span>();
         <span class="macro">writeln!</span>(

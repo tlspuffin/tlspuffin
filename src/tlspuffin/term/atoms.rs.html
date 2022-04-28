@@ -314,8 +314,6 @@
 <span id="309">309</span>
 <span id="310">310</span>
 <span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module provides an enum for terms. A term can either be a Variable or a Function.</span>
 <span class="doccomment">//! This also implements the serializability of terms.</span>
 <span class="doccomment">//!</span>
@@ -591,14 +589,12 @@
             }
 
             <span class="kw">let</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::missing_field</span>(<span class="ident">NAME</span>))<span class="question-mark">?</span>;
-            <span class="kw">let</span> (<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>) <span class="op">=</span>
-                <span class="ident">SIGNATURE</span>
-                    .<span class="ident">functions_by_name</span>
-                    .<span class="ident">get</span>(<span class="ident">name</span>)
-                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span><span class="ident">de::Error::custom</span>(<span class="macro">format!</span>(
-                        <span class="string">&quot;Failed to link function symbol: Could not find function {}&quot;</span>,
-                        <span class="ident">name</span>
-                    )))<span class="question-mark">?</span>;
+            <span class="kw">let</span> (<span class="ident">shape</span>, <span class="ident">dynamic_fn</span>) <span class="op">=</span> <span class="ident">SIGNATURE</span>.<span class="ident">functions_by_name</span>.<span class="ident">get</span>(<span class="ident">name</span>).<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> {
+                <span class="ident">de::Error::custom</span>(<span class="macro">format!</span>(
+                    <span class="string">&quot;Failed to link function symbol: Could not find function {}&quot;</span>,
+                    <span class="ident">name</span>
+                ))
+            })<span class="question-mark">?</span>;
 
             <span class="kw">let</span> <span class="ident">argument_types</span> <span class="op">=</span> <span class="ident">arguments</span>.<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::missing_field</span>(<span class="ident">ARGUMENTS</span>))<span class="question-mark">?</span>;
             <span class="kw">let</span> <span class="ident">return_type</span> <span class="op">=</span> <span class="ident">ret</span>.<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">de::Error::missing_field</span>(<span class="ident">RETURN</span>))<span class="question-mark">?</span>;

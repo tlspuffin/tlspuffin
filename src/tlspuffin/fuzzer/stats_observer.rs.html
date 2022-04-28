@@ -249,19 +249,13 @@
 <span id="244">244</span>
 <span id="245">245</span>
 <span id="246">246</span>
-<span id="247">247</span>
-<span id="248">248</span>
-<span id="249">249</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::sync::atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">AtomicUsize</span>, <span class="ident">Ordering</span>};
 
 <span class="kw">use</span> <span class="ident">libafl::events</span>::{<span class="ident">Event</span>, <span class="ident">EventFirer</span>};
 <span class="kw">use</span> <span class="ident">libafl::inputs::Input</span>;
-<span class="kw">use</span> <span class="ident">libafl::state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasRand</span>};
 <span class="kw">use</span> <span class="ident">libafl::monitors::UserStats</span>;
+<span class="kw">use</span> <span class="ident">libafl::state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasRand</span>};
 <span class="kw">use</span> <span class="ident">libafl</span>::{<span class="ident">Error</span>, <span class="ident">Evaluator</span>};
-
-
-
 
 <span class="kw">use</span> <span class="ident">libafl::stages::Stage</span>;
 <span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
@@ -455,7 +449,7 @@
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span>)<span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span> <span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">Stage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StatsStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">Stage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">StatsStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">Input</span>,
     <span class="ident">EM</span>: <span class="ident">EventFirer</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>,
@@ -492,7 +486,7 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">StatsStage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">I</span>: <span class="ident">Input</span>,
-    <span class="ident">S</span>:  <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+    <span class="ident">S</span>: <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasRand</span>,
     <span class="ident">Z</span>: <span class="ident">Evaluator</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
 {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {

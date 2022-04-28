@@ -390,6 +390,7 @@
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.</span>
+<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">any</span>::{<span class="ident">type_name</span>, <span class="ident">Any</span>, <span class="ident">TypeId</span>},
     <span class="ident">collections::hash_map::DefaultHasher</span>,
@@ -397,7 +398,6 @@
     <span class="ident">fmt::Formatter</span>,
     <span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>},
 };
-<span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">de::Visitor</span>, <span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 

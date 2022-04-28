@@ -289,6 +289,14 @@
 <span id="284">284</span>
 <span id="285">285</span>
 <span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::io::ErrorKind</span>;
 <span class="kw">use</span> <span class="ident">std::os::raw::c_int</span>;
 
@@ -459,8 +467,12 @@ i7RrmCDnL/ue3MkPP+8=
             <span class="prelude-val">Ok</span>(())
         }
         <span class="ident">TLSVersion::V1_2</span> =&gt; <span class="ident">ctx_builder</span>.<span class="ident">set_max_proto_version</span>(<span class="prelude-val">Some</span>(<span class="ident">SslVersion::TLS1_2</span>)),
-        <span class="ident">TLSVersion::Unknown</span> =&gt; <span class="prelude-val">Ok</span>(())
+        <span class="ident">TLSVersion::Unknown</span> =&gt; <span class="prelude-val">Ok</span>(()),
     }<span class="question-mark">?</span>;
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span> <span class="comment">// TODO: review this file and add versions for wolfssl</span>
+    <span class="macro">assert!</span>(<span class="bool-val">false</span>);
+
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -484,7 +496,11 @@ i7RrmCDnL/ue3MkPP+8=
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl102u&quot;</span>))]</span>
     {
-        <span class="ident">ctx_builder</span>.<span class="ident">set_tmp_ecdh</span>(<span class="ident">openssl::ec::EcKey::from_curve_name</span>(<span class="ident">openssl::nid::Nid::SECP384R1</span>).<span class="ident">as_ref</span>().<span class="ident">unwrap</span>())<span class="question-mark">?</span>;
+        <span class="ident">ctx_builder</span>.<span class="ident">set_tmp_ecdh</span>(
+            <span class="ident">openssl::ec::EcKey::from_curve_name</span>(<span class="ident">openssl::nid::Nid::SECP384R1</span>)
+                .<span class="ident">as_ref</span>()
+                .<span class="ident">unwrap</span>(),
+        )<span class="question-mark">?</span>;
         <span class="comment">// TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback after fix</span>
         <span class="comment">//ctx_builder.set_tmp_ecdh_callback(|_, _, _| {</span>
         <span class="comment">//   openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)</span>

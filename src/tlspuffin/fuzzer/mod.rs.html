@@ -103,7 +103,7 @@ compile_error!(
 <span class="kw">mod</span> <span class="ident">term_zoo</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Trace</span>;
-<span class="kw">use</span> <span class="ident">libafl::inputs</span>::{<span class="ident">Input</span>};
+<span class="kw">use</span> <span class="ident">libafl::inputs::Input</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">test</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;sancov_libafl&quot;</span>))]</span>
 <span class="comment">// This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link</span>
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="ident">libafl_targets</span>::{<span class="ident">EDGES_MAP</span>, <span class="ident">MAX_EDGES_NUM</span>};

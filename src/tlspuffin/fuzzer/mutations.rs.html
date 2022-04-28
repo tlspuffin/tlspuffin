@@ -597,14 +597,14 @@
     <span class="ident">constraints</span>: <span class="ident">TermConstraints</span>,
     <span class="ident">fresh_zoo_after</span>: <span class="ident">u64</span>,
 ) -&gt; <span class="macro">tuple_list_type!</span>(
-       <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
-       <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
-   )
+    <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+)
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasMetadata</span> <span class="op">+</span> <span class="ident">HasMaxSize</span> <span class="op">+</span> <span class="ident">HasRand</span>,
 {
