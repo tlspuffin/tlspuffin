@@ -5,7 +5,7 @@ authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2021"
 
 [features]
-default = []
+default = ["sancov_libafl", "openssl111", "introspection"]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []

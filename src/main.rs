@@ -22,6 +22,7 @@ use trace::TraceContext;
 use crate::experiment::*;
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
+use crate::tests::put_type;
 
 mod agent;
 mod concretize;
@@ -47,6 +48,7 @@ fn main() {
             )))
             .build();
         let file_appender = FileAppender::builder()
+            .encoder(Box::new(JsonEncoder::new()))
             .encoder(Box::new(JsonEncoder::new()))
             .build(&log_path)
             .unwrap();
@@ -101,7 +103,7 @@ fn main() {
     info!("{}", openssl_binding::openssl_version());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        for (trace, name) in create_corpus() {
+        for (trace, name) in create_corpus(put_type) {
             let mut file = File::create(format!("./corpus/{}.trace", name)).unwrap();
             let buffer = postcard::to_allocvec(&trace).unwrap();
             file.write_all(&buffer).unwrap();

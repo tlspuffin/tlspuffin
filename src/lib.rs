@@ -29,4 +29,4 @@ mod experiment;
 pub mod openssl_binding;
 pub mod wolfssl_binding;
 pub mod concretize;
-mod tests;
+pub mod tests;

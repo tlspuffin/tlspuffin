@@ -1,10 +1,10 @@
 use crate::concretize::PUTType;
 
 #[cfg(feature = "openssl")]
-static put_type: PUTType = PUTType::OpenSSL;
+pub static put_type: PUTType = PUTType::OpenSSL;
 
 #[cfg(feature = "wolfssl")]
-static put_type: PUTType = PUTType::WolfSSL;
+pub static put_type: PUTType = PUTType::WolfSSL;
 
 #[cfg(test)]
 pub mod seeds {
