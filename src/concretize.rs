@@ -6,12 +6,15 @@
 use std::cell::RefCell;
 use crate::io::MessageResult;
 use crate::{io, openssl_binding};
-use openssl::ssl::SslStream;
+use crate::wolfssl_binding;
 use rustls::msgs::message::OpaqueMessage;
 use std::io::{Read, Write};
 use std::rc::Rc;
 use foreign_types_shared::ForeignTypeRef;
+use log4rs::config::Deserialize;
 use security_claims::{deregister_claimer, register_claimer, Claim};
+use serde::de::DeserializeOwned;
+use serde::Deserializer;
 use crate::agent::{AgentName, TLSVersion};
 use crate::error::Error;
 use crate::io::{MemoryStream, Stream};
@@ -62,7 +65,7 @@ impl OpenSSL {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub struct OpenSSL {
-    stream: SslStream<MemoryStream>,
+    stream: openssl::ssl::SslStream<MemoryStream>,
 }
 
 impl Drop for OpenSSL {
@@ -154,9 +157,8 @@ impl OpenSSL {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// WolfSSL specific-state
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
 pub struct WolfSSL {
-    // [TODO::PUT]
+    stream: wolfssl_binding::SslStream<MemoryStream>,
 }
 
 impl Stream for WolfSSL {
@@ -217,6 +219,17 @@ impl PUT for WolfSSL {
 
 impl WolfSSL {
     pub fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+        todo!()
+    }
+}
+
+impl WolfSSL {
+    pub fn describe_state(&self) -> &'static str {
+        // Very useful for nonblocking according to docs:
+        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
+        // When using nonblocking sockets, the function call performing the handshake may return
+        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
+        // so that SSL_state_string[_long]() may be called.
         todo!()
     }
 }
