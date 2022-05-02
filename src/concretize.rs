@@ -11,10 +11,8 @@ use rustls::msgs::message::OpaqueMessage;
 use std::io::{Read, Write};
 use std::rc::Rc;
 use foreign_types_shared::ForeignTypeRef;
-use log4rs::config::Deserialize;
 use security_claims::{deregister_claimer, register_claimer, Claim};
-use serde::de::DeserializeOwned;
-use serde::Deserializer;
+use serde::{Deserialize, Serialize};
 use crate::agent::{AgentName, TLSVersion};
 use crate::error::Error;
 use crate::io::{MemoryStream, Stream};
@@ -34,31 +32,28 @@ pub struct Config {
     pub claimer: Rc<RefCell<VecClaimer>>,
 }
 
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub enum PUTType {
+    OpenSSL,
+    WolfSSL
+}
+
 pub trait PUT: Stream + Drop {
-    /// An agent state for the PUT
-    type State;
-
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(c: Config) -> Result<<Self as PUT>::State, Error>;
+    fn new(c: Config) -> Result<Self, Error> where Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer
-    fn progress(s: &mut <Self as PUT>::State) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
     /// In-place reset of the state
-    fn reset(s: &mut <Self as PUT>::State) -> Result<(), Error>;
+    fn reset(&mut self) -> Result<(), Error>;
     ///
-    fn register_claimer(s: &mut <Self as PUT>::State, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
+    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     ///
-    fn deregister_claimer(s: &mut <Self as PUT>::State) -> ();
+    fn deregister_claimer(&mut self) -> ();
+    ///
+    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
+    ///
+    fn describe_state(&self) -> &'static str;
 }
-
-impl OpenSSL {
-    pub fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        OpenSSL::deregister_claimer(self);
-        OpenSSL::register_claimer(self,claimer, agent_name)
-    }
-}
-
-// TODO: find a way to conditionally define the specific instantiation we shall use like
-// pub type PUTState = if cfg!(openssl) then OpenSSL else WolfSSL;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// OpenSSL specific-state
@@ -102,7 +97,6 @@ impl Write for OpenSSL {
 }
 
 impl PUT for OpenSSL {
-    type State = OpenSSL;
 
     fn new(c: Config) -> Result<OpenSSL, Error> {
         // [TODO::PUT] will replace io::PUTState::new
@@ -120,32 +114,34 @@ impl PUT for OpenSSL {
         Ok(stream)
     }
 
-    fn progress(s: &mut <Self as PUT>::State) -> Result<(), Error> {
-        let stream = &mut s.stream;
-        openssl_binding::do_handshake(stream)
+    fn progress(&mut self) -> Result<(), Error> {
+        openssl_binding::do_handshake(&mut self.stream)
     }
 
-    fn reset(s: &mut <Self as PUT>::State) -> Result<(), Error> {
-        s.stream.clear();
+    fn reset(& mut self) -> Result<(), Error> {
+        self.stream.clear();
         Ok(())
     }
 
-    fn register_claimer(s: &mut <Self as PUT>::State, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         register_claimer(
-            s.stream.ssl().as_ptr().cast(),
+            self.stream.ssl().as_ptr().cast(),
             move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
         );
     }
 
-    fn deregister_claimer(s: &mut <Self as PUT>::State) -> () {
+    fn deregister_claimer(&mut self) -> () {
         #[cfg(feature = "claims")]
-        deregister_claimer(s.stream.ssl().as_ptr().cast());
+        deregister_claimer(self.stream.ssl().as_ptr().cast());
     }
-}
 
-impl OpenSSL {
-    pub fn describe_state(&self) -> &'static str {
+    fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+        OpenSSL::deregister_claimer(self);
+        OpenSSL::register_claimer(self,claimer, agent_name)
+    }
+
+    fn describe_state(&self) -> &'static str {
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
@@ -154,9 +150,11 @@ impl OpenSSL {
         self.stream.ssl().state_string_long()
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// WolfSSL specific-state
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub struct WolfSSL {
     stream: wolfssl_binding::SslStream<MemoryStream>,
 }
@@ -194,42 +192,31 @@ impl Drop for WolfSSL {
 }
 
 impl PUT for WolfSSL {
-    type State = WolfSSL;
-
-    fn new(c: Config) -> Result<<Self as PUT>::State, Error> {
+    fn new(c: Config) -> Result<Self, Error> where Self: Sized {
         todo!()
     }
 
-    fn progress(s: &mut <Self as PUT>::State) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         todo!()
     }
 
-    fn reset(s: &mut <Self as PUT>::State) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         todo!()
     }
 
-    fn register_claimer(s: &mut <Self as PUT>::State, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         todo!()
     }
 
-    fn deregister_claimer(s: &mut <Self as PUT>::State) -> () {
+    fn deregister_claimer(&mut self) -> () {
         todo!()
     }
-}
 
-impl WolfSSL {
-    pub fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         todo!()
     }
-}
 
-impl WolfSSL {
-    pub fn describe_state(&self) -> &'static str {
-        // Very useful for nonblocking according to docs:
-        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
-        // When using nonblocking sockets, the function call performing the handshake may return
-        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
-        // so that SSL_state_string[_long]() may be called.
+    fn describe_state(&self) -> &'static str {
         todo!()
     }
 }

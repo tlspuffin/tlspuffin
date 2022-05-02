@@ -1,3 +1,11 @@
+use crate::concretize::PUTType;
+
+#[cfg(feature = "openssl")]
+static put_type: PUTType = PUTType::OpenSSL;
+
+#[cfg(feature = "wolfssl")]
+static put_type: PUTType = PUTType::WolfSSL;
+
 #[cfg(test)]
 pub mod seeds {
     use nix::sys::signal::Signal;
@@ -10,6 +18,7 @@ pub mod seeds {
     use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::trace::Action;
     use crate::{fuzzer::seeds::*, trace::TraceContext};
+    use crate::tests::put_type;
 
     fn expect_crash<R>(mut func: R)
     where
@@ -51,7 +60,7 @@ pub mod seeds {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_heartbleed(client, server);
+            let trace = seed_heartbleed(client, server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -66,7 +75,7 @@ pub mod seeds {
             make_deterministic();
             let mut ctx = TraceContext::new();
             let server = AgentName::first();
-            let trace = seed_cve_2021_3449(server);
+            let trace = seed_cve_2021_3449(server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -77,7 +86,7 @@ pub mod seeds {
         make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server);
+        let trace = seed_client_attacker12(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -92,7 +101,7 @@ pub mod seeds {
         make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker(server);
+        let trace = seed_client_attacker(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -107,7 +116,7 @@ pub mod seeds {
         make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server);
+        let (trace, ..) = seed_client_attacker_full(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -123,7 +132,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server);
+        let trace = seed_session_resumption_dhe(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -139,7 +148,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server);
+        let trace = seed_session_resumption_dhe_full(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -155,7 +164,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server);
+        let trace = seed_session_resumption_ke(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -171,7 +180,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server);
+        let trace = seed_successful(client, server, put_type);
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
@@ -195,7 +204,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_mitm(client, server);
+        let trace = seed_successful_mitm(client, server, put_type);
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
@@ -215,7 +224,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_ccs(client, server);
+        let trace = seed_successful_with_ccs(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -236,7 +245,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_tickets(client, server);
+        let trace = seed_successful_with_tickets(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -255,7 +264,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server);
+        let trace = seed_successful12(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -279,7 +288,7 @@ pub mod seeds {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_freak(client, server);
+            let trace = seed_freak(client, server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -291,11 +300,11 @@ pub mod seeds {
         let server = client.next();
 
         for trace in [
-            seed_successful12(client, server),
-            seed_successful(client, server),
-            seed_client_attacker12(server),
-            seed_cve_2021_3449(server),
-            seed_client_attacker(server),
+            seed_successful12(client, server, put_type),
+            seed_successful(client, server, put_type),
+            seed_client_attacker12(server, put_type),
+            seed_cve_2021_3449(server, put_type),
+            seed_client_attacker(server, put_type),
         ] {
             for step in &trace.steps {
                 match &step.action {
@@ -320,12 +329,13 @@ pub mod serialization {
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
+    use crate::tests::put_type;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server);
+        let trace = seed_session_resumption_dhe(initial_server, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -339,7 +349,7 @@ pub mod serialization {
     fn test_serialisation_seed_seed_session_resumption_ke_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server);
+        let trace = seed_session_resumption_ke(initial_server, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -352,7 +362,7 @@ pub mod serialization {
     #[test]
     fn test_serialisation_seed_client_attacker12_json() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server);
+        let trace = seed_client_attacker12(server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -382,7 +392,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server);
+        let trace = seed_successful(client, server, put_type);
 
         let serialized1 = postcard::to_allocvec(&trace).unwrap();
 
@@ -397,7 +407,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server);
+        let trace = seed_successful12(client, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -412,7 +422,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_heartbleed(client, server);
+        let trace = seed_heartbleed(client, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 

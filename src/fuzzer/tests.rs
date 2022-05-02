@@ -7,6 +7,7 @@ use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
 use crate::agent::AgentName;
+use crate::concretize::{PUTType, PUTType::{OpenSSL, WolfSSL}};
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
@@ -20,6 +21,12 @@ use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, Step, Trace};
+
+#[cfg(feature = "openssl")]
+static put_type: PUTType = OpenSSL;
+
+#[cfg(feature = "wolfssl")]
+static put_type: PUTType = WolfSSL;
 
 #[cfg(feature = "deterministic")]
 #[test]
@@ -37,7 +44,7 @@ fn test_repeat_mutator() {
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let server = AgentName::first();
-    let _trace = seed_client_attacker12(server);
+    let _trace = seed_client_attacker12(server, put_type);
 
     let mut mutator = RepeatMutator::new(15);
 
@@ -51,7 +58,7 @@ fn test_repeat_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let length = trace.steps.len();
@@ -77,7 +84,7 @@ fn test_replace_match_mutator() {
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(last) = trace.steps.iter().last() {
@@ -113,7 +120,7 @@ fn test_remove_lift_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         let before_mutation = sum_extension_appends(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -144,7 +151,7 @@ fn test_replace_reuse_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
@@ -167,7 +174,7 @@ fn test_skip_mutator() {
     let mut mutator = SkipMutator::new(2);
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         let before_len = trace.steps.len();
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -186,7 +193,7 @@ fn test_swap_mutator() {
     let mut mutator = SwapMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(server);
+        let mut trace = seed_client_attacker12(server, put_type);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let is_last_not_encrypt = if let Some(last) = trace.steps.iter().last() {
@@ -220,7 +227,7 @@ fn test_swap_mutator() {
 #[test]
 fn test_find_term() {
     let mut rand = StdRand::with_seed(45);
-    let (client_hello, mut trace) = util::setup_simple_trace();
+    let (client_hello, mut trace) = util::setup_simple_trace(put_type);
 
     let mut stats: HashSet<TracePath> = HashSet::new();
 
@@ -270,7 +277,7 @@ fn test_reservoir_sample_randomness() {
         }
     }
 
-    let (client_hello, trace) = util::setup_simple_trace();
+    let (client_hello, trace) = util::setup_simple_trace(put_type);
 
     let mut rand = StdRand::with_seed(45);
     let mut stats: HashMap<u32, u32> = HashMap::new();
@@ -341,7 +348,7 @@ fn test_term_generation() {
 
 #[test]
 fn test_corpus_term_size() {
-    let corpus = create_corpus();
+    let corpus = create_corpus(put_type);
     let _trace_term_sizes = corpus
         .iter()
         .map(|(trace, name)| {
@@ -364,13 +371,14 @@ fn test_corpus_term_size() {
 
 mod util {
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
+    use crate::concretize::PUTType;
     use crate::graphviz::write_graphviz;
     use crate::term;
     use crate::term::Term;
     use crate::tls::fn_impl::*;
     use crate::trace::{Action, InputAction, Step, Trace};
 
-    pub fn setup_simple_trace() -> (Term, Trace) {
+    pub fn setup_simple_trace(put_type: PUTType) -> (Term, Trace) {
         let server = AgentName::first();
         let client_hello = term! {
               fn_client_hello(
@@ -417,6 +425,7 @@ mod util {
                     tls_version: TLSVersion::V1_2,
                     server: true,
                     try_reuse: false,
+                    put_type
                 }],
                 steps: vec![Step {
                     agent: server,

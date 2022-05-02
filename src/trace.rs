@@ -96,7 +96,7 @@ use crate::{
 };
 
 use itertools::Itertools;
-use crate::concretize::{OpenSSL, PUT};
+use crate::concretize::{OpenSSL, WolfSSL, PUT, PUTType};
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -352,7 +352,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        PUT::progress(&mut agent.stream)
+        agent.stream.progress()
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -372,7 +372,13 @@ impl TraceContext {
     }
 
     pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
+        // [TODO] There might be a cleaner way of doing this, e.g., if we could store a type
+        // instantiation in an enum, but this works
+        let agent = match descriptor.put_type {
+            PUTType::OpenSSL=> Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
+            PUTType::WolfSSL => Agent::new::<WolfSSL>(descriptor, self.claimer.clone())?,
+        };
+        let agent_name = self.add_agent(agent);
         Ok(agent_name)
     }
 

@@ -8,7 +8,7 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, OpenSSL, WolfSSL, PUT};
+use crate::concretize::{Config, OpenSSL, WolfSSL, PUT, PUTType};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -43,6 +43,7 @@ impl fmt::Display for AgentName {
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct AgentDescriptor {
     pub name: AgentName,
+    pub put_type: PUTType,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
     pub server: bool,
@@ -58,39 +59,43 @@ impl AgentDescriptor {
         self.server == other.server && self.tls_version == other.tls_version
     }
 
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
+            put_type,
         }
     }
 
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
+            put_type,
         }
     }
 
-    pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_server(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: false,
+            put_type,
         }
     }
 
-    pub fn new_client(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_client(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: false,
             try_reuse: false,
+            put_type,
         }
     }
 }
@@ -113,18 +118,13 @@ impl From<i32> for TLSVersion {
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
-pub struct Agent<P>
-where
-    P: PUT,
-{
+pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: P::State,
+    pub stream: Box<dyn PUT>,
 }
 
-impl <P> Agent<P>
-where P:PUT
-{
-    pub fn new(
+impl Agent {
+    pub fn new<P: 'static + PUT>(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
@@ -137,7 +137,7 @@ where P:PUT
         let stream = P::new(c)?;
         let agent = Agent {
             descriptor: *descriptor,
-            stream,
+            stream: Box::new(stream),
         };
 
         Ok(agent)
@@ -149,6 +149,6 @@ where P:PUT
     }
 
     pub fn reset(&mut self) {
-        P::reset(&mut self.stream);
+       self.reset();
     }
 }
