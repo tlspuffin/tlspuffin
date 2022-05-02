@@ -730,10 +730,10 @@
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize::PUTType</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl&quot;</span>)]</span>
-<span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">PUTType::OpenSSL</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">PUTType::OpenSSL</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">PUTType::WolfSSL</span>;
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">PUTType::WolfSSL</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">seeds</span> {
