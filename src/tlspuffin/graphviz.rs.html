@@ -209,6 +209,13 @@
 <span id="204">204</span>
 <span id="205">205</span>
 <span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in</span>
 <span class="doccomment">//! this module can be passed to the command line utility `dot` which is part of graphviz.</span>
 
@@ -405,12 +412,19 @@ const SHOW_LABELS: bool = false */</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize::PUTType</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize::PUTType</span>::{<span class="ident">OpenSSL</span>, <span class="ident">WolfSSL</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::fuzzer::seeds::seed_client_attacker12</span>;
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl&quot;</span>)]</span>
+    <span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">OpenSSL</span>;
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
+    <span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">WolfSSL</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_dot_graph</span>() {
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>(<span class="ident">server</span>);
+        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>(<span class="ident">server</span>, <span class="ident">put_type</span>);
         <span class="kw">let</span> <span class="ident">_string</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">dot_graph</span>(<span class="bool-val">true</span>);
         <span class="comment">//println!(&quot;{}&quot;, string);</span>
     }

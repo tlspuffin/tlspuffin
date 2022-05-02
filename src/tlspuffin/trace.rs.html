@@ -668,6 +668,12 @@
 <span id="663">663</span>
 <span id="664">664</span>
 <span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -766,7 +772,7 @@
 };
 
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">OpenSSL</span>, <span class="ident">PUT</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">OpenSSL</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>, <span class="ident">PUTType</span>};
 
 <span class="doccomment">/// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields</span>
 <span class="doccomment">/// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].</span>
@@ -1022,7 +1028,7 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next_state</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">agent</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">find_agent_mut</span>(<span class="ident">agent_name</span>)<span class="question-mark">?</span>;
-        <span class="ident">OpenSSL::progress</span>(<span class="kw-2">&amp;mut</span> <span class="ident">agent</span>.<span class="ident">stream</span>)
+        <span class="ident">agent</span>.<span class="ident">stream</span>.<span class="ident">progress</span>()
     }
 
     <span class="doccomment">/// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter &quot;agent&quot;.</span>
@@ -1042,7 +1048,13 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_openssl_agent</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">descriptor</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">AgentName</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">agent_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">add_agent</span>(<span class="ident">Agent::new</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>);
+        <span class="comment">// [TODO] There might be a cleaner way of doing this, e.g., if we could store a type</span>
+        <span class="comment">// instantiation in an enum, but this works</span>
+        <span class="kw">let</span> <span class="ident">agent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">descriptor</span>.<span class="ident">put_type</span> {
+            <span class="ident">PUTType::OpenSSL</span>=&gt; <span class="ident">Agent::new</span>::<span class="op">&lt;</span><span class="ident">OpenSSL</span><span class="op">&gt;</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>,
+            <span class="ident">PUTType::WolfSSL</span> =&gt; <span class="ident">Agent::new</span>::<span class="op">&lt;</span><span class="ident">WolfSSL</span><span class="op">&gt;</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>,
+        };
+        <span class="kw">let</span> <span class="ident">agent_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">add_agent</span>(<span class="ident">agent</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">agent_name</span>)
     }
 
