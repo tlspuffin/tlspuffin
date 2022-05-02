@@ -8,10 +8,10 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::concretize::{Config, OpenSSL, WolfSSL, PUT};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::concretize::{PUT,OpenSSL,WolfSSL,Config};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -113,17 +113,17 @@ impl From<i32> for TLSVersion {
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
-pub struct Agent {
+pub struct Agent<P>
+where
+    P: PUT,
+{
     pub descriptor: AgentDescriptor,
-
-    #[cfg(feature = "wolfssl")]
-    pub stream: WolfSSL,
-
-    #[cfg(feature = "openssl")]
-    pub stream: OpenSSL,
+    pub stream: P::State,
 }
 
-impl Agent {
+impl <P> Agent<P>
+where P:PUT
+{
     pub fn new(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
@@ -132,13 +132,13 @@ impl Agent {
             tls_version: descriptor.tls_version,
             server: descriptor.server,
             agent_name: descriptor.name,
-            claimer
+            claimer,
         };
-        #[cfg(feature = "wolfssl")]
-        let stream = WolfSSL::new(c)?;
-        #[cfg(feature = "openssl")]
-        let stream = OpenSSL::new(c)?;
-        let agent = Agent{ descriptor: *descriptor, stream };
+        let stream = P::new(c)?;
+        let agent = Agent {
+            descriptor: *descriptor,
+            stream,
+        };
 
         Ok(agent)
     }
@@ -149,8 +149,6 @@ impl Agent {
     }
 
     pub fn reset(&mut self) {
-        PUT::reset(&mut self.stream); // [TODO::PUT] I do not want to have conditional compiling
-        // again here since there are a couple of places where I would then need to do that.
-        // Instead, I want to use the reset method of the type of self.stream. How can I do that?
+        P::reset(&mut self.stream);
     }
 }
