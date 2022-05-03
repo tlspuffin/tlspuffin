@@ -149,6 +149,6 @@ impl Agent {
     }
 
     pub fn reset(&mut self) {
-       self.reset();
+        self.stream.reset();
     }
 }
