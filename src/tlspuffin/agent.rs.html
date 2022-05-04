@@ -156,7 +156,6 @@
 <span id="151">151</span>
 <span id="152">152</span>
 <span id="153">153</span>
-<span id="154">154</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually</span>
 <span class="doccomment">//! not represented by these [`Agent`]s.</span>
 <span class="doccomment">//! Attackers are represented through a recipe term (see [`InputAction`]).</span>
@@ -208,8 +207,7 @@
     <span class="kw">pub</span> <span class="ident">server</span>: <span class="ident">bool</span>,
     <span class="doccomment">/// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption</span>
     <span class="doccomment">/// as openssl agents rotate ticket keys if they are recreated.</span>
-    <span class="kw">pub</span> <span class="ident">try_reuse</span>: <span class="ident">bool</span>, <span class="comment">// [TODO::PUT] consider add a `PUTDescriptor` field that will be used to know how to instantiate</span>
-                         <span class="comment">// a new state</span>
+    <span class="kw">pub</span> <span class="ident">try_reuse</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">AgentDescriptor</span> {

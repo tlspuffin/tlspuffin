@@ -225,25 +225,79 @@
 <span id="220">220</span>
 <span id="221">221</span>
 <span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Generic [`PUT`] trait defining an interface with a TLS library with which we can:</span>
 <span class="doccomment">//! - [`new`] create a client (or server) new initial state + bind buffers</span>
 <span class="doccomment">//! - [`progress`] makes a state progress (interacting with the buffers)</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! And specific implementations of PUT for the different PUTs.</span>
-<span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::MessageResult</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">io</span>, <span class="ident">openssl_binding</span>};
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::wolfssl_binding</span>;
-<span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
-<span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
-<span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
-<span class="kw">use</span> <span class="ident">foreign_types_shared::ForeignTypeRef</span>;
-<span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">deregister_claimer</span>, <span class="ident">register_claimer</span>, <span class="ident">Claim</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::MessageResult</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io</span>::{<span class="ident">MemoryStream</span>, <span class="ident">Stream</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding::openssl_version</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::VecClaimer</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::wolfssl_binding</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">io</span>, <span class="ident">openssl_binding</span>};
+<span class="kw">use</span> <span class="ident">foreign_types_shared::ForeignTypeRef</span>;
+<span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
+<span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">deregister_claimer</span>, <span class="ident">register_claimer</span>, <span class="ident">Claim</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
+<span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
+<span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
 
 <span class="doccomment">/// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Bts</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>];
@@ -262,12 +316,13 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PUTType</span> {
     <span class="ident">OpenSSL</span>,
-    <span class="ident">WolfSSL</span>
+    <span class="ident">WolfSSL</span>,
 }
-
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PUT</span>: <span class="ident">Stream</span> <span class="op">+</span> <span class="ident">Drop</span> {
     <span class="doccomment">/// Create a new agent state for the PUT + set up buffers/BIOs</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span>;
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="self">Self</span>: <span class="ident">Sized</span>;
     <span class="doccomment">/// Process incoming buffer, internal progress, can fill in output buffer</span>
     <span class="kw">fn</span> <span class="ident">progress</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
     <span class="doccomment">/// In-place reset of the state</span>
@@ -280,6 +335,40 @@
     <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>);
     <span class="doccomment">///</span>
     <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+    <span class="doccomment">///</span>
+    <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
+    <span class="comment">//</span>
+    <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ();
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">put_version</span>(<span class="ident">put_type</span>: <span class="ident">PUTType</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+    <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="ident">Config</span> {
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion::V1_3</span>,
+        <span class="ident">server</span>: <span class="bool-val">false</span>,
+        <span class="ident">agent_name</span>: <span class="ident">AgentName::new</span>(),
+        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>()))
+    };
+    <span class="kw">let</span> <span class="ident">put</span> : <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> }
+    {
+        <span class="ident">OpenSSL</span> =&gt;  <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+        <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+    };
+    <span class="ident">put</span>.<span class="ident">as_ref</span>().<span class="ident">version</span>()
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">put_make_deterministic</span>(<span class="ident">put_type</span>: <span class="ident">PUTType</span>) -&gt; () {
+    <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="ident">Config</span> {
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion::V1_3</span>,
+        <span class="ident">server</span>: <span class="bool-val">false</span>,
+        <span class="ident">agent_name</span>: <span class="ident">AgentName::new</span>(),
+        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>()))
+    };
+    <span class="kw">let</span> <span class="ident">put</span> : <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> }
+    {
+        <span class="ident">OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+        <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+    };
+    <span class="ident">put</span>.<span class="ident">as_ref</span>().<span class="ident">make_deterministic</span>()
 }
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////////////////////////</span>
@@ -324,7 +413,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PUT</span> <span class="kw">for</span> <span class="ident">OpenSSL</span> {
-
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">OpenSSL</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="comment">// [TODO::PUT] will replace io::PUTState::new</span>
         <span class="kw">let</span> <span class="ident">memory_stream</span> <span class="op">=</span> <span class="ident">MemoryStream::new</span>();
@@ -345,17 +433,16 @@
         <span class="ident">openssl_binding::do_handshake</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">stream</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="op">&amp;</span> <span class="kw-2">mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">clear</span>();
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
-        <span class="ident">register_claimer</span>(
-            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">as_ptr</span>().<span class="ident">cast</span>(),
-            <span class="kw">move</span> <span class="op">|</span><span class="ident">claim</span>: <span class="ident">Claim</span><span class="op">|</span> (<span class="kw-2">*</span><span class="ident">claimer</span>).<span class="ident">borrow_mut</span>().<span class="ident">claim</span>(<span class="ident">agent_name</span>, <span class="ident">claim</span>),
-        );
+        <span class="ident">register_claimer</span>(<span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">as_ptr</span>().<span class="ident">cast</span>(), <span class="kw">move</span> <span class="op">|</span><span class="ident">claim</span>: <span class="ident">Claim</span><span class="op">|</span> {
+            (<span class="kw-2">*</span><span class="ident">claimer</span>).<span class="ident">borrow_mut</span>().<span class="ident">claim</span>(<span class="ident">agent_name</span>, <span class="ident">claim</span>)
+        });
     }
 
     <span class="kw">fn</span> <span class="ident">deregister_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; () {
@@ -365,7 +452,7 @@
 
     <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut</span> <span class="self">Self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
         <span class="ident">OpenSSL::deregister_claimer</span>(<span class="self">self</span>);
-        <span class="ident">OpenSSL::register_claimer</span>(<span class="self">self</span>,<span class="ident">claimer</span>, <span class="ident">agent_name</span>)
+        <span class="ident">OpenSSL::register_claimer</span>(<span class="self">self</span>, <span class="ident">claimer</span>, <span class="ident">agent_name</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
@@ -375,6 +462,14 @@
         <span class="comment">// with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,</span>
         <span class="comment">// so that SSL_state_string[_long]() may be called.</span>
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">state_string_long</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="ident">openssl_version</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; () {
+        <span class="ident">openssl_binding::make_deterministic</span>();
     }
 }
 
@@ -419,7 +514,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PUT</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="self">Self</span>: <span class="ident">Sized</span>,
+    {
         <span class="macro">todo!</span>()
     }
 
@@ -446,6 +544,15 @@
     <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="macro">todo!</span>()
     }
-}</code></pre></div>
+
+    <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+        <span class="macro">todo!</span>()
+    }
+
+    <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; () {
+        <span class="macro">todo!</span>()
+    }
+}
+</code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>

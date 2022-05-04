@@ -674,6 +674,7 @@
 <span id="669">669</span>
 <span id="670">670</span>
 <span id="671">671</span>
+<span id="672">672</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -690,6 +691,7 @@
 <span class="doccomment">//! use rustls::{ProtocolVersion, CipherSuite};</span>
 <span class="doccomment">//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};</span>
 <span class="doccomment">//! use rustls::msgs::enums::{Compression, HandshakeType};</span>
+<span class="doccomment">//! use tlspuffin::concretize::PUTType;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let client: AgentName = AgentName::first();</span>
 <span class="doccomment">//! let server: AgentName = client.next();</span>
@@ -702,8 +704,8 @@
 <span class="doccomment">//! let trace = Trace {</span>
 <span class="doccomment">//!     prior_traces: vec![],</span>
 <span class="doccomment">//!     descriptors: vec![</span>
-<span class="doccomment">//!         AgentDescriptor::new_client(client, V1_3),</span>
-<span class="doccomment">//!         AgentDescriptor::new_server(server, V1_3)</span>
+<span class="doccomment">//!         AgentDescriptor::new_client(client, V1_3, PUTType::OpenSSL),</span>
+<span class="doccomment">//!         AgentDescriptor::new_server(server, V1_3, PUTType::OpenSSL),</span>
 <span class="doccomment">//!     ],</span>
 <span class="doccomment">//!     steps: vec![</span>
 <span class="doccomment">//!             Step { agent: client, action: Action::Output(OutputAction { }) },</span>
