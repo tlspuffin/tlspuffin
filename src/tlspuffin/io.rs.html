@@ -197,9 +197,9 @@
 
 <span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs</span>::{<span class="ident">deframer::MessageDeframer</span>, <span class="ident">message::Message</span>};
-<span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">Claim</span>, <span class="ident">TLSLike</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">deregister_claimer</span>, <span class="ident">register_claimer</span>};
+<span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">Claim</span>, <span class="ident">TLSLike</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>};
 

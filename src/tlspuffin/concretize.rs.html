@@ -276,8 +276,6 @@
 <span id="271">271</span>
 <span id="272">272</span>
 <span id="273">273</span>
-<span id="274">274</span>
-<span id="275">275</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Generic [`PUT`] trait defining an interface with a TLS library with which we can:</span>
 <span class="doccomment">//! - [`new`] create a client (or server) new initial state + bind buffers</span>
 <span class="doccomment">//! - [`progress`] makes a state progress (interacting with the buffers)</span>
@@ -337,7 +335,7 @@
     <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
     <span class="doccomment">///</span>
     <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>;
-    <span class="comment">//</span>
+    <span class="doccomment">///it push</span>
     <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ();
 }
 
@@ -346,11 +344,10 @@
         <span class="ident">tls_version</span>: <span class="ident">TLSVersion::V1_3</span>,
         <span class="ident">server</span>: <span class="bool-val">false</span>,
         <span class="ident">agent_name</span>: <span class="ident">AgentName::new</span>(),
-        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>()))
+        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>())),
     };
-    <span class="kw">let</span> <span class="ident">put</span> : <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> }
-    {
-        <span class="ident">OpenSSL</span> =&gt;  <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+    <span class="kw">let</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> } {
+        <span class="ident">OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
         <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
     };
     <span class="ident">put</span>.<span class="ident">as_ref</span>().<span class="ident">version</span>()
@@ -361,10 +358,9 @@
         <span class="ident">tls_version</span>: <span class="ident">TLSVersion::V1_3</span>,
         <span class="ident">server</span>: <span class="bool-val">false</span>,
         <span class="ident">agent_name</span>: <span class="ident">AgentName::new</span>(),
-        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>()))
+        <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>())),
     };
-    <span class="kw">let</span> <span class="ident">put</span> : <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> }
-    {
+    <span class="kw">let</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> } {
         <span class="ident">OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
         <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
     };

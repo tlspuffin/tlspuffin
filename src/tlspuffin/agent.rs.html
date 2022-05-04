@@ -156,6 +156,14 @@
 <span id="151">151</span>
 <span id="152">152</span>
 <span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually</span>
 <span class="doccomment">//! not represented by these [`Agent`]s.</span>
 <span class="doccomment">//! Attackers are represented through a recipe term (see [`InputAction`]).</span>
@@ -166,7 +174,7 @@
 <span class="kw">use</span> <span class="ident">core::fmt</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">Config</span>, <span class="ident">OpenSSL</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>, <span class="ident">PUTType</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">Config</span>, <span class="ident">OpenSSL</span>, <span class="ident">PUTType</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::VecClaimer</span>;
 <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
@@ -216,7 +224,11 @@
         <span class="self">self</span>.<span class="ident">server</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">server</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">tls_version</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">tls_version</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_server</span>(<span class="ident">name</span>: <span class="ident">AgentName</span>, <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>, <span class="ident">put_type</span>: <span class="ident">PUTType</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_server</span>(
+        <span class="ident">name</span>: <span class="ident">AgentName</span>,
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
+        <span class="ident">put_type</span>: <span class="ident">PUTType</span>,
+    ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,
@@ -226,7 +238,11 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_client</span>(<span class="ident">name</span>: <span class="ident">AgentName</span>, <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>, <span class="ident">put_type</span>: <span class="ident">PUTType</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_client</span>(
+        <span class="ident">name</span>: <span class="ident">AgentName</span>,
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
+        <span class="ident">put_type</span>: <span class="ident">PUTType</span>,
+    ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,

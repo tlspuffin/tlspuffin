@@ -85,8 +85,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::TLSVersion</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::MemoryStream</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding</span>::{<span class="ident">static_rsa_cert</span>};
-<span class="kw">use</span> <span class="ident">wolfssl_sys</span>::{<span class="ident">wolfSSL_set_bio</span>,<span class="ident">wolfSSL_BIO_new</span>,<span class="ident">WOLFSSL_BIO_METHOD</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding::static_rsa_cert</span>;
+<span class="kw">use</span> <span class="ident">wolfssl_sys</span>::{<span class="ident">wolfSSL_BIO_new</span>, <span class="ident">wolfSSL_set_bio</span>, <span class="ident">WOLFSSL_BIO_METHOD</span>};
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Ssl</span>;
 
@@ -109,7 +109,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">ssl</span>: <span class="ident">Ssl</span>, <span class="ident">stream</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
-   <span class="comment">/*     let (bio, method) = wolfSSL_BIO_new(stream)?;
+        <span class="comment">/*     let (bio, method) = wolfSSL_BIO_new(stream)?;
         unsafe {
             wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
         }
@@ -120,8 +120,9 @@
             _p: PhantomData,
         })
         */</span>
-    <span class="macro">todo!</span>()
+        <span class="macro">todo!</span>()
     }
-}</code></pre></div>
+}
+</code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>

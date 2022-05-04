@@ -726,7 +726,7 @@
 <span id="721">721</span>
 <span id="722">722</span>
 <span id="723">723</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">PUTType</span>, <span class="ident">OpenSSL</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>};
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">OpenSSL</span>, <span class="ident">PUTType</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">put_type</span>: <span class="ident">PUTType</span> <span class="op">=</span> <span class="ident">PUTType::OpenSSL</span>;
@@ -742,10 +742,10 @@
     <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Action</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">fuzzer::seeds</span>::<span class="kw-2">*</span>, <span class="ident">trace::TraceContext</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">put_make_deterministic</span>, <span class="ident">put_version</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tests::put_type</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::Action</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">fuzzer::seeds</span>::<span class="kw-2">*</span>, <span class="ident">trace::TraceContext</span>};
 
     <span class="kw">fn</span> <span class="ident">expect_crash</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">func</span>: <span class="ident">R</span>)
     <span class="kw">where</span>
@@ -1052,11 +1052,11 @@
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::fuzzer::seeds</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tests::put_type</span>;
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">fuzzer::seeds::seed_successful</span>,
         <span class="ident">trace</span>::{<span class="ident">Trace</span>, <span class="ident">TraceContext</span>},
     };
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tests::put_type</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_serialisation_seed_seed_session_resumption_dhe_json</span>() {
