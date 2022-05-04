@@ -132,7 +132,6 @@ impl Write for OpenSSL {
 
 impl PUT for OpenSSL {
     fn new(c: Config) -> Result<OpenSSL, Error> {
-        // [TODO::PUT] will replace io::PUTState::new
         let memory_stream = MemoryStream::new();
         let stream = if c.server {
             //let (cert, pkey) = openssl_binding::generate_cert();
@@ -234,9 +233,19 @@ impl Drop for WolfSSL {
 impl PUT for WolfSSL {
     fn new(c: Config) -> Result<Self, Error>
     where
-        Self: Sized,
-    {
-        todo!()
+        Self: Sized, {
+        let memory_stream = MemoryStream::new();
+        let stream = if c.server {
+            // we reuse static data obtained through the OpenSSL PUT, which is OK
+            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            wolfssl_binding::create_server(memory_stream, &cert, &pkey, &c.tls_version)?
+        } else {
+            wolfssl_binding::create_client(memory_stream, &c.tls_version)?
+        };
+
+        let mut stream = WolfSSL { stream };
+        WolfSSL::register_claimer(&mut stream, c.claimer, c.agent_name);
+        Ok(stream)
     }
 
     fn progress(&mut self) -> Result<(), Error> {
