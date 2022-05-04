@@ -7,7 +7,10 @@ use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
 use crate::agent::AgentName;
-use crate::concretize::{PUTType, PUTType::{OpenSSL, WolfSSL}};
+use crate::concretize::{
+    PUTType,
+    PUTType::{OpenSSL, WolfSSL},
+};
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
@@ -425,7 +428,7 @@ mod util {
                     tls_version: TLSVersion::V1_2,
                     server: true,
                     try_reuse: false,
-                    put_type
+                    put_type,
                 }],
                 steps: vec![Step {
                     agent: server,

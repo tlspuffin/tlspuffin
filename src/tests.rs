@@ -1,4 +1,4 @@
-use crate::concretize::{PUTType, OpenSSL, WolfSSL, PUT};
+use crate::concretize::{OpenSSL, PUTType, WolfSSL, PUT};
 
 #[cfg(feature = "openssl")]
 pub static put_type: PUTType = PUTType::OpenSSL;
@@ -14,10 +14,10 @@ pub mod seeds {
     use test_log::test;
 
     use crate::agent::AgentName;
-    use crate::trace::Action;
-    use crate::{fuzzer::seeds::*, trace::TraceContext};
     use crate::concretize::{put_make_deterministic, put_version};
     use crate::tests::put_type;
+    use crate::trace::Action;
+    use crate::{fuzzer::seeds::*, trace::TraceContext};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -324,11 +324,11 @@ pub mod serialization {
 
     use crate::agent::AgentName;
     use crate::fuzzer::seeds::*;
+    use crate::tests::put_type;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
-    use crate::tests::put_type;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {

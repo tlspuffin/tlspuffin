@@ -57,7 +57,7 @@ pub trait PUT: Stream + Drop {
     fn describe_state(&self) -> &'static str;
     ///
     fn version(&self) -> &'static str;
-    //
+    ///it push
     fn make_deterministic(&self) -> ();
 }
 
@@ -66,11 +66,10 @@ pub fn put_version(put_type: PUTType) -> &'static str {
         tls_version: TLSVersion::V1_3,
         server: false,
         agent_name: AgentName::new(),
-        claimer: Rc::new(RefCell::new(VecClaimer::new()))
+        claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put : Box<dyn PUT> = match { put_type }
-    {
-        OpenSSL =>  Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
+    let put: Box<dyn PUT> = match { put_type } {
+        OpenSSL => Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
         WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
     };
     put.as_ref().version()
@@ -81,10 +80,9 @@ pub fn put_make_deterministic(put_type: PUTType) -> () {
         tls_version: TLSVersion::V1_3,
         server: false,
         agent_name: AgentName::new(),
-        claimer: Rc::new(RefCell::new(VecClaimer::new()))
+        claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put : Box<dyn PUT> = match { put_type }
-    {
+    let put: Box<dyn PUT> = match { put_type } {
         OpenSSL => Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
         WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
     };

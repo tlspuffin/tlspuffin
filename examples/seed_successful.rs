@@ -1,4 +1,6 @@
-use tlspuffin::{agent::AgentName, fuzzer::seeds::seed_successful, trace::TraceContext, tests::put_type};
+use tlspuffin::{
+    agent::AgentName, fuzzer::seeds::seed_successful, tests::put_type, trace::TraceContext,
+};
 
 fn main() {
     let mut ctx = TraceContext::new();

@@ -20,8 +20,8 @@ use openssl::{
 use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
-use crate::openssl_binding::{static_rsa_cert};
-use wolfssl_sys::{wolfSSL_set_bio,wolfSSL_BIO_new,WOLFSSL_BIO_METHOD};
+use crate::openssl_binding::static_rsa_cert;
+use wolfssl_sys::{wolfSSL_BIO_new, wolfSSL_set_bio, WOLFSSL_BIO_METHOD};
 
 pub struct Ssl;
 
@@ -44,7 +44,7 @@ impl<S: Read + Write> SslStream<S> {
     ///
     /// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html
     pub fn new(ssl: Ssl, stream: S) -> Result<Self, ErrorStack> {
-   /*     let (bio, method) = wolfSSL_BIO_new(stream)?;
+        /*     let (bio, method) = wolfSSL_BIO_new(stream)?;
         unsafe {
             wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
         }
@@ -55,6 +55,6 @@ impl<S: Read + Write> SslStream<S> {
             _p: PhantomData,
         })
         */
-    todo!()
+        todo!()
     }
 }

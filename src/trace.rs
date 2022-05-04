@@ -89,15 +89,15 @@ use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
 use crate::term::remove_prefix;
 use crate::tls::error::FnError;
-use security_claims::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+use security_claims::violation::is_violation;
 
+use crate::concretize::{OpenSSL, PUTType, WolfSSL, PUT};
 use itertools::Itertools;
-use crate::concretize::{OpenSSL, WolfSSL, PUT, PUTType};
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -376,7 +376,7 @@ impl TraceContext {
         // [TODO] There might be a cleaner way of doing this, e.g., if we could store a type
         // instantiation in an enum, but this works
         let agent = match descriptor.put_type {
-            PUTType::OpenSSL=> Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
+            PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
             PUTType::WolfSSL => Agent::new::<WolfSSL>(descriptor, self.claimer.clone())?,
         };
         let agent_name = self.add_agent(agent);
@@ -481,7 +481,8 @@ impl Trace {
         }
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
-        if let Some(msg) = is_violation(claims) { // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+        if let Some(msg) = is_violation(claims) {
+            // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 

@@ -8,7 +8,7 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, OpenSSL, WolfSSL, PUT, PUTType};
+use crate::concretize::{Config, OpenSSL, PUTType, WolfSSL, PUT};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -58,7 +58,11 @@ impl AgentDescriptor {
         self.server == other.server && self.tls_version == other.tls_version
     }
 
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
+    pub fn new_reusable_server(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_type: PUTType,
+    ) -> Self {
         Self {
             name,
             tls_version,
@@ -68,7 +72,11 @@ impl AgentDescriptor {
         }
     }
 
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
+    pub fn new_reusable_client(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_type: PUTType,
+    ) -> Self {
         Self {
             name,
             tls_version,

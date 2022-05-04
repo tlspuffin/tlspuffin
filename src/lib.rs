@@ -24,9 +24,9 @@ pub mod tls;
 pub mod trace;
 pub mod variable_data;
 
+pub mod concretize;
 mod debug;
 mod experiment;
 pub mod openssl_binding;
-pub mod wolfssl_binding;
-pub mod concretize;
 pub mod tests;
+pub mod wolfssl_binding;

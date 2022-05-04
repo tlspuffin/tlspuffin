@@ -5,6 +5,8 @@
 use rustls::internal::msgs::enums::{Compression, HandshakeType};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
+use crate::concretize::PUTType;
+use crate::concretize::PUTType::OpenSSL;
 use crate::term;
 use crate::tls::fn_impl::*;
 use crate::trace::TlsMessageType;
@@ -17,8 +19,6 @@ use crate::{
 use rustls::internal::msgs::handshake::ServerExtension;
 use rustls::msgs::handshake::{Random, SessionID};
 use rustls::{CipherSuite, ProtocolVersion};
-use crate::concretize::PUTType;
-use crate::concretize::PUTType::OpenSSL;
 
 pub fn seed_successful(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
     Trace {
@@ -29,7 +29,7 @@ pub fn seed_successful(client: AgentName, server: AgentName, put_type: PUTType) 
                 tls_version: TLSVersion::V1_3,
                 server: false,
                 try_reuse: false,
-put_type,
+                put_type,
             },
             AgentDescriptor {
                 name: server,
@@ -429,7 +429,11 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_type: 
     trace
 }
 
-pub fn seed_successful_with_tickets(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_successful_with_tickets(
+    client: AgentName,
+    server: AgentName,
+    put_type: PUTType,
+) -> Trace {
     let mut trace = seed_successful_with_ccs(client, server, put_type);
 
     trace.steps.push(Step {
@@ -507,7 +511,7 @@ pub fn seed_client_attacker(server: AgentName, put_type: PUTType) -> Trace {
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -647,7 +651,7 @@ fn _seed_client_attacker12(server: AgentName, put_type: PUTType) -> (Trace, Term
             tls_version: TLSVersion::V1_2,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -935,7 +939,11 @@ pub fn seed_freak(client: AgentName, server: AgentName, put_type: PUTType) -> Tr
     }
 }
 
-pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_session_resumption_dhe(
+    initial_server: AgentName,
+    server: AgentName,
+    put_type: PUTType,
+) -> Trace {
     let initial_handshake = seed_client_attacker(initial_server, put_type);
 
     let new_ticket_message = term! {
@@ -1027,7 +1035,7 @@ pub fn seed_session_resumption_dhe(initial_server: AgentName, server: AgentName,
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -1058,7 +1066,11 @@ put_type,
     trace
 }
 
-pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_session_resumption_ke(
+    initial_server: AgentName,
+    server: AgentName,
+    put_type: PUTType,
+) -> Trace {
     let initial_handshake = seed_client_attacker(initial_server, put_type);
 
     let new_ticket_message = term! {
@@ -1150,7 +1162,7 @@ pub fn seed_session_resumption_ke(initial_server: AgentName, server: AgentName, 
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -1182,7 +1194,10 @@ put_type,
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
-pub fn seed_client_attacker_full(server: AgentName, put_type: PUTType) -> (Trace, Term, Term, Term) {
+pub fn seed_client_attacker_full(
+    server: AgentName,
+    put_type: PUTType,
+) -> (Trace, Term, Term, Term) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1314,7 +1329,7 @@ pub fn seed_client_attacker_full(server: AgentName, put_type: PUTType) -> (Trace
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -1360,7 +1375,11 @@ put_type,
 
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
-pub fn seed_session_resumption_dhe_full(initial_server: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_session_resumption_dhe_full(
+    initial_server: AgentName,
+    server: AgentName,
+    put_type: PUTType,
+) -> Trace {
     let (
         initial_handshake,
         server_hello_transcript,
@@ -1501,7 +1520,7 @@ pub fn seed_session_resumption_dhe_full(initial_server: AgentName, server: Agent
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-put_type,
+            put_type,
         }],
         steps: vec![
             Step {
@@ -1537,7 +1556,10 @@ pub fn create_corpus(put_type: PUTType) -> [(Trace, &'static str); 8] {
     let agent_b = agent_a.next();
 
     [
-        (seed_successful(agent_a, agent_b, put_type), "seed_successful"),
+        (
+            seed_successful(agent_a, agent_b, put_type),
+            "seed_successful",
+        ),
         (
             seed_successful_with_ccs(agent_a, agent_b, put_type),
             "seed_successful_with_ccs",
@@ -1546,9 +1568,18 @@ pub fn create_corpus(put_type: PUTType) -> [(Trace, &'static str); 8] {
             seed_successful_with_tickets(agent_a, agent_b, put_type),
             "seed_successful_with_tickets",
         ),
-        (seed_successful12(agent_a, agent_b, put_type), "seed_successful12"),
-        (seed_client_attacker(agent_a, put_type), "seed_client_attacker"),
-        (seed_client_attacker12(agent_a, put_type), "seed_client_attacker12"),
+        (
+            seed_successful12(agent_a, agent_b, put_type),
+            "seed_successful12",
+        ),
+        (
+            seed_client_attacker(agent_a, put_type),
+            "seed_client_attacker",
+        ),
+        (
+            seed_client_attacker12(agent_a, put_type),
+            "seed_client_attacker12",
+        ),
         (
             seed_session_resumption_dhe(agent_a, agent_b, put_type),
             "seed_session_resumption_dhe",
