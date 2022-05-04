@@ -3,20 +3,21 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::cell::RefCell;
-use crate::io::MessageResult;
-use crate::{io, openssl_binding};
-use crate::wolfssl_binding;
-use rustls::msgs::message::OpaqueMessage;
-use std::io::{Read, Write};
-use std::rc::Rc;
-use foreign_types_shared::ForeignTypeRef;
-use security_claims::{deregister_claimer, register_claimer, Claim};
-use serde::{Deserialize, Serialize};
 use crate::agent::{AgentName, TLSVersion};
 use crate::error::Error;
+use crate::io::MessageResult;
 use crate::io::{MemoryStream, Stream};
+use crate::openssl_binding::openssl_version;
 use crate::trace::VecClaimer;
+use crate::wolfssl_binding;
+use crate::{io, openssl_binding};
+use foreign_types_shared::ForeignTypeRef;
+use rustls::msgs::message::OpaqueMessage;
+use security_claims::{deregister_claimer, register_claimer, Claim};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::io::{Read, Write};
+use std::rc::Rc;
 
 /// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
 pub type Bts<'a> = &'a [u8];
@@ -35,12 +36,13 @@ pub struct Config {
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub enum PUTType {
     OpenSSL,
-    WolfSSL
+    WolfSSL,
 }
-
 pub trait PUT: Stream + Drop {
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(c: Config) -> Result<Self, Error> where Self: Sized;
+    fn new(c: Config) -> Result<Self, Error>
+    where
+        Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self) -> Result<(), Error>;
     /// In-place reset of the state
@@ -53,6 +55,40 @@ pub trait PUT: Stream + Drop {
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     ///
     fn describe_state(&self) -> &'static str;
+    ///
+    fn version(&self) -> &'static str;
+    //
+    fn make_deterministic(&self) -> ();
+}
+
+pub fn put_version(put_type: PUTType) -> &'static str {
+    let c = Config {
+        tls_version: TLSVersion::V1_3,
+        server: false,
+        agent_name: AgentName::new(),
+        claimer: Rc::new(RefCell::new(VecClaimer::new()))
+    };
+    let put : Box<dyn PUT> = match { put_type }
+    {
+        OpenSSL =>  Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
+        WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
+    };
+    put.as_ref().version()
+}
+
+pub fn put_make_deterministic(put_type: PUTType) -> () {
+    let c = Config {
+        tls_version: TLSVersion::V1_3,
+        server: false,
+        agent_name: AgentName::new(),
+        claimer: Rc::new(RefCell::new(VecClaimer::new()))
+    };
+    let put : Box<dyn PUT> = match { put_type }
+    {
+        OpenSSL => Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
+        WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
+    };
+    put.as_ref().make_deterministic()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -97,7 +133,6 @@ impl Write for OpenSSL {
 }
 
 impl PUT for OpenSSL {
-
     fn new(c: Config) -> Result<OpenSSL, Error> {
         // [TODO::PUT] will replace io::PUTState::new
         let memory_stream = MemoryStream::new();
@@ -118,17 +153,16 @@ impl PUT for OpenSSL {
         openssl_binding::do_handshake(&mut self.stream)
     }
 
-    fn reset(& mut self) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         self.stream.clear();
         Ok(())
     }
 
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
-        register_claimer(
-            self.stream.ssl().as_ptr().cast(),
-            move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
-        );
+        register_claimer(self.stream.ssl().as_ptr().cast(), move |claim: Claim| {
+            (*claimer).borrow_mut().claim(agent_name, claim)
+        });
     }
 
     fn deregister_claimer(&mut self) -> () {
@@ -138,7 +172,7 @@ impl PUT for OpenSSL {
 
     fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         OpenSSL::deregister_claimer(self);
-        OpenSSL::register_claimer(self,claimer, agent_name)
+        OpenSSL::register_claimer(self, claimer, agent_name)
     }
 
     fn describe_state(&self) -> &'static str {
@@ -148,6 +182,14 @@ impl PUT for OpenSSL {
         // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
         // so that SSL_state_string[_long]() may be called.
         self.stream.ssl().state_string_long()
+    }
+
+    fn version(&self) -> &'static str {
+        openssl_version()
+    }
+
+    fn make_deterministic(&self) -> () {
+        openssl_binding::make_deterministic();
     }
 }
 
@@ -192,7 +234,10 @@ impl Drop for WolfSSL {
 }
 
 impl PUT for WolfSSL {
-    fn new(c: Config) -> Result<Self, Error> where Self: Sized {
+    fn new(c: Config) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
         todo!()
     }
 
@@ -217,6 +262,14 @@ impl PUT for WolfSSL {
     }
 
     fn describe_state(&self) -> &'static str {
+        todo!()
+    }
+
+    fn version(&self) -> &'static str {
+        todo!()
+    }
+
+    fn make_deterministic(&self) -> () {
         todo!()
     }
 }

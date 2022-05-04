@@ -14,6 +14,7 @@
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use tlspuffin::concretize::PUTType;
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -26,8 +27,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3),
-//!         AgentDescriptor::new_server(server, V1_3)
+//!         AgentDescriptor::new_client(client, V1_3, PUTType::OpenSSL),
+//!         AgentDescriptor::new_server(server, V1_3, PUTType::OpenSSL),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },

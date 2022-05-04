@@ -1,8 +1,7 @@
-use crate::concretize::PUTType;
+use crate::concretize::{PUTType, OpenSSL, WolfSSL, PUT};
 
 #[cfg(feature = "openssl")]
 pub static put_type: PUTType = PUTType::OpenSSL;
-
 #[cfg(feature = "wolfssl")]
 pub static put_type: PUTType = PUTType::WolfSSL;
 
@@ -15,9 +14,9 @@ pub mod seeds {
     use test_log::test;
 
     use crate::agent::AgentName;
-    use crate::openssl_binding::{make_deterministic, openssl_version};
     use crate::trace::Action;
     use crate::{fuzzer::seeds::*, trace::TraceContext};
+    use crate::concretize::{put_make_deterministic, put_version};
     use crate::tests::put_type;
 
     fn expect_crash<R>(mut func: R)
@@ -49,14 +48,14 @@ pub mod seeds {
     }
     #[test]
     fn test_version() {
-        println!("{}", openssl_version());
+        println!("{}", put_version(put_type));
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
     fn test_seed_hearbeat() {
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic(put_type);
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
@@ -68,11 +67,11 @@ pub mod seeds {
 
     #[test]
     fn test_seed_cve_2021_3449() {
-        if !openssl_version().contains("1.1.1j") {
+        if !put_version(put_type).contains("1.1.1j") {
             return;
         }
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic(put_type);
             let mut ctx = TraceContext::new();
             let server = AgentName::first();
             let trace = seed_cve_2021_3449(server, put_type);
@@ -83,7 +82,7 @@ pub mod seeds {
 
     #[test]
     fn test_seed_client_attacker12() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_client_attacker12(server, put_type);
@@ -98,7 +97,7 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_client_attacker(server, put_type);
@@ -113,7 +112,7 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker_full() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let (trace, ..) = seed_client_attacker_full(server, put_type);
@@ -128,7 +127,7 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
@@ -144,7 +143,7 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
@@ -160,7 +159,7 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_ke() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
@@ -176,7 +175,7 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -200,7 +199,7 @@ pub mod seeds {
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -220,7 +219,7 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_with_ccs() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -241,7 +240,7 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
-        make_deterministic();
+        put_make_deterministic(put_type);
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
@@ -282,7 +281,7 @@ pub mod seeds {
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic(put_type);
             //println!("{}", openssl_version());
 
             let mut ctx = TraceContext::new();
