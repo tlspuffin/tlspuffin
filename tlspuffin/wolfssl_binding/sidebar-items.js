@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Ssl",""],["SslStream","A TLS session over a stream."]]});
+initSidebarItems({"fn":[["create_client",""],["create_server",""]],"struct":[["Ssl",""],["SslStream","A TLS session over a stream."]]});
