@@ -47,17 +47,17 @@ pub trait PUT: Stream + Drop {
     fn progress(&mut self) -> Result<(), Error>;
     /// In-place reset of the state
     fn reset(&mut self) -> Result<(), Error>;
-    ///
+    /// Register a new claim for agent_name
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
-    ///
+    /// Remove all claims in self
     fn deregister_claimer(&mut self) -> ();
-    ///
+    /// Change the agent name and the claimer of self
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
-    ///
+    /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;
-    ///
+    /// Returns a textual representation of the version of the PUT used by self
     fn version(&self) -> &'static str;
-    ///it push
+    /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
     fn make_deterministic(&self) -> ();
 }
 
