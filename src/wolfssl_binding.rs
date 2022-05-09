@@ -1,7 +1,12 @@
+use std::any::Any;
+use std::ffi::CString;
+use std::io;
 use std::io::{ErrorKind, Read, Write};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
-use std::os::raw::c_int;
+use std::os::raw::{c_char, c_int, c_void};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::slice;
 
 use openssl::error::ErrorStack;
 use openssl::ssl::{SslContextBuilder, SslVersion};
@@ -21,9 +26,24 @@ use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
 use crate::openssl_binding::static_rsa_cert;
+use crate::wolfssl_bio::*;
 use wolfssl_sys as wolf;
 
-// Ssl: a pointer to a Wolfssl pointer
+/// WolfSSL library initialization (done only once statically)
+pub fn init() {
+    use std::ptr;
+    use std::sync::Once;
+
+    // explicitly initialize to work around https://github.com/openssl/openssl/issues/3505
+    static INIT: Once = Once::new();
+    let init_options = wolf::OPENSSL_INIT_LOAD_SSL_STRINGS;
+
+    INIT.call_once(|| unsafe {
+        wolf::wolfSSL_OPENSSL_init_ssl(init_options as u64, ptr::null_mut());
+    })
+}
+
+/// Ssl: a struct of a Wolfssl pointer with pointer handling as methods
 pub struct Ssl(*mut wolfssl_sys::WOLFSSL);
 impl Ssl {
     #[inline]
@@ -42,10 +62,11 @@ impl Drop for Ssl {
         unsafe { wolf::wolfSSL_free(self.0) }
     }
 }
+
 /// A TLS session over a stream.
 pub struct SslStream<S> {
     ssl: ManuallyDrop<Ssl>,
-    method: ManuallyDrop<wolf::WOLFSSL_BIO_METHOD>,
+    method: ManuallyDrop<BioMethod>,
     _p: PhantomData<S>,
 }
 impl<S: Read + Write> SslStream<S> {
@@ -61,9 +82,7 @@ impl<S: Read + Write> SslStream<S> {
     ///
     /// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html
     pub fn new(ssl: Ssl, stream: S) -> Result<Self, ErrorStack> {
-        todo!()
-        /* [TODO] Currently failing attempt:
-            let (bio, method) = wolf::wolfSSL_BIO_new(stream)?;
+        let (bio, method) = bio_new(stream)?;
         unsafe {
             wolf::wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
         }
@@ -72,39 +91,54 @@ impl<S: Read + Write> SslStream<S> {
             method: ManuallyDrop::new(method),
             _p: PhantomData,
         })
-        */
     }
 }
-/*  [TODO] Copied pasted from openssl_binding:
-pub fn create_openssl_client(
-    stream: MemoryStream,
+
+unsafe fn set_max_protocol_version(
+    ctx: *mut wolf::WOLFSSL_CTX,
     tls_version: &TLSVersion,
-) -> Result<SslStream<MemoryStream>, ErrorStack> {
-    let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-    // Not sure whether we want this disabled or enabled: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/26
-    // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
-    // for now.
-    // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-    #[cfg(feature = "openssl111")]
-    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-
-    set_max_protocol_version(&mut ctx_builder, tls_version)?;
-
-    // Disallow EXPORT in client
-    ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
-
-    let mut ssl = Ssl::new(&ctx_builder.build())?;
-    ssl.set_connect_state();
-
-    SslStream::new(ssl, stream)
+) -> Result<(), ErrorStack> {
+    unsafe {
+        match tls_version {
+            TLSVersion::V1_3 => {
+                #[cfg(feature = "openssl111")]
+                wolf::wolfSSL_CTX_set_max_proto_version(ctx, wolf::TLS1_3_VERSION as i32);
+                // do nothing as the maximum available TLS version is 1.3
+                Ok(())
+            }
+            TLSVersion::V1_2 => {
+                wolf::wolfSSL_CTX_set_max_proto_version(ctx, wolf::TLS1_2_VERSION as i32);
+                Ok(())
+            }
+            TLSVersion::Unknown => Ok(()),
+        }?;
+    }
+    Ok(())
 }
- */
 
 pub fn create_client(
     stream: MemoryStream,
     tls_version: &TLSVersion,
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {
-    todo!()
+    unsafe {
+        //// Global WolfSSL lib initialization
+        init();
+
+        //// Context builder
+        wolf::wolfSSL_Init();
+        let ctx: *mut wolf::WOLFSSL_CTX = wolf::wolfSSL_CTX_new(wolf::wolfTLSv1_3_client_method());
+        // Disallow EXPORT in client
+        let cipher_list = CString::new("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2").unwrap();
+        wolf::wolfSSL_CTX_set_cipher_list(ctx, cipher_list.as_ptr() as *const _); //
+
+        //// SSL pointer builder
+        let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));
+        wolf::wolfSSL_set_connect_state(ssl.as_ptr());
+
+        //// Stream builder
+        let ssl_stream = SslStream::new(ssl, stream)?;
+        Ok(ssl_stream)
+    }
 }
 
 pub fn create_server(
@@ -113,5 +147,5 @@ pub fn create_server(
     key: &PKeyRef<Private>,
     tls_version: &TLSVersion,
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {
-    todo!()
+    create_client(stream, tls_version) // for now, TODO
 }

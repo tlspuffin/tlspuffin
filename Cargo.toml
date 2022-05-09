@@ -106,6 +106,7 @@ security-claims = { path = "security-claims" }
 
 # WolfSSL
 wolfssl-sys = { path = "deps/wolfssl-sys", features = [] }
+libc = "0.2"
 
 [dev-dependencies]
 criterion = "0.3"

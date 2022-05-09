@@ -171,9 +171,6 @@ fn set_max_protocol_version(
         TLSVersion::Unknown => Ok(()),
     }?;
 
-    #[cfg(feature = "wolfssl")] // TODO: review this file and add versions for wolfssl
-    assert!(false);
-
     Ok(())
 }
 

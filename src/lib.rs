@@ -30,3 +30,4 @@ mod experiment;
 pub mod openssl_binding;
 pub mod tests;
 pub mod wolfssl_binding;
+mod wolfssl_bio;
