@@ -200,11 +200,11 @@ pub struct WolfSSL {
 
 impl Stream for WolfSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        todo!()
+       todo!() // self.stream.get_mut().add_to_inbound(result)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        todo!()
+        todo!() // self.stream.get_mut().take_message_from_outbound()
     }
 }
 

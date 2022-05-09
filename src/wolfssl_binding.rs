@@ -92,6 +92,14 @@ impl<S: Read + Write> SslStream<S> {
             _p: PhantomData,
         })
     }
+/*
+    pub fn get_mut(&mut self) -> &mut S {
+        unsafe {
+            let bio = wolf::wolfSSL_get_rbio(self.ssl);
+            bio::get_mut(bio)
+        }
+    }
+*/
 }
 
 unsafe fn set_max_protocol_version(
@@ -147,5 +155,26 @@ pub fn create_server(
     key: &PKeyRef<Private>,
     tls_version: &TLSVersion,
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {
-    create_client(stream, tls_version) // for now, TODO
+    unsafe {
+        //// Global WolfSSL lib initialization
+        init();
+
+        //// Context builder
+        wolf::wolfSSL_Init();
+        let ctx: *mut wolf::WOLFSSL_CTX = wolf::wolfSSL_CTX_new(wolf::wolfTLSv1_3_client_method());
+        // Disallow EXPORT in client
+        let cipher_list = CString::new("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2").unwrap();
+        wolf::wolfSSL_CTX_set_cipher_list(ctx, cipher_list.as_ptr() as *const _);
+        // Set the static keys
+        wolf::wolfSSL_CTX_use_certificate(ctx, cert as *const _ as *mut _);
+        wolf::wolfSSL_CTX_use_PrivateKey(ctx, key as *const _ as *mut _);
+
+        //// SSL pointer builder
+        let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));
+        wolf::wolfSSL_set_accept_state(ssl.as_ptr());
+
+        //// Stream builder
+        let ssl_stream = SslStream::new(ssl, stream)?;
+        Ok(ssl_stream)
+    }
 }
