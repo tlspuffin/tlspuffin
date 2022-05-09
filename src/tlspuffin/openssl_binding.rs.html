@@ -294,9 +294,6 @@
 <span id="289">289</span>
 <span id="290">290</span>
 <span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::io::ErrorKind</span>;
 <span class="kw">use</span> <span class="ident">std::os::raw::c_int</span>;
 
@@ -469,9 +466,6 @@ i7RrmCDnL/ue3MkPP+8=
         <span class="ident">TLSVersion::V1_2</span> =&gt; <span class="ident">ctx_builder</span>.<span class="ident">set_max_proto_version</span>(<span class="prelude-val">Some</span>(<span class="ident">SslVersion::TLS1_2</span>)),
         <span class="ident">TLSVersion::Unknown</span> =&gt; <span class="prelude-val">Ok</span>(()),
     }<span class="question-mark">?</span>;
-
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span> <span class="comment">// TODO: review this file and add versions for wolfssl</span>
-    <span class="macro">assert!</span>(<span class="bool-val">false</span>);
 
     <span class="prelude-val">Ok</span>(())
 }

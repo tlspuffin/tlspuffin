@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["create_client",""],["create_server",""]],"struct":[["Ssl",""],["SslStream","A TLS session over a stream."]]});
+initSidebarItems({"fn":[["create_client",""],["create_server",""],["init","WolfSSL library initialization (done only once statically)"]],"struct":[["Ssl","Ssl: a struct of a Wolfssl pointer with pointer handling as methods"],["SslStream","A TLS session over a stream."]]});

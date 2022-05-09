@@ -120,10 +120,49 @@
 <span id="115">115</span>
 <span id="116">116</span>
 <span id="117">117</span>
-</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+</pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::any::Any</span>;
+<span class="kw">use</span> <span class="ident">std::ffi::CString</span>;
+<span class="kw">use</span> <span class="ident">std::io</span>;
+<span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">ErrorKind</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std::marker::PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std::mem::ManuallyDrop</span>;
-<span class="kw">use</span> <span class="ident">std::os::raw::c_int</span>;
+<span class="kw">use</span> <span class="ident">std::os::raw</span>::{<span class="ident">c_char</span>, <span class="ident">c_int</span>, <span class="ident">c_void</span>};
+<span class="kw">use</span> <span class="ident">std::panic</span>::{<span class="ident">catch_unwind</span>, <span class="ident">AssertUnwindSafe</span>};
+<span class="kw">use</span> <span class="ident">std::slice</span>;
 
 <span class="kw">use</span> <span class="ident">openssl::error::ErrorStack</span>;
 <span class="kw">use</span> <span class="ident">openssl::ssl</span>::{<span class="ident">SslContextBuilder</span>, <span class="ident">SslVersion</span>};
@@ -143,9 +182,24 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::MemoryStream</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding::static_rsa_cert</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::wolfssl_bio</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">wolfssl_sys</span> <span class="kw">as</span> <span class="ident">wolf</span>;
 
-<span class="comment">// Ssl: a pointer to a Wolfssl pointer</span>
+<span class="doccomment">/// WolfSSL library initialization (done only once statically)</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">init</span>() {
+    <span class="kw">use</span> <span class="ident">std::ptr</span>;
+    <span class="kw">use</span> <span class="ident">std::sync::Once</span>;
+
+    <span class="comment">// explicitly initialize to work around https://github.com/openssl/openssl/issues/3505</span>
+    <span class="kw">static</span> <span class="ident">INIT</span>: <span class="ident">Once</span> <span class="op">=</span> <span class="ident">Once::new</span>();
+    <span class="kw">let</span> <span class="ident">init_options</span> <span class="op">=</span> <span class="ident">wolf::OPENSSL_INIT_LOAD_SSL_STRINGS</span>;
+
+    <span class="ident">INIT</span>.<span class="ident">call_once</span>(<span class="op">|</span><span class="op">|</span> <span class="kw">unsafe</span> {
+        <span class="ident">wolf::wolfSSL_OPENSSL_init_ssl</span>(<span class="ident">init_options</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">ptr::null_mut</span>());
+    })
+}
+
+<span class="doccomment">/// Ssl: a struct of a Wolfssl pointer with pointer handling as methods</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Ssl</span>(<span class="kw-2">*mut</span> <span class="ident">wolfssl_sys::WOLFSSL</span>);
 <span class="kw">impl</span> <span class="ident">Ssl</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -164,10 +218,11 @@
         <span class="kw">unsafe</span> { <span class="ident">wolf::wolfSSL_free</span>(<span class="self">self</span>.<span class="number">0</span>) }
     }
 }
+
 <span class="doccomment">/// A TLS session over a stream.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> {
     <span class="ident">ssl</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">Ssl</span><span class="op">&gt;</span>,
-    <span class="ident">method</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">wolf::WOLFSSL_BIO_METHOD</span><span class="op">&gt;</span>,
+    <span class="ident">method</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">BioMethod</span><span class="op">&gt;</span>,
     <span class="ident">_p</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
 }
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Write</span><span class="op">&gt;</span> <span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> {
@@ -183,50 +238,63 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">ssl</span>: <span class="ident">Ssl</span>, <span class="ident">stream</span>: <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
-        <span class="macro">todo!</span>()
-        <span class="comment">/* [TODO] Currently failing attempt:
-            let (bio, method) = wolf::wolfSSL_BIO_new(stream)?;
-        unsafe {
-            wolf::wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
+        <span class="kw">let</span> (<span class="ident">bio</span>, <span class="ident">method</span>) <span class="op">=</span> <span class="ident">bio_new</span>(<span class="ident">stream</span>)<span class="question-mark">?</span>;
+        <span class="kw">unsafe</span> {
+            <span class="ident">wolf::wolfSSL_set_bio</span>(<span class="ident">ssl</span>.<span class="ident">as_ptr</span>(), <span class="ident">bio</span>, <span class="ident">bio</span>);
         }
-        Ok(SslStream {
-            ssl: ManuallyDrop::new(ssl),
-            method: ManuallyDrop::new(method),
-            _p: PhantomData,
+        <span class="prelude-val">Ok</span>(<span class="ident">SslStream</span> {
+            <span class="ident">ssl</span>: <span class="ident">ManuallyDrop::new</span>(<span class="ident">ssl</span>),
+            <span class="ident">method</span>: <span class="ident">ManuallyDrop::new</span>(<span class="ident">method</span>),
+            <span class="ident">_p</span>: <span class="ident">PhantomData</span>,
         })
-        */</span>
     }
 }
-<span class="comment">/*  [TODO] Copied pasted from openssl_binding:
-pub fn create_openssl_client(
-    stream: MemoryStream,
-    tls_version: &amp;TLSVersion,
-) -&gt; Result&lt;SslStream&lt;MemoryStream&gt;, ErrorStack&gt; {
-    let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-    // Not sure whether we want this disabled or enabled: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/26
-    // The tests become simpler if disabled to maybe that&#39;s what we want. Lets leave it default
-    // for now.
-    // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-    #[cfg(feature = &quot;openssl111&quot;)]
-    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-    set_max_protocol_version(&amp;mut ctx_builder, tls_version)?;
-
-    // Disallow EXPORT in client
-    ctx_builder.set_cipher_list(&quot;ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2&quot;)?;
-
-    let mut ssl = Ssl::new(&amp;ctx_builder.build())?;
-    ssl.set_connect_state();
-
-    SslStream::new(ssl, stream)
+<span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">set_max_protocol_version</span>(
+    <span class="ident">ctx</span>: <span class="kw-2">*mut</span> <span class="ident">wolf::WOLFSSL_CTX</span>,
+    <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
+    <span class="kw">unsafe</span> {
+        <span class="kw">match</span> <span class="ident">tls_version</span> {
+            <span class="ident">TLSVersion::V1_3</span> =&gt; {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111&quot;</span>)]</span>
+                <span class="ident">wolf::wolfSSL_CTX_set_max_proto_version</span>(<span class="ident">ctx</span>, <span class="ident">wolf::TLS1_3_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>);
+                <span class="comment">// do nothing as the maximum available TLS version is 1.3</span>
+                <span class="prelude-val">Ok</span>(())
+            }
+            <span class="ident">TLSVersion::V1_2</span> =&gt; {
+                <span class="ident">wolf::wolfSSL_CTX_set_max_proto_version</span>(<span class="ident">ctx</span>, <span class="ident">wolf::TLS1_2_VERSION</span> <span class="kw">as</span> <span class="ident">i32</span>);
+                <span class="prelude-val">Ok</span>(())
+            }
+            <span class="ident">TLSVersion::Unknown</span> =&gt; <span class="prelude-val">Ok</span>(()),
+        }<span class="question-mark">?</span>;
+    }
+    <span class="prelude-val">Ok</span>(())
 }
- */</span>
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_client</span>(
     <span class="ident">stream</span>: <span class="ident">MemoryStream</span>,
     <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
-    <span class="macro">todo!</span>()
+    <span class="kw">unsafe</span> {
+        <span class="comment">//// Global WolfSSL lib initialization</span>
+        <span class="ident">init</span>();
+
+        <span class="comment">//// Context builder</span>
+        <span class="ident">wolf::wolfSSL_Init</span>();
+        <span class="kw">let</span> <span class="ident">ctx</span>: <span class="kw-2">*mut</span> <span class="ident">wolf::WOLFSSL_CTX</span> <span class="op">=</span> <span class="ident">wolf::wolfSSL_CTX_new</span>(<span class="ident">wolf::wolfTLSv1_3_client_method</span>());
+        <span class="comment">// Disallow EXPORT in client</span>
+        <span class="kw">let</span> <span class="ident">cipher_list</span> <span class="op">=</span> <span class="ident">CString::new</span>(<span class="string">&quot;ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="ident">wolf::wolfSSL_CTX_set_cipher_list</span>(<span class="ident">ctx</span>, <span class="ident">cipher_list</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*const</span> <span class="kw">_</span>); <span class="comment">//</span>
+
+        <span class="comment">//// SSL pointer builder</span>
+        <span class="kw">let</span> <span class="ident">ssl</span>: <span class="ident">Ssl</span> <span class="op">=</span> <span class="ident">Ssl::from_ptr</span>(<span class="ident">wolf::wolfSSL_new</span>(<span class="ident">ctx</span>));
+        <span class="ident">wolf::wolfSSL_set_connect_state</span>(<span class="ident">ssl</span>.<span class="ident">as_ptr</span>());
+
+        <span class="comment">//// Stream builder</span>
+        <span class="kw">let</span> <span class="ident">ssl_stream</span> <span class="op">=</span> <span class="ident">SslStream::new</span>(<span class="ident">ssl</span>, <span class="ident">stream</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">ssl_stream</span>)
+    }
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_server</span>(
@@ -235,7 +303,8 @@ pub fn create_openssl_client(
     <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="ident">PKeyRef</span><span class="op">&lt;</span><span class="ident">Private</span><span class="op">&gt;</span>,
     <span class="ident">tls_version</span>: <span class="kw-2">&amp;</span><span class="ident">TLSVersion</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>, <span class="ident">ErrorStack</span><span class="op">&gt;</span> {
-    <span class="macro">todo!</span>()
-}</code></pre></div>
+    <span class="ident">create_client</span>(<span class="ident">stream</span>, <span class="ident">tls_version</span>) <span class="comment">// for now, TODO</span>
+}
+</code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>
