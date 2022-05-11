@@ -200,33 +200,35 @@ pub struct WolfSSL {
 
 impl Stream for WolfSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-       todo!() // self.stream.get_mut().add_to_inbound(result)
+        let a = self.stream.get_mut();
+        a.add_to_inbound(result)  // SEGFAULT: here a = NULL when we execute the first input, which triggers add_to_inbound here! Somehow, bio initialization fails !
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        todo!() // self.stream.get_mut().take_message_from_outbound()
+        self.stream.get_mut().take_message_from_outbound()
     }
 }
 
 impl Read for WolfSSL {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        todo!()
+        self.stream.get_mut().read(buf)
     }
 }
 
 impl Write for WolfSSL {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        todo!()
+        self.stream.get_mut().write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        todo!()
+        self.stream.get_mut().flush()
     }
 }
 
 impl Drop for WolfSSL {
     fn drop(&mut self) {
-        todo!()
+        #[cfg(feature = "claims")]
+        WolfSSL::deregister_claimer(self);
     }
 }
 
@@ -249,34 +251,45 @@ impl PUT for WolfSSL {
     }
 
     fn progress(&mut self) -> Result<(), Error> {
-        todo!()
+        wolfssl_binding::do_handshake(&mut self.stream)
     }
 
     fn reset(&mut self) -> Result<(), Error> {
-        todo!()
+        self.stream.clear();
+        Ok(())
     }
 
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        todo!()
+        #[cfg(feature = "claims")]
+        register_claimer(self.stream.ssl.as_ptr().cast(), move |claim: Claim| {
+            (*claimer).borrow_mut().claim(agent_name, claim)
+        });
     }
 
     fn deregister_claimer(&mut self) -> () {
-        todo!()
+        #[cfg(feature = "claims")]
+        deregister_claimer(self.stream.ssl().as_ptr().cast());
     }
 
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        todo!()
+        WolfSSL::deregister_claimer(self);
+        WolfSSL::register_claimer(self, claimer, agent_name)
     }
 
     fn describe_state(&self) -> &'static str {
-        todo!()
+        // Very useful for nonblocking according to docs:
+        // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
+        // When using nonblocking sockets, the function call performing the handshake may return
+        // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
+        // so that SSL_state_string[_long]() may be called.
+        self.stream.state_string_long()
     }
 
     fn version(&self) -> &'static str {
-        todo!()
+        self.stream.version()
     }
 
     fn make_deterministic(&self) -> () {
-        todo!()
+        () // TODO
     }
 }

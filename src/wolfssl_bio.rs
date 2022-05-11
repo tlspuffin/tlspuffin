@@ -111,6 +111,20 @@ unsafe fn state<'a, S: 'a>(bio: *mut BIO) -> &'a mut StreamState<S> {
     &mut *(BIO_get_data(bio) as *mut _)
 }
 
+pub unsafe fn get_mut<'a, S: 'a>(bio: *mut BIO) -> &'a mut S {
+    &mut state(bio).stream
+}
+
+pub unsafe fn take_error<S>(bio: *mut BIO) -> Option<io::Error> {
+    let state = state::<S>(bio);
+    state.error.take()
+}
+
+pub unsafe fn take_panic<S>(bio: *mut BIO) -> Option<Box<dyn Any + Send>> {
+    let state = state::<S>(bio);
+    state.panic.take()
+}
+
 unsafe extern "C" fn bwrite<S: Write>(
     bio: *mut wolf::WOLFSSL_BIO,
     buf: *const c_char,

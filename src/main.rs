@@ -38,6 +38,7 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
+mod wolfssl_bio;
 mod wolfssl_binding;
 
 fn main() {
