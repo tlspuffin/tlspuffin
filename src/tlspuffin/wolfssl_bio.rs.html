@@ -387,8 +387,8 @@ this. */</span>
 }
 
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">take_error</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">bio</span>: <span class="kw-2">*mut</span> <span class="ident">BIO</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">io::Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>::<span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">bio</span>);
-    <span class="ident">state</span>.<span class="ident">error</span>.<span class="ident">take</span>()
+    <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">state</span>::<span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">bio</span>);  <span class="comment">// [test_wolf_get_bio] [SEGFAULT] here we access the ptr field of bio that is set to NULL at this point</span>
+    <span class="ident">state</span>.<span class="ident">error</span>.<span class="ident">take</span>()  <span class="comment">// BOOOM</span>
 }
 
 <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">take_panic</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">bio</span>: <span class="kw-2">*mut</span> <span class="ident">BIO</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Any</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span><span class="op">&gt;</span> {

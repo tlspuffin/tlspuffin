@@ -152,16 +152,6 @@
 <span id="147">147</span>
 <span id="148">148</span>
 <span id="149">149</span>
-<span id="150">150</span>
-<span id="151">151</span>
-<span id="152">152</span>
-<span id="153">153</span>
-<span id="154">154</span>
-<span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
-<span id="158">158</span>
-<span id="159">159</span>
 </pre><pre class="rust"><code><span class="doccomment">//!  These are currently implemented by using an in-memory buffer.</span>
 <span class="doccomment">//! One might ask why we want two channels. There two very practical reasons</span>
 <span class="doccomment">//! for this. Note that these are advantages for the implementation and are not</span>
@@ -181,19 +171,11 @@
 <span class="doccomment">//! If Bob is an [`Agent`], which has an underlying *PUTState* then OpenSSL may write into the</span>
 <span class="doccomment">//! *outbound channel* of Bob.</span>
 
-<span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
 <span class="kw">use</span> <span class="ident">std::convert::TryFrom</span>;
-<span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">io</span>,
     <span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>},
 };
-
-<span class="kw">use</span> <span class="ident">foreign_types_shared::ForeignTypeRef</span>;
-<span class="kw">use</span> <span class="ident">openssl::ssl::SslStream</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span> <span class="comment">// Just a test:</span>
-<span class="kw">use</span> <span class="ident">wolfssl_sys::handShakeInfo_st</span>;
 
 <span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs</span>::{<span class="ident">deframer::MessageDeframer</span>, <span class="ident">message::Message</span>};
@@ -204,10 +186,8 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding</span>;
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::VecClaimer</span>;
 
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Stream</span>: <span class="ident">std::io::Read</span> <span class="op">+</span> <span class="ident">std::io::Write</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Stream</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Write</span> {
     <span class="kw">fn</span> <span class="ident">add_to_inbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>);
 
     <span class="doccomment">/// Takes a single TLS message from the outbound channel</span>
