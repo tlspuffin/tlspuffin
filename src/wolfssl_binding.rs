@@ -1,15 +1,16 @@
+use itertools::Itertools;
 use std::any::Any;
+use std::cmp;
+use std::ffi::{CStr, CString};
 use std::io;
 use std::io::{ErrorKind, Read, Write};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 use std::os::raw::{c_char, c_int, c_void};
+use std::panic;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::slice;
-use std::ffi::{CStr, CString};
 use std::str;
-use std::cmp;
-use std::panic;
 
 use openssl::error::ErrorStack;
 use openssl::ssl::{SslContextBuilder, SslVersion};
@@ -27,8 +28,8 @@ use openssl::{
 use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
-use crate::{openssl_binding, wolfssl_binding};
 use crate::wolfssl_bio as bio;
+use crate::{openssl_binding, wolfssl_binding};
 use wolfssl_sys as wolf;
 
 /// WolfSSL library initialization (done only once statically)
@@ -173,7 +174,8 @@ impl<S: Read + Write> SslStream<S> {
 
     fn get_error(&self, ret: c_int) -> openssl::ssl::ErrorCode {
         unsafe {
-            openssl::ssl::ErrorCode::from_raw(wolf::wolfSSL_get_error(self.ssl.as_ptr(), ret)) }
+            openssl::ssl::ErrorCode::from_raw(wolf::wolfSSL_get_error(self.ssl.as_ptr(), ret))
+        }
     }
 
     fn make_error(&mut self, ret: c_int) -> openssl::ssl::Error {
@@ -214,10 +216,10 @@ impl<S: Read + Write> SslStream<S> {
     /// The text variant of the version number and the release date. For example, "OpenSSL 0.9.5a 1 Apr 2000".
     pub fn version(&self) -> &'static str {
         unsafe {
-            CStr::from_ptr(wolf::wolfSSL_lib_version()).
-                to_str()
+            CStr::from_ptr(wolf::wolfSSL_lib_version())
+                .to_str()
                 .unwrap()
-            }
+        }
     }
 }
 
@@ -316,4 +318,26 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+#[test]
+fn test_wolf_version() {
+    init();
+
+    let memory_stream = MemoryStream::new();
+    let ssl_stream = create_client(memory_stream, &TLSVersion::V1_3).unwrap();
+
+    println!("{}", ssl_stream.version());
+    assert!(ssl_stream.version().contains("5.2.0"));
+}
+
+#[test]
+fn test_wolf_get_bio_error() {
+    init();
+
+    let memory_stream = MemoryStream::new();
+    let mut ssl_stream = create_client(memory_stream, &TLSVersion::V1_3).unwrap();
+    let error = ssl_stream.get_bio_error();  // SEGFAULT HERE, search for [test_wolf_get_bio] [SEGFAULT]
+
+    println!("Error: {:?}", error);
 }

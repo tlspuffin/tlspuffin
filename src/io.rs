@@ -17,19 +17,11 @@
 //! If Bob is an [`Agent`], which has an underlying *PUTState* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
-use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::rc::Rc;
 use std::{
     io,
     io::{Read, Write},
 };
-
-use foreign_types_shared::ForeignTypeRef;
-use openssl::ssl::SslStream;
-
-#[cfg(feature = "wolfssl")] // Just a test:
-use wolfssl_sys::handShakeInfo_st;
 
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{deframer::MessageDeframer, message::Message};
@@ -40,10 +32,8 @@ use security_claims::{Claim, TLSLike};
 use crate::agent::{AgentName, TLSVersion};
 
 use crate::error::Error;
-use crate::openssl_binding;
-use crate::trace::VecClaimer;
 
-pub trait Stream: std::io::Read + std::io::Write {
+pub trait Stream: Read + Write {
     fn add_to_inbound(&mut self, result: &OpaqueMessage);
 
     /// Takes a single TLS message from the outbound channel
