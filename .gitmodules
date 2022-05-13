@@ -14,3 +14,7 @@
 	path = deps/wolfssl-sys
 	url = git@github.com:tlspuffin/wolfssl-sys.git
 	branch = openssl
+[submodule "deps/rust-wolfssl"]
+	path = deps/rust-wolfssl
+	url = git@github.com:tlspuffin/rust-openssl.git
+	branch = wolfssl

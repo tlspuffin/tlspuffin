@@ -12,7 +12,7 @@ sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
 sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 # Enables ASAN
-asan = ["openssl/asan"]
+asan = ["openssl/asan", "wolfssl/asan"]
 
 # Lastest OpenSSL 1.1.1
 openssl111 = [
@@ -38,7 +38,7 @@ libressl = [
 ]
 
 wolfssl520 = [
-    "wolfssl-sys/vendored-wolfssl520",
+    "wolfssl/vendored-wolfssl520",
     "wolfssl"
 ]
 
@@ -105,7 +105,7 @@ foreign-types-shared = "0.1"
 security-claims = { path = "security-claims" }
 
 # WolfSSL
-wolfssl-sys = { path = "deps/wolfssl-sys", features = [] }
+wolfssl = { path = "deps/rust-wolfssl/openssl", features = ["sancov"] }
 libc = "0.2"
 
 [dev-dependencies]

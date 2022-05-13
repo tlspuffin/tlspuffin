@@ -9,7 +9,6 @@ use openssl::{
     hash::MessageDigest,
     pkey::{PKey, PKeyRef, Private},
     ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream},
-    version::version,
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509Ref, X509,
@@ -130,8 +129,8 @@ pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     Ok((cert, pkey))
 }
 
-pub fn openssl_version() -> &'static str {
-    version()
+pub fn version() -> &'static str {
+    openssl::version::version()
 }
 
 #[cfg(feature = "openssl111")]
@@ -174,7 +173,7 @@ fn set_max_protocol_version(
     Ok(())
 }
 
-pub fn create_openssl_server(
+pub fn create_server(
     stream: MemoryStream,
     cert: &X509Ref,
     key: &PKeyRef<Private>,
@@ -246,7 +245,7 @@ pub fn log_ssl_error(error: &openssl::ssl::Error) -> Result<(), Error> {
     }
 }
 
-pub fn create_openssl_client(
+pub fn create_client(
     stream: MemoryStream,
     tls_version: &TLSVersion,
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {

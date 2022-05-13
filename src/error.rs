@@ -1,7 +1,8 @@
 use std::fmt::Formatter;
 use std::{fmt, io};
 
-use openssl::error::ErrorStack;
+use openssl::error::ErrorStack as OErrorStack;
+use wolfssl::error::ErrorStack as WErrorStack;
 
 use crate::agent::AgentName;
 use crate::tls::error::FnError;
@@ -16,7 +17,9 @@ pub enum Error {
     Term(String),
     /// OpenSSL reported an error
     //#[serde(serialize_with = "serialize_openssl_error")]
-    OpenSSL(ErrorStack),
+    OpenSSL(OErrorStack),
+    //#[serde(serialize_with = "serialize_openssl_error")]
+    WolfSSL(WErrorStack),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
     /// Some error which was caused because of agents or their names. Like an agent which was not found.
@@ -54,6 +57,7 @@ impl fmt::Display for Error {
             Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
             Error::Term(err) => write!(f, "error evaluating a term: {}", err),
             Error::OpenSSL(err) => write!(f, "error in openssl: {}", err),
+            Error::WolfSSL(err) => write!(f, "error in wolfssl: {}", err),
             Error::IO(err) => write!(
                 f,
                 "error in io of openssl (this should not happen): {}",
@@ -76,8 +80,14 @@ impl fmt::Display for Error {
 }
 
 impl From<openssl::error::ErrorStack> for Error {
-    fn from(err: ErrorStack) -> Self {
+    fn from(err: OErrorStack) -> Self {
         Error::OpenSSL(err)
+    }
+}
+
+impl From<wolfssl::error::ErrorStack> for Error {
+    fn from(err: WErrorStack) -> Self {
+        Error::WolfSSL(err)
     }
 }
 

@@ -1804,7 +1804,7 @@ dependencies = [
  "test-log",
  "webpki",
  "webpki-roots",
- "wolfssl-sys",
+ "wolfssl",
 ]
 
 [[package]]
@@ -2188,6 +2188,19 @@ name = "windows_x86_64_msvc"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d19538ccc21819d01deaf88d6a17eae6596a12e9aafdbb97916fb49896d89de9"
+
+[[package]]
+name = "wolfssl"
+version = "0.10.35"
+dependencies = [
+ "bitflags",
+ "cfg-if 1.0.0",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-sys",
+ "wolfssl-sys",
+]
 
 [[package]]
 name = "wolfssl-sys"

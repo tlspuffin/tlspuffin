@@ -27,7 +27,7 @@ use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
 use crate::openssl_binding::static_rsa_cert;
-use wolfssl_sys as wolf;
+use wolfssl::wolfssl_sys as wolf;
 
 /* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions
 from OpenSSL to WolfSSL but the internal calling conventions might differ so we may need to rework

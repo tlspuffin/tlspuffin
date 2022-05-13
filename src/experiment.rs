@@ -53,7 +53,7 @@ pub fn write_experiment_markdown(
                 * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
                 {description}\n",
         title = &title,
-        openssl_version = openssl_binding::openssl_version(),
+        openssl_version = openssl_binding::version(),
         date = Local::now().to_rfc3339(),
         git_ref = git_ref,
         git_msg = git_msg,
