@@ -298,6 +298,11 @@
 <span id="293">293</span>
 <span id="294">294</span>
 <span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Generic [`PUT`] trait defining an interface with a TLS library with which we can:</span>
 <span class="doccomment">//! - [`new`] create a client (or server) new initial state + bind buffers</span>
 <span class="doccomment">//! - [`progress`] makes a state progress (interacting with the buffers)</span>
@@ -309,6 +314,7 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io</span>::{<span class="ident">MemoryStream</span>, <span class="ident">Stream</span>};
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::openssl_binding::openssl_version</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::VecClaimer</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::wolfssl_binding</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">io</span>, <span class="ident">openssl_binding</span>};
 <span class="kw">use</span> <span class="ident">foreign_types_shared::ForeignTypeRef</span>;
@@ -336,6 +342,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PUTType</span> {
     <span class="ident">OpenSSL</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
     <span class="ident">WolfSSL</span>,
 }
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PUT</span>: <span class="ident">Stream</span> <span class="op">+</span> <span class="ident">Drop</span> {
@@ -369,8 +376,9 @@
         <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>())),
     };
     <span class="kw">let</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> } {
-        <span class="ident">OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
-        <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+        <span class="ident">PUTType::OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
+        <span class="ident">PUTType::WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
     };
     <span class="ident">put</span>.<span class="ident">as_ref</span>().<span class="ident">version</span>()
 }
@@ -382,9 +390,11 @@
         <span class="ident">agent_name</span>: <span class="ident">AgentName::new</span>(),
         <span class="ident">claimer</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="ident">VecClaimer::new</span>())),
     };
-    <span class="kw">let</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> { <span class="ident">put_type</span> } {
-        <span class="ident">OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
-        <span class="ident">WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+    <span class="kw">let</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">PUT</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">put_type</span> {
+        <span class="ident">PUTType::OpenSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">OpenSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
+        <span class="ident">PUTType::WolfSSL</span> =&gt; <span class="ident">Box::new</span>(<span class="ident">WolfSSL::new</span>(<span class="ident">c</span>).<span class="ident">expect</span>(<span class="string">&quot;Failed to create a put instance&quot;</span>)),
+
     };
     <span class="ident">put</span>.<span class="ident">as_ref</span>().<span class="ident">make_deterministic</span>()
 }
@@ -493,11 +503,11 @@
 <span class="comment">////////////////////////////////////////////////////////////////////////////////////////////////////</span>
 <span class="comment">////////////// WolfSSL specific-state</span>
 <span class="comment">////////////////////////////////////////////////////////////////////////////////////////////////////</span>
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WolfSSL</span> {
     <span class="ident">stream</span>: <span class="ident">wolfssl_binding::SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>,
 }
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">Stream</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
     <span class="kw">fn</span> <span class="ident">add_to_inbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>) {
         <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>();
@@ -508,13 +518,13 @@
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">take_message_from_outbound</span>()
     }
 }
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
     <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">read</span>(<span class="ident">buf</span>)
     }
 }
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">Write</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
     <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">write</span>(<span class="ident">buf</span>)
@@ -524,14 +534,14 @@
         <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">flush</span>()
     }
 }
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
         <span class="ident">WolfSSL::deregister_claimer</span>(<span class="self">self</span>);
     }
 }
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
 <span class="kw">impl</span> <span class="ident">PUT</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>

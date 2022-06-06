@@ -42,6 +42,8 @@
 <span id="37">37</span>
 <span id="38">38</span>
 <span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::error::FnError</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::AgentClaimer</span>;
@@ -55,9 +57,11 @@
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HandshakeHash</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">claim</span>)) <span class="op">=</span> <span class="ident">claim</span> {
         <span class="kw">let</span> <span class="ident">algorithm</span> <span class="op">=</span> <span class="ident">tls13::TLS13_AES_128_GCM_SHA256</span>.<span class="ident">hash_algorithm</span>(); <span class="comment">// TODO update</span>
-        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">HandshakeHash::new_override</span>(<span class="ident">Vec::from</span>(
-            <span class="kw-2">&amp;</span><span class="ident">claim</span>.<span class="ident">transcript</span>.<span class="ident">data</span>[..<span class="ident">claim</span>.<span class="ident">transcript</span>.<span class="ident">length</span> <span class="kw">as</span> <span class="ident">usize</span>],
-        ), <span class="ident">algorithm</span>));
+        <span class="kw">let</span> <span class="ident">claim_transcript</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">claim</span>.<span class="ident">transcript</span>.<span class="ident">data</span>[..<span class="ident">claim</span>.<span class="ident">transcript</span>.<span class="ident">length</span> <span class="kw">as</span> <span class="ident">usize</span>];
+        <span class="kw">let</span> <span class="ident">hash</span> <span class="op">=</span> <span class="ident">HandshakeHash::new_override</span>(<span class="ident">Vec::from</span>(
+            <span class="ident">claim_transcript</span>,
+        ), <span class="ident">algorithm</span>);
+        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">hash</span>);
     }
 
     <span class="prelude-val">Err</span>(<span class="ident">FnError::Unknown</span>(<span class="macro">format!</span>(

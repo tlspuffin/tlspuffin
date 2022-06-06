@@ -677,6 +677,8 @@
 <span id="672">672</span>
 <span id="673">673</span>
 <span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -775,7 +777,7 @@
 };
 <span class="kw">use</span> <span class="ident">security_claims::violation::is_violation</span>;
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">OpenSSL</span>, <span class="ident">PUTType</span>, <span class="ident">WolfSSL</span>, <span class="ident">PUT</span>};
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">OpenSSL</span>, <span class="ident">PUTType</span>, <span class="ident">PUT</span>};
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 
 <span class="doccomment">/// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields</span>
@@ -1056,7 +1058,8 @@
         <span class="comment">// instantiation in an enum, but this works</span>
         <span class="kw">let</span> <span class="ident">agent</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">descriptor</span>.<span class="ident">put_type</span> {
             <span class="ident">PUTType::OpenSSL</span> =&gt; <span class="ident">Agent::new</span>::<span class="op">&lt;</span><span class="ident">OpenSSL</span><span class="op">&gt;</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>,
-            <span class="ident">PUTType::WolfSSL</span> =&gt; <span class="ident">Agent::new</span>::<span class="op">&lt;</span><span class="ident">WolfSSL</span><span class="op">&gt;</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>,
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
+            <span class="ident">PUTType::WolfSSL</span> =&gt; <span class="ident">Agent::new</span>::<span class="op">&lt;</span><span class="ident"><span class="kw">crate</span>::concretize::WolfSSL</span><span class="op">&gt;</span>(<span class="ident">descriptor</span>, <span class="self">self</span>.<span class="ident">claimer</span>.<span class="ident">clone</span>())<span class="question-mark">?</span>,
         };
         <span class="kw">let</span> <span class="ident">agent_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">add_agent</span>(<span class="ident">agent</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">agent_name</span>)
@@ -1265,9 +1268,10 @@
                             <span class="ident">data</span>: <span class="ident">variable</span>,
                         };
                         <span class="macro">trace!</span>(
-                            <span class="string">&quot;New knowledge {}: {} (counter: {})&quot;</span>,
+                            <span class="string">&quot;New knowledge {}: {} - {:?}  (counter: {})&quot;</span>,
                             <span class="kw-2">&amp;</span><span class="ident">knowledge</span>,
                             <span class="ident">remove_prefix</span>(<span class="ident">knowledge</span>.<span class="ident">data</span>.<span class="ident">type_name</span>()),
+                            <span class="ident">knowledge</span>.<span class="ident">data</span>,
                             <span class="ident">counter</span>
                         );
                         <span class="ident">ctx</span>.<span class="ident">add_knowledge</span>(<span class="ident">knowledge</span>)
