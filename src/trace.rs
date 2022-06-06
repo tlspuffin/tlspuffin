@@ -587,9 +587,10 @@ impl OutputAction {
                             data: variable,
                         };
                         trace!(
-                            "New knowledge {}: {} (counter: {})",
+                            "New knowledge {}: {} - {:?}  (counter: {})",
                             &knowledge,
                             remove_prefix(knowledge.data.type_name()),
+                            knowledge.data,
                             counter
                         );
                         ctx.add_knowledge(knowledge)

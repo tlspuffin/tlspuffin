@@ -52,8 +52,11 @@ pub fn tls13_application_traffic_secret(
     let (suite, _key, key_schedule) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
 
-    let (mut pending, client_secret, server_secret) = key_schedule.into_traffic_with_client_finished_pending_raw(&server_finished.get_current_hash_raw(), &NoKeyLog {},
-                                                                                                                 client_random,);
+    let (mut pending, client_secret, server_secret) =
+        key_schedule.into_traffic_with_client_finished_pending_raw(
+            &server_finished.get_current_hash_raw(),
+            &NoKeyLog {},
+            client_random,);
     Ok((
         suite,
         if server { client_secret } else { server_secret },

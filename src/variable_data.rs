@@ -2,6 +2,7 @@
 //! type. This is true for [`rustls::msgs::message::Message`] for example.
 
 use std::any::{Any, TypeId};
+use std::fmt::Debug;
 
 use crate::error::Error;
 use rustls::msgs::handshake::ServerKeyExchangePayload;
@@ -14,7 +15,7 @@ use rustls::{
     CipherSuite,
 };
 
-pub trait VariableData {
+pub trait VariableData: Debug {
     fn clone_box(&self) -> Box<dyn VariableData>;
     fn clone_box_any(&self) -> Box<dyn Any>;
     fn type_id(&self) -> TypeId;
@@ -25,7 +26,7 @@ pub trait VariableData {
 /// tlspuffin to handle data of dynamic size.
 impl<T: 'static> VariableData for T
 where
-    T: Clone,
+    T: Clone + Debug,
 {
     fn clone_box(&self) -> Box<dyn VariableData> {
         Box::new(self.clone())
