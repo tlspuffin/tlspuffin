@@ -1,1 +1,1 @@
-initSidebarItems({});
+initSidebarItems({"static":[["put_type",""]]});
