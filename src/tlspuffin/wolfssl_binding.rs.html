@@ -421,7 +421,7 @@
 
 <span class="doccomment">/// A TLS session over a stream.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SslStream</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> {
-    <span class="ident">ssl</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">Ssl</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">ssl</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">Ssl</span><span class="op">&gt;</span>,
     <span class="ident">method</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">bio::BioMethod</span><span class="op">&gt;</span>,
     <span class="ident">_p</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
 }
