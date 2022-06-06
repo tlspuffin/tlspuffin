@@ -259,7 +259,7 @@ pub fn fn_encrypt12(
 ) -> Result<Message, FnError> {
     let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
-    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Server); // FIXME (update)
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client); // FIXME (update)
     let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
     Ok(Message::try_from(encrypted.into_plain_message())?)
 }
