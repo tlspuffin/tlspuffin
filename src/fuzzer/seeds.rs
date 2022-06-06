@@ -1551,9 +1551,11 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
-pub fn create_corpus(put_type: PUTType) -> [(Trace, &'static str); 8] {
+pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
     let agent_b = agent_a.next();
+
+    let put_type = PUTType::OpenSSL;
 
     [
         (
