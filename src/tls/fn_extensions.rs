@@ -307,14 +307,14 @@ nyi_fn!();
 nyi_fn!();
 /// SessionTicket => 0x0023,
 pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SessionTicketRequest)
+    Ok(ClientExtension::SessionTicket(ClientSessionTicket::Request))
 }
 pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-    Ok(ClientExtension::SessionTicketOffer(Payload::new(
+    Ok(ClientExtension::SessionTicket(ClientSessionTicket::Offer(Payload::new(
         ticket.clone(),
-    )))
+    ))))
 }
 pub fn fn_session_ticket_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)
@@ -357,8 +357,8 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
     let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
-    let resuming_suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
-    let binder_len = resuming_suite.get_hash().output_len;
+    let resuming_suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let binder_len = resuming_suite.hash_algorithm().output_len;
     let binder = vec![0u8; binder_len];
 
     let psk_identity = PresharedKeyIdentity::new(ticket, obfuscated_ticket_age);

@@ -1,11 +1,11 @@
 use std::convert::{TryFrom, TryInto};
 
 use ring::test::rand::FixedByteRandom;
-use rustls::conn::{ConnectionRandoms, ConnectionSecrets};
-use rustls::kx::{KeyExchange, KeyExchangeResult};
+use rustls::conn::{ConnectionRandoms};
+use rustls::kx::{KeyExchange};
 use rustls::msgs::enums::NamedGroup;
 use rustls::msgs::handshake::{Random, ServerECDHParams};
-use rustls::suites::Tls12CipherSuite;
+use rustls::tls12::{ConnectionSecrets, Tls12CipherSuite};
 use rustls::{tls12, SupportedKxGroup, ALL_KX_GROUPS};
 
 use crate::tls::error::FnError;
@@ -30,31 +30,33 @@ pub fn deterministic_key_share(skxg: &'static SupportedKxGroup) -> Result<Vec<u8
 pub fn tls13_key_exchange(
     server_key_share: &Vec<u8>,
     group: NamedGroup,
-) -> Result<KeyExchangeResult, FnError> {
+) -> Result<Vec<u8>, FnError> {
     // Shared Secret
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    kx.complete(server_key_share.as_slice())
-        .ok_or_else(|| FnError::Unknown("Failed to complete key exchange".to_string()))
+    let shared_secret = kx.complete(&server_key_share, |secret| { Ok(Vec::from(secret)) })?; // TODO update
+    //  kx.complete(server_key_share.as_slice(), |secret| { Ok(())}).ok()
+   //     .ok_or_else(|| FnError::Unknown("Failed to complete key exchange".to_string()))
+    Ok(shared_secret)
 }
 
 pub fn tls12_key_exchange(
-    server_ecdh_params: &ServerECDHParams,
-) -> Result<KeyExchangeResult, FnError> {
+  //  server_ecdh_params: &ServerECDHParams,
+) -> Result<KeyExchange, FnError> {
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| "Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
-    Ok(kxd)
+    //let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
+    Ok(kx)
 }
 
 pub fn tls12_new_secrets(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
     let mut server_random_bytes = vec![0; 32];
 
@@ -64,15 +66,15 @@ pub fn tls12_new_secrets(
         .try_into()
         .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
-        we_are_client: true,
         client: [1; 32], // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
         server: server_random,
     };
-    let kxd = tls12_key_exchange(server_ecdh_params)?;
-    let suite12 = Tls12CipherSuite::try_from(suite)
-        .map_err(|_err| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
-    let pre_master_secret = &kxd.shared_secret;
-    let secrets = ConnectionSecrets::new(&randoms, suite12, pre_master_secret);
+    let kx = tls12_key_exchange()?;
+    let suite = suite.tls12().ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
+    let secrets = ConnectionSecrets::from_key_exchange(kx, &server_ecdh_params.public.0,
+                                                                   None, // TODO update
+                                                                   randoms,
+                                                                   suite)?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

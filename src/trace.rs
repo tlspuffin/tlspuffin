@@ -72,7 +72,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-use rustls::msgs::message::Message;
+use rustls::msgs::message::{Message, PlainMessage};
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
@@ -649,7 +649,8 @@ impl InputAction {
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
             debug_message_with_info("Input message".to_string().as_str(), msg);
 
-            ctx.add_to_inbound(step.agent, &OpaqueMessage::from(msg.clone()))?;
+            let opaque_message = PlainMessage::from(msg.clone()).into_unencrypted_opaque();
+            ctx.add_to_inbound(step.agent, &opaque_message)?;
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
             debug_opaque_message_with_info(
                 "Input opaque message".to_string().as_str(),

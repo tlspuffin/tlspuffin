@@ -1,4 +1,4 @@
-use rustls::hash_hs::HandshakeHash;
+use rustls::hash_hs::{HandshakeHash};
 use rustls::msgs::codec::Codec;
 use rustls::msgs::codec::Reader;
 use rustls::msgs::enums::{Compression, ExtensionType, NamedGroup};
@@ -64,22 +64,20 @@ pub fn fn_verify_data(
     psk: &Option<Vec<u8>>,
 ) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
     let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
-    key_schedule.client_handshake_traffic_secret_raw(
-        &server_hello.get_current_hash_raw(),
-        &NoKeyLog,
-        client_random,
-    );
 
-    let pending = key_schedule.into_traffic_with_client_finished_pending();
+    let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(&server_hello.get_current_hash_raw(), &NoKeyLog, client_random);
 
-    let bytes = pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
-    Ok(Vec::from(bytes.as_ref()))
+    // TODO update
+    let (pending, client_secret, server_secret) = hs.into_traffic_with_client_finished_pending_raw(&server_hello.get_current_hash_raw(), &NoKeyLog, client_random);
+
+    let (traffic, tag, client_secret) = pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
+    Ok(Vec::from(tag.as_ref()))
 }
 
 // ----
