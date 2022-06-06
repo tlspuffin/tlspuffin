@@ -73,7 +73,7 @@ impl Drop for Ssl {
 
 /// A TLS session over a stream.
 pub struct SslStream<S> {
-    ssl: ManuallyDrop<Ssl>,
+    pub(crate) ssl: ManuallyDrop<Ssl>,
     method: ManuallyDrop<bio::BioMethod>,
     _p: PhantomData<S>,
 }

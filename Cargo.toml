@@ -105,7 +105,7 @@ foreign-types-shared = "0.1"
 security-claims = { path = "security-claims" }
 
 # WolfSSL
-wolfssl-sys = { path = "deps/wolfssl-sys", features = [] }
+wolfssl-sys = { path = "deps/wolfssl-sys", features = [], optional = true }
 libc = "0.2"
 
 [dev-dependencies]

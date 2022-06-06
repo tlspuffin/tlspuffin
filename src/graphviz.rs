@@ -195,13 +195,9 @@ impl Term {
 mod tests {
     use crate::agent::AgentName;
     use crate::concretize::PUTType;
-    use crate::concretize::PUTType::{OpenSSL, WolfSSL};
     use crate::fuzzer::seeds::seed_client_attacker12;
-    #[cfg(feature = "openssl")]
-    static put_type: PUTType = OpenSSL;
 
-    #[cfg(feature = "wolfssl")]
-    static put_type: PUTType = WolfSSL;
+    static put_type: PUTType = PUTType::OpenSSL;
 
     #[test]
     fn test_dot_graph() {

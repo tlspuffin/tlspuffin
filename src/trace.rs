@@ -96,7 +96,7 @@ use crate::{
 };
 use security_claims::violation::is_violation;
 
-use crate::concretize::{OpenSSL, PUTType, WolfSSL, PUT};
+use crate::concretize::{OpenSSL, PUTType, PUT};
 use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
@@ -377,6 +377,7 @@ impl TraceContext {
         // instantiation in an enum, but this works
         let agent = match descriptor.put_type {
             PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
+            #[cfg(feature = "wolfssl")]
             PUTType::WolfSSL => Agent::new::<WolfSSL>(descriptor, self.claimer.clone())?,
         };
         let agent_name = self.add_agent(agent);

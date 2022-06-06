@@ -9,7 +9,6 @@ use openssl::rand::rand_bytes;
 use crate::agent::AgentName;
 use crate::concretize::{
     PUTType,
-    PUTType::{OpenSSL, WolfSSL},
 };
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
@@ -25,11 +24,7 @@ use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, Step, Trace};
 
-#[cfg(feature = "openssl")]
-static put_type: PUTType = OpenSSL;
-
-#[cfg(feature = "wolfssl")]
-static put_type: PUTType = WolfSSL;
+static put_type: PUTType = PUTType::OpenSSL;
 
 #[cfg(feature = "deterministic")]
 #[test]

@@ -9,6 +9,7 @@ use crate::io::MessageResult;
 use crate::io::{MemoryStream, Stream};
 use crate::openssl_binding::openssl_version;
 use crate::trace::VecClaimer;
+#[cfg(feature = "wolfssl")]
 use crate::wolfssl_binding;
 use crate::{io, openssl_binding};
 use foreign_types_shared::ForeignTypeRef;
@@ -36,6 +37,7 @@ pub struct Config {
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub enum PUTType {
     OpenSSL,
+    #[cfg(feature = "wolfssl")]
     WolfSSL,
 }
 pub trait PUT: Stream + Drop {
@@ -61,31 +63,30 @@ pub trait PUT: Stream + Drop {
     fn make_deterministic(&self) -> ();
 }
 
-pub fn put_version(put_type: PUTType) -> &'static str {
+pub fn put_version() -> &'static str {
     let c = Config {
         tls_version: TLSVersion::V1_3,
         server: false,
         agent_name: AgentName::new(),
         claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put: Box<dyn PUT> = match { put_type } {
-        OpenSSL => Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
-        WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
-    };
+    let put: Box<dyn PUT> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
+
     put.as_ref().version()
 }
 
-pub fn put_make_deterministic(put_type: PUTType) -> () {
+pub fn put_make_deterministic() -> () {
     let c = Config {
         tls_version: TLSVersion::V1_3,
         server: false,
         agent_name: AgentName::new(),
         claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put: Box<dyn PUT> = match { put_type } {
-        OpenSSL => Box::new(OpenSSL::new(c).expect("Failed to create a put instance")),
-        WolfSSL => Box::new(WolfSSL::new(c).expect("Failed to create a put instance")),
-    };
+    let put: Box<dyn PUT> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
+
+/*        #[cfg(feature = "wolfssl")]
+        Box::new(crate::concretize::wolfssl::WolfSSL::new(c).expect("Failed to create a put instance"))
+*/
     put.as_ref().make_deterministic()
 }
 
@@ -193,6 +194,20 @@ impl PUT for OpenSSL {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////// WolfSSL specific-state
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+#[cfg(feature = "wolfssl")]
+mod wolfssl {
+    use std::cell::RefCell;
+    use std::io::{Read, Write};
+    use std::rc::Rc;
+    use rustls::msgs::message::OpaqueMessage;
+    use security_claims::{deregister_claimer, register_claimer};
+    use tlspuffin::concretize::{Config, PUT};
+    use crate::error::Error;
+    use crate::io::{MemoryStream, MessageResult, Stream};
+    use crate::{openssl_binding, wolfssl_binding};
+    use crate::agent::AgentName;
+    use crate::concretize::{Config, PUT};
+    use crate::trace::VecClaimer;
 
 pub struct WolfSSL {
     stream: wolfssl_binding::SslStream<MemoryStream>,
@@ -292,4 +307,5 @@ impl PUT for WolfSSL {
     fn make_deterministic(&self) -> () {
         () // TODO
     }
+}
 }

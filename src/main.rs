@@ -38,7 +38,9 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
+#[cfg(feature = "wolfssl")]
 mod wolfssl_bio;
+#[cfg(feature = "wolfssl")]
 mod wolfssl_binding;
 
 fn main() {
