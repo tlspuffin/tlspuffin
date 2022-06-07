@@ -38,6 +38,7 @@ libressl = [
 ]
 
 wolfssl520 = [
+    "wolfssl-sys",
     "wolfssl-sys/vendored-wolfssl520",
     "wolfssl"
 ]

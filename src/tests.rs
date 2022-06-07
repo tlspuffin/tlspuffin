@@ -442,22 +442,23 @@ pub mod rustls {
     use rustls::internal::msgs::enums::ContentType;
     use rustls::msgs::base::Payload;
     use rustls::msgs::codec::Reader;
-    use rustls::msgs::message::OpaqueMessage;
-    use rustls::{
-        self,
-        internal::msgs::{
-            enums::{
-                HandshakeType,
-                ProtocolVersion::{TLSv1_2, TLSv1_3},
-            },
-            handshake::{
-                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-            },
-            message::{Message, MessagePayload::Handshake},
+    use rustls::msgs::message::{OpaqueMessage, PlainMessage};
+    use rustls::{self, internal::msgs::{
+        enums::{
+            HandshakeType,
+            ProtocolVersion::{TLSv1_2, TLSv1_3},
         },
-        Connection, ProtocolVersion, RootCertStore,
-    };
+        handshake::{
+            ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+        },
+        message::{Message, MessagePayload::Handshake},
+    }, Connection, ProtocolVersion, RootCertStore, ClientConfig, ServerName, OwnedTrustAnchor};
     use test_log::test;
+
+    fn create_message(opaque_message: OpaqueMessage) {
+        let _message = Message::try_from(opaque_message.into_plain_message()).unwrap();
+        //println!("{:#?}", message);
+    }
 
     #[test]
     fn test_rustls_message_stability_ch() {
@@ -475,8 +476,7 @@ pub mod rustls {
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let _message = Message::try_from(opaque_message).unwrap();
-        //println!("{:#?}", message);
+        create_message(opaque_message);
     }
 
     #[test]
@@ -510,8 +510,7 @@ pub mod rustls {
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let _message = Message::try_from(opaque_message).unwrap();
-        //println!("{:#?}", message);
+        create_message(opaque_message);
     }
 
     #[test]
@@ -529,8 +528,7 @@ pub mod rustls {
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
-        let _message = Message::try_from(opaque_message).unwrap();
-        //println!("{:#?}", message);
+        create_message(opaque_message);
     }
 
     /// https://github.com/tlspuffin/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d
@@ -540,8 +538,7 @@ pub mod rustls {
         e830e9a98ec20e1cb49645b1cd6e2d0aa5c87b5a3837bcf33334e96c37a77a79c9df63413dc15c02f00";
         let binary = hex::decode(hex).unwrap();
         let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
-        let _message = Message::try_from(opaque_message).unwrap();
-        //println!("{:#?}", message);
+        create_message(opaque_message);
     }
 
     #[test]
@@ -559,8 +556,7 @@ pub mod rustls {
         for hex in hexn {
             let binary = hex::decode(hex).unwrap();
             let opaque_message = OpaqueMessage::read(&mut Reader::init(binary.as_slice())).unwrap();
-            let _message = Message::try_from(opaque_message).unwrap();
-            //println!("{:#?}", message);
+            create_message(opaque_message);
         }
     }
     #[test]
@@ -627,20 +623,18 @@ pub mod rustls {
         let mut opaque_message = OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
         // Required for choosing the correct parsing function
         opaque_message.version = TLSv1_3;
-        let _message = Message::try_from(opaque_message).unwrap();
-        //println!("{:#?}", message);
+        create_message(opaque_message);
     }
 
     #[test]
     fn test_encrypted_tls12_into_message() {
-        let opaque = OpaqueMessage {
+        let opaque_message = OpaqueMessage {
             typ: ContentType::Handshake,
             version: ProtocolVersion::TLSv1_2,
             payload: Payload::new(vec![1, 2, 3]),
         };
 
-        let _message = Message::try_from(opaque).unwrap();
-        //println!("{:?}", message);
+        create_message(opaque_message);
     }
 
     #[test]
@@ -662,14 +656,11 @@ pub mod rustls {
         };
 
         let mut out: Vec<u8> = Vec::new();
-        out.append(&mut OpaqueMessage::from(message).encode());
+        out.append(&mut PlainMessage::from(message).into_unencrypted_opaque().encode());
         //hexdump::hexdump(&out);
 
-        let _decoded_message =
-            Message::try_from(OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap())
-                .unwrap();
-
-        //println!("{:?}", decoded_message);
+        let opaque_message = OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap();
+        create_message(opaque_message);
     }
 
     /// This is the simplest possible client using rustls that does something useful:
@@ -684,15 +675,24 @@ pub mod rustls {
     //#[test] Disable for now as it can fail because of missing internet
     fn test_execute_rustls() {
         let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-        let config = rustls::ConfigBuilder::with_safe_defaults()
-            .for_client()
-            .unwrap()
-            .with_root_certificates(root_store, &[])
+        root_store.add_server_trust_anchors(
+            webpki_roots::TLS_SERVER_ROOTS
+                .0
+                .iter()
+                .map(|ta| {
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(
+                        ta.subject,
+                        ta.spki,
+                        ta.name_constraints,
+                    )
+                }),
+        );
+        let config = ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
             .with_no_client_auth();
 
-        let dns_name = webpki::DnsNameRef::try_from_ascii_str("google.com").unwrap();
-        let mut conn = rustls::ClientConnection::new(Arc::new(config), dns_name).unwrap();
+        let mut conn = rustls::ClientConnection::new(Arc::new(config), "google.com".try_into().unwrap()).unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
         let _written = tls
@@ -711,7 +711,7 @@ pub mod rustls {
         writeln!(
             &mut std::io::stderr(),
             "Current ciphersuite: {:?}",
-            ciphersuite.suite
+            ciphersuite.suite()
         )
         .unwrap();
         let mut plaintext = Vec::new();
