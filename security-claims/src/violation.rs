@@ -29,7 +29,9 @@ impl From<i32> for TLSVersion {
 }
 
 pub fn is_violation<A>(claims: &[ClaimMessage<A>]) -> Option<&'static str>
-    where A: Eq {
+where
+    A: Eq,
+{
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
@@ -156,7 +158,9 @@ pub fn is_violation<A>(claims: &[ClaimMessage<A>]) -> Option<&'static str>
 pub fn find_two_finished_messages<A>(
     claims: &[ClaimMessage<A>],
 ) -> Option<(&ClaimMessage<A>, &ClaimMessage<A>)>
-    where A:Eq {
+where
+    A: Eq,
+{
     let two_finishes: Option<(&ClaimMessage<A>, &ClaimMessage<A>)> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)

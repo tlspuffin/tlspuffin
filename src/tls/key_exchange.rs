@@ -1,8 +1,8 @@
 use std::convert::{TryFrom, TryInto};
 
 use ring::test::rand::FixedByteRandom;
-use rustls::conn::{ConnectionRandoms};
-use rustls::kx::{KeyExchange};
+use rustls::conn::ConnectionRandoms;
+use rustls::kx::KeyExchange;
 use rustls::msgs::enums::NamedGroup;
 use rustls::msgs::handshake::{Random, ServerECDHParams};
 use rustls::tls12::{ConnectionSecrets, Tls12CipherSuite};
@@ -35,12 +35,11 @@ pub fn tls13_key_exchange(
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let shared_secret = kx.complete(&server_key_share, |secret| { Ok(Vec::from(secret)) })?;
+    let shared_secret = kx.complete(&server_key_share, |secret| Ok(Vec::from(secret)))?;
     Ok(shared_secret)
 }
 
-pub fn tls12_key_exchange(
-  //  server_ecdh_params: &ServerECDHParams,
+pub fn tls12_key_exchange(//  server_ecdh_params: &ServerECDHParams,
 ) -> Result<KeyExchange, FnError> {
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
@@ -68,11 +67,16 @@ pub fn tls12_new_secrets(
         server: server_random,
     };
     let kx = tls12_key_exchange()?;
-    let suite = suite.tls12().ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
-    let secrets = ConnectionSecrets::from_key_exchange(kx, &server_ecdh_params.public.0,
-                                                                   None,
-                                                                   randoms,
-                                                                   suite)?;
+    let suite = suite
+        .tls12()
+        .ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
+    let secrets = ConnectionSecrets::from_key_exchange(
+        kx,
+        &server_ecdh_params.public.0,
+        None,
+        randoms,
+        suite,
+    )?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

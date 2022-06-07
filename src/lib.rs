@@ -27,10 +27,10 @@ pub mod variable_data;
 pub mod concretize;
 mod debug;
 mod experiment;
-pub mod tests;
 pub mod openssl_binding;
+pub mod tests;
 
 #[cfg(feature = "wolfssl")]
-pub mod wolfssl_bio;
-#[cfg(feature = "wolfssl")]
 pub mod wolfssl_binding;
+#[cfg(feature = "wolfssl")]
+pub mod wolfssl_bio;

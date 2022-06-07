@@ -1,7 +1,10 @@
 use ring::digest;
 use ring::hkdf::Prk;
 use rustls::hash_hs::HandshakeHash;
-use rustls::tls13::key_schedule::{KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake, KeyScheduleTrafficWithClientFinishedPending};
+use rustls::tls13::key_schedule::{
+    KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake,
+    KeyScheduleTrafficWithClientFinishedPending,
+};
 
 use rustls::msgs::enums::NamedGroup;
 use rustls::NoKeyLog;
@@ -52,11 +55,12 @@ pub fn tls13_application_traffic_secret(
     let (suite, _key, key_schedule) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
 
-    let (mut pending, client_secret, server_secret) =
-        key_schedule.into_traffic_with_client_finished_pending_raw(
+    let (mut pending, client_secret, server_secret) = key_schedule
+        .into_traffic_with_client_finished_pending_raw(
             &server_finished.get_current_hash_raw(),
             &NoKeyLog {},
-            client_random,);
+            client_random,
+        );
     Ok((
         suite,
         if server { client_secret } else { server_secret },
@@ -81,18 +85,18 @@ pub fn tls13_derive_psk(
         true,
     )?;
 
-/*    application_key_schedule.exporter_master_secret_raw(
+    /*    application_key_schedule.exporter_master_secret_raw(
         &server_finished.get_current_hash_raw(),
         &NoKeyLog {},
         client_random,
     );*/
 
-    let (traffic, tag, client_secret) = pending.sign_client_finish_raw(    &server_finished.get_current_hash_raw());
-    let psk = traffic
-        .resumption_master_secret_and_derive_ticket_psk_raw(
-            &client_finished.get_current_hash_raw(),
-            new_ticket_nonce,
-        );
+    let (traffic, tag, client_secret) =
+        pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
+    let psk = traffic.resumption_master_secret_and_derive_ticket_psk_raw(
+        &client_finished.get_current_hash_raw(),
+        new_ticket_nonce,
+    );
 
     Ok(psk)
 }
@@ -103,7 +107,10 @@ pub fn dhe_key_schedule(
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
 ) -> Result<KeyScheduleHandshakeStart, FnError> {
-    let hkdf_algorithm = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.hkdf_algorithm;
+    let hkdf_algorithm = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .hkdf_algorithm;
 
     // Key Schedule with or without PSK
     let key_schedule = match (server_key_share, psk) {
@@ -122,14 +129,12 @@ pub fn dhe_key_schedule(
             let zeroes = [0u8; digest::MAX_OUTPUT_LEN];
             let early = KeyScheduleEarly::new(hkdf_algorithm, psk.as_slice());
             let pre: KeySchedulePreHandshake = early.into();
-            Ok(
-                pre.into_handshake(
-                    &zeroes[..hkdf_algorithm
-                        .hmac_algorithm()
-                        .digest_algorithm()
-                        .output_len],
-                ),
-            )
+            Ok(pre.into_handshake(
+                &zeroes[..hkdf_algorithm
+                    .hmac_algorithm()
+                    .digest_algorithm()
+                    .output_len],
+            ))
         }
         (None, None) => Err(FnError::Unknown(
             "Need at least a key share or a psk".to_owned(),

@@ -3,9 +3,9 @@
 #![allow(non_snake_case)]
 #![allow(unused)]
 
-pub use ffi::{*};
-pub use register::{register_claimer, deregister_claimer};
+pub use ffi::*;
+pub use register::{deregister_claimer, register_claimer};
 
+mod ffi;
 pub mod register;
 pub mod violation;
-mod ffi;

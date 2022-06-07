@@ -312,9 +312,9 @@ pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError>
 pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
-    Ok(ClientExtension::SessionTicket(ClientSessionTicket::Offer(Payload::new(
-        ticket.clone(),
-    ))))
+    Ok(ClientExtension::SessionTicket(ClientSessionTicket::Offer(
+        Payload::new(ticket.clone()),
+    )))
 }
 pub fn fn_session_ticket_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)

@@ -7,9 +7,7 @@ use libafl::state::StdState;
 use openssl::rand::rand_bytes;
 
 use crate::agent::AgentName;
-use crate::concretize::{
-    PUTType,
-};
+use crate::concretize::PUTType;
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,

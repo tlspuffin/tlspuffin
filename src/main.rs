@@ -38,9 +38,9 @@ mod tls;
 mod trace;
 mod variable_data;
 #[cfg(feature = "wolfssl")]
-mod wolfssl_bio;
-#[cfg(feature = "wolfssl")]
 mod wolfssl_binding;
+#[cfg(feature = "wolfssl")]
+mod wolfssl_bio;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {

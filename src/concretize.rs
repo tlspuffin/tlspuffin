@@ -84,9 +84,9 @@ pub fn put_make_deterministic() -> () {
     };
     let put: Box<dyn PUT> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
 
-/*        #[cfg(feature = "wolfssl")]
-        Box::new(crate::concretize::wolfssl::WolfSSL::new(c).expect("Failed to create a put instance"))
-*/
+    /*        #[cfg(feature = "wolfssl")]
+            Box::new(crate::concretize::wolfssl::WolfSSL::new(c).expect("Failed to create a put instance"))
+    */
     put.as_ref().make_deterministic()
 }
 
@@ -196,18 +196,18 @@ impl PUT for OpenSSL {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 #[cfg(feature = "wolfssl")]
 pub mod wolfssl {
+    use crate::agent::AgentName;
+    use crate::concretize::{Config, PUT};
+    use crate::error::Error;
+    use crate::io::{MemoryStream, MessageResult, Stream};
+    use crate::trace::VecClaimer;
+    use crate::{openssl_binding, wolfssl_binding};
+    use rustls::msgs::message::OpaqueMessage;
+    use security_claims::Claim;
+    use security_claims::{deregister_claimer, register_claimer};
     use std::cell::RefCell;
     use std::io::{Read, Write};
     use std::rc::Rc;
-    use rustls::msgs::message::OpaqueMessage;
-    use security_claims::{deregister_claimer, register_claimer};
-    use crate::error::Error;
-    use crate::io::{MemoryStream, MessageResult, Stream};
-    use crate::{openssl_binding, wolfssl_binding};
-    use crate::agent::AgentName;
-    use crate::concretize::{Config, PUT};
-    use crate::trace::VecClaimer;
-    use security_claims::Claim;
 
     pub struct WolfSSL {
         stream: wolfssl_binding::SslStream<MemoryStream>,
@@ -216,7 +216,7 @@ pub mod wolfssl {
     impl Stream for WolfSSL {
         fn add_to_inbound(&mut self, result: &OpaqueMessage) {
             let a = self.stream.get_mut();
-            a.add_to_inbound(result)  // SEGFAULT: here a = NULL when we execute the first input, which triggers add_to_inbound here! Somehow, bio initialization fails !
+            a.add_to_inbound(result) // SEGFAULT: here a = NULL when we execute the first input, which triggers add_to_inbound here! Somehow, bio initialization fails !
         }
 
         fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
@@ -249,8 +249,9 @@ pub mod wolfssl {
 
     impl PUT for WolfSSL {
         fn new(c: Config) -> Result<Self, Error>
-            where
-                Self: Sized, {
+        where
+            Self: Sized,
+        {
             let memory_stream = MemoryStream::new();
             let stream = if c.server {
                 // we reuse static data obtained through the OpenSSL PUT, which is OK

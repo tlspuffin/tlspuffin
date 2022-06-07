@@ -15,7 +15,9 @@ include!(concat!(env!("OUT_DIR"), "/claim-interface.rs"));
 
 impl fmt::Display for Claim {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "\
+        write!(
+            f,
+            "\
             typ: {},\
             write: {},\
             version: {},\
@@ -82,7 +84,6 @@ impl fmt::Display for Claim {
         )
     }
 }
-
 
 impl fmt::Display for ClaimVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

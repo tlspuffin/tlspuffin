@@ -72,8 +72,8 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-use rustls::msgs::message::{Message, PlainMessage};
 use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::message::{Message, PlainMessage};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::MessagePayload,
@@ -378,7 +378,9 @@ impl TraceContext {
         let agent = match descriptor.put_type {
             PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
             #[cfg(feature = "wolfssl")]
-            PUTType::WolfSSL => Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?,
+            PUTType::WolfSSL => {
+                Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?
+            }
         };
         let agent_name = self.add_agent(agent);
         Ok(agent_name)

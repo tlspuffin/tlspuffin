@@ -127,7 +127,7 @@ impl<S: Read + Write> SslStream<S> {
         let state = unsafe {
             let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
             if state_ptr.is_null() {
-                return "Unknown State"
+                return "Unknown State";
             }
 
             CStr::from_ptr(state_ptr as *const _)
@@ -342,7 +342,7 @@ fn test_wolf_get_bio_error() {
 
     let memory_stream = MemoryStream::new();
     let mut ssl_stream = create_client(memory_stream, &TLSVersion::V1_3).unwrap();
-    let error = ssl_stream.get_bio_error();  // SEGFAULT HERE, search for [test_wolf_get_bio] [SEGFAULT]
+    let error = ssl_stream.get_bio_error(); // SEGFAULT HERE, search for [test_wolf_get_bio] [SEGFAULT]
 
     println!("Error: {:?}", error);
 }

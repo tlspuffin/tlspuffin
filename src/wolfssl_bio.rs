@@ -116,8 +116,8 @@ pub unsafe fn get_mut<'a, S: 'a>(bio: *mut BIO) -> &'a mut S {
 }
 
 pub unsafe fn take_error<S>(bio: *mut BIO) -> Option<io::Error> {
-    let state = state::<S>(bio);  // [test_wolf_get_bio] [SEGFAULT] here we access the ptr field of bio that is set to NULL at this point
-    state.error.take()  // BOOOM
+    let state = state::<S>(bio); // [test_wolf_get_bio] [SEGFAULT] here we access the ptr field of bio that is set to NULL at this point
+    state.error.take() // BOOOM
 }
 
 pub unsafe fn take_panic<S>(bio: *mut BIO) -> Option<Box<dyn Any + Send>> {

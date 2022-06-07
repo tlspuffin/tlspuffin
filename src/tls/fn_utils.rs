@@ -1,8 +1,8 @@
 use std::convert::TryFrom;
 
+use rustls::conn::Side;
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::HandshakeType;
-use rustls::tls13::key_schedule::KeyScheduleEarly;
 use rustls::msgs::base::PayloadU8;
 use rustls::msgs::codec::{Codec, Reader};
 use rustls::msgs::handshake::{
@@ -10,8 +10,8 @@ use rustls::msgs::handshake::{
     ServerECDHParams,
 };
 use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
+use rustls::tls13::key_schedule::KeyScheduleEarly;
 use rustls::{key, Certificate};
-use rustls::conn::Side;
 
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
@@ -51,8 +51,14 @@ pub fn fn_decrypt_handshake(
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
-    let decrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_decrypter(&key);
-    let message = decrypter.decrypt(PlainMessage::from(application_data.clone()).into_unencrypted_opaque(), *sequence)?;
+    let decrypter = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter(&key);
+    let message = decrypter.decrypt(
+        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+        *sequence,
+    )?;
     Ok(Message::try_from(message)?)
 }
 
@@ -79,8 +85,14 @@ pub fn fn_decrypt_application(
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
-    let decrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_decrypter(&key);
-    let message = decrypter.decrypt(PlainMessage::from(application_data.clone()).into_unencrypted_opaque(), *sequence)?;
+    let decrypter = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter(&key);
+    let message = decrypter.decrypt(
+        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+        *sequence,
+    )?;
     Ok(Message::try_from(message)?)
 }
 
@@ -93,11 +105,12 @@ pub fn fn_encrypt_handshake(
 ) -> Result<Message, FnError> {
     let (suite, key, _) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
-    let encrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_encrypter(&key);
-    let application_data = encrypter.encrypt(
-        PlainMessage::from(some_message.clone()).borrow(),
-        *sequence,
-    )?;
+    let encrypter = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data =
+        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
     Ok(Message::try_from(application_data.into_plain_message())?)
 }
 
@@ -116,11 +129,12 @@ pub fn fn_encrypt_application(
         psk,
         true,
     )?;
-    let encrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_encrypter(&key);
-    let application_data = encrypter.encrypt(
-        PlainMessage::from(some_message.clone()).borrow(),
-        *sequence,
-    )?;
+    let encrypter = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data =
+        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
     Ok(Message::try_from(application_data.into_plain_message())?)
 }
 
@@ -152,7 +166,10 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
     })?;
 
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
-    let hkdf_alg = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.hkdf_algorithm;
+    let hkdf_alg = suite
+        .tls13()
+        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .hkdf_algorithm;
     let suite_hash = suite.hash_algorithm();
 
     let transcript = HandshakeHash::new(suite_hash);

@@ -8,8 +8,7 @@ use bindgen::callbacks::ParseCallbacks;
 #[derive(Debug)]
 struct MyParseCallbacks;
 
-impl ParseCallbacks for MyParseCallbacks {
-}
+impl ParseCallbacks for MyParseCallbacks {}
 
 fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");

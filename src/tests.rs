@@ -319,12 +319,12 @@ pub mod serialization {
     use test_log::test;
 
     use crate::agent::AgentName;
+    use crate::concretize::PUTType;
     use crate::fuzzer::seeds::*;
     use crate::{
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
-    use crate::concretize::PUTType;
 
     const put_type: PUTType = PUTType::OpenSSL;
 
@@ -443,16 +443,20 @@ pub mod rustls {
     use rustls::msgs::base::Payload;
     use rustls::msgs::codec::Reader;
     use rustls::msgs::message::{OpaqueMessage, PlainMessage};
-    use rustls::{self, internal::msgs::{
-        enums::{
-            HandshakeType,
-            ProtocolVersion::{TLSv1_2, TLSv1_3},
+    use rustls::{
+        self,
+        internal::msgs::{
+            enums::{
+                HandshakeType,
+                ProtocolVersion::{TLSv1_2, TLSv1_3},
+            },
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+            },
+            message::{Message, MessagePayload::Handshake},
         },
-        handshake::{
-            ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-        },
-        message::{Message, MessagePayload::Handshake},
-    }, Connection, ProtocolVersion, RootCertStore, ClientConfig, ServerName, OwnedTrustAnchor};
+        ClientConfig, Connection, OwnedTrustAnchor, ProtocolVersion, RootCertStore, ServerName,
+    };
     use test_log::test;
 
     fn create_message(opaque_message: OpaqueMessage) {
@@ -656,7 +660,11 @@ pub mod rustls {
         };
 
         let mut out: Vec<u8> = Vec::new();
-        out.append(&mut PlainMessage::from(message).into_unencrypted_opaque().encode());
+        out.append(
+            &mut PlainMessage::from(message)
+                .into_unencrypted_opaque()
+                .encode(),
+        );
         //hexdump::hexdump(&out);
 
         let opaque_message = OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap();
@@ -675,24 +683,21 @@ pub mod rustls {
     //#[test] Disable for now as it can fail because of missing internet
     fn test_execute_rustls() {
         let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(
-            webpki_roots::TLS_SERVER_ROOTS
-                .0
-                .iter()
-                .map(|ta| {
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                }),
-        );
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
         let config = ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(root_store)
             .with_no_client_auth();
 
-        let mut conn = rustls::ClientConnection::new(Arc::new(config), "google.com".try_into().unwrap()).unwrap();
+        let mut conn =
+            rustls::ClientConnection::new(Arc::new(config), "google.com".try_into().unwrap())
+                .unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
         let _written = tls

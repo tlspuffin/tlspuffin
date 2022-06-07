@@ -12,9 +12,7 @@ fn into_transcript(
     if let Some((_, claim)) = claim {
         let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
         let claim_transcript = &claim.transcript.data[..claim.transcript.length as usize];
-        let hash = HandshakeHash::new_override(Vec::from(
-            claim_transcript,
-        ), algorithm);
+        let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
         return Ok(hash);
     }
 
