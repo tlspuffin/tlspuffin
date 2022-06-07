@@ -1,5 +1,4 @@
 [build]
-target = "x86_64-unknown-linux-gnu"
 # Enable sanitizer for whole project, you should disable the sanitization in OpenSSL
 # before using this
 #rustflags = ["-Z", "sanitizer=address"]

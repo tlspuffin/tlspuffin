@@ -1,0 +1,31 @@
+name: Pull Request
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-check:
+    uses: ./.github/workflows/run-checks.yml
+  run-benchmarks:
+    uses: ./.github/workflows/run-benchmarks.yml
+  run-tests:
+    uses: ./.github/workflows/run-tests.yml
+  build-deploy-docs:
+    uses: ./.github/workflows/build-deploy-docs.yml
+    with:
+      deploy: true
+  build-libressl:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      features: "libressl,sancov_libafl,introspection"
+  build-openssl111:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      features: ""
+  build-wolfssl:
+    uses: ./.github/workflows/build-linux.yml
+    with:
+      features: "wolfssl,wolfssl520,tls13"

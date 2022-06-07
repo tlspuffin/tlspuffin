@@ -1,0 +1,20 @@
+name: Run tests
+
+on:
+  workflow_call:
+
+jobs:
+  run-tests:
+    name: Test
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Test
+        shell: bash
+        # TODO: Additional test runs for different targets
+        run: |
+          just test maplibre x86_64-unknown-linux-gnu

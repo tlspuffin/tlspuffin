@@ -1,0 +1,59 @@
+name: Build documentation
+
+on:
+  workflow_call:
+    inputs:
+      deploy:
+        required: true
+        type: boolean
+
+
+jobs:
+  build-docs:
+    name: Build
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v1
+      - name: Build
+        working-directory: docs
+        shell: bash
+        run: mdbook build
+      - name: API Documentation
+        shell: bash
+        run: cargo doc -p tlspuffin --no-deps --lib --document-private-items
+      - uses: actions/upload-artifact@v2
+        with:
+          name: api-docs
+          path: target/doc/
+      - uses: actions/upload-artifact@v2
+        with:
+          name: book
+          path: docs/book/
+  deploy-docs:
+    needs: build-docs
+    if: inputs.deploy
+    name: Deploy
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download api-docs
+        uses: actions/download-artifact@v2
+        with:
+          name: api-docs
+          path: artifacts/api
+      - name: Download book
+        uses: actions/download-artifact@v2
+        with:
+          name: book
+          path: artifacts/book
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4.3.3
+        with:
+          branch: gh-pages
+          folder: artifacts
