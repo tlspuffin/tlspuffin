@@ -35,9 +35,7 @@ pub fn tls13_key_exchange(
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let shared_secret = kx.complete(&server_key_share, |secret| { Ok(Vec::from(secret)) })?; // TODO update
-    //  kx.complete(server_key_share.as_slice(), |secret| { Ok(())}).ok()
-   //     .ok_or_else(|| FnError::Unknown("Failed to complete key exchange".to_string()))
+    let shared_secret = kx.complete(&server_key_share, |secret| { Ok(Vec::from(secret)) })?;
     Ok(shared_secret)
 }
 
@@ -72,7 +70,7 @@ pub fn tls12_new_secrets(
     let kx = tls12_key_exchange()?;
     let suite = suite.tls12().ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
     let secrets = ConnectionSecrets::from_key_exchange(kx, &server_ecdh_params.public.0,
-                                                                   None, // TODO update
+                                                                   None,
                                                                    randoms,
                                                                    suite)?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
