@@ -1,17 +1,17 @@
 use std::convert::TryFrom;
 
-use rustls::cipher::{new_tls12, new_tls13_read, new_tls13_write};
 use rustls::hash_hs::HandshakeHash;
 use rustls::internal::msgs::enums::HandshakeType;
-use rustls::key_schedule::KeyScheduleEarly;
+use rustls::tls13::key_schedule::KeyScheduleEarly;
 use rustls::msgs::base::PayloadU8;
 use rustls::msgs::codec::{Codec, Reader};
 use rustls::msgs::handshake::{
     CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload, Random,
     ServerECDHParams,
 };
-use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
+use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use rustls::{key, Certificate};
+use rustls::conn::Side;
 
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
@@ -23,10 +23,9 @@ use super::error::FnError;
 // ----
 
 pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256;
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256;
 
-    let mut transcript = HandshakeHash::new();
-    transcript.start_hash(suite.get_hash());
+    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
 }
 
@@ -52,8 +51,8 @@ pub fn fn_decrypt_handshake(
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
-    let decrypter = new_tls13_read(suite, &key);
-    let message = decrypter.decrypt(OpaqueMessage::from(application_data.clone()), *sequence)?;
+    let decrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_decrypter(&key);
+    let message = decrypter.decrypt(PlainMessage::from(application_data.clone()).into_unencrypted_opaque(), *sequence)?;
     Ok(Message::try_from(message)?)
 }
 
@@ -80,8 +79,8 @@ pub fn fn_decrypt_application(
         psk,
         false, // false, because only clients are decrypting right now, todo support both
     )?;
-    let decrypter = new_tls13_read(suite, &key);
-    let message = decrypter.decrypt(OpaqueMessage::from(application_data.clone()), *sequence)?;
+    let decrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_decrypter(&key);
+    let message = decrypter.decrypt(PlainMessage::from(application_data.clone()).into_unencrypted_opaque(), *sequence)?;
     Ok(Message::try_from(message)?)
 }
 
@@ -94,12 +93,12 @@ pub fn fn_encrypt_handshake(
 ) -> Result<Message, FnError> {
     let (suite, key, _) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
-    let encrypter = new_tls13_write(suite, &key);
+    let encrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_encrypter(&key);
     let application_data = encrypter.encrypt(
-        OpaqueMessage::from(some_message.clone()).borrow(),
+        PlainMessage::from(some_message.clone()).borrow(),
         *sequence,
     )?;
-    Ok(Message::try_from(application_data)?)
+    Ok(Message::try_from(application_data.into_plain_message())?)
 }
 
 pub fn fn_encrypt_application(
@@ -117,12 +116,12 @@ pub fn fn_encrypt_application(
         psk,
         true,
     )?;
-    let encrypter = new_tls13_write(suite, &key);
+    let encrypter = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.derive_encrypter(&key);
     let application_data = encrypter.encrypt(
-        OpaqueMessage::from(some_message.clone()).borrow(),
+        PlainMessage::from(some_message.clone()).borrow(),
         *sequence,
     )?;
-    Ok(Message::try_from(application_data)?)
+    Ok(Message::try_from(application_data.into_plain_message())?)
 }
 
 pub fn fn_derive_psk(
@@ -152,17 +151,17 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &rustls::suites::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
-    let hkdf_alg = suite.hkdf_algorithm;
-    let suite_hash = suite.get_hash();
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let hkdf_alg = suite.tls13().ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?.hkdf_algorithm;
+    let suite_hash = suite.hash_algorithm();
 
-    let transcript = HandshakeHash::new();
+    let transcript = HandshakeHash::new(suite_hash);
 
     // RFC: The "pre_shared_key" extension MUST be the last extension in the ClientHello
     // The binder is calculated over the clienthello, but doesn't include itself or its
     // length, or the length of its container.
     let binder_plaintext = client_hello_payload.get_encoding_for_binder_signing();
-    let handshake_hash = transcript.get_hash_given(suite_hash, &binder_plaintext);
+    let handshake_hash = transcript.get_hash_given(&binder_plaintext);
 
     // Run a fake key_schedule to simulate what the server will do if it chooses
     // to resume.
@@ -231,10 +230,9 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 // ----
 
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::suites::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
-    let mut transcript = HandshakeHash::new();
-    transcript.start_hash(suite.get_hash());
+    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
 }
 
@@ -245,9 +243,10 @@ pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError
 }
 
 pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Result<Vec<u8>, FnError> {
-    let kxd = tls12_key_exchange(server_ecdh_params)?;
+    let kx = tls12_key_exchange()?;
+
     let mut buf = Vec::new();
-    let ecpoint = PayloadU8::new(Vec::from(kxd.pubkey.as_ref()));
+    let ecpoint = PayloadU8::new(Vec::from(kx.pubkey.as_ref()));
     ecpoint.encode(&mut buf);
     Ok(buf)
 }
@@ -260,9 +259,9 @@ pub fn fn_encrypt12(
 ) -> Result<Message, FnError> {
     let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
-    let (_decrypter, encrypter) = new_tls12(&secrets);
-    let encrypted = encrypter.encrypt(OpaqueMessage::from(message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(encrypted)?)
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client); // FIXME (update)
+    let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
+    Ok(Message::try_from(encrypted.into_plain_message())?)
 }
 
 pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {

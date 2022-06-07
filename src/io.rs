@@ -99,7 +99,7 @@ impl Stream for MemoryStream {
             })?;
 
             if let Some(opaque_message) = first_message {
-                let message = match Message::try_from(opaque_message.clone()) {
+                let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
                     Ok(message) => Some(message),
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
