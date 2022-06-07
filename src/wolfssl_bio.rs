@@ -258,7 +258,8 @@ pub fn bio_new<S: Read + Write>(stream: S) -> Result<(*mut BIO, BioMethod), Erro
 
     unsafe {
         let bio = wolf::wolfSSL_BIO_new(method.0);
-        wolf::wolfSSL_BIO_set_data(bio, Box::into_raw(state) as *mut _);
+        //wolf::wolfSSL_BIO_set_data(bio, ); FIXME BIO_set_data != wolfSSL_BIO_set_data
+        BIO_set_data(bio, ptr as *mut _);
         BIO_set_init(bio, 1);
 
         Ok((bio, method))

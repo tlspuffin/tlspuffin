@@ -378,7 +378,7 @@ impl TraceContext {
         let agent = match descriptor.put_type {
             PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
             #[cfg(feature = "wolfssl")]
-            PUTType::WolfSSL => Agent::new::<WolfSSL>(descriptor, self.claimer.clone())?,
+            PUTType::WolfSSL => Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?,
         };
         let agent_name = self.add_agent(agent);
         Ok(agent_name)

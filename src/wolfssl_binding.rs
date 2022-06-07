@@ -33,7 +33,7 @@ use crate::{openssl_binding, wolfssl_binding};
 use wolfssl_sys as wolf;
 
 /// WolfSSL library initialization (done only once statically)
-pub fn init() {
+pub fn init(debug: bool) {
     use std::ptr;
     use std::sync::Once;
 
@@ -42,6 +42,9 @@ pub fn init() {
     let init_options = wolf::OPENSSL_INIT_LOAD_SSL_STRINGS;
 
     INIT.call_once(|| unsafe {
+        if debug {
+            wolf::wolfSSL_Debugging_ON();
+        }
         wolf::wolfSSL_OPENSSL_init_ssl(init_options as u64, ptr::null_mut());
     })
 }
@@ -77,6 +80,7 @@ pub struct SslStream<S> {
     method: ManuallyDrop<bio::BioMethod>,
     _p: PhantomData<S>,
 }
+
 impl<S: Read + Write> SslStream<S> {
     /// Creates a new `SslStream`.
     ///
@@ -109,6 +113,7 @@ impl<S: Read + Write> SslStream<S> {
     pub fn get_mut(&mut self) -> &mut S {
         unsafe {
             let bio = wolf::wolfSSL_SSL_get_rbio(self.ssl.as_ptr());
+
             bio::get_mut(bio)
         }
     }
@@ -120,8 +125,12 @@ impl<S: Read + Write> SslStream<S> {
     /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
     pub fn state_string_long(&self) -> &'static str {
         let state = unsafe {
-            let ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
-            CStr::from_ptr(ptr as *const _)
+            let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
+            if state_ptr.is_null() {
+                return "Unknown State"
+            }
+
+            CStr::from_ptr(state_ptr as *const _)
         };
 
         str::from_utf8(state.to_bytes()).unwrap()
@@ -183,14 +192,10 @@ impl<S: Read + Write> SslStream<S> {
 
         self.check_panic();
 
+        // FIXME use code
         let code = self.get_error(ret);
 
-        let cause = match code {
-            // Impossible to use InnerError here ...
-            _ => None,
-        };
-
-        openssl::ssl::Error { code, cause }
+        openssl::ssl::Error::from(ErrorStack::get())
     }
 
     /// Initiates the handshake.
@@ -251,7 +256,7 @@ pub fn create_client(
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {
     unsafe {
         //// Global WolfSSL lib initialization
-        init();
+        init(true);
 
         //// Context builder
         wolf::wolfSSL_Init();
@@ -278,7 +283,7 @@ pub fn create_server(
 ) -> Result<SslStream<MemoryStream>, ErrorStack> {
     unsafe {
         //// Global WolfSSL lib initialization
-        init();
+        init(true);
 
         //// Context builder
         wolf::wolfSSL_Init();
@@ -322,7 +327,7 @@ pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
 
 #[test]
 fn test_wolf_version() {
-    init();
+    init(true);
 
     let memory_stream = MemoryStream::new();
     let ssl_stream = create_client(memory_stream, &TLSVersion::V1_3).unwrap();
@@ -333,7 +338,7 @@ fn test_wolf_version() {
 
 #[test]
 fn test_wolf_get_bio_error() {
-    init();
+    init(true);
 
     let memory_stream = MemoryStream::new();
     let mut ssl_stream = create_client(memory_stream, &TLSVersion::V1_3).unwrap();

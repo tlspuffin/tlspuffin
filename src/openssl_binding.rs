@@ -152,7 +152,7 @@ pub fn make_deterministic() {
 }
 #[cfg(not(feature = "openssl111"))]
 pub fn make_deterministic() {
-    warn!("Failed to make PUT determinisitic!");
+    //warn!("Failed to make PUT determinisitic!");
 }
 
 fn set_max_protocol_version(

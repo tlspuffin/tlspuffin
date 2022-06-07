@@ -346,7 +346,7 @@ fn test_term_generation() {
 
 #[test]
 fn test_corpus_term_size() {
-    let corpus = create_corpus(put_type);
+    let corpus = create_corpus();
     let _trace_term_sizes = corpus
         .iter()
         .map(|(trace, name)| {
