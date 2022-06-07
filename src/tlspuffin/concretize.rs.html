@@ -511,119 +511,119 @@
 <span class="comment">////////////// WolfSSL specific-state</span>
 <span class="comment">////////////////////////////////////////////////////////////////////////////////////////////////////</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">mod</span> <span class="ident">wolfssl</span> {
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">wolfssl</span> {
     <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
     <span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
     <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
     <span class="kw">use</span> <span class="ident">rustls::msgs::message::OpaqueMessage</span>;
     <span class="kw">use</span> <span class="ident">security_claims</span>::{<span class="ident">deregister_claimer</span>, <span class="ident">register_claimer</span>};
-    <span class="kw">use</span> <span class="ident">tlspuffin::concretize</span>::{<span class="ident">Config</span>, <span class="ident">PUT</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io</span>::{<span class="ident">MemoryStream</span>, <span class="ident">MessageResult</span>, <span class="ident">Stream</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">openssl_binding</span>, <span class="ident">wolfssl_binding</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::agent::AgentName</span>;
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::concretize</span>::{<span class="ident">Config</span>, <span class="ident">PUT</span>};
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::trace::VecClaimer</span>;
+    <span class="kw">use</span> <span class="ident">security_claims::Claim</span>;
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WolfSSL</span> {
-    <span class="ident">stream</span>: <span class="ident">wolfssl_binding::SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>,
-}
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">Stream</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">add_to_inbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>) {
-        <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>();
-        <span class="ident">a</span>.<span class="ident">add_to_inbound</span>(<span class="ident">result</span>)  <span class="comment">// SEGFAULT: here a = NULL when we execute the first input, which triggers add_to_inbound here! Somehow, bio initialization fails !</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">WolfSSL</span> {
+        <span class="ident">stream</span>: <span class="ident">wolfssl_binding::SslStream</span><span class="op">&lt;</span><span class="ident">MemoryStream</span><span class="op">&gt;</span>,
     }
 
-    <span class="kw">fn</span> <span class="ident">take_message_from_outbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MessageResult</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">take_message_from_outbound</span>()
-    }
-}
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">read</span>(<span class="ident">buf</span>)
-    }
-}
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">Write</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">write</span>(<span class="ident">buf</span>)
+    <span class="kw">impl</span> <span class="ident">Stream</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
+        <span class="kw">fn</span> <span class="ident">add_to_inbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>) {
+            <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>();
+            <span class="ident">a</span>.<span class="ident">add_to_inbound</span>(<span class="ident">result</span>)  <span class="comment">// SEGFAULT: here a = NULL when we execute the first input, which triggers add_to_inbound here! Somehow, bio initialization fails !</span>
+        }
+
+        <span class="kw">fn</span> <span class="ident">take_message_from_outbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MessageResult</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">take_message_from_outbound</span>()
+        }
     }
 
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">flush</span>()
-    }
-}
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
-        <span class="ident">WolfSSL::deregister_claimer</span>(<span class="self">self</span>);
-    }
-}
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl&quot;</span>)]</span>
-<span class="kw">impl</span> <span class="ident">PUT</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="self">Self</span>: <span class="ident">Sized</span>, {
-        <span class="kw">let</span> <span class="ident">memory_stream</span> <span class="op">=</span> <span class="ident">MemoryStream::new</span>();
-        <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">c</span>.<span class="ident">server</span> {
-            <span class="comment">// we reuse static data obtained through the OpenSSL PUT, which is OK</span>
-            <span class="kw">let</span> (<span class="ident">cert</span>, <span class="ident">pkey</span>) <span class="op">=</span> <span class="ident">openssl_binding::static_rsa_cert</span>()<span class="question-mark">?</span>;
-            <span class="ident">wolfssl_binding::create_server</span>(<span class="ident">memory_stream</span>, <span class="kw-2">&amp;</span><span class="ident">cert</span>, <span class="kw-2">&amp;</span><span class="ident">pkey</span>, <span class="kw-2">&amp;</span><span class="ident">c</span>.<span class="ident">tls_version</span>)<span class="question-mark">?</span>
-        } <span class="kw">else</span> {
-            <span class="ident">wolfssl_binding::create_client</span>(<span class="ident">memory_stream</span>, <span class="kw-2">&amp;</span><span class="ident">c</span>.<span class="ident">tls_version</span>)<span class="question-mark">?</span>
-        };
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">WolfSSL</span> { <span class="ident">stream</span> };
-        <span class="ident">WolfSSL::register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>, <span class="ident">c</span>.<span class="ident">claimer</span>, <span class="ident">c</span>.<span class="ident">agent_name</span>);
-        <span class="prelude-val">Ok</span>(<span class="ident">stream</span>)
+    <span class="kw">impl</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
+        <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">read</span>(<span class="ident">buf</span>)
+        }
     }
 
-    <span class="kw">fn</span> <span class="ident">progress</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="ident">wolfssl_binding::do_handshake</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">stream</span>)
+    <span class="kw">impl</span> <span class="ident">Write</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
+        <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">write</span>(<span class="ident">buf</span>)
+        }
+
+        <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">std::io::Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">get_mut</span>().<span class="ident">flush</span>()
+        }
     }
 
-    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">clear</span>();
-        <span class="prelude-val">Ok</span>(())
+    <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
+        <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
+            <span class="ident">WolfSSL::deregister_claimer</span>(<span class="self">self</span>);
+        }
     }
 
-    <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
-        <span class="ident">register_claimer</span>(<span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>.<span class="ident">as_ptr</span>().<span class="ident">cast</span>(), <span class="kw">move</span> <span class="op">|</span><span class="ident">claim</span>: <span class="ident">Claim</span><span class="op">|</span> {
-            (<span class="kw-2">*</span><span class="ident">claimer</span>).<span class="ident">borrow_mut</span>().<span class="ident">claim</span>(<span class="ident">agent_name</span>, <span class="ident">claim</span>)
-        });
-    }
+    <span class="kw">impl</span> <span class="ident">PUT</span> <span class="kw">for</span> <span class="ident">WolfSSL</span> {
+        <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">c</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="self">Self</span>: <span class="ident">Sized</span>, {
+            <span class="kw">let</span> <span class="ident">memory_stream</span> <span class="op">=</span> <span class="ident">MemoryStream::new</span>();
+            <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">c</span>.<span class="ident">server</span> {
+                <span class="comment">// we reuse static data obtained through the OpenSSL PUT, which is OK</span>
+                <span class="kw">let</span> (<span class="ident">cert</span>, <span class="ident">pkey</span>) <span class="op">=</span> <span class="ident">openssl_binding::static_rsa_cert</span>()<span class="question-mark">?</span>;
+                <span class="ident">wolfssl_binding::create_server</span>(<span class="ident">memory_stream</span>, <span class="kw-2">&amp;</span><span class="ident">cert</span>, <span class="kw-2">&amp;</span><span class="ident">pkey</span>, <span class="kw-2">&amp;</span><span class="ident">c</span>.<span class="ident">tls_version</span>)<span class="question-mark">?</span>
+            } <span class="kw">else</span> {
+                <span class="ident">wolfssl_binding::create_client</span>(<span class="ident">memory_stream</span>, <span class="kw-2">&amp;</span><span class="ident">c</span>.<span class="ident">tls_version</span>)<span class="question-mark">?</span>
+            };
 
-    <span class="kw">fn</span> <span class="ident">deregister_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; () {
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
-        <span class="ident">deregister_claimer</span>(<span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">as_ptr</span>().<span class="ident">cast</span>());
-    }
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">WolfSSL</span> { <span class="ident">stream</span> };
+            <span class="ident">WolfSSL::register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>, <span class="ident">c</span>.<span class="ident">claimer</span>, <span class="ident">c</span>.<span class="ident">agent_name</span>);
+            <span class="prelude-val">Ok</span>(<span class="ident">stream</span>)
+        }
 
-    <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
-        <span class="ident">WolfSSL::deregister_claimer</span>(<span class="self">self</span>);
-        <span class="ident">WolfSSL::register_claimer</span>(<span class="self">self</span>, <span class="ident">claimer</span>, <span class="ident">agent_name</span>)
-    }
+        <span class="kw">fn</span> <span class="ident">progress</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="ident">wolfssl_binding::do_handshake</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">stream</span>)
+        }
 
-    <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="comment">// Very useful for nonblocking according to docs:</span>
-        <span class="comment">// https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html</span>
-        <span class="comment">// When using nonblocking sockets, the function call performing the handshake may return</span>
-        <span class="comment">// with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,</span>
-        <span class="comment">// so that SSL_state_string[_long]() may be called.</span>
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">state_string_long</span>()
-    }
+        <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">clear</span>();
+            <span class="prelude-val">Ok</span>(())
+        }
 
-    <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">version</span>()
-    }
+        <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
+            <span class="ident">register_claimer</span>(<span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>.<span class="ident">as_ptr</span>().<span class="ident">cast</span>(), <span class="kw">move</span> <span class="op">|</span><span class="ident">claim</span>: <span class="ident">Claim</span><span class="op">|</span> {
+                (<span class="kw-2">*</span><span class="ident">claimer</span>).<span class="ident">borrow_mut</span>().<span class="ident">claim</span>(<span class="ident">agent_name</span>, <span class="ident">claim</span>)
+            });
+        }
 
-    <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; () {
-        () <span class="comment">// TODO</span>
+        <span class="kw">fn</span> <span class="ident">deregister_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; () {
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
+            <span class="ident">deregister_claimer</span>(<span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">ssl</span>().<span class="ident">as_ptr</span>().<span class="ident">cast</span>());
+        }
+
+        <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
+            <span class="ident">WolfSSL::deregister_claimer</span>(<span class="self">self</span>);
+            <span class="ident">WolfSSL::register_claimer</span>(<span class="self">self</span>, <span class="ident">claimer</span>, <span class="ident">agent_name</span>)
+        }
+
+        <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+            <span class="comment">// Very useful for nonblocking according to docs:</span>
+            <span class="comment">// https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html</span>
+            <span class="comment">// When using nonblocking sockets, the function call performing the handshake may return</span>
+            <span class="comment">// with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,</span>
+            <span class="comment">// so that SSL_state_string[_long]() may be called.</span>
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">state_string_long</span>()
+        }
+
+        <span class="kw">fn</span> <span class="ident">version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
+            <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">version</span>()
+        }
+
+        <span class="kw">fn</span> <span class="ident">make_deterministic</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; () {
+            () <span class="comment">// TODO</span>
+        }
     }
-}
 }</code></pre></div>
 </section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.60.0 (7737e0b5c 2022-04-04)" ></div>
 </body></html>

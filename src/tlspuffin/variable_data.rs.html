@@ -167,12 +167,10 @@
 <span id="162">162</span>
 <span id="163">163</span>
 <span id="164">164</span>
-<span id="165">165</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Definition of the VariableData trait. A VariableData can contain any data which has a `&#39;static`</span>
 <span class="doccomment">//! type. This is true for [`rustls::msgs::message::Message`] for example.</span>
 
 <span class="kw">use</span> <span class="ident">std::any</span>::{<span class="ident">Any</span>, <span class="ident">TypeId</span>};
-<span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
 <span class="kw">use</span> <span class="ident">rustls::msgs::handshake::ServerKeyExchangePayload</span>;
@@ -185,7 +183,7 @@
     <span class="ident">CipherSuite</span>,
 };
 
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">VariableData</span>: <span class="ident">Debug</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">VariableData</span> {
     <span class="kw">fn</span> <span class="ident">clone_box</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">VariableData</span><span class="op">&gt;</span>;
     <span class="kw">fn</span> <span class="ident">clone_box_any</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Any</span><span class="op">&gt;</span>;
     <span class="kw">fn</span> <span class="ident">type_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">TypeId</span>;
@@ -196,7 +194,7 @@
 <span class="doccomment">/// tlspuffin to handle data of dynamic size.</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">VariableData</span> <span class="kw">for</span> <span class="ident">T</span>
 <span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Debug</span>,
+    <span class="ident">T</span>: <span class="ident">Clone</span>,
 {
     <span class="kw">fn</span> <span class="ident">clone_box</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">VariableData</span><span class="op">&gt;</span> {
         <span class="ident">Box::new</span>(<span class="self">self</span>.<span class="ident">clone</span>())
