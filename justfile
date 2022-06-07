@@ -15,19 +15,22 @@ nightly-toolchain:
 install-clippy:
   rustup component add clippy
 
-install-nightly-clippy:
-  rustup component add clippy --toolchain $NIGHTLY_TOOLCHAIN
+check PROJECT ARCH FEATURES: install-clippy
+  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}"
 
-check PROJECT ARCH: install-clippy
-  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}}
+fix PROJECT ARCH FEATURES: install-clippy
+  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" --fix
 
-test PROJECT ARCH:
-  cargo test -p {{PROJECT}} --target {{ARCH}}
+test PROJECT ARCH FEATURES:
+  cargo test -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}"
+
+build PROJECT ARCH FEATURES:
+  cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}"
 
 benchmark:
-  cargo bench -p benchmarks
+  cargo bench -p tlspuffin --features "openssl111"
 
-install-rustfmt:
+install-rustfmt: nightly-toolchain
   rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN
 
 fmt: install-rustfmt

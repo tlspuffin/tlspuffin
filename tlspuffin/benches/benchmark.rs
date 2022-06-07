@@ -7,6 +7,7 @@ use libafl::mutators::Mutator;
 use libafl::state::StdState;
 
 use tlspuffin::agent::AgentName;
+use tlspuffin::concretize::PUTType;
 use tlspuffin::fuzzer::mutations::util::TermConstraints;
 use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
 use tlspuffin::fuzzer::seeds::*;
@@ -51,7 +52,7 @@ fn benchmark_mutations(c: &mut Criterion) {
             min_term_size: 0,
             max_term_size: 200,
         });
-        let mut trace = seed_client_attacker12(client);
+        let mut trace = seed_client_attacker12(client, PUTType::OpenSSL);
 
         b.iter(|| {
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -110,7 +111,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful(client, server);
+            let trace = seed_successful(client, server, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -121,7 +122,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful12(client, server);
+            let trace = seed_successful12(client, server, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap()
         })
@@ -131,7 +132,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let trace = seed_client_attacker(client);
+            let trace = seed_client_attacker(client, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -141,7 +142,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let trace = seed_client_attacker12(client);
+            let trace = seed_client_attacker12(client, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -152,7 +153,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_dhe(initial_server, server);
+            let trace = seed_session_resumption_dhe(initial_server, server, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -163,7 +164,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_ke(initial_server, server);
+            let trace = seed_session_resumption_ke(initial_server, server, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -174,7 +175,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_dhe_full(initial_server, server);
+            let trace = seed_session_resumption_dhe_full(initial_server, server, PUTType::OpenSSL);
 
             trace.execute(&mut ctx).unwrap();
         })

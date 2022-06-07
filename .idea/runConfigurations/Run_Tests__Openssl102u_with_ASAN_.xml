@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Tests (Openssl102u with ASAN)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test- p tlspuffin --lib --no-default-features --features &quot;openssl102u asan&quot;" />
+    <option name="command" value="test- p tlspuffin --lib  --features openssl102u,asan" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="false" />

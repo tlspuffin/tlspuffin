@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run tlspuffin (Debug) (LibreSSL)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run -p tlspuffin --no-default-features --features &quot;sancov_libafl introspection libressl&quot; --package tlspuffin --bin tlspuffin" />
+    <option name="command" value="run -p tlspuffin --bin tlspuffin  --features libressl " />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="false" />

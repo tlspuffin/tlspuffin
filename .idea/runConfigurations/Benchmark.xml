@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Benchmark" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="bench -p tlspuffin" />
+    <option name="command" value="bench -p tlspuffin --features openssl111" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

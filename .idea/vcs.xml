@@ -12,8 +12,6 @@
     <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl101f" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl102u" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/rust-rustls" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-wolfssl" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-wolfssl/wolfssl-sys" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deps/wolfssl-sys" vcs="Git" />
   </component>
 </project>

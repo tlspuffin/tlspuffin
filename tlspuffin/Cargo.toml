@@ -5,7 +5,7 @@ authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2021"
 
 [features]
-default = ["sancov_libafl", "openssl111", "introspection"]
+default = ["sancov_libafl", "introspection"]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
@@ -40,6 +40,7 @@ libressl = [
 wolfssl520 = [
     "wolfssl-sys",
     "wolfssl-sys/vendored-wolfssl520",
+    "tls13",
     "wolfssl"
 ]
 
@@ -124,6 +125,6 @@ harness = false
 name = "tlspuffin"
 path = "src/main.rs"
 
-# Used in tools/coverage.sh to generate coverage
-[[example]]
-name = "seed_successful"
+# FIXME Used in tools/coverage.sh to generate coverage
+#[[example]]
+#name = "seed_successful"
