@@ -152,7 +152,7 @@ pub fn make_deterministic() {
 }
 #[cfg(not(feature = "openssl111"))]
 pub fn make_deterministic() {
-    warn!("Failed to make PUT determinisitic!");
+    //warn!("Failed to make PUT determinisitic!");
 }
 
 fn set_max_protocol_version(
@@ -168,8 +168,9 @@ fn set_max_protocol_version(
             Ok(())
         }
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
-        TLSVersion::Unknown => Ok(())
+        TLSVersion::Unknown => Ok(()),
     }?;
+
     Ok(())
 }
 
@@ -193,7 +194,11 @@ pub fn create_openssl_server(
 
     #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
     {
-        ctx_builder.set_tmp_ecdh(openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1).as_ref().unwrap())?;
+        ctx_builder.set_tmp_ecdh(
+            openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
+                .as_ref()
+                .unwrap(),
+        )?;
         // TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback after fix
         //ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
         //   openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)

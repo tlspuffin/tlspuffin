@@ -14,6 +14,7 @@
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use tlspuffin::concretize::PUTType;
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -26,8 +27,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3),
-//!         AgentDescriptor::new_server(server, V1_3)
+//!         AgentDescriptor::new_client(client, V1_3, PUTType::OpenSSL),
+//!         AgentDescriptor::new_server(server, V1_3, PUTType::OpenSSL),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },
@@ -71,7 +72,6 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::{any::TypeId, fmt::Formatter};
 
-
 use rustls::msgs::message::Message;
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{
@@ -89,13 +89,14 @@ use crate::io::Channel;
 use crate::io::{MessageResult, Stream};
 use crate::term::remove_prefix;
 use crate::tls::error::FnError;
-use crate::violation::is_violation;
 use crate::{
     agent::{Agent, AgentName},
     term::{dynamic_function::TypeShape, Term},
     variable_data::{extract_knowledge, VariableData},
 };
+use security_claims::violation::is_violation;
 
+use crate::concretize::{OpenSSL, PUTType, PUT};
 use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
@@ -325,13 +326,15 @@ impl TraceContext {
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
-            if query_type_id == data.type_id() && query.agent_name == knowledge.agent_name && knowledge.tls_message_type.matches(&query.tls_message_type) {
+            if query_type_id == data.type_id()
+                && query.agent_name == knowledge.agent_name
+                && knowledge.tls_message_type.matches(&query.tls_message_type)
+            {
                 possibilities.push(knowledge);
             }
         }
 
         possibilities.sort_by_key(|a| a.specificity());
-
 
         possibilities
             .get(query.counter as usize)
@@ -350,7 +353,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.next_state()
+        agent.stream.progress()
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -370,7 +373,14 @@ impl TraceContext {
     }
 
     pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new_openssl(descriptor, self.claimer.clone())?);
+        // [TODO] There might be a cleaner way of doing this, e.g., if we could store a type
+        // instantiation in an enum, but this works
+        let agent = match descriptor.put_type {
+            PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
+            #[cfg(feature = "wolfssl")]
+            PUTType::WolfSSL => Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?,
+        };
+        let agent_name = self.add_agent(agent);
         Ok(agent_name)
     }
 
@@ -378,19 +388,23 @@ impl TraceContext {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
-            )))
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "Could not find agent {}. Did you forget to call spawn_agents?",
+                    name
+                ))
+            })
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
-            )))
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "Could not find agent {}. Did you forget to call spawn_agents?",
+                    name
+                ))
+            })
     }
 
     pub fn reset_agents(&mut self) {
@@ -469,6 +483,7 @@ impl Trace {
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
         if let Some(msg) = is_violation(claims) {
+            // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 

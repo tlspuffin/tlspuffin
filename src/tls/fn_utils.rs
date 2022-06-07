@@ -18,8 +18,6 @@ use crate::tls::key_schedule::*;
 
 use super::error::FnError;
 
-
-
 // ----
 // seed_client_attacker()
 // ----
@@ -242,9 +240,8 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
 
 pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd).ok_or_else(|| FnError::Unknown(
-        "Failed to create ServerECDHParams".to_string(),
-    ))
+    ServerECDHParams::read(&mut rd)
+        .ok_or_else(|| FnError::Unknown("Failed to create ServerECDHParams".to_string()))
 }
 
 pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Result<Vec<u8>, FnError> {

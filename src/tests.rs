@@ -1,3 +1,5 @@
+use crate::concretize::{OpenSSL, PUTType, PUT};
+
 #[cfg(test)]
 pub mod seeds {
     use nix::sys::signal::Signal;
@@ -7,15 +9,17 @@ pub mod seeds {
     use test_log::test;
 
     use crate::agent::AgentName;
-    use crate::openssl_binding::{make_deterministic, openssl_version};
+    use crate::concretize::{put_make_deterministic, put_version, PUTType};
     use crate::trace::Action;
     use crate::{fuzzer::seeds::*, trace::TraceContext};
+
+    const put_type: PUTType = PUTType::OpenSSL;
 
     fn expect_crash<R>(mut func: R)
     where
         R: FnMut(),
     {
-     match unsafe { fork() } {
+        match unsafe { fork() } {
             Ok(ForkResult::Parent { child, .. }) => {
                 let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
 
@@ -40,18 +44,18 @@ pub mod seeds {
     }
     #[test]
     fn test_version() {
-        println!("{}", openssl_version());
+        println!("{}", put_version());
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[test]
     fn test_seed_hearbeat() {
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic();
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_heartbleed(client, server);
+            let trace = seed_heartbleed(client, server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -59,14 +63,14 @@ pub mod seeds {
 
     #[test]
     fn test_seed_cve_2021_3449() {
-        if !openssl_version().contains("1.1.1j") {
+        if !put_version().contains("1.1.1j") {
             return;
         }
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic();
             let mut ctx = TraceContext::new();
             let server = AgentName::first();
-            let trace = seed_cve_2021_3449(server);
+            let trace = seed_cve_2021_3449(server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -74,10 +78,10 @@ pub mod seeds {
 
     #[test]
     fn test_seed_client_attacker12() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server);
+        let trace = seed_client_attacker12(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -89,10 +93,10 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker(server);
+        let trace = seed_client_attacker(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -104,10 +108,10 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker_full() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server);
+        let (trace, ..) = seed_client_attacker_full(server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -119,11 +123,11 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server);
+        let trace = seed_session_resumption_dhe(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -135,11 +139,11 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server);
+        let trace = seed_session_resumption_dhe_full(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -151,11 +155,11 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_session_resumption_ke() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server);
+        let trace = seed_session_resumption_ke(initial_server, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -167,11 +171,11 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server);
+        let trace = seed_successful(client, server, put_type);
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
@@ -191,11 +195,11 @@ pub mod seeds {
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_mitm(client, server);
+        let trace = seed_successful_mitm(client, server, put_type);
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
@@ -211,11 +215,11 @@ pub mod seeds {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_with_ccs() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_ccs(client, server);
+        let trace = seed_successful_with_ccs(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -232,11 +236,11 @@ pub mod seeds {
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
-        make_deterministic();
+        put_make_deterministic();
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_tickets(client, server);
+        let trace = seed_successful_with_tickets(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -255,7 +259,7 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server);
+        let trace = seed_successful12(client, server, put_type);
 
         trace.execute(&mut ctx).unwrap();
 
@@ -273,13 +277,13 @@ pub mod seeds {
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
         expect_crash(|| {
-            make_deterministic();
+            put_make_deterministic();
             //println!("{}", openssl_version());
 
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_freak(client, server);
+            let trace = seed_freak(client, server, put_type);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -291,11 +295,11 @@ pub mod seeds {
         let server = client.next();
 
         for trace in [
-            seed_successful12(client, server),
-            seed_successful(client, server),
-            seed_client_attacker12(server),
-            seed_cve_2021_3449(server),
-            seed_client_attacker(server),
+            seed_successful12(client, server, put_type),
+            seed_successful(client, server, put_type),
+            seed_client_attacker12(server, put_type),
+            seed_cve_2021_3449(server, put_type),
+            seed_client_attacker(server, put_type),
         ] {
             for step in &trace.steps {
                 match &step.action {
@@ -320,12 +324,15 @@ pub mod serialization {
         fuzzer::seeds::seed_successful,
         trace::{Trace, TraceContext},
     };
+    use crate::concretize::PUTType;
+
+    const put_type: PUTType = PUTType::OpenSSL;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server);
+        let trace = seed_session_resumption_dhe(initial_server, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -339,7 +346,7 @@ pub mod serialization {
     fn test_serialisation_seed_seed_session_resumption_ke_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server);
+        let trace = seed_session_resumption_ke(initial_server, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -352,7 +359,7 @@ pub mod serialization {
     #[test]
     fn test_serialisation_seed_client_attacker12_json() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server);
+        let trace = seed_client_attacker12(server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -382,7 +389,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server);
+        let trace = seed_successful(client, server, put_type);
 
         let serialized1 = postcard::to_allocvec(&trace).unwrap();
 
@@ -397,7 +404,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server);
+        let trace = seed_successful12(client, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -412,7 +419,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_heartbleed(client, server);
+        let trace = seed_heartbleed(client, server, put_type);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -688,16 +695,17 @@ pub mod rustls {
         let mut conn = rustls::ClientConnection::new(Arc::new(config), dns_name).unwrap();
         let mut sock = TcpStream::connect("google.com:443").unwrap();
         let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-        let _written = tls.write(
-            concat!(
-            "GET / HTTP/1.1\r\n",
-            "Host: google.com\r\n",
-            "Connection: close\r\n",
-            "Accept-Encoding: identity\r\n",
-            "\r\n"
-            )
+        let _written = tls
+            .write(
+                concat!(
+                    "GET / HTTP/1.1\r\n",
+                    "Host: google.com\r\n",
+                    "Connection: close\r\n",
+                    "Accept-Encoding: identity\r\n",
+                    "\r\n"
+                )
                 .as_bytes(),
-        )
+            )
             .unwrap();
         let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
         writeln!(

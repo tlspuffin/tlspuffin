@@ -2,12 +2,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::events::{Event, EventFirer};
 use libafl::inputs::Input;
-use libafl::state::{HasCorpus, HasRand};
 use libafl::monitors::UserStats;
+use libafl::state::{HasCorpus, HasRand};
 use libafl::{Error, Evaluator};
-
-
-
 
 use libafl::stages::Stage;
 use std::marker::PhantomData;
@@ -201,7 +198,7 @@ where
     phantom: PhantomData<(E, EM, I, S, Z)>,
 }
 
-impl< E, EM, I, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, I, S, Z>
+impl<E, EM, I, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, I, S, Z>
 where
     I: Input,
     EM: EventFirer<I>,
@@ -238,7 +235,7 @@ where
 impl<E, EM, I, S, Z> StatsStage<E, EM, I, S, Z>
 where
     I: Input,
-    S:  HasCorpus<I> + HasRand,
+    S: HasCorpus<I> + HasRand,
     Z: Evaluator<E, EM, I, S>,
 {
     pub fn new() -> Self {

@@ -24,8 +24,12 @@ pub mod tls;
 pub mod trace;
 pub mod variable_data;
 
+pub mod concretize;
 mod debug;
 mod experiment;
-mod openssl_binding;
-mod tests;
-mod violation;
+pub mod tests;
+pub mod openssl_binding;
+#[cfg(feature = "wolfssl")]
+pub mod wolfssl_bio;
+#[cfg(feature = "wolfssl")]
+pub mod wolfssl_binding;

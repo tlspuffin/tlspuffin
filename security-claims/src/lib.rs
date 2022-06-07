@@ -7,4 +7,5 @@ pub use ffi::{*};
 pub use register::{register_claimer, deregister_claimer};
 
 pub mod register;
+pub mod violation;
 mod ffi;

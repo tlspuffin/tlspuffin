@@ -24,6 +24,7 @@ use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 
 mod agent;
+mod concretize;
 mod debug;
 mod error;
 mod experiment;
@@ -36,7 +37,10 @@ mod tests;
 mod tls;
 mod trace;
 mod variable_data;
-mod violation;
+#[cfg(feature = "wolfssl")]
+mod wolfssl_bio;
+#[cfg(feature = "wolfssl")]
+mod wolfssl_binding;
 
 fn main() {
     fn create_config(log_path: &PathBuf) -> Config {
@@ -46,6 +50,7 @@ fn main() {
             )))
             .build();
         let file_appender = FileAppender::builder()
+            .encoder(Box::new(JsonEncoder::new()))
             .encoder(Box::new(JsonEncoder::new()))
             .build(&log_path)
             .unwrap();

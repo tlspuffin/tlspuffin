@@ -1,6 +1,6 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt;
-use itertools::Itertools;
 
 use crate::term::{
     atoms::Variable,
@@ -71,7 +71,7 @@ impl Signature {
         F: DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
-        
+
         Function::new(shape, dynamic_fn.clone())
     }
 

@@ -19,19 +19,33 @@ openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
+    "openssl",
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl",
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl",
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
     "claims",
+    "openssl"
 ]
+
+wolfssl520 = [
+    "wolfssl-sys/vendored-wolfssl520",
+    "wolfssl"
+]
+
+# Some WolfSSL version
+wolfssl = []
+# Some OpenSSL version
+openssl = []
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -89,6 +103,10 @@ chrono = "0.4"
 openssl = { path = "deps/rust-openssl/openssl", features = ["sancov"] }
 foreign-types-shared = "0.1"
 security-claims = { path = "security-claims" }
+
+# WolfSSL
+wolfssl-sys = { path = "deps/wolfssl-sys", features = [], optional = true }
+libc = "0.2"
 
 [dev-dependencies]
 criterion = "0.3"

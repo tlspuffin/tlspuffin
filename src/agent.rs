@@ -5,15 +5,13 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use crate::error::Error;
-use crate::io::OpenSSLStream;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
+use crate::concretize::{Config, OpenSSL, PUTType, PUT};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -45,12 +43,13 @@ impl fmt::Display for AgentName {
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct AgentDescriptor {
     pub name: AgentName,
+    pub put_type: PUTType,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
     pub server: bool,
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
-    pub try_reuse: bool
+    pub try_reuse: bool,
 }
 
 impl AgentDescriptor {
@@ -59,39 +58,51 @@ impl AgentDescriptor {
         self.server == other.server && self.tls_version == other.tls_version
     }
 
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_reusable_server(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_type: PUTType,
+    ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
-            try_reuse: true
+            try_reuse: true,
+            put_type,
         }
     }
 
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_reusable_client(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_type: PUTType,
+    ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
-            try_reuse: true
+            try_reuse: true,
+            put_type,
         }
     }
 
-    pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_server(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: true,
-            try_reuse: false
+            try_reuse: false,
+            put_type,
         }
     }
 
-    pub fn new_client(name: AgentName, tls_version: TLSVersion) -> Self {
+    pub fn new_client(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
         Self {
             name,
             tls_version,
             server: false,
-            try_reuse: false
+            try_reuse: false,
+            put_type,
         }
     }
 }
@@ -103,35 +114,38 @@ pub enum TLSVersion {
     Unknown,
 }
 
-impl From<i32> for TLSVersion  {
+impl From<i32> for TLSVersion {
     fn from(value: i32) -> Self {
-       match value {
-           0x303 => TLSVersion::V1_2,
-           0x304 => TLSVersion::V1_3,
-           _ => TLSVersion::Unknown
-       }
+        match value {
+            0x303 => TLSVersion::V1_2,
+            0x304 => TLSVersion::V1_3,
+            _ => TLSVersion::Unknown,
+        }
     }
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: OpenSSLStream,
+    pub stream: Box<dyn PUT>,
 }
 
 impl Agent {
-    pub fn new_openssl(
+    pub fn new<P: 'static + PUT>(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
-        let openssl_stream = OpenSSLStream::new(
-            descriptor.server,
-            &descriptor.tls_version,
-            descriptor.name,
+        let c = Config {
+            tls_version: descriptor.tls_version,
+            server: descriptor.server,
+            agent_name: descriptor.name,
             claimer,
-        )?;
-
-        let agent = Self::from_stream(descriptor, openssl_stream);
+        };
+        let stream = P::new(c)?;
+        let agent = Agent {
+            descriptor: *descriptor,
+            stream: Box::new(stream),
+        };
 
         Ok(agent)
     }
@@ -143,12 +157,5 @@ impl Agent {
 
     pub fn reset(&mut self) {
         self.stream.reset();
-    }
-
-    fn from_stream(descriptor: &AgentDescriptor, stream: OpenSSLStream) -> Agent {
-        Agent {
-            descriptor: *descriptor,
-            stream,
-        }
     }
 }

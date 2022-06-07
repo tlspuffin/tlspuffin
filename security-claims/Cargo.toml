@@ -2,10 +2,11 @@
 build = "build.rs"
 name = "security-claims"
 version = "0.1.0"
-
+edition = "2018"
 
 [dependencies]
 hex = "0.4"
+itertools = "0.10"
 
 [build-dependencies]
 bindgen = "*"
