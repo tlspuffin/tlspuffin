@@ -96,7 +96,7 @@ fn main() {
 
     let matches = create_app().get_matches();
 
-    let core_definition = matches.value_of("cores").unwrap_or_else(|| "0");
+    let core_definition = matches.value_of("cores").unwrap_or("0");
     let port: u16 = matches.value_of_t("port").unwrap_or(1337);
     let static_seed: Option<u64> = matches.value_of_t("seed").ok();
     let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
@@ -167,7 +167,7 @@ fn main() {
             let title = matches.value_of("title").unwrap();
             let description = matches.value_of("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
-            let experiment_path = experiments_root.join(format_title(Some(&title), None));
+            let experiment_path = experiments_root.join(format_title(Some(title), None));
             if experiment_path.as_path().exists() {
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }

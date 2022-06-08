@@ -1,5 +1,3 @@
-
-
 #[cfg(test)]
 pub mod seeds {
     use nix::sys::signal::Signal;
@@ -680,7 +678,8 @@ pub mod rustls {
     ///
     /// Note that `unwrap()` is used to deal with networking errors; this is not something
     /// that is sensible outside of example code.
-    //#[test] Disable for now as it can fail because of missing internet
+    #[test] //Disable for now as it can fail because of missing internet
+    #[ignore]
     fn test_execute_rustls() {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {

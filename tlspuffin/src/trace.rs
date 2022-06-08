@@ -96,7 +96,7 @@ use crate::{
 };
 use security_claims::violation::is_violation;
 
-use crate::concretize::{OpenSSL, PUTType, PUT};
+use crate::concretize::{OpenSSL, PUTType, Put};
 use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
@@ -409,10 +409,11 @@ impl TraceContext {
             })
     }
 
-    pub fn reset_agents(&mut self) {
+    pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset();
+            agent.reset()?;
         }
+        Ok(())
     }
 }
 
@@ -450,7 +451,7 @@ impl Trace {
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
-            ctx.reset_agents();
+            ctx.reset_agents()?;
         }
         self.spawn_agents(ctx)?;
         let steps = &self.steps;

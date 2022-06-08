@@ -1,8 +1,8 @@
 use std::convert::TryFrom;
 
 use rustls::msgs::codec::Reader;
+use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::message::{Message, MessagePayload};
-use rustls::msgs::message::{OpaqueMessage};
 
 pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
     debug_binary_message_with_info("", buffer);
@@ -13,7 +13,7 @@ pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8
     match OpaqueMessage::read(&mut reader) {
         Ok(opaque_message) => match Message::try_from(opaque_message.into_plain_message()) {
             Ok(message) => {
-                debug_message_with_info(info, &message.try_into().unwrap());
+                debug_message_with_info(info, &message);
             }
             Err(err) => {
                 trace!(

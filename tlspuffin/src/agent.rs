@@ -8,7 +8,7 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, PUTType, PUT};
+use crate::concretize::{Config, PUTType, Put};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -127,11 +127,11 @@ impl From<i32> for TLSVersion {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub descriptor: AgentDescriptor,
-    pub stream: Box<dyn PUT>,
+    pub stream: Box<dyn Put>,
 }
 
 impl Agent {
-    pub fn new<P: 'static + PUT>(
+    pub fn new<P: 'static + Put>(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
@@ -155,7 +155,7 @@ impl Agent {
         self.stream.change_agent_name(claimer, new_name);
     }
 
-    pub fn reset(&mut self) {
-        self.stream.reset();
+    pub fn reset(&mut self) -> Result<(), Error> {
+        self.stream.reset()
     }
 }

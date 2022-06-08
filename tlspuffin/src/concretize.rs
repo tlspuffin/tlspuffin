@@ -20,9 +20,6 @@ use std::cell::RefCell;
 use std::io::{Read, Write};
 use std::rc::Rc;
 
-/// Stream, Read, Write traits below are with respect to this content type // [TODO:PUT] how one can make this precise in the type (Without modifing those traits specs?)
-pub type Bts<'a> = &'a [u8];
-
 /// Static configuration for creating a new agent state for the PUT
 pub struct Config {
     pub tls_version: TLSVersion,
@@ -40,7 +37,7 @@ pub enum PUTType {
     #[cfg(feature = "wolfssl")]
     WolfSSL,
 }
-pub trait PUT: Stream + Drop {
+pub trait Put: Stream + Drop {
     /// Create a new agent state for the PUT + set up buffers/BIOs
     fn new(c: Config) -> Result<Self, Error>
     where
@@ -70,7 +67,7 @@ pub fn put_version() -> &'static str {
         agent_name: AgentName::new(),
         claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put: Box<dyn PUT> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
+    let put: Box<dyn Put> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
 
     put.as_ref().version()
 }
@@ -82,7 +79,7 @@ pub fn put_make_deterministic() {
         agent_name: AgentName::new(),
         claimer: Rc::new(RefCell::new(VecClaimer::new())),
     };
-    let put: Box<dyn PUT> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
+    let put: Box<dyn Put> = Box::new(OpenSSL::new(c).expect("Failed to create a put instance"));
 
     /*        #[cfg(feature = "wolfssl")]
             Box::new(crate::concretize::wolfssl::WolfSSL::new(c).expect("Failed to create a put instance"))
@@ -131,7 +128,7 @@ impl Write for OpenSSL {
     }
 }
 
-impl PUT for OpenSSL {
+impl Put for OpenSSL {
     fn new(c: Config) -> Result<OpenSSL, Error> {
         let memory_stream = MemoryStream::new();
         let stream = if c.server {
@@ -201,7 +198,7 @@ impl PUT for OpenSSL {
 #[cfg(feature = "wolfssl")]
 pub mod wolfssl {
     use crate::agent::AgentName;
-    use crate::concretize::{Config, PUT};
+    use crate::concretize::{Config, Put};
     use crate::error::Error;
     use crate::io::{MemoryStream, MessageResult, Stream};
     use crate::trace::VecClaimer;
@@ -251,7 +248,7 @@ pub mod wolfssl {
         }
     }
 
-    impl PUT for WolfSSL {
+    impl Put for WolfSSL {
         fn new(c: Config) -> Result<Self, Error>
         where
             Self: Sized,
