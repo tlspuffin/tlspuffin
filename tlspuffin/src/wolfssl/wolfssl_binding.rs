@@ -28,8 +28,8 @@ use openssl::{
 use crate::agent::TLSVersion;
 use crate::error::Error;
 use crate::io::MemoryStream;
-use crate::wolfssl_bio as bio;
-use crate::{openssl_binding, wolfssl_binding};
+use crate::woflssl::wolfssl_binding;
+use crate::woflssl::wolfssl_bio as bio;
 use wolfssl_sys as wolf;
 
 /// WolfSSL library initialization (done only once statically)

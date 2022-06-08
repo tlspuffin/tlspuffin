@@ -60,7 +60,7 @@ session-resumption = []
 # PUT is determinisitic
 deterministic = []
 # Require the PUT to implement the claim-interface.h
-claims = ["security-claims"]
+claims = []
 
 introspection = ["libafl/introspection"]
 
@@ -101,7 +101,7 @@ chrono = "0.4.19"
 # Uses build scripts from './openssl-src'
 openssl = { path = "../deps/rust-openssl/openssl", features = ["sancov"], optional = true }
 foreign-types-shared = { version = "0.1.1", optional = true }
-security-claims = { path = "../tlspuffin-claims", optional = true }
+security-claims = { path = "../tlspuffin-claims", optional = false }
 
 # WolfSSL
 wolfssl-sys = { path = "../deps/wolfssl-sys", features = [], optional = true }

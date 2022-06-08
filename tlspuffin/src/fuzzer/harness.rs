@@ -1,9 +1,9 @@
-use libafl::executors::ExitKind;
-use rand::Rng;
-
 use crate::error::Error;
 use crate::fuzzer::stats_observer::*;
 use crate::trace::{Action, Trace, TraceContext};
+use libafl::executors::ExitKind;
+use log::{trace, warn};
+use rand::Rng;
 
 pub fn harness(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new();

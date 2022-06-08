@@ -17,6 +17,7 @@
 //! If Bob is an [`Agent`], which has an underlying *PUTState* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
+use log::error;
 use std::convert::TryFrom;
 use std::{
     io,

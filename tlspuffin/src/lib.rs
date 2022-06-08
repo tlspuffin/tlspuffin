@@ -10,27 +10,22 @@
 
 #![allow(unused_doc_comments)]
 
-#[macro_use]
-extern crate log;
-
 pub mod agent;
+pub mod concretize;
+pub mod debug;
 pub mod error;
+pub mod experiment;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
 pub mod term;
+pub mod tests;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
 pub mod variable_data;
 
-pub mod concretize;
-mod debug;
-mod experiment;
-pub mod openssl_binding;
-pub mod tests;
-
+#[cfg(feature = "openssl")]
+mod openssl;
 #[cfg(feature = "wolfssl")]
-pub mod wolfssl_binding;
-#[cfg(feature = "wolfssl")]
-pub mod wolfssl_bio;
+mod wolfssl;

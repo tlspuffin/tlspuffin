@@ -8,7 +8,7 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, PUTType, Put};
+use crate::concretize::{Config, Put, PUT_REGISTRY};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -38,12 +38,15 @@ impl fmt::Display for AgentName {
     }
 }
 
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
+pub struct PutName(pub [char; 10]);
+
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
 pub struct AgentDescriptor {
     pub name: AgentName,
-    pub put_type: PUTType,
+    pub put_name: PutName,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
     pub server: bool,
@@ -61,48 +64,48 @@ impl AgentDescriptor {
     pub fn new_reusable_server(
         name: AgentName,
         tls_version: TLSVersion,
-        put_type: PUTType,
+        put_name: PutName,
     ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
-            put_type,
+            put_name,
         }
     }
 
     pub fn new_reusable_client(
         name: AgentName,
         tls_version: TLSVersion,
-        put_type: PUTType,
+        put_name: PutName,
     ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
-            put_type,
+            put_name,
         }
     }
 
-    pub fn new_server(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
+    pub fn new_server(name: AgentName, tls_version: TLSVersion, put_name: PutName) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }
     }
 
-    pub fn new_client(name: AgentName, tls_version: TLSVersion, put_type: PUTType) -> Self {
+    pub fn new_client(name: AgentName, tls_version: TLSVersion, put_name: PutName) -> Self {
         Self {
             name,
             tls_version,
             server: false,
             try_reuse: false,
-            put_type,
+            put_name,
         }
     }
 }
@@ -131,20 +134,22 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new<P: 'static + Put>(
+    pub fn new(
         descriptor: &AgentDescriptor,
         claimer: Rc<RefCell<VecClaimer>>,
     ) -> Result<Self, Error> {
-        let c = Config {
+        let config = Config {
             tls_version: descriptor.tls_version,
             server: descriptor.server,
             agent_name: descriptor.name,
             claimer,
         };
-        let stream = P::new(c)?;
+
+        let factory = PUT_REGISTRY.find_factory(descriptor.put_name).unwrap();
+        let stream = factory.create(config);
         let agent = Agent {
             descriptor: *descriptor,
-            stream: Box::new(stream),
+            stream,
         };
 
         Ok(agent)

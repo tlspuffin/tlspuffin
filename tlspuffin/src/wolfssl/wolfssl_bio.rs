@@ -1,14 +1,7 @@
+use crate::agent::TLSVersion;
+use crate::error::Error;
+use crate::io::MemoryStream;
 use libc::{c_char, c_int, c_long, c_void, strlen};
-use std::any::Any;
-use std::ffi::CString;
-use std::io;
-use std::io::{ErrorKind, Read, Write};
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::ptr;
-use std::slice;
-
 use openssl::error::ErrorStack;
 use openssl::ssl::{SslContextBuilder, SslVersion};
 use openssl::{
@@ -22,11 +15,15 @@ use openssl::{
         X509NameBuilder, X509Ref, X509,
     },
 };
-
-use crate::agent::TLSVersion;
-use crate::error::Error;
-use crate::io::MemoryStream;
-use crate::openssl_binding::static_rsa_cert;
+use std::any::Any;
+use std::ffi::CString;
+use std::io;
+use std::io::{ErrorKind, Read, Write};
+use std::marker::PhantomData;
+use std::mem::ManuallyDrop;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::ptr;
+use std::slice;
 use wolfssl_sys as wolf;
 
 /* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions

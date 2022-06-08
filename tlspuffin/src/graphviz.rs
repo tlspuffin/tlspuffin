@@ -194,15 +194,13 @@ impl Term {
 #[cfg(test)]
 mod tests {
     use crate::agent::AgentName;
-    use crate::concretize::PUTType;
+    use crate::concretize::OPENSSL111;
     use crate::fuzzer::seeds::seed_client_attacker12;
-
-    static put_type: PUTType = PUTType::OpenSSL;
 
     #[test]
     fn test_dot_graph() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, put_type);
+        let trace = seed_client_attacker12(server, OPENSSL111);
         let _string = trace.dot_graph(true);
         //println!("{}", string);
     }

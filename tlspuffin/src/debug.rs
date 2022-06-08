@@ -1,3 +1,4 @@
+use log::trace;
 use std::convert::TryFrom;
 
 use rustls::msgs::codec::Reader;

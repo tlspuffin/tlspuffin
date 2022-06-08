@@ -1,6 +1,7 @@
 #![allow(unused_doc_comments)]
 #[macro_use]
 extern crate log;
+use crate::concretize::PUT_REGISTRY;
 use crate::experiment::*;
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
@@ -18,24 +19,25 @@ use std::io::Read;
 use std::{env, fs, io::Write, path::PathBuf};
 use trace::TraceContext;
 
-mod agent;
-mod concretize;
-mod debug;
-mod error;
-mod experiment;
-mod fuzzer;
-mod graphviz;
-mod io;
-mod openssl_binding;
-mod term;
-mod tests;
-mod tls;
-mod trace;
-mod variable_data;
+pub mod agent;
+pub mod concretize;
+pub mod debug;
+pub mod error;
+pub mod experiment;
+pub mod fuzzer;
+pub mod graphviz;
+pub mod io;
+pub mod term;
+pub mod tests;
+#[allow(clippy::ptr_arg)]
+pub mod tls;
+pub mod trace;
+pub mod variable_data;
+
+#[cfg(feature = "openssl")]
+mod openssl;
 #[cfg(feature = "wolfssl")]
-mod wolfssl_binding;
-#[cfg(feature = "wolfssl")]
-mod wolfssl_bio;
+mod wolfssl;
 
 fn create_app() -> Command<'static> {
     Command::new(crate_name!())
@@ -103,7 +105,7 @@ fn main() {
     let disk_corpus = matches.is_present("disk-corpus");
     let minimizer = matches.is_present("minimizer");
 
-    info!("{}", openssl_binding::openssl_version());
+    info!("{}", PUT_REGISTRY.versions());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         for (trace, name) in create_corpus() {

@@ -5,10 +5,10 @@ use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinMonitor;
 use crate::fuzzer::stats_observer::StatsStage;
-use crate::openssl_binding::make_deterministic;
 use crate::trace::Trace;
 use core::time::Duration;
 
+use crate::concretize::PUT_REGISTRY;
 use libafl::bolts::os::Cores;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::corpus::RandCorpusScheduler;
@@ -27,6 +27,7 @@ use libafl::{
     state::{HasCorpus, StdState},
     Error,
 };
+use log::info;
 use std::path::PathBuf;
 
 /// Default value, how many iterations each stage gets, as an upper bound
@@ -186,7 +187,7 @@ pub fn start(
 ) {
     info!("Running on {} cores", core_definition);
 
-    make_deterministic();
+    PUT_REGISTRY.make_deterministic();
     let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
     let monitor = PuffinMonitor::new(

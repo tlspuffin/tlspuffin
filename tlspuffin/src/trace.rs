@@ -96,8 +96,9 @@ use crate::{
 };
 use security_claims::violation::is_violation;
 
-use crate::concretize::{OpenSSL, PUTType, Put};
+use crate::concretize::Put;
 use itertools::Itertools;
+use log::trace;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -372,17 +373,8 @@ impl TraceContext {
         name
     }
 
-    pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        // [TODO] There might be a cleaner way of doing this, e.g., if we could store a type
-        // instantiation in an enum, but this works
-        let agent = match descriptor.put_type {
-            PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
-            #[cfg(feature = "wolfssl")]
-            PUTType::WolfSSL => {
-                Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?
-            }
-        };
-        let agent_name = self.add_agent(agent);
+    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
+        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
         Ok(agent_name)
     }
 
@@ -440,7 +432,7 @@ impl Trace {
                 reusable.rename(ctx.claimer.clone(), descriptor.name);
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_openssl_agent(descriptor)?;
+                ctx.new_agent(descriptor)?;
             }
         }
 
