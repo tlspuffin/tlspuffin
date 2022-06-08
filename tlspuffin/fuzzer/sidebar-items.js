@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["start","Starts the fuzzing loop"]],"mod":[["mutations",""],["seeds","Implementation of  special traces. Each may represent a special TLS execution like a full handshake or an execution which crashes OpenSSL."]]});
