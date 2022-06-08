@@ -5,9 +5,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 // Will be instantiated with (AgentName,Claim)
-pub type ClaimMessage<AgentName>
-
-= (AgentName, Claim);
+pub type ClaimMessage<AgentName> = (AgentName, Claim);
 
 // This code is duplicated from super::super::agent, which is unfortunate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

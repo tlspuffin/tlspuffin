@@ -26,10 +26,6 @@ use std::{
 use rustls::msgs::message::OpaqueMessage;
 use rustls::msgs::{deframer::MessageDeframer, message::Message};
 
-
-
-
-
 use crate::error::Error;
 
 pub trait Stream: Read + Write {

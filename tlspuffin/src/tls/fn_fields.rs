@@ -76,11 +76,12 @@ pub fn fn_verify_data(
         client_random,
     );
 
-    let (pending, _client_secret, _server_secret) = hs.into_traffic_with_client_finished_pending_raw(
-        &server_hello.get_current_hash_raw(),
-        &NoKeyLog,
-        client_random,
-    );
+    let (pending, _client_secret, _server_secret) = hs
+        .into_traffic_with_client_finished_pending_raw(
+            &server_hello.get_current_hash_raw(),
+            &NoKeyLog,
+            client_random,
+        );
 
     let (_traffic, tag, _client_secret) =
         pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());

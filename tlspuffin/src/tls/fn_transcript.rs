@@ -1,7 +1,7 @@
 use crate::agent::AgentName;
 use crate::tls::error::FnError;
 use crate::trace::AgentClaimer;
-use rustls::hash_hs::{HandshakeHash};
+use rustls::hash_hs::HandshakeHash;
 use rustls::tls13;
 use security_claims::{Claim, ClaimType};
 

@@ -1,11 +1,11 @@
-use std::convert::{TryInto};
+use std::convert::TryInto;
 
 use ring::test::rand::FixedByteRandom;
 use rustls::conn::ConnectionRandoms;
 use rustls::kx::KeyExchange;
 use rustls::msgs::enums::NamedGroup;
 use rustls::msgs::handshake::{Random, ServerECDHParams};
-use rustls::tls12::{ConnectionSecrets};
+use rustls::tls12::ConnectionSecrets;
 use rustls::{SupportedKxGroup, ALL_KX_GROUPS};
 
 use crate::tls::error::FnError;
