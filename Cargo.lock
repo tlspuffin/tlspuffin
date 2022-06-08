@@ -60,12 +60,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5d78ce20460b82d3fa150275ed9d55e21064fc7951177baacf86a145c4a4b1f"
 
 [[package]]
-name = "arrayvec"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
-
-[[package]]
 name = "as-slice"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -364,7 +358,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "csv",
- "itertools 0.10.3",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -386,7 +380,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d00996de9f2f7559f7f4dc286073197f83e92256a59ed395f9aac01fe717da57"
 dependencies = [
  "cast",
- "itertools 0.10.3",
+ "itertools",
 ]
 
 [[package]]
@@ -693,16 +687,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hexdump"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e40283dadb02f3af778878be1d717b17b4e4ab92e1d935ab03a730b0542905f2"
-dependencies = [
- "arrayvec",
- "itertools 0.4.19",
-]
-
-[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -738,12 +722,6 @@ dependencies = [
  "serde",
  "smallvec",
 ]
-
-[[package]]
-name = "itertools"
-version = "0.4.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4a9b56eb56058f43dc66e58f40a214b2ccbc9f3df51861b63d51dec7b65bc3f"
 
 [[package]]
 name = "itertools"
@@ -1541,7 +1519,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "hex",
- "itertools 0.10.3",
+ "itertools",
 ]
 
 [[package]]
@@ -1783,8 +1761,7 @@ dependencies = [
  "env_logger 0.8.4",
  "foreign-types-shared",
  "hex",
- "hexdump",
- "itertools 0.10.3",
+ "itertools",
  "libafl",
  "libafl_derive",
  "libafl_targets",

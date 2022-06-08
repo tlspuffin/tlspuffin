@@ -1,9 +1,18 @@
+use super::harness;
+use super::{EDGES_MAP, MAX_EDGES_NUM};
+use crate::fuzzer::mutations::trace_mutations;
+use crate::fuzzer::mutations::util::TermConstraints;
+use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
+use crate::fuzzer::stats::PuffinMonitor;
+use crate::fuzzer::stats_observer::StatsStage;
+use crate::openssl_binding::make_deterministic;
+use crate::trace::Trace;
 use core::time::Duration;
-use std::path::PathBuf;
-
+use libafl::bolts::launcher::Launcher;
+use libafl::bolts::os::Cores;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
-
-use libafl::events::{HasEventManagerId, LlmpRestartingEventManager};
+use libafl::corpus::RandCorpusScheduler;
+use libafl::events::{EventConfig, HasEventManagerId, LlmpRestartingEventManager};
 use libafl::{
     bolts::{rands::StdRand, tuples::tuple_list},
     corpus::{
@@ -18,20 +27,7 @@ use libafl::{
     state::{HasCorpus, StdState},
     Error,
 };
-
-use crate::fuzzer::mutations::trace_mutations;
-use crate::fuzzer::mutations::util::TermConstraints;
-use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
-use crate::fuzzer::stats::PuffinMonitor;
-use crate::fuzzer::stats_observer::StatsStage;
-
-use crate::openssl_binding::make_deterministic;
-
-use super::harness;
-use super::{EDGES_MAP, MAX_EDGES_NUM};
-use libafl::bolts::os::Cores;
-
-use crate::trace::Trace;
+use std::path::PathBuf;
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -48,37 +44,33 @@ pub static MIN_TERM_SIZE: usize = 0;
 /// Above this term size we no longer mutate.
 pub static MAX_TERM_SIZE: usize = 300;
 
-/// Starts the fuzzing loop
-pub fn start(
-    core_definition: String,
-    monitor_file: PathBuf,
-    _on_disk_corpus: PathBuf,
-    corpus_dir: PathBuf,
-    objective_dir: PathBuf,
-    broker_port: u16,
-    max_iters: Option<u64>,
-    static_seed: Option<u64>,
-) {
-    info!("Running on {} cores", core_definition);
+macro_rules! minimizer_feedback {
+    ($edges_feedback_state:ident, $edges_observer:ident, $time_observer:ident) => {
+        feedback_or!(
+            // New maximization map feedback linked to the edges observer and the feedback state
+            // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+            MaxMapFeedback::new_tracking(&$edges_feedback_state, &$edges_observer, true, false),
+            // Time feedback, this one does not need a feedback state
+            // needed for IndexesLenTimeMinimizerCorpusScheduler
+            TimeFeedback::new_with_observer(&$time_observer)
+        )
+    };
+}
 
-    make_deterministic();
-    let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+macro_rules! no_minimizer_feedback {
+    ($edges_feedback_state:ident, $edges_observer:ident, $time_observer:ident) => {
+        feedback_or!(MaxMapFeedback::new_tracking(
+            &$edges_feedback_state,
+            &$edges_observer,
+            false, // [TODO] [LH] Why are track_index and track_novelties are false?
+            false
+        ))
+    };
+}
 
-    let monitor = PuffinMonitor::new(
-        |s| {
-            info!("{}", s);
-        },
-        monitor_file,
-    )
-    .unwrap();
-
-    /*    let stats = MultiStats::new(
-        |s| {
-            info!("{}", s);
-        }
-    );*/
-
-    let mut run_client = |state: Option<StdState<_, _, _, _, _>>,
+macro_rules! new_run_client {
+    ($static_seed:ident, $objective_dir:ident, $corpus_dir:ident, $max_iters:ident, $feedback:ident, $scheduler:expr, $corpus:expr) => {
+        |state: Option<StdState<_, _, _, _, _>>,
                           mut restarting_mgr: LlmpRestartingEventManager<_, _, _, _>,
                           _unknown: usize| {
         info!("We're a client, let's fuzz :)");
@@ -90,23 +82,7 @@ pub fn start(
 
         let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
-        #[cfg(feature = "no-minimizer")]
-        let feedback = feedback_or!(MaxMapFeedback::new_tracking(
-            &edges_feedback_state,
-            &edges_observer,
-            false, // [TODO] [LH] Why are track_index and track_novelties are false?
-            false
-        ));
-
-        #[cfg(not(feature = "no-minimizer"))]
-        let feedback = feedback_or!(
-            // New maximization map feedback linked to the edges observer and the feedback state
-            // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-            MaxMapFeedback::new_tracking(&edges_feedback_state, &edges_observer, true, false),
-            // Time feedback, this one does not need a feedback state
-            // needed for IndexesLenTimeMinimizerCorpusScheduler
-            TimeFeedback::new_with_observer(&time_observer)
-        );
+        let feedback = $feedback!(edges_feedback_state, edges_observer, time_observer);
 
         // A feedback to choose if an input is a solution or not
         let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());
@@ -117,21 +93,12 @@ pub fn start(
 
         // If not restarting, create a State from scratch
         let mut state = state.unwrap_or_else(|| {
-            let seed = static_seed.unwrap_or(sender_id.id as u64);
+            let seed = $static_seed.unwrap_or(sender_id.id as u64);
             info!("Seed is {}", seed);
             StdState::new(
                 StdRand::with_seed(seed),
-                {
-                    #[cfg(not(feature = "disk-corpus"))]
-                    {
-                        InMemoryCorpus::new()
-                    }
-                    #[cfg(feature = "disk-corpus")]
-                    {
-                        OnDiskCorpus::new(on_disk_corpus.clone()).unwrap()
-                    }
-                },
-                OnDiskCorpus::new(objective_dir.clone()).unwrap(),
+                $corpus,
+                OnDiskCorpus::new($objective_dir.clone()).unwrap(),
                 // They are the data related to the feedbacks that you want to persist in the State.
                 tuple_list!(edges_feedback_state),
             )
@@ -152,11 +119,7 @@ pub fn start(
             StatsStage::new()
         );
 
-        // A minimization+queue policy to get testcasess from the corpus
-        #[cfg(not(feature = "no-minimizer"))]
-        let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-        #[cfg(feature = "no-minimizer")]
-        let scheduler = RandCorpusScheduler::new();
+        let scheduler = $scheduler;
 
         let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
@@ -181,18 +144,18 @@ pub fn start(
                     &mut fuzzer,
                     &mut executor,
                     &mut restarting_mgr,
-                    &[corpus_dir.clone()],
+                    &[$corpus_dir.clone()],
                 )
                 .unwrap_or_else(|err| {
                     panic!(
                         "Failed to load initial corpus at {:?}: {}",
-                        &corpus_dir, err
+                        &$corpus_dir, err
                     )
                 });
             println!("We imported {} inputs from disk.", state.corpus().count());
         }
 
-        if let Some(max_iters) = max_iters {
+        if let Some(max_iters) = $max_iters {
             fuzzer.fuzz_loop_for(
                 &mut stages,
                 &mut executor,
@@ -205,20 +168,101 @@ pub fn start(
         }
 
         Ok(())
+    }
     };
+}
 
-    if let Err(error) = libafl::bolts::launcher::Launcher::builder()
-        .shmem_provider(shmem_provider)
-        .configuration("launcher default".into())
-        .monitor(monitor)
-        .run_client(&mut run_client)
-        .cores(&Cores::from_cmdline(core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
-        .broker_port(broker_port)
-        //todo where should we log the output of the harness?
-        /*.stdout_file(Some("/dev/null"))*/
-        .build()
-        .launch()
-    {
+/// Starts the fuzzing loop
+pub fn start(
+    core_definition: String,
+    monitor_file: PathBuf,
+    on_disk_corpus: Option<PathBuf>,
+    corpus_dir: PathBuf,
+    objective_dir: PathBuf,
+    broker_port: u16,
+    max_iters: Option<u64>,
+    static_seed: Option<u64>,
+    minimizer: bool,
+) {
+    info!("Running on {} cores", core_definition);
+
+    make_deterministic();
+    let shmem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+
+    let monitor = PuffinMonitor::new(
+        |s| {
+            info!("{}", s);
+        },
+        monitor_file,
+    )
+    .unwrap();
+
+    let cores = Cores::from_cmdline(core_definition.as_str()).unwrap(); // possibly replace by parse_core_bind_arg
+    let config: EventConfig = "launcher default".into();
+
+    if let Err(error) = if minimizer {
+        if let Some(on_disk_corpus) = on_disk_corpus {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(shmem_provider)
+                .configuration(config)
+                .monitor(monitor)
+                .cores(&cores)
+                .broker_port(broker_port)
+                .run_client(&mut new_run_client!(
+                    static_seed,
+                    objective_dir,
+                    corpus_dir,
+                    max_iters,
+                    minimizer_feedback,
+                    // A minimization+queue policy to get testcasess from the corpus
+                    IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new()),
+                    OnDiskCorpus::new(on_disk_corpus.clone()).unwrap()
+                ))
+                .build()
+                .launch()
+        } else {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(shmem_provider)
+                .configuration(config)
+                .monitor(monitor)
+                .cores(&cores)
+                .broker_port(broker_port)
+                .run_client(&mut new_run_client!(
+                    static_seed,
+                    objective_dir,
+                    corpus_dir,
+                    max_iters,
+                    minimizer_feedback,
+                    // A minimization+queue policy to get testcasess from the corpus
+                    IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new()),
+                    InMemoryCorpus::new()
+                ))
+                .build()
+                .launch()
+        }
+    } else {
+        if on_disk_corpus.is_some() {
+            panic!("Unsupported config");
+        }
+
+        libafl::bolts::launcher::Launcher::builder()
+            .shmem_provider(shmem_provider)
+            .configuration(config)
+            .monitor(monitor)
+            .cores(&cores)
+            .broker_port(broker_port)
+            .run_client(&mut new_run_client!(
+                static_seed,
+                objective_dir,
+                corpus_dir,
+                max_iters,
+                no_minimizer_feedback,
+                RandCorpusScheduler::new(),
+                InMemoryCorpus::new()
+            ))
+            .build()
+            .launch()
+    } {
         match error {
             Error::ShuttingDown => {
                 // ignore

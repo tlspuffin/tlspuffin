@@ -7,13 +7,6 @@ edition = "2021"
 [features]
 default = ["sancov_libafl", "introspection"]
 
-# Logs each execution of __sanitizer_cov_trace_pc_guard*
-sancov_pcguard_log = []
-# Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
-# Enables ASAN
-asan = ["openssl/asan"]
-
 # Lastest OpenSSL 1.1.1
 openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
@@ -44,6 +37,13 @@ wolfssl520 = [
     "wolfssl"
 ]
 
+# Logs each execution of __sanitizer_cov_trace_pc_guard*
+sancov_pcguard_log = []
+# Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
+sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
+# Enables ASAN
+asan = ["openssl/asan"]
+
 # Some WolfSSL version
 wolfssl = []
 # Some OpenSSL version
@@ -55,16 +55,10 @@ tls13 = []
 session-resumption = []
 # PUT is determinisitic
 deterministic = []
-
 # Require the PUT to implement the claim-interface.h
 claims = []
-# Uses a random scheduler instead of minimizer
-no-minimizer = []  # [LH] [TODO] Why no minimizer?
-# Save the corpus on disk
-disk-corpus = []
+
 introspection = ["libafl/introspection"]
-
-
 
 [dependencies]
 # TLS
@@ -90,7 +84,6 @@ nix = "0.21"
 
 # Utils
 clap = "2"
-hexdump = "0.1"
 hex = "0.4"
 rand = "0.8"
 itertools = "0.10"

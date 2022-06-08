@@ -42,33 +42,8 @@ mod wolfssl_binding;
 #[cfg(feature = "wolfssl")]
 mod wolfssl_bio;
 
-fn main() {
-    fn create_config(log_path: &PathBuf) -> Config {
-        let stdout = ConsoleAppender::builder()
-            .encoder(Box::new(PatternEncoder::new(
-                "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
-            )))
-            .build();
-        let file_appender = FileAppender::builder()
-            .encoder(Box::new(JsonEncoder::new()))
-            .encoder(Box::new(JsonEncoder::new()))
-            .build(&log_path)
-            .unwrap();
-
-        Config::builder()
-            .appender(Appender::builder().build("stdout", Box::new(stdout)))
-            .appender(Appender::builder().build("file", Box::new(file_appender)))
-            .build(
-                Root::builder()
-                    .appenders(vec!["stdout", "file"])
-                    .build(LevelFilter::Info),
-            )
-            .unwrap()
-    }
-
-    let handle = log4rs::init_config(create_config(&PathBuf::from("tlspuffin-log.json"))).unwrap();
-
-    let matches = App::new(crate_name!())
+fn create_app() -> App<'static, 'static> {
+    App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
@@ -76,9 +51,10 @@ fn main() {
         .args_from_usage("-s, --seed=[n] '(experimental) provide a seed for all clients'")
         .args_from_usage("-p, --port=[n] 'Port of the broker'")
         .args_from_usage("-i, --max-iters=[i] 'Maximum iterations to do'")
+        .args_from_usage("--disk-corpus 'Use a on disk corpus'")
+        .args_from_usage("--minimizer 'Use a minimizer'")
         .subcommands(vec![
-            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out")
-                .args_from_usage("--disk-corpus 'Use a on disk corpus'"),
+            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
             SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
                 .args_from_usage("-t, --title=[t] 'Title of the experiment'")
                 .args_from_usage("-d, --description=[d] 'Decryption of the experiment'")
@@ -95,12 +71,42 @@ fn main() {
                 .about("Executes a trace stored in a file")
                 .args_from_usage("<input> 'The file which stores a trace'")
         ])
-        .get_matches();
+}
+
+fn create_config(log_path: &PathBuf) -> Config {
+    let stdout = ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new(
+            "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
+        )))
+        .build();
+    let file_appender = FileAppender::builder()
+        .encoder(Box::new(JsonEncoder::new()))
+        .encoder(Box::new(JsonEncoder::new()))
+        .build(&log_path)
+        .unwrap();
+
+    Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .appender(Appender::builder().build("file", Box::new(file_appender)))
+        .build(
+            Root::builder()
+                .appenders(vec!["stdout", "file"])
+                .build(LevelFilter::Info),
+        )
+        .unwrap()
+}
+
+fn main() {
+    let handle = log4rs::init_config(create_config(&PathBuf::from("tlspuffin-log.json"))).unwrap();
+
+    let matches = create_app().get_matches();
 
     let core_definition = value_t!(matches, "cores", String).unwrap_or_else(|_| "0".to_string());
     let port = value_t!(matches, "port", u16).unwrap_or(1337);
     let static_seed = value_t!(matches, "seed", u64).ok();
     let max_iters = value_t!(matches, "max-iters", u64).ok();
+    let disk_corpus = matches.is_present("disk-corpus");
+    let minimizer = matches.is_present("minimizer");
 
     info!("{}", openssl_binding::openssl_version());
 
@@ -161,69 +167,60 @@ fn main() {
 
         let mut ctx = TraceContext::new();
         trace.execute(&mut ctx).unwrap();
-    } else if let Some(matches) = matches.subcommand_matches("experiment") {
-        let title = value_t!(matches, "title", String).unwrap();
-        let description = value_t!(matches, "description", String).unwrap();
-        let experiments_root = PathBuf::new().join("experiments");
-        let experiment_path = experiments_root.join(format_title(Some(&title), None));
-        if experiment_path.as_path().exists() {
-            panic!("Experiment already exists. Consider creating a new experiment.")
-        }
-        fs::create_dir_all(&experiment_path).unwrap();
-
-        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
-
-        write_experiment_markdown(&experiment_path, title, description).unwrap();
-        start(
-            core_definition,
-            experiment_path.join("stats.json"),
-            experiment_path.join("corpus"),
-            PathBuf::from("./corpus"),
-            experiment_path.join("crashes"),
-            port,
-            static_seed,
-            max_iters,
-        );
-    } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
-        let description = "No Description, because this is a quick experiment.";
-        let experiments_root = PathBuf::from("experiments");
-
-        let title = format_title(None, None);
-
-        let mut experiment_path = experiments_root.join(&title);
-
-        let mut i = 1;
-        while experiment_path.as_path().exists() {
-            let title = format_title(None, Some(i));
-            experiment_path = experiments_root.join(title);
-            i += 1;
-        }
-
-        fs::create_dir_all(&experiment_path).unwrap();
-
-        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
-
-        write_experiment_markdown(&experiment_path, title, description).unwrap();
-        start(
-            core_definition,
-            experiment_path.join("stats.json"),
-            experiment_path.join("corpus"),
-            PathBuf::from("./corpus"),
-            experiment_path.join("crashes"),
-            port,
-            static_seed,
-            max_iters,
-        );
     } else {
+        let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
+            let title = value_t!(matches, "title", String).unwrap();
+            let description = value_t!(matches, "description", String).unwrap();
+            let experiments_root = PathBuf::new().join("experiments");
+            let experiment_path = experiments_root.join(format_title(Some(&title), None));
+            if experiment_path.as_path().exists() {
+                panic!("Experiment already exists. Consider creating a new experiment.")
+            }
+            fs::create_dir_all(&experiment_path).unwrap();
+
+            handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
+
+            write_experiment_markdown(&experiment_path, title, description).unwrap();
+            experiment_path
+        } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
+            let description = "No Description, because this is a quick experiment.";
+            let experiments_root = PathBuf::from("experiments");
+
+            let title = format_title(None, None);
+
+            let mut experiment_path = experiments_root.join(&title);
+
+            let mut i = 1;
+            while experiment_path.as_path().exists() {
+                let title = format_title(None, Some(i));
+                experiment_path = experiments_root.join(title);
+                i += 1;
+            }
+
+            fs::create_dir_all(&experiment_path).unwrap();
+
+            handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
+
+            write_experiment_markdown(&experiment_path, title, description).unwrap();
+            experiment_path
+        } else {
+            PathBuf::from(".")
+        };
+
         start(
             core_definition,
-            PathBuf::from("stats.json"),
-            PathBuf::from("disk-corpus"),
-            PathBuf::from("corpus"),
-            PathBuf::from("crashes"),
+            experiment_path.join("stats.json"),
+            if disk_corpus {
+                Some(experiment_path.join("disk-corpus"))
+            } else {
+                None
+            },
+            PathBuf::from("./corpus"),
+            experiment_path.join("crashes"),
             port,
             static_seed,
             max_iters,
+            minimizer,
         );
     }
 }
