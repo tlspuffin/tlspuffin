@@ -2,11 +2,11 @@
 build = "build.rs"
 name = "security-claims"
 version = "0.1.0"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-hex = "0.4"
-itertools = "0.10"
+hex = "0.4.3"
+itertools = "0.10.3"
 
 [build-dependencies]
-bindgen = "*"
+bindgen = "0.60.1"

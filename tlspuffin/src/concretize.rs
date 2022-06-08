@@ -7,11 +7,11 @@ use crate::agent::{AgentName, TLSVersion};
 use crate::error::Error;
 use crate::io::MessageResult;
 use crate::io::{MemoryStream, Stream};
+use crate::openssl_binding;
 use crate::openssl_binding::openssl_version;
 use crate::trace::VecClaimer;
 #[cfg(feature = "wolfssl")]
 use crate::wolfssl_binding;
-use crate::{openssl_binding};
 use foreign_types_shared::ForeignTypeRef;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer, Claim};
