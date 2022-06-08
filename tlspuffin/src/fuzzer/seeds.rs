@@ -6,7 +6,7 @@ use rustls::internal::msgs::enums::{Compression, HandshakeType};
 
 use crate::agent::{AgentDescriptor, TLSVersion};
 use crate::concretize::PUTType;
-use crate::concretize::PUTType::OpenSSL;
+
 use crate::term;
 use crate::tls::fn_impl::*;
 use crate::trace::TlsMessageType;
@@ -619,11 +619,7 @@ fn _seed_client_attacker12(server: AgentName, put_type: PUTType) -> (Trace, Term
 
     let client_key_exchange = term! {
         fn_client_key_exchange(
-            (fn_new_pubkey12(
-                (fn_decode_ecdh_params(
-                    ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
-                ))
-            ))
+            (fn_new_pubkey12())
         )
     };
 

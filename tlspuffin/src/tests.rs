@@ -1,4 +1,4 @@
-use crate::concretize::{OpenSSL, PUTType, PUT};
+
 
 #[cfg(test)]
 pub mod seeds {
@@ -455,7 +455,7 @@ pub mod rustls {
             },
             message::{Message, MessagePayload::Handshake},
         },
-        ClientConfig, Connection, OwnedTrustAnchor, ProtocolVersion, RootCertStore, ServerName,
+        ClientConfig, OwnedTrustAnchor, ProtocolVersion, RootCertStore,
     };
     use test_log::test;
 

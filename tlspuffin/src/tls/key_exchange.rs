@@ -1,12 +1,12 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::{TryInto};
 
 use ring::test::rand::FixedByteRandom;
 use rustls::conn::ConnectionRandoms;
 use rustls::kx::KeyExchange;
 use rustls::msgs::enums::NamedGroup;
 use rustls::msgs::handshake::{Random, ServerECDHParams};
-use rustls::tls12::{ConnectionSecrets, Tls12CipherSuite};
-use rustls::{tls12, SupportedKxGroup, ALL_KX_GROUPS};
+use rustls::tls12::{ConnectionSecrets};
+use rustls::{SupportedKxGroup, ALL_KX_GROUPS};
 
 use crate::tls::error::FnError;
 
@@ -35,7 +35,7 @@ pub fn tls13_key_exchange(
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    let shared_secret = kx.complete(&server_key_share, |secret| Ok(Vec::from(secret)))?;
+    let shared_secret = kx.complete(server_key_share, |secret| Ok(Vec::from(secret)))?;
     Ok(shared_secret)
 }
 

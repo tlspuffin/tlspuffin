@@ -156,7 +156,7 @@ pub fn fn_client_hello(
             typ: HandshakeType::ClientHello,
             payload: HandshakePayload::ClientHello(ClientHelloPayload {
                 client_version: *client_version,
-                random: random.clone(),
+                random: *random,
                 session_id: *session_id,
                 cipher_suites: cipher_suites.clone(),
                 compression_methods: compression_methods.clone(),
@@ -180,7 +180,7 @@ pub fn fn_server_hello(
             typ: HandshakeType::ServerHello,
             payload: HandshakePayload::ServerHello(ServerHelloPayload {
                 legacy_version: *legacy_version,
-                random: random.clone(),
+                random: *random,
                 session_id: *session_id,
                 cipher_suite: *cipher_suite,
                 compression_method: *compression_method,

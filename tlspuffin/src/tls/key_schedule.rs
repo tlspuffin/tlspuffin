@@ -22,7 +22,7 @@ pub fn tls13_handshake_traffic_secret(
     let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
@@ -55,7 +55,7 @@ pub fn tls13_application_traffic_secret(
     let (suite, _key, key_schedule) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
 
-    let (mut pending, client_secret, server_secret) = key_schedule
+    let (pending, client_secret, server_secret) = key_schedule
         .into_traffic_with_client_finished_pending_raw(
             &server_finished.get_current_hash_raw(),
             &NoKeyLog {},
@@ -75,9 +75,7 @@ pub fn tls13_derive_psk(
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-
-    let (_, _, mut pending) = tls13_application_traffic_secret(
+    let (_, _, pending) = tls13_application_traffic_secret(
         server_hello,
         server_finished,
         server_key_share,
@@ -85,13 +83,7 @@ pub fn tls13_derive_psk(
         true,
     )?;
 
-    /*    application_key_schedule.exporter_master_secret_raw(
-        &server_finished.get_current_hash_raw(),
-        &NoKeyLog {},
-        client_random,
-    );*/
-
-    let (traffic, tag, client_secret) =
+    let (traffic, _tag, _client_secret) =
         pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
     let psk = traffic.resumption_master_secret_and_derive_ticket_psk_raw(
         &client_finished.get_current_hash_raw(),

@@ -8,7 +8,7 @@ use crate::error::Error;
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, OpenSSL, PUTType, PUT};
+use crate::concretize::{Config, PUTType, PUT};
 use crate::trace::VecClaimer;
 use std::cell::RefCell;
 use std::rc::Rc;

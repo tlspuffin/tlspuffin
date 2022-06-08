@@ -8,7 +8,7 @@ use crate::fuzzer::stats_observer::StatsStage;
 use crate::openssl_binding::make_deterministic;
 use crate::trace::Trace;
 use core::time::Duration;
-use libafl::bolts::launcher::Launcher;
+
 use libafl::bolts::os::Cores;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::corpus::RandCorpusScheduler;

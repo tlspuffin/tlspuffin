@@ -8,7 +8,7 @@ use std::fmt::Formatter;
 
 pub type TLSLike = *const c_void;
 
-pub const CLAIM_INTERFACE_H: &'static str =
+pub const CLAIM_INTERFACE_H: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/claim-interface.h"));
 
 include!(concat!(env!("OUT_DIR"), "/claim-interface.rs"));

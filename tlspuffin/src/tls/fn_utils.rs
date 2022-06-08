@@ -9,7 +9,7 @@ use rustls::msgs::handshake::{
     CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload, Random,
     ServerECDHParams,
 };
-use rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
+use rustls::msgs::message::{Message, MessagePayload, PlainMessage};
 use rustls::tls13::key_schedule::KeyScheduleEarly;
 use rustls::{key, Certificate};
 
@@ -25,7 +25,7 @@ use super::error::FnError;
 pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256;
 
-    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
+    let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
 }
 
@@ -249,7 +249,7 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
-    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
+    let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
 }
 
@@ -259,7 +259,7 @@ pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError
         .ok_or_else(|| FnError::Unknown("Failed to create ServerECDHParams".to_string()))
 }
 
-pub fn fn_new_pubkey12(server_ecdh_params: &ServerECDHParams) -> Result<Vec<u8>, FnError> {
+pub fn fn_new_pubkey12() -> Result<Vec<u8>, FnError> {
     let kx = tls12_key_exchange()?;
 
     let mut buf = Vec::new();

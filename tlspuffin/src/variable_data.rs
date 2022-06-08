@@ -67,7 +67,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         Box::new(message.clone()),
                         Box::new(hs.typ),
-                        Box::new(ch.random.clone()),
+                        Box::new(ch.random),
                         Box::new(ch.session_id),
                         Box::new(ch.client_version),
                         Box::new(ch.extensions.clone()),
@@ -99,7 +99,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         Box::new(message.clone()),
                         hs.typ.clone_box(),
-                        Box::new(sh.random.clone()),
+                        Box::new(sh.random),
                         Box::new(sh.session_id),
                         Box::new(sh.cipher_suite),
                         Box::new(sh.compression_method),

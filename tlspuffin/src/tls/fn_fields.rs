@@ -68,21 +68,21 @@ pub fn fn_verify_data(
 
     let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
 
-    let mut key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
-    let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
+    let (hs, _client_secret, _server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
         &NoKeyLog,
         client_random,
     );
 
-    let (pending, client_secret, server_secret) = hs.into_traffic_with_client_finished_pending_raw(
+    let (pending, _client_secret, _server_secret) = hs.into_traffic_with_client_finished_pending_raw(
         &server_hello.get_current_hash_raw(),
         &NoKeyLog,
         client_random,
     );
 
-    let (traffic, tag, client_secret) =
+    let (_traffic, tag, _client_secret) =
         pending.sign_client_finish_raw(&server_finished.get_current_hash_raw());
     Ok(Vec::from(tag.as_ref()))
 }

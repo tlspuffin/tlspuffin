@@ -11,7 +11,7 @@ use crate::openssl_binding::openssl_version;
 use crate::trace::VecClaimer;
 #[cfg(feature = "wolfssl")]
 use crate::wolfssl_binding;
-use crate::{io, openssl_binding};
+use crate::{openssl_binding};
 use foreign_types_shared::ForeignTypeRef;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer, Claim};
@@ -52,7 +52,7 @@ pub trait PUT: Stream + Drop {
     /// Register a new claim for agent_name
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     /// Remove all claims in self
-    fn deregister_claimer(&mut self) -> ();
+    fn deregister_claimer(&mut self);
     /// Change the agent name and the claimer of self
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     /// Returns a textual representation of the state in which self is
@@ -60,7 +60,7 @@ pub trait PUT: Stream + Drop {
     /// Returns a textual representation of the version of the PUT used by self
     fn version(&self) -> &'static str;
     /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
-    fn make_deterministic(&self) -> ();
+    fn make_deterministic(&self);
 }
 
 pub fn put_version() -> &'static str {
@@ -75,7 +75,7 @@ pub fn put_version() -> &'static str {
     put.as_ref().version()
 }
 
-pub fn put_make_deterministic() -> () {
+pub fn put_make_deterministic() {
     let c = Config {
         tls_version: TLSVersion::V1_3,
         server: false,
@@ -163,12 +163,12 @@ impl PUT for OpenSSL {
         });
     }
 
-    fn deregister_claimer(&mut self) -> () {
+    fn deregister_claimer(&mut self) {
         #[cfg(feature = "claims")]
         deregister_claimer(self.stream.ssl().as_ptr().cast());
     }
 
-    fn change_agent_name(self: &mut Self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         OpenSSL::deregister_claimer(self);
         OpenSSL::register_claimer(self, claimer, agent_name)
     }
@@ -186,7 +186,7 @@ impl PUT for OpenSSL {
         openssl_version()
     }
 
-    fn make_deterministic(&self) -> () {
+    fn make_deterministic(&self) {
         openssl_binding::make_deterministic();
     }
 }
