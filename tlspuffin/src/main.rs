@@ -1,13 +1,11 @@
 #![allow(unused_doc_comments)]
-
 #[macro_use]
 extern crate log;
-
-use std::fs::File;
-use std::io::Read;
-use std::{env, fs, io::Write, path::PathBuf};
-
-use clap::{crate_authors, crate_name, crate_version, value_t, App, SubCommand};
+use crate::experiment::*;
+use crate::fuzzer::start;
+use crate::graphviz::write_graphviz;
+use clap::{arg, crate_authors, crate_name, crate_version, Command};
+use fuzzer::seeds::create_corpus;
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
@@ -15,13 +13,10 @@ use log4rs::config::{Appender, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::Config;
-
-use fuzzer::seeds::create_corpus;
+use std::fs::File;
+use std::io::Read;
+use std::{env, fs, io::Write, path::PathBuf};
 use trace::TraceContext;
-
-use crate::experiment::*;
-use crate::fuzzer::start;
-use crate::graphviz::write_graphviz;
 
 mod agent;
 mod concretize;
@@ -42,34 +37,34 @@ mod wolfssl_binding;
 #[cfg(feature = "wolfssl")]
 mod wolfssl_bio;
 
-fn create_app() -> App<'static, 'static> {
-    App::new(crate_name!())
+fn create_app() -> Command<'static> {
+    Command::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
-        .args_from_usage("-c, --cores=[n] 'Sets the cores to use during fuzzing'")
-        .args_from_usage("-s, --seed=[n] '(experimental) provide a seed for all clients'")
-        .args_from_usage("-p, --port=[n] 'Port of the broker'")
-        .args_from_usage("-i, --max-iters=[i] 'Maximum iterations to do'")
-        .args_from_usage("--disk-corpus 'Use a on disk corpus'")
-        .args_from_usage("--minimizer 'Use a minimizer'")
+        .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
+        .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients"))
+        .arg(arg!(-p --port [n] "Port of the broker"))
+        .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
+        .arg(arg!(--"disk-corpus" "Use a on disk corpus"))
+        .arg(arg!(--minimizer "Use a minimizer"))
         .subcommands(vec![
-            SubCommand::with_name("quick-experiment").about("Starts a new experiment and writes the results out"),
-            SubCommand::with_name("experiment").about("Starts a new experiment and writes the results out")
-                .args_from_usage("-t, --title=[t] 'Title of the experiment'")
-                .args_from_usage("-d, --description=[d] 'Decryption of the experiment'")
+            Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
+            Command::new("experiment").about("Starts a new experiment and writes the results out")
+                .arg(arg!(-t --title [t] "Title of the experiment"))
+                         .arg(arg!(-d --description [d] "Descritpion of the experiment"))
             ,
-            SubCommand::with_name("seed").about("Generates seeds to ./corpus"),
-            SubCommand::with_name("plot")
+            Command::new("seed").about("Generates seeds to ./corpus"),
+            Command::new("plot")
                 .about("Plots a trace stored in a file")
-                .args_from_usage("<input> 'The file which stores a trace'")
-                .args_from_usage("<format> 'The format of the plot, can be svg or pdf'")
-                .args_from_usage("<output_prefix> 'The file to which the trace should be written'")
-                .args_from_usage("--multiple 'Whether we want to output multiple views, additionally to the combined view'")
-                .args_from_usage("--tree 'Whether want to use tree mode in the combined view'"),
-            SubCommand::with_name("execute")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(<format> "The format of the plot, can be svg or pdf"))
+                .arg(arg!(<output_prefix> "The file to which the trace should be written"))
+                .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
+                .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
+            Command::new("execute")
                 .about("Executes a trace stored in a file")
-                .args_from_usage("<input> 'The file which stores a trace'")
+                .arg(arg!(<input> "The file which stores a trace"))
         ])
 }
 
@@ -101,10 +96,10 @@ fn main() {
 
     let matches = create_app().get_matches();
 
-    let core_definition = value_t!(matches, "cores", String).unwrap_or_else(|_| "0".to_string());
-    let port = value_t!(matches, "port", u16).unwrap_or(1337);
-    let static_seed = value_t!(matches, "seed", u64).ok();
-    let max_iters = value_t!(matches, "max-iters", u64).ok();
+    let core_definition = matches.value_of("cores").unwrap_or_else(|| "0");
+    let port: u16 = matches.value_of_t("port").unwrap_or(1337);
+    let static_seed: Option<u64> = matches.value_of_t("seed").ok();
+    let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
     let disk_corpus = matches.is_present("disk-corpus");
     let minimizer = matches.is_present("minimizer");
 
@@ -169,8 +164,8 @@ fn main() {
         trace.execute(&mut ctx).unwrap();
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title = value_t!(matches, "title", String).unwrap();
-            let description = value_t!(matches, "description", String).unwrap();
+            let title = matches.value_of("title").unwrap();
+            let description = matches.value_of("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
             let experiment_path = experiments_root.join(format_title(Some(&title), None));
             if experiment_path.as_path().exists() {

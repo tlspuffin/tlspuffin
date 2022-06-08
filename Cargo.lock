@@ -334,6 +334,7 @@ dependencies = [
  "bitflags",
  "clap_lex",
  "indexmap",
+ "lazy_static",
  "strsim 0.10.0",
  "termcolor",
  "textwrap 0.15.0",

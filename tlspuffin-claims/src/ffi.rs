@@ -160,7 +160,7 @@ impl fmt::Display for ClaimSecret {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let secret = self.secret;
         // print if any byte is set
-        if secret.iter().find(|v| **v != 0).is_some() {
+        if secret.iter().any(|v| *v != 0) {
             write!(f, "{}", hex::encode(&secret))?;
         }
 

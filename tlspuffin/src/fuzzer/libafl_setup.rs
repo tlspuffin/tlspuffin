@@ -174,7 +174,7 @@ macro_rules! new_run_client {
 
 /// Starts the fuzzing loop
 pub fn start(
-    core_definition: String,
+    core_definition: &str,
     monitor_file: PathBuf,
     on_disk_corpus: Option<PathBuf>,
     corpus_dir: PathBuf,
@@ -197,7 +197,7 @@ pub fn start(
     )
     .unwrap();
 
-    let cores = Cores::from_cmdline(core_definition.as_str()).unwrap(); // possibly replace by parse_core_bind_arg
+    let cores = Cores::from_cmdline(core_definition).unwrap(); // possibly replace by parse_core_bind_arg
     let config: EventConfig = "launcher default".into();
 
     if let Err(error) = if minimizer {

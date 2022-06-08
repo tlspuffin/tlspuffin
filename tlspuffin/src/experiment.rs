@@ -9,12 +9,14 @@ use chrono::Local;
 
 use crate::openssl_binding;
 
-pub fn format_title(title: Option<&String>, index: Option<usize>) -> String {
+pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");
     format!(
         "{date}-{title}-{index}",
         date = date,
-        title = title.cloned().unwrap_or_else(|| get_git_ref().unwrap()),
+        title = title
+            .map(|title| title.to_string())
+            .unwrap_or_else(|| get_git_ref().unwrap()),
         index = index.unwrap_or(0)
     )
 }

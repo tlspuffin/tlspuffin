@@ -158,14 +158,18 @@ impl PUT for OpenSSL {
 
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
-        register_claimer(self.stream.ssl().as_ptr().cast(), move |claim: Claim| {
-            (*claimer).borrow_mut().claim(agent_name, claim)
-        });
+        unsafe {
+            register_claimer(self.stream.ssl().as_ptr().cast(), move |claim: Claim| {
+                (*claimer).borrow_mut().claim(agent_name, claim)
+            });
+        }
     }
 
     fn deregister_claimer(&mut self) {
         #[cfg(feature = "claims")]
-        deregister_claimer(self.stream.ssl().as_ptr().cast());
+        unsafe {
+            deregister_claimer(self.stream.ssl().as_ptr().cast());
+        }
     }
 
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
