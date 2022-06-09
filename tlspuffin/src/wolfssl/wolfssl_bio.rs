@@ -10,22 +10,11 @@ use std::{
 };
 
 use libc::{c_char, c_int, c_long, c_void, strlen};
-use openssl::{
-    asn1::Asn1Time,
-    bn::{BigNum, MsbOption},
-    error::ErrorStack,
-    hash::MessageDigest,
-    pkey::{PKey, PKeyRef, Private},
-    ssl::{SslContextBuilder, SslVersion},
-    version::version,
-    x509::{
-        extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
-        X509NameBuilder, X509Ref, X509,
-    },
-};
 use wolfssl_sys as wolf;
 
 use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
+
+use super::error::ErrorStack;
 
 /* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions
 from OpenSSL to WolfSSL but the internal calling conventions might differ so we may need to rework

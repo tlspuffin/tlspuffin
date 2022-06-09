@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    ffi::CStr,
     io::{Read, Write},
     rc::Rc,
 };
@@ -15,6 +16,9 @@ use crate::{
     trace::VecClaimer,
 };
 
+use self::wolfssl_binding::wolfssl_version;
+
+mod error;
 mod wolfssl_binding;
 mod wolfssl_bio;
 
@@ -80,7 +84,8 @@ impl Put for WolfSSL {
     }
 
     fn progress(&mut self) -> Result<(), Error> {
-        wolfssl_binding::do_handshake(&mut self.stream)
+        wolfssl_binding::do_handshake(&mut self.stream)?;
+        Ok(())
     }
 
     fn reset(&mut self) -> Result<(), Error> {
@@ -104,13 +109,11 @@ impl Put for WolfSSL {
         }
     }
 
-    unsafe fn change_agent_name(
-        &mut self,
-        claimer: Rc<RefCell<VecClaimer>>,
-        agent_name: AgentName,
-    ) {
-        WolfSSL::deregister_claimer(self);
-        WolfSSL::register_claimer(self, claimer, agent_name)
+    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+        unsafe {
+            WolfSSL::deregister_claimer(self);
+            WolfSSL::register_claimer(self, claimer, agent_name)
+        }
     }
 
     fn describe_state(&self) -> &'static str {
@@ -122,11 +125,11 @@ impl Put for WolfSSL {
         self.stream.state_string_long()
     }
 
-    fn version(&self) -> &'static str {
-        self.stream.version()
+    fn version() -> &'static str {
+        unsafe { wolfssl_version() }
     }
 
-    fn make_deterministic(&self) -> () {
+    fn make_deterministic() -> () {
         () // TODO
     }
 }

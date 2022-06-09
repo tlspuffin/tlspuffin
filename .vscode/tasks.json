@@ -4,12 +4,32 @@
 		{
 			"type": "cargo",
 			"command": "build",
-			"args": ["--features", "openssl111"],
+			"args": ["--bin", "tlspuffin", "--features", "openssl111"],
 			"problemMatcher": [
 				"$rustc"
 			],
 			"group": "build",
-			"label": "rust: cargo build"
+			"label": "build openssl111"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": ["--bin", "tlspuffin", "--features", "libressl"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "build libressl"
+		},
+		{
+			"type": "cargo",
+			"command": "build",
+			"args": ["--bin", "tlspuffin", "--features", "wolfssl520"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			"label": "build wolfssl520"
 		},
 		{
 			"type": "cargo",

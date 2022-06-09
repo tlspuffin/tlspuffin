@@ -12,17 +12,14 @@ openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
-    "openssl",
     "openssl-binding"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl",
     "openssl-binding"
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl",
     "openssl-binding"
 ]
 # Some LibreSSL version
@@ -30,12 +27,10 @@ libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
     "claims",
-    "openssl",
     "openssl-binding"
 ]
 
 wolfssl520 = [
-    "wolfssl-sys",
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding"
@@ -49,9 +44,9 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = ["openssl/asan"]
 
 # WolfSSL bindings are used
-wolfssl-binding = []
+wolfssl-binding = ["wolfssl-sys"]
 # OpenSSL bindings are used
-openssl-binding = ["foreign-types-shared"]
+openssl-binding = ["openssl", "foreign-types-shared"]
 
 # PUT supports TLS 1.3
 tls13 = []
