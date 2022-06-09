@@ -11,10 +11,10 @@
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use tlspuffin::concretize::OPENSSL111;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! use tlspuffin::concretize::PUTType;
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -27,8 +27,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, PUTType::OpenSSL),
-//!         AgentDescriptor::new_server(server, V1_3, PUTType::OpenSSL),
+//!         AgentDescriptor::new_client(client, V1_3, OPENSSL111),
+//!         AgentDescriptor::new_server(server, V1_3, OPENSSL111),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },

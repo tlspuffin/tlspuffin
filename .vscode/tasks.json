@@ -4,11 +4,22 @@
 		{
 			"type": "cargo",
 			"command": "build",
+			"args": ["--features", "openssl111"],
 			"problemMatcher": [
 				"$rustc"
 			],
 			"group": "build",
 			"label": "rust: cargo build"
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"args": ["--features", "openssl111"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "test",
+			"label": "rust: cargo test"
 		}
 	]
 }
