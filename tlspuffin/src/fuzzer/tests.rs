@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::agent::AgentName;
 use crate::concretize::{OPENSSL111, PUT_REGISTRY};
+use crate::fuzzer::libafl_setup::no_feedback;
 use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
 use crate::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
@@ -19,6 +20,19 @@ use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
 
+fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
+    let rand = StdRand::with_seed(1235);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    StdState::new(
+        rand,
+        corpus,
+        InMemoryCorpus::new(),
+        &mut no_feedback(),
+        &mut no_feedback(),
+    )
+    .unwrap()
+}
+
 #[cfg(all(feature = "deterministic", feature = "openssl-binding"))]
 #[test]
 fn test_openssl_no_randomness() {
@@ -34,7 +48,7 @@ fn test_openssl_no_randomness() {
 fn test_repeat_mutator() {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let mut state = create_state();
     let server = AgentName::first();
     let _trace = seed_client_attacker12(server, OPENSSL111);
 
@@ -68,11 +82,8 @@ fn test_repeat_mutator() {
 
 #[test]
 fn test_replace_match_mutator() {
-    let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
     let server = AgentName::first();
-
+    let mut state = create_state();
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
@@ -100,9 +111,8 @@ fn test_replace_match_mutator() {
 #[test]
 fn test_remove_lift_mutator() {
     // Should remove an extension
-    let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let mut state = create_state();
+    state = create_state();
     let server = AgentName::first();
     let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
 
@@ -128,9 +138,7 @@ fn test_remove_lift_mutator() {
 
 #[test]
 fn test_replace_reuse_mutator() {
-    let rand = StdRand::with_seed(45);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let mut state = create_state();
     let server = AgentName::first();
     let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
 
@@ -159,9 +167,7 @@ fn test_replace_reuse_mutator() {
 
 #[test]
 fn test_skip_mutator() {
-    let rand = StdRand::with_seed(45);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let mut state = create_state();
     let server = AgentName::first();
     let mut mutator = SkipMutator::new(2);
 
@@ -178,9 +184,7 @@ fn test_skip_mutator() {
 
 #[test]
 fn test_swap_mutator() {
-    let rand = StdRand::with_seed(45);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+    let mut state = create_state();
     let server = AgentName::first();
     let mut mutator = SwapMutator::new(TermConstraints::default());
 

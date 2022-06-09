@@ -1,9 +1,14 @@
 use std::any::Any;
+use std::fmt;
 
 use criterion::{criterion_group, criterion_main, Criterion};
+use libafl::bolts::rands::RomuDuoJrRand;
 use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
+use libafl::feedbacks::Feedback;
 use libafl::mutators::Mutator;
+use libafl::state::HasClientPerfMonitor;
+use libafl::state::HasExecutions;
 use libafl::state::StdState;
 
 use tlspuffin::agent::AgentName;
@@ -40,13 +45,17 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.finish()
 }
 
+fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
+    let rand = StdRand::with_seed(1235);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
 fn benchmark_mutations(c: &mut Criterion) {
     let mut group = c.benchmark_group("mutations");
 
     group.bench_function("ReplaceReuseMutator", |b| {
-        let rand = StdRand::with_seed(45);
-        let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-        let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+        let mut state = create_state();
         let client = AgentName::first();
         let mut mutator = ReplaceReuseMutator::new(TermConstraints {
             min_term_size: 0,

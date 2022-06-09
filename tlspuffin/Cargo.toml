@@ -76,7 +76,7 @@ webpki-roots = "0.22.3"
 ring = { version = "0.16.20", features = ["std"] }
 
 # LibAFL
-libafl = { version = "0.7.1", features = [] }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "2e746bf439629e4fe8fa47cf9f39acd1395c828f", features = ["tui_monitor"] }
 libafl_derive = "0.7.1"
 libafl_targets = "0.7.1"
 

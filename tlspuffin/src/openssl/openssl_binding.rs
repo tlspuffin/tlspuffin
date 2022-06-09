@@ -181,7 +181,7 @@ pub fn log_ssl_error(error: &openssl::ssl::Error) -> Result<(), Error> {
     if let Some(ssl_error) = error.ssl_error() {
         // OpenSSL threw an error, that means that there should be an Alert message in the
         // outbound channel
-        Err(Error::OpenSSL(ssl_error.clone()))
+        Err(Error::OpenSSL(ssl_error.to_string()))
     } else {
         Ok(())
     }

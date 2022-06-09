@@ -8,33 +8,29 @@ use crate::fuzzer::stats::PuffinMonitor;
 use crate::fuzzer::stats_observer::StatsStage;
 use crate::trace::Trace;
 use core::time::Duration;
-use libafl::bolts::os::Cores;
+use libafl::bolts::core_affinity::Cores;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
-use libafl::corpus::CorpusScheduler;
-use libafl::corpus::RandCorpusScheduler;
 use libafl::events::EventManager;
 use libafl::events::ProgressReporter;
 use libafl::events::{EventFirer, EventRestarter, HasEventManagerId, LlmpRestartingEventManager};
 use libafl::executors::{Executor, ExitKind};
-use libafl::feedbacks::FeedbackStatesTuple;
 use libafl::feedbacks::{
     CombinedFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback, MaxReducer,
 };
+use libafl::monitors::tui::TuiMonitor;
 use libafl::observers::ObserversTuple;
+use libafl::schedulers::{RandScheduler, Scheduler};
 use libafl::state::{
-    HasClientPerfMonitor, HasExecutions, HasFeedbackStates, HasMaxSize, HasMetadata, HasRand,
+    HasClientPerfMonitor, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata, HasRand,
     HasSolutions, State,
 };
 use libafl::Evaluator;
 use libafl::{
     bolts::{rands::StdRand, tuples::tuple_list},
-    corpus::{
-        Corpus, InMemoryCorpus, IndexesLenTimeMinimizerCorpusScheduler, OnDiskCorpus,
-        QueueCorpusScheduler,
-    },
+    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
     executors::{inprocess::InProcessExecutor, TimeoutExecutor},
     feedback_or,
-    feedbacks::{CrashFeedback, MapFeedbackState, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
     state::{HasCorpus, StdState},
@@ -60,14 +56,12 @@ pub static MIN_TERM_SIZE: usize = 0;
 pub static MAX_TERM_SIZE: usize = 300;
 
 pub fn no_minimizer_feedback<'a, S: 'a>(
-    edges_feedback_state: &'a MapFeedbackState<u8>,
     edges_observer: &'a HitcountsMapObserver<StdMapObserver<u8>>,
 ) -> impl Feedback<Trace, S> + 'a
 where
-    S: HasExecutions + HasClientPerfMonitor + HasFeedbackStates + fmt::Debug,
+    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
     feedback_or!(MaxMapFeedback::new_tracking(
-        edges_feedback_state,
         edges_observer,
         false, // [TODO] [LH] Why are track_index and track_novelties are false?
         false
@@ -76,23 +70,22 @@ where
 
 pub fn no_feedback<'a, S: 'a>() -> impl Feedback<Trace, S> + 'a
 where
-    S: HasExecutions + HasClientPerfMonitor + HasFeedbackStates + fmt::Debug,
+    S: HasExecutions + HasClientPerfMonitor + fmt::Debug,
 {
     ()
 }
 
 pub fn minimizer_feedback<'a, S: 'a>(
-    edges_feedback_state: &'a MapFeedbackState<u8>,
     time_observer: &'a TimeObserver,
     edges_observer: &'a HitcountsMapObserver<StdMapObserver<u8>>,
 ) -> impl Feedback<Trace, S> + 'a
 where
-    S: HasExecutions + HasClientPerfMonitor + HasFeedbackStates + fmt::Debug,
+    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
     feedback_or!(
         // New maximization map feedback linked to the edges observer and the feedback state
         // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-        MaxMapFeedback::new_tracking(edges_feedback_state, edges_observer, true, false),
+        MaxMapFeedback::new_tracking(edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
         // needed for IndexesLenTimeMinimizerCorpusScheduler
         TimeFeedback::new_with_observer(time_observer)
@@ -101,45 +94,49 @@ where
 
 type Harness = fn(&Trace) -> ExitKind;
 
-type ExecutorType<'a, H, S> = TimeoutExecutor<
-    InProcessExecutor<
-        'a,
-        H,
-        Trace,
-        (
-            HitcountsMapObserver<StdMapObserver<'a, u8>>,
-            (TimeObserver, ()),
-        ),
-        S,
-    >,
->;
+type ObserversType<'a> = (
+    HitcountsMapObserver<StdMapObserver<'a, u8>>,
+    (TimeObserver, ()),
+);
 
-pub fn run_client<'a, H, S, EM, F, OF, OT, CS>(
+type ExecutorType<'a, H, S> =
+    TimeoutExecutor<InProcessExecutor<'a, H, Trace, ObserversType<'a>, S>>;
+
+pub fn run_client<'a, H, S, EM, F, OF, CS>(
+    edges_observer: HitcountsMapObserver<StdMapObserver<'a, u8>>,
     harness_fn: &'a mut H,
     static_seed: Option<u64>,
     max_iters: Option<u64>,
     state: Option<S>,
     scheduler: CS,
-    new_state: impl FnOnce((MapFeedbackState<u8>, ())) -> S,
+    new_state: impl FnOnce(&mut F, &mut OF) -> S,
     sender_id: u32,
+    init_state: impl FnOnce(
+        &mut S,
+        &mut StdFuzzer<CS, F, Trace, OF, ObserversType<'a>, S>,
+        &mut ExecutorType<'a, H, S>,
+        &mut EM,
+    ),
     mut event_manager: EM,
-    feedback: F,
-    objective: OF,
+    mut feedback: F,
+    mut objective: OF,
 ) -> Result<(), Error>
 where
     H: FnMut(&Trace) -> ExitKind,
     OF: Feedback<Trace, S>,
     F: Feedback<Trace, S>,
-    OT: ObserversTuple<Trace, S> + serde::Serialize + serde::de::DeserializeOwned,
-    CS: CorpusScheduler<Trace, S>,
+    CS: Scheduler<Trace, S>,
     EM: EventFirer<Trace>
         + EventRestarter<S>
-        + EventManager<ExecutorType<'a, H, S>, Trace, S, StdFuzzer<CS, F, Trace, OF, OT, S>>
-        + ProgressReporter<Trace>,
+        + EventManager<
+            ExecutorType<'a, H, S>,
+            Trace,
+            S,
+            StdFuzzer<CS, F, Trace, OF, ObserversType<'a>, S>,
+        > + ProgressReporter<Trace>,
     //E: Executor<EM, Trace, S, StdFuzzer<CS, F, Trace, OF, OT, S>>,
     S: HasExecutions
         + HasClientPerfMonitor
-        + HasFeedbackStates
         + HasSolutions<Trace>
         + fmt::Debug
         + HasMetadata
@@ -147,13 +144,13 @@ where
         + HasCorpus<Trace>
         + HasMaxSize,
 {
-    let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
+    /*let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
         &mut EDGES_MAP[0..MAX_EDGES_NUM]
-    }));
+    }));*/
 
     let time_observer = TimeObserver::new("time");
 
-    let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
+    //let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
 
     // A feedback to choose if an input is a solution or not
     /*    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());*/
@@ -166,7 +163,7 @@ where
     let mut state: S = state.unwrap_or_else(|| {
         let seed = static_seed.unwrap_or(sender_id as u64);
         info!("Seed is {}", seed);
-        let state: S = new_state(tuple_list!(edges_feedback_state));
+        let state: S = new_state(&mut feedback, &mut objective);
         state
     });
 
@@ -181,9 +178,8 @@ where
     );
     let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
     let mut stages = tuple_list!(
-        /*PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
-
-        StatsStage::new()*/
+        PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
+        //StatsStage::new()
     );
 
     // A minimization+queue policy to get testcasess from the corpus
@@ -192,10 +188,10 @@ where
     #[cfg(feature = "no-minimizer")]
     let scheduler = RandCorpusScheduler::new();*/
 
-    let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, S> =
+    let mut fuzzer: StdFuzzer<CS, F, Trace, OF, ObserversType, S> =
         StdFuzzer::new(scheduler, feedback, objective);
 
-    let mut executor = TimeoutExecutor::new(
+    let mut executor: ExecutorType<'a, H, S> = TimeoutExecutor::new(
         InProcessExecutor::new(
             harness_fn,
             // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
@@ -207,23 +203,7 @@ where
         Duration::new(2, 0),
     );
 
-    // In case the corpus is empty (on first run), reset
-    /*    if state.corpus().count() < 1 {
-        state
-            .load_initial_inputs(
-                &mut fuzzer,
-                &mut executor,
-                &mut restarting_mgr,
-                &[initial_corpus_dir.clone()],
-            )
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Failed to load initial corpus at {:?}: {}",
-                    &initial_corpus_dir, err
-                )
-            });
-        println!("We imported {} inputs from disk.", state.corpus().count());
-    }*/
+    init_state(&mut state, &mut fuzzer, &mut executor, &mut event_manager);
 
     if let Some(max_iters) = max_iters {
         fuzzer.fuzz_loop_for(
@@ -264,34 +244,68 @@ pub fn start(
         monitor_file,
     )
     .unwrap();
-    let path_buf = on_disk_corpus.unwrap();
+
+    let monitor = TuiMonitor::new("test".to_string(), false);
+
+    //let path_buf = on_disk_corpus.unwrap();
     let mut run_client =
-        |state: Option<StdState<_, _, _, _, _>>,
+        |state: Option<StdState<_, _, _, _>>,
          mut restarting_mgr: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
             info!("We're a client, let's fuzz :)");
 
+            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
+                &mut EDGES_MAP[0..MAX_EDGES_NUM]
+            }));
+
+            let feedback = feedback_or!(MaxMapFeedback::new_tracking(
+                &edges_observer,
+                false, // [TODO] [LH] Why are track_index and track_novelties are false?
+                false
+            ));
+
             run_client(
+                edges_observer,
                 &mut harness::harness,
                 static_seed,
                 max_iters,
                 state,
-                RandCorpusScheduler::new(),
-                |feedback_states| {
+                RandScheduler::new(),
+                |feedback, objective| {
                     StdState::new(
                         StdRand::with_seed(0),
-                        OnDiskCorpus::new(path_buf.clone()).unwrap(),
-                        //InMemoryCorpus::new(),
+                        //OnDiskCorpus::new(path_buf.clone()).unwrap(),
+                        InMemoryCorpus::new(),
                         OnDiskCorpus::new(objective_dir.clone()).unwrap(),
-                        // They are the data related to the feedbacks that you want to persist in the State.
-                        feedback_states,
+                        feedback,
+                        objective,
                     )
+                    .unwrap()
                 },
                 0,
+                |state, fuzzer, executor, restarting_mgr| {
+                    // In case the corpus is empty (on first run), reset
+                    if state.corpus().count() < 1 {
+                        state
+                            .load_initial_inputs(
+                                fuzzer,
+                                executor,
+                                restarting_mgr,
+                                &[initial_corpus_dir.clone()],
+                            )
+                            .unwrap_or_else(|err| {
+                                panic!(
+                                    "Failed to load initial corpus at {:?}: {}",
+                                    &initial_corpus_dir, err
+                                )
+                            });
+                        println!("We imported {} inputs from disk.", state.corpus().count());
+                    }
+                },
                 restarting_mgr,
-                no_feedback(),
-                no_feedback(),
+                feedback,
+                feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
             )?;
 
             Ok(())

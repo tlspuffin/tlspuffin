@@ -1,3 +1,5 @@
 {
+    "editor.formatOnSave": true,
+    "files.autoSave": "onFocusChange",
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
 }

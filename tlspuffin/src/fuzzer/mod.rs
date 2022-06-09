@@ -62,3 +62,9 @@ impl HasLen for Trace {
         self.steps.len()
     }
 }
+
+impl std::hash::Hash for Trace {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        todo!()
+    }
+}
