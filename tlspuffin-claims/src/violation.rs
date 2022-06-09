@@ -1,8 +1,8 @@
-use crate::{Claim, ClaimCipher, ClaimType};
+use std::{any::Any, fmt::Debug, hash::Hash};
+
 use itertools::Itertools;
-use std::any::Any;
-use std::fmt::Debug;
-use std::hash::Hash;
+
+use crate::{Claim, ClaimCipher, ClaimType};
 
 // Will be instantiated with (AgentName,Claim)
 pub type ClaimMessage<AgentName> = (AgentName, Claim);

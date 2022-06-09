@@ -1,13 +1,16 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::{
+    marker::PhantomData,
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 
-use libafl::events::{Event, EventFirer};
-use libafl::inputs::Input;
-use libafl::monitors::UserStats;
-use libafl::state::{HasCorpus, HasRand};
-use libafl::{Error, Evaluator};
-
-use libafl::stages::Stage;
-use std::marker::PhantomData;
+use libafl::{
+    events::{Event, EventFirer},
+    inputs::Input,
+    monitors::UserStats,
+    stages::Stage,
+    state::{HasCorpus, HasRand},
+    Error, Evaluator,
+};
 
 pub enum RuntimeStats {
     FnError(&'static Counter),

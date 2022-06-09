@@ -1,27 +1,24 @@
 use std::any::Any;
 
-
 use criterion::{criterion_group, criterion_main, Criterion};
-use libafl::bolts::rands::RomuDuoJrRand;
-use libafl::bolts::rands::StdRand;
-use libafl::corpus::InMemoryCorpus;
-
-use libafl::mutators::Mutator;
-
-
-use libafl::state::StdState;
-
-use tlspuffin::agent::AgentName;
-use tlspuffin::concretize::OPENSSL111;
-use tlspuffin::fuzzer::mutations::util::TermConstraints;
-use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
-use tlspuffin::fuzzer::seeds::*;
-use tlspuffin::term;
-use tlspuffin::term::dynamic_function::make_dynamic;
-use tlspuffin::tls::error::FnError;
-use tlspuffin::tls::fn_impl::*;
-use tlspuffin::trace::Trace;
-use tlspuffin::trace::TraceContext;
+use libafl::{
+    bolts::rands::{RomuDuoJrRand, StdRand},
+    corpus::InMemoryCorpus,
+    mutators::Mutator,
+    state::StdState,
+};
+use tlspuffin::{
+    agent::AgentName,
+    concretize::OPENSSL111,
+    fuzzer::{
+        mutations::{util::TermConstraints, ReplaceReuseMutator},
+        seeds::*,
+    },
+    term,
+    term::dynamic_function::make_dynamic,
+    tls::{error::FnError, fn_impl::*},
+    trace::{Trace, TraceContext},
+};
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)

@@ -1,17 +1,18 @@
-use itertools::Itertools;
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
-use crate::term::{
-    atoms::Variable,
-    dynamic_function::{
-        make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
-    },
-};
+use itertools::Itertools;
 
 use super::atoms::Function;
-use crate::agent::AgentName;
-use crate::trace::{Query, TlsMessageType};
+use crate::{
+    agent::AgentName,
+    term::{
+        atoms::Variable,
+        dynamic_function::{
+            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+        },
+    },
+    trace::{Query, TlsMessageType},
+};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 

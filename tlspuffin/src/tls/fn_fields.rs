@@ -1,15 +1,15 @@
-use rustls::hash_hs::HandshakeHash;
-use rustls::msgs::codec::Codec;
-use rustls::msgs::codec::Reader;
-use rustls::msgs::enums::{Compression, ExtensionType, NamedGroup};
-use rustls::msgs::handshake::{
-    HasServerExtensions, Random, ServerECDHParams, ServerExtension, SessionID,
+use rustls::{
+    hash_hs::HandshakeHash,
+    msgs::{
+        codec::{Codec, Reader},
+        enums::{Compression, ExtensionType, NamedGroup},
+        handshake::{HasServerExtensions, Random, ServerECDHParams, ServerExtension, SessionID},
+    },
+    CipherSuite, NoKeyLog, ProtocolVersion,
 };
-use rustls::{CipherSuite, NoKeyLog, ProtocolVersion};
 
 use super::error::FnError;
-use crate::tls::key_exchange::tls12_new_secrets;
-use crate::tls::key_schedule::dhe_key_schedule;
+use crate::tls::{key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)

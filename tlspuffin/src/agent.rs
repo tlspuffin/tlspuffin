@@ -4,14 +4,16 @@
 //!
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
-use crate::error::Error;
 use core::fmt;
+use std::{cell::RefCell, rc::Rc};
+
 use serde::{Deserialize, Serialize};
 
-use crate::concretize::{Config, Put, PUT_REGISTRY};
-use crate::trace::VecClaimer;
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::{
+    concretize::{Config, Put, PUT_REGISTRY},
+    error::Error,
+    trace::VecClaimer,
+};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]

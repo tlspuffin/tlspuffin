@@ -1,12 +1,8 @@
-use std::fmt::Display;
-use std::fs::File;
-use std::io;
-use std::io::Write;
-use std::path::Path;
-use std::process::Command;
+use std::{fmt::Display, fs::File, io, io::Write, path::Path, process::Command};
+
+use chrono::Local;
 
 use crate::concretize::PUT_REGISTRY;
-use chrono::Local;
 
 pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");

@@ -1,9 +1,8 @@
-use crate::agent::AgentName;
-use crate::tls::error::FnError;
+use std::{fmt, fmt::Formatter, io};
+
 use rustls::msgs::enums::ContentType;
 
-use std::fmt::Formatter;
-use std::{fmt, io};
+use crate::{agent::AgentName, tls::error::FnError};
 
 // #[derive(Debug, Clone, Serialize)] Serialization not used right now
 #[derive(Debug, Clone)]

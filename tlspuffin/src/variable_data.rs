@@ -1,19 +1,22 @@
 //! Definition of the VariableData trait. A VariableData can contain any data which has a `'static`
 //! type. This is true for [`rustls::msgs::message::Message`] for example.
 
-use std::any::{Any, TypeId};
-use std::fmt::Debug;
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+};
 
-use crate::error::Error;
-use rustls::msgs::handshake::ServerKeyExchangePayload;
 use rustls::{
     internal::msgs::{
         enums::Compression,
         handshake::{ClientExtension, HandshakePayload, ServerExtension},
         message::{Message, MessagePayload},
     },
+    msgs::handshake::ServerKeyExchangePayload,
     CipherSuite,
 };
+
+use crate::error::Error;
 
 pub trait VariableData: Debug {
     fn clone_box(&self) -> Box<dyn VariableData>;

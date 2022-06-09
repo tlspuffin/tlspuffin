@@ -3,16 +3,14 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use crate::agent::{AgentName, PutName, TLSVersion};
-use crate::error::Error;
+use std::{cell::RefCell, rc::Rc};
 
-use crate::io::{Stream};
-use crate::trace::VecClaimer;
-
-
-use std::cell::RefCell;
-
-use std::rc::Rc;
+use crate::{
+    agent::{AgentName, PutName, TLSVersion},
+    error::Error,
+    io::Stream,
+    trace::VecClaimer,
+};
 
 pub struct PutRegistry<const N: usize>([fn() -> Box<dyn Factory>; N]);
 

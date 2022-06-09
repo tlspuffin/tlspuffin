@@ -1,24 +1,29 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::agent::AgentName;
-use crate::concretize::{OPENSSL111, PUT_REGISTRY};
-use crate::fuzzer::libafl_setup::no_feedback;
-use crate::fuzzer::mutations::util::{TermConstraints, TracePath};
-use crate::fuzzer::mutations::{
-    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
-    SwapMutator,
+use libafl::{
+    bolts::rands::{RomuDuoJrRand, StdRand},
+    corpus::InMemoryCorpus,
+    mutators::{MutationResult, Mutator},
+    state::StdState,
 };
-use crate::fuzzer::seeds::*;
-use crate::fuzzer::term_zoo::generate_term_zoo;
-use crate::term::dynamic_function::DescribableFunction;
-use crate::term::Term;
-use crate::tls::fn_impl::*;
-use crate::tls::SIGNATURE;
-use crate::trace::{Action, Step, Trace};
-use libafl::bolts::rands::{RomuDuoJrRand, StdRand};
-use libafl::corpus::InMemoryCorpus;
-use libafl::mutators::{MutationResult, Mutator};
-use libafl::state::StdState;
+
+use crate::{
+    agent::AgentName,
+    concretize::{OPENSSL111, PUT_REGISTRY},
+    fuzzer::{
+        libafl_setup::no_feedback,
+        mutations::{
+            util::{TermConstraints, TracePath},
+            RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+            SkipMutator, SwapMutator,
+        },
+        seeds::*,
+        term_zoo::generate_term_zoo,
+    },
+    term::{dynamic_function::DescribableFunction, Term},
+    tls::{fn_impl::*, SIGNATURE},
+    trace::{Action, Step, Trace},
+};
 
 fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
     let rand = StdRand::with_seed(1235);
@@ -366,12 +371,14 @@ fn test_corpus_term_size() {
 }
 
 mod util {
-    use crate::agent::{AgentDescriptor, AgentName, PutName, TLSVersion};
-    use crate::graphviz::write_graphviz;
-    use crate::term;
-    use crate::term::Term;
-    use crate::tls::fn_impl::*;
-    use crate::trace::{Action, InputAction, Step, Trace};
+    use crate::{
+        agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+        graphviz::write_graphviz,
+        term,
+        term::Term,
+        tls::fn_impl::*,
+        trace::{Action, InputAction, Step, Trace},
+    };
 
     pub fn setup_simple_trace(put_name: PutName) -> (Term, Trace) {
         let server = AgentName::first();

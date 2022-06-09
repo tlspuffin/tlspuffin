@@ -66,39 +66,29 @@
 //!
 
 use core::fmt;
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::ops::Deref;
-use std::rc::Rc;
-use std::{any::TypeId, fmt::Formatter};
+use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
 
-use rustls::msgs::message::OpaqueMessage;
-use rustls::msgs::message::{Message, PlainMessage};
-use rustls::msgs::{
-    enums::{ContentType, HandshakeType},
-    message::MessagePayload,
-};
-use security_claims::{Claim, ClaimType};
-use serde::{Deserialize, Serialize};
-
-use crate::agent::AgentDescriptor;
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
-#[allow(unused)] // used in docs
-use crate::io::Channel;
-use crate::io::{MessageResult, Stream};
-use crate::term::remove_prefix;
-use crate::tls::error::FnError;
-use crate::{
-    agent::{Agent, AgentName},
-    term::{dynamic_function::TypeShape, Term},
-    variable_data::{extract_knowledge, VariableData},
-};
-use security_claims::violation::is_violation;
-
-use crate::concretize::Put;
 use itertools::Itertools;
 use log::trace;
+use rustls::msgs::{
+    enums::{ContentType, HandshakeType},
+    message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+};
+use security_claims::{violation::is_violation, Claim, ClaimType};
+use serde::{Deserialize, Serialize};
+
+#[allow(unused)] // used in docs
+use crate::io::Channel;
+use crate::{
+    agent::{Agent, AgentDescriptor, AgentName},
+    concretize::Put,
+    debug::{debug_message_with_info, debug_opaque_message_with_info},
+    error::Error,
+    io::{MessageResult, Stream},
+    term::{dynamic_function::TypeShape, remove_prefix, Term},
+    tls::error::FnError,
+    variable_data::{extract_knowledge, VariableData},
+};
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].

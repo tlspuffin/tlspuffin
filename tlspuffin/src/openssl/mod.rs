@@ -1,17 +1,18 @@
-use crate::agent::{AgentName, PutName};
-use crate::concretize::{Config, Factory, Put, OPENSSL111};
-use crate::error::Error;
-use crate::io::{MemoryStream, MessageResult, Stream};
-use crate::openssl::openssl_binding::openssl_version;
-use crate::openssl::static_keys::static_rsa_cert;
-use crate::trace::VecClaimer;
+use std::{cell::RefCell, io, rc::Rc};
+
 use foreign_types_shared::ForeignTypeRef;
 use openssl::error::ErrorStack;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer};
-use std::cell::RefCell;
-use std::io;
-use std::rc::Rc;
+
+use crate::{
+    agent::{AgentName, PutName},
+    concretize::{Config, Factory, Put, OPENSSL111},
+    error::Error,
+    io::{MemoryStream, MessageResult, Stream},
+    openssl::{openssl_binding::openssl_version, static_keys::static_rsa_cert},
+    trace::VecClaimer,
+};
 
 mod openssl_binding;
 mod static_keys;

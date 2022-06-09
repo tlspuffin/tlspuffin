@@ -1,14 +1,19 @@
-use crate::agent::AgentName;
-use crate::concretize::{Config, Put};
-use crate::error::Error;
-use crate::io::{MemoryStream, MessageResult, Stream};
-use crate::trace::VecClaimer;
+use std::{
+    cell::RefCell,
+    io::{Read, Write},
+    rc::Rc,
+};
+
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::Claim;
-use security_claims::{deregister_claimer, register_claimer};
-use std::cell::RefCell;
-use std::io::{Read, Write};
-use std::rc::Rc;
+use security_claims::{deregister_claimer, register_claimer, Claim};
+
+use crate::{
+    agent::AgentName,
+    concretize::{Config, Put},
+    error::Error,
+    io::{MemoryStream, MessageResult, Stream},
+    trace::VecClaimer,
+};
 
 mod wolfssl_binding;
 mod wolfssl_bio;

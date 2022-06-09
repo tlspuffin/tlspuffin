@@ -1,30 +1,31 @@
-use crate::agent::TLSVersion;
-use crate::error::Error;
-use crate::io::MemoryStream;
+use std::{
+    any::Any,
+    ffi::CString,
+    io,
+    io::{ErrorKind, Read, Write},
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    panic::{catch_unwind, AssertUnwindSafe},
+    ptr, slice,
+};
+
 use libc::{c_char, c_int, c_long, c_void, strlen};
-use openssl::error::ErrorStack;
-use openssl::ssl::{SslContextBuilder, SslVersion};
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
+    error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, PKeyRef, Private},
+    ssl::{SslContextBuilder, SslVersion},
     version::version,
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509Ref, X509,
     },
 };
-use std::any::Any;
-use std::ffi::CString;
-use std::io;
-use std::io::{ErrorKind, Read, Write};
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::ptr;
-use std::slice;
 use wolfssl_sys as wolf;
+
+use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
 
 /* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions
 from OpenSSL to WolfSSL but the internal calling conventions might differ so we may need to rework

@@ -1,18 +1,19 @@
 //! Stats to disply both cumulative and per-client stats
 
 use core::{time, time::Duration};
+use std::{
+    fs::{File, OpenOptions},
+    io,
+    io::BufWriter,
+    path::PathBuf,
+    time::SystemTime,
+};
 
-use std::fs::{File, OpenOptions};
-use std::io;
-use std::io::BufWriter;
-use std::path::PathBuf;
-use std::time::SystemTime;
-
-use libafl::monitors::{Monitor, PerfFeature, UserStats};
-use libafl::{bolts::current_time, monitors::ClientStats};
-
+use libafl::{
+    bolts::current_time,
+    monitors::{ClientStats, Monitor, PerfFeature, UserStats},
+};
 use serde::Serialize;
-
 use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::stats_observer::{RuntimeStats, STATS};

@@ -1,23 +1,21 @@
-use crate::agent::TLSVersion;
-use crate::error::Error;
-use crate::io::MemoryStream;
+use std::{io::ErrorKind, os::raw::c_int};
+
 use log::warn;
-use openssl::error::ErrorStack;
-use openssl::ssl::{SslContextBuilder, SslVersion};
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
+    error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream},
+    ssl::{Ssl, SslContext, SslContextBuilder, SslMethod, SslOptions, SslStream, SslVersion},
     version::version,
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509Ref, X509,
     },
 };
-use std::io::ErrorKind;
-use std::os::raw::c_int;
+
+use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
 
 /*
    Change openssl version:

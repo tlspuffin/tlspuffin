@@ -1,15 +1,23 @@
 #[cfg(test)]
 pub mod seeds {
-    use nix::sys::signal::Signal;
-    use nix::sys::wait::WaitStatus::{Exited, Signaled};
-    use nix::sys::wait::{waitpid, WaitPidFlag};
-    use nix::unistd::{fork, ForkResult};
+    use nix::{
+        sys::{
+            signal::Signal,
+            wait::{
+                waitpid, WaitPidFlag,
+                WaitStatus::{Exited, Signaled},
+            },
+        },
+        unistd::{fork, ForkResult},
+    };
     use test_log::test;
 
-    use crate::agent::AgentName;
-    use crate::concretize::{OPENSSL111, PUT_REGISTRY};
-    use crate::trace::Action;
-    use crate::{fuzzer::seeds::*, trace::TraceContext};
+    use crate::{
+        agent::AgentName,
+        concretize::{OPENSSL111, PUT_REGISTRY},
+        fuzzer::seeds::*,
+        trace::{Action, TraceContext},
+    };
 
     fn expect_crash<R>(mut func: R)
     where
@@ -319,11 +327,10 @@ pub mod seeds {
 pub mod serialization {
     use test_log::test;
 
-    use crate::agent::AgentName;
-    use crate::concretize::OPENSSL111;
-    use crate::fuzzer::seeds::*;
     use crate::{
-        fuzzer::seeds::seed_successful,
+        agent::AgentName,
+        concretize::OPENSSL111,
+        fuzzer::seeds::{seed_successful, *},
         trace::{Trace, TraceContext},
     };
 
@@ -431,28 +438,29 @@ pub mod serialization {
 
 #[cfg(test)]
 pub mod rustls {
-    use std::convert::TryFrom;
     use std::{
+        convert::TryFrom,
         io::{stdout, Read, Write},
         net::TcpStream,
         sync::Arc,
     };
 
-    use rustls::internal::msgs::enums::ContentType;
-    use rustls::msgs::base::Payload;
-    use rustls::msgs::codec::Reader;
-    use rustls::msgs::message::{OpaqueMessage, PlainMessage};
     use rustls::{
         self,
         internal::msgs::{
             enums::{
-                HandshakeType,
+                ContentType, HandshakeType,
                 ProtocolVersion::{TLSv1_2, TLSv1_3},
             },
             handshake::{
                 ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
             },
             message::{Message, MessagePayload::Handshake},
+        },
+        msgs::{
+            base::Payload,
+            codec::Reader,
+            message::{OpaqueMessage, PlainMessage},
         },
         ClientConfig, OwnedTrustAnchor, ProtocolVersion, RootCertStore,
     };

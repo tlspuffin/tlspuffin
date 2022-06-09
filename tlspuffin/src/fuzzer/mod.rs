@@ -33,11 +33,12 @@ mod stages;
 mod stats_observer;
 mod term_zoo;
 
-use crate::trace::Trace;
 use libafl::inputs::Input;
 #[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+
+use crate::trace::Trace;
 
 #[cfg(any(test, not(feature = "sancov_libafl")))]
 pub(crate) const EDGES_MAP_SIZE: usize = 65536;

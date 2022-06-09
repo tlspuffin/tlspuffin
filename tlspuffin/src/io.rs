@@ -17,15 +17,17 @@
 //! If Bob is an [`Agent`], which has an underlying *PUTState* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
-use log::error;
-use std::convert::TryFrom;
 use std::{
+    convert::TryFrom,
     io,
     io::{Read, Write},
 };
 
-use rustls::msgs::message::OpaqueMessage;
-use rustls::msgs::{deframer::MessageDeframer, message::Message};
+use log::error;
+use rustls::msgs::{
+    deframer::MessageDeframer,
+    message::{Message, OpaqueMessage},
+};
 
 use crate::error::Error;
 

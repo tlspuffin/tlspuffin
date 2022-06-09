@@ -1,41 +1,42 @@
-use itertools::Itertools;
-use std::any::Any;
-use std::cmp;
-use std::ffi::{CStr, CString};
-use std::io;
-use std::io::{ErrorKind, Read, Write};
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::os::raw::{c_char, c_int, c_void};
-use std::panic;
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::slice;
-use std::str;
+use std::{
+    any::Any,
+    cmp,
+    ffi::{CStr, CString},
+    io,
+    io::{ErrorKind, Read, Write},
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    os::raw::{c_char, c_int, c_void},
+    panic,
+    panic::{catch_unwind, AssertUnwindSafe},
+    slice, str,
+};
 
-use openssl::error::ErrorStack;
-use openssl::ssl::{SslContextBuilder, SslVersion};
+use itertools::Itertools;
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
+    error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, PKeyRef, Private},
+    ssl::{SslContextBuilder, SslVersion},
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509Ref, X509,
     },
 };
-
-use crate::agent::TLSVersion;
-use crate::error::Error;
-use crate::io::MemoryStream;
-use crate::woflssl::wolfssl_binding;
-use crate::woflssl::wolfssl_bio as bio;
 use wolfssl_sys as wolf;
+
+use crate::{
+    agent::TLSVersion,
+    error::Error,
+    io::MemoryStream,
+    woflssl::{wolfssl_binding, wolfssl_bio as bio},
+};
 
 /// WolfSSL library initialization (done only once statically)
 pub fn init(debug: bool) {
-    use std::ptr;
-    use std::sync::Once;
+    use std::{ptr, sync::Once};
 
     // explicitly initialize to work around https://github.com/openssl/openssl/issues/3505
     static INIT: Once = Once::new();

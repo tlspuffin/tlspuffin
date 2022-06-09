@@ -1,15 +1,13 @@
-use std::fmt;
-use std::fmt::Debug;
-use std::marker::PhantomData;
+use std::{fmt, fmt::Debug, marker::PhantomData};
 
-use libafl::bolts::rands::Rand;
-use libafl::inputs::Input;
-use libafl::mutators::{
-    ComposedByMutations, MutationResult, Mutator, MutatorsTuple, ScheduledMutator,
+use libafl::{
+    bolts::rands::Rand,
+    inputs::Input,
+    mutators::{ComposedByMutations, MutationResult, Mutator, MutatorsTuple, ScheduledMutator},
+    stages::{MutationalStage, Stage},
+    state::{HasClientPerfMonitor, HasCorpus, HasRand},
+    Error, Evaluator,
 };
-use libafl::stages::{MutationalStage, Stage};
-use libafl::state::{HasClientPerfMonitor, HasCorpus, HasRand};
-use libafl::{Error, Evaluator};
 
 /// The default mutational stage
 #[derive(Clone, Debug)]

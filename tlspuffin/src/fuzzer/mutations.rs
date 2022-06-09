@@ -1,21 +1,21 @@
-use libafl::bolts::rands::Rand;
-use libafl::state::{HasCorpus, HasMaxSize, HasMetadata, HasRand};
 use libafl::{
-    bolts::tuples::{tuple_list, tuple_list_type},
+    bolts::{
+        rands::Rand,
+        tuples::{tuple_list, tuple_list_type},
+    },
     mutators::MutationResult,
+    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
     Error,
 };
+use util::{Choosable, *};
 
-use util::Choosable;
-use util::*;
-
-use crate::fuzzer::term_zoo::generate_term_zoo;
-use crate::fuzzer::term_zoo::Zoo;
-use crate::mutator;
-use crate::term::atoms::Function;
-use crate::term::{Subterms, Term};
-use crate::tls::SIGNATURE;
-use crate::trace::Trace;
+use crate::{
+    fuzzer::term_zoo::{generate_term_zoo, Zoo},
+    mutator,
+    term::{atoms::Function, Subterms, Term},
+    tls::SIGNATURE,
+    trace::Trace,
+};
 
 pub fn trace_mutations<S>(
     min_trace_length: usize,
@@ -328,8 +328,10 @@ mutator! {
 pub mod util {
     use libafl::bolts::rands::Rand;
 
-    use crate::term::Term;
-    use crate::trace::{Action, Step, Trace};
+    use crate::{
+        term::Term,
+        trace::{Action, Step, Trace},
+    };
 
     #[derive(Copy, Clone)]
     pub struct TermConstraints {

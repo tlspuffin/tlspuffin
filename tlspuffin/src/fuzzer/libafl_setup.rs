@@ -1,44 +1,42 @@
-use super::harness;
-use super::{EDGES_MAP, MAX_EDGES_NUM};
-use crate::concretize::PUT_REGISTRY;
-use crate::fuzzer::mutations::trace_mutations;
-use crate::fuzzer::mutations::util::TermConstraints;
-use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
-use crate::fuzzer::stats::PuffinMonitor;
-
-use crate::trace::Trace;
 use core::time::Duration;
-use libafl::bolts::core_affinity::Cores;
-use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
-use libafl::events::EventManager;
-use libafl::events::ProgressReporter;
-use libafl::events::{EventFirer, EventRestarter, LlmpRestartingEventManager};
-use libafl::executors::{ExitKind};
-use libafl::feedbacks::{
-    Feedback,
-};
-use libafl::monitors::tui::TuiMonitor;
-
-use libafl::schedulers::{RandScheduler, Scheduler};
-use libafl::state::{
-    HasClientPerfMonitor, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata, HasRand,
-    HasSolutions,
-};
+use std::{fmt, path::PathBuf};
 
 use libafl::{
-    bolts::{rands::StdRand, tuples::tuple_list},
+    bolts::{
+        core_affinity::Cores,
+        rands::StdRand,
+        shmem::{ShMemProvider, StdShMemProvider},
+        tuples::tuple_list,
+    },
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
-    executors::{inprocess::InProcessExecutor, TimeoutExecutor},
+    events::{
+        EventFirer, EventManager, EventRestarter, LlmpRestartingEventManager, ProgressReporter,
+    },
+    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
-    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    feedbacks::{CrashFeedback, Feedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
+    monitors::tui::TuiMonitor,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    state::{HasCorpus, StdState},
+    schedulers::{RandScheduler, Scheduler},
+    state::{
+        HasClientPerfMonitor, HasCorpus, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata,
+        HasRand, HasSolutions, StdState,
+    },
     Error,
 };
 use log::info;
-use std::fmt;
-use std::path::PathBuf;
+
+use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
+use crate::{
+    concretize::PUT_REGISTRY,
+    fuzzer::{
+        mutations::{trace_mutations, util::TermConstraints},
+        stages::{PuffinMutationalStage, PuffinScheduledMutator},
+        stats::PuffinMonitor,
+    },
+    trace::Trace,
+};
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -72,7 +70,6 @@ pub fn no_feedback<'a, S: 'a>() -> impl Feedback<Trace, S> + 'a
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug,
 {
-    
 }
 
 pub fn minimizer_feedback<'a, S: 'a>(

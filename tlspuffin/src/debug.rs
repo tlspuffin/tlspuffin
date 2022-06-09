@@ -1,9 +1,10 @@
-use log::trace;
 use std::convert::TryFrom;
 
-use rustls::msgs::codec::Reader;
-use rustls::msgs::message::OpaqueMessage;
-use rustls::msgs::message::{Message, MessagePayload};
+use log::trace;
+use rustls::msgs::{
+    codec::Reader,
+    message::{Message, MessagePayload, OpaqueMessage},
+};
 
 pub fn debug_binary_message(buffer: &dyn AsRef<[u8]>) {
     debug_binary_message_with_info("", buffer);

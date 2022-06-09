@@ -1,19 +1,18 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use std::fmt::Formatter;
-use std::{any::Any, fmt};
+use std::{any::Any, fmt, fmt::Formatter, ops::Deref};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::error::Error;
-use crate::term::dynamic_function::TypeShape;
-use crate::tls::error::FnError;
-use crate::trace::{AgentClaimer, TraceContext, VecClaimer};
-
 use super::atoms::{Function, Variable};
-use crate::variable_data::VariableData;
-use itertools::Itertools;
-use std::ops::Deref;
+use crate::{
+    error::Error,
+    term::dynamic_function::TypeShape,
+    tls::error::FnError,
+    trace::{AgentClaimer, TraceContext, VecClaimer},
+    variable_data::VariableData,
+};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]

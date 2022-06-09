@@ -3,10 +3,14 @@
 
 use libafl::bolts::rands::Rand;
 
-use crate::fuzzer::mutations::util::Choosable;
-use crate::term::atoms::Function;
-use crate::term::signature::{FunctionDefinition, Signature};
-use crate::term::Term;
+use crate::{
+    fuzzer::mutations::util::Choosable,
+    term::{
+        atoms::Function,
+        signature::{FunctionDefinition, Signature},
+        Term,
+    },
+};
 
 pub type Zoo = Vec<Term>;
 

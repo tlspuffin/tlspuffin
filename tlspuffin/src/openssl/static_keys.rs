@@ -1,6 +1,8 @@
-use openssl::error::ErrorStack;
-use openssl::pkey::{PKey, Private};
-use openssl::x509::X509;
+use openssl::{
+    error::ErrorStack,
+    pkey::{PKey, Private},
+    x509::X509,
+};
 
 const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN

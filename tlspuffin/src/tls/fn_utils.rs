@@ -1,22 +1,28 @@
 use std::convert::TryFrom;
 
-use rustls::conn::Side;
-use rustls::hash_hs::HandshakeHash;
-use rustls::internal::msgs::enums::HandshakeType;
-use rustls::msgs::base::PayloadU8;
-use rustls::msgs::codec::{Codec, Reader};
-use rustls::msgs::handshake::{
-    CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload, Random,
-    ServerECDHParams,
+use rustls::{
+    conn::Side,
+    hash_hs::HandshakeHash,
+    internal::msgs::enums::HandshakeType,
+    key,
+    msgs::{
+        base::PayloadU8,
+        codec::{Codec, Reader},
+        handshake::{
+            CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
+            Random, ServerECDHParams,
+        },
+        message::{Message, MessagePayload, PlainMessage},
+    },
+    tls13::key_schedule::KeyScheduleEarly,
+    Certificate,
 };
-use rustls::msgs::message::{Message, MessagePayload, PlainMessage};
-use rustls::tls13::key_schedule::KeyScheduleEarly;
-use rustls::{key, Certificate};
-
-use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
-use crate::tls::key_schedule::*;
 
 use super::error::FnError;
+use crate::tls::{
+    key_exchange::{tls12_key_exchange, tls12_new_secrets},
+    key_schedule::*,
+};
 
 // ----
 // seed_client_attacker()

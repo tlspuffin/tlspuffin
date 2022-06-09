@@ -1,16 +1,23 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
 //!
-use std::hash::{Hash, Hasher};
-use std::{fmt, fmt::Formatter};
+use std::{
+    fmt,
+    fmt::Formatter,
+    hash::{Hash, Hasher},
+};
 
 use rand::random;
 use serde::{Deserialize, Serialize};
 
-use crate::term::atoms::fn_container::FnContainer;
-use crate::term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
-use crate::term::remove_prefix;
-use crate::trace::Query;
+use crate::{
+    term::{
+        atoms::fn_container::FnContainer,
+        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        remove_prefix,
+    },
+    trace::Query,
+};
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
@@ -147,15 +154,22 @@ impl fmt::Display for Function {
 }
 
 mod fn_container {
-    use std::fmt;
-    use std::hash::{Hash, Hasher};
+    use std::{
+        fmt,
+        hash::{Hash, Hasher},
+    };
 
-    use serde::de::{MapAccess, SeqAccess, Visitor};
-    use serde::ser::SerializeStruct;
-    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{
+        de,
+        de::{MapAccess, SeqAccess, Visitor},
+        ser::SerializeStruct,
+        Deserialize, Deserializer, Serialize, Serializer,
+    };
 
-    use crate::term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
-    use crate::tls::SIGNATURE;
+    use crate::{
+        term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        tls::SIGNATURE,
+    };
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";

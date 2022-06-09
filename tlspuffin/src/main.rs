@@ -1,23 +1,25 @@
 #![allow(unused_doc_comments)]
 #[macro_use]
 extern crate log;
-use crate::concretize::PUT_REGISTRY;
-use crate::experiment::*;
-use crate::fuzzer::start;
-use crate::graphviz::write_graphviz;
+use std::{
+    env, fs,
+    fs::File,
+    io::{Read, Write},
+    path::PathBuf,
+};
+
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
 use fuzzer::seeds::create_corpus;
 use log::LevelFilter;
-use log4rs::append::console::ConsoleAppender;
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Root};
-use log4rs::encode::json::JsonEncoder;
-use log4rs::encode::pattern::PatternEncoder;
-use log4rs::Config;
-use std::fs::File;
-use std::io::Read;
-use std::{env, fs, io::Write, path::PathBuf};
+use log4rs::{
+    append::{console::ConsoleAppender, file::FileAppender},
+    config::{Appender, Root},
+    encode::{json::JsonEncoder, pattern::PatternEncoder},
+    Config,
+};
 use trace::TraceContext;
+
+use crate::{concretize::PUT_REGISTRY, experiment::*, fuzzer::start, graphviz::write_graphviz};
 
 pub mod agent;
 pub mod concretize;
