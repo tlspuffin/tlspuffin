@@ -15,7 +15,7 @@ use crate::term::Term;
 use crate::tls::fn_impl::*;
 use crate::tls::SIGNATURE;
 use crate::trace::{Action, Step, Trace};
-use libafl::bolts::rands::StdRand;
+use libafl::bolts::rands::{RomuDuoJrRand, StdRand};
 use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
@@ -46,8 +46,8 @@ fn test_openssl_no_randomness() {
 /// Checks whether repeat can repeat the last step
 #[test]
 fn test_repeat_mutator() {
-    let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let _rand = StdRand::with_seed(1235);
+    let _corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = create_state();
     let server = AgentName::first();
     let _trace = seed_client_attacker12(server, OPENSSL111);

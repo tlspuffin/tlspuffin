@@ -5,13 +5,13 @@
 //! And specific implementations of PUT for the different PUTs.
 use crate::agent::{AgentName, PutName, TLSVersion};
 use crate::error::Error;
-use crate::io::MessageResult;
-use crate::io::{MemoryStream, Stream};
+
+use crate::io::{Stream};
 use crate::trace::VecClaimer;
-use rustls::msgs::message::OpaqueMessage;
-use serde::{Deserialize, Serialize};
+
+
 use std::cell::RefCell;
-use std::io::{Read, Write};
+
 use std::rc::Rc;
 
 pub struct PutRegistry<const N: usize>([fn() -> Box<dyn Factory>; N]);

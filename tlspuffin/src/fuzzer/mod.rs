@@ -64,7 +64,7 @@ impl HasLen for Trace {
 }
 
 impl std::hash::Hash for Trace {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {
         todo!()
     }
 }

@@ -5,26 +5,26 @@ use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stages::{PuffinMutationalStage, PuffinScheduledMutator};
 use crate::fuzzer::stats::PuffinMonitor;
-use crate::fuzzer::stats_observer::StatsStage;
+
 use crate::trace::Trace;
 use core::time::Duration;
 use libafl::bolts::core_affinity::Cores;
 use libafl::bolts::shmem::{ShMemProvider, StdShMemProvider};
 use libafl::events::EventManager;
 use libafl::events::ProgressReporter;
-use libafl::events::{EventFirer, EventRestarter, HasEventManagerId, LlmpRestartingEventManager};
-use libafl::executors::{Executor, ExitKind};
+use libafl::events::{EventFirer, EventRestarter, LlmpRestartingEventManager};
+use libafl::executors::{ExitKind};
 use libafl::feedbacks::{
-    CombinedFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback, MaxReducer,
+    Feedback,
 };
 use libafl::monitors::tui::TuiMonitor;
-use libafl::observers::ObserversTuple;
+
 use libafl::schedulers::{RandScheduler, Scheduler};
 use libafl::state::{
     HasClientPerfMonitor, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata, HasRand,
-    HasSolutions, State,
+    HasSolutions,
 };
-use libafl::Evaluator;
+
 use libafl::{
     bolts::{rands::StdRand, tuples::tuple_list},
     corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
@@ -72,7 +72,7 @@ pub fn no_feedback<'a, S: 'a>() -> impl Feedback<Trace, S> + 'a
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug,
 {
-    ()
+    
 }
 
 pub fn minimizer_feedback<'a, S: 'a>(
@@ -223,13 +223,13 @@ where
 pub fn start(
     core_definition: &str,
     monitor_file: PathBuf,
-    on_disk_corpus: Option<PathBuf>,
+    _on_disk_corpus: Option<PathBuf>,
     initial_corpus_dir: PathBuf,
     objective_dir: PathBuf,
     broker_port: u16,
     max_iters: Option<u64>,
     static_seed: Option<u64>,
-    minimizer: bool,
+    _minimizer: bool,
 ) {
     info!("Running on {} cores", core_definition);
 
@@ -237,7 +237,7 @@ pub fn start(
     let shmem_provider: StdShMemProvider =
         StdShMemProvider::new().expect("Failed to init shared memory");
 
-    let monitor = PuffinMonitor::new(
+    let _monitor = PuffinMonitor::new(
         |s| {
             info!("{}", s);
         },
@@ -250,7 +250,7 @@ pub fn start(
     //let path_buf = on_disk_corpus.unwrap();
     let mut run_client =
         |state: Option<StdState<_, _, _, _>>,
-         mut restarting_mgr: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
+         restarting_mgr: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
             info!("We're a client, let's fuzz :)");

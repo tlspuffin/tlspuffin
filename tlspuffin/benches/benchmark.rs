@@ -1,14 +1,14 @@
 use std::any::Any;
-use std::fmt;
+
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use libafl::bolts::rands::RomuDuoJrRand;
 use libafl::bolts::rands::StdRand;
 use libafl::corpus::InMemoryCorpus;
-use libafl::feedbacks::Feedback;
+
 use libafl::mutators::Mutator;
-use libafl::state::HasClientPerfMonitor;
-use libafl::state::HasExecutions;
+
+
 use libafl::state::StdState;
 
 use tlspuffin::agent::AgentName;
