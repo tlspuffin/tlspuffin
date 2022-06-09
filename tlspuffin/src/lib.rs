@@ -25,7 +25,7 @@ pub mod tls;
 pub mod trace;
 pub mod variable_data;
 
-#[cfg(feature = "openssl")]
+#[cfg(feature = "openssl-binding")]
 mod openssl;
-#[cfg(feature = "wolfssl")]
+#[cfg(feature = "wolfssl-binding")]
 mod wolfssl;

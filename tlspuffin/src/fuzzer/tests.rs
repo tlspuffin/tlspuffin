@@ -19,7 +19,7 @@ use libafl::corpus::InMemoryCorpus;
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::StdState;
 
-#[cfg(all(feature = "deterministic", feature = "openssl"))]
+#[cfg(all(feature = "deterministic", feature = "openssl-binding"))]
 #[test]
 fn test_openssl_no_randomness() {
     use openssl::rand::rand_bytes;
