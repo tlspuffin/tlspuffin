@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap};
 
 use itertools::Itertools;
 

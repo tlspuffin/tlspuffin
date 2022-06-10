@@ -6,7 +6,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    agent::{AgentName, PutName, TLSVersion},
+    agent::{AgentName, TLSVersion},
     error::Error,
     io::Stream,
     trace::VecClaimer,

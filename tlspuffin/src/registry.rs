@@ -43,12 +43,10 @@ const N_REGISTERED: usize = 0 + if cfg!(feature = "openssl-binding") {
     } else {
         0
     }
+} else if cfg!(feature = "wolfssl-binding") {
+    1
 } else {
-    if cfg!(feature = "wolfssl-binding") {
-        1
-    } else {
-        0
-    }
+    0
 };
 pub const PUT_REGISTRY: PutRegistry<N_REGISTERED> = PutRegistry([
     #[cfg(feature = "openssl-binding")]

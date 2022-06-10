@@ -18,10 +18,9 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     monitors::tui::TuiMonitor,
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
-    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, RandScheduler, Scheduler},
+    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
     state::{
-        HasClientPerfMonitor, HasCorpus, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata,
-        HasRand, HasSolutions, StdState,
+        HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState,
     },
     Error,
 };
@@ -69,7 +68,7 @@ where
 }
 
 pub fn no_feedback<'a, 'b, S: 'b>(
-    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+    _edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
 ) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
@@ -143,8 +142,8 @@ where
     let mut state = state.unwrap_or_else(|| {
         let seed = static_seed.unwrap_or(sender_id as u64);
         info!("Seed is {}", seed);
-        let state = new_state(&mut feedback, &mut objective);
-        state
+        
+        new_state(&mut feedback, &mut objective)
     });
 
     let mutations = trace_mutations(

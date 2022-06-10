@@ -13,7 +13,7 @@ use rustls::{
 
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
-    registry::{OPENSSL111, WOLFSSL510},
+    registry::{OPENSSL111},
     term,
     term::Term,
     tls::fn_impl::*,

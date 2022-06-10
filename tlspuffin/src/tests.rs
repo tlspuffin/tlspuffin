@@ -15,7 +15,7 @@ pub mod seeds {
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::*,
-        registry::{OPENSSL111, PUT_REGISTRY, WOLFSSL510},
+        registry::{OPENSSL111, PUT_REGISTRY},
         trace::{Action, TraceContext},
     };
 
@@ -301,7 +301,7 @@ pub mod serialization {
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::{seed_successful, *},
-        registry::{OPENSSL111, WOLFSSL510},
+        registry::{OPENSSL111},
         trace::{Trace, TraceContext},
     };
 
