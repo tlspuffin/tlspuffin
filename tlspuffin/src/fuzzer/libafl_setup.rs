@@ -1,6 +1,20 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
+use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
+use crate::fuzzer::stats_observer::StatsStage;
+use crate::{
+    concretize::PUT_REGISTRY,
+    fuzzer::{
+        mutations::{trace_mutations, util::TermConstraints},
+        stages::{PuffinMutationalStage, PuffinScheduledMutator},
+        stats::PuffinMonitor,
+    },
+    trace::Trace,
+};
+use libafl::bolts::rands::Rand;
+use libafl::observers::ObserversTuple;
+use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -27,17 +41,6 @@ use libafl::{
 };
 use log::info;
 
-use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
-use crate::{
-    concretize::PUT_REGISTRY,
-    fuzzer::{
-        mutations::{trace_mutations, util::TermConstraints},
-        stages::{PuffinMutationalStage, PuffinScheduledMutator},
-        stats::PuffinMonitor,
-    },
-    trace::Trace,
-};
-
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
 pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
@@ -53,9 +56,10 @@ pub static MIN_TERM_SIZE: usize = 0;
 /// Above this term size we no longer mutate.
 pub static MAX_TERM_SIZE: usize = 300;
 
-pub fn no_minimizer_feedback<'a, S: 'a>(
-    edges_observer: &'a HitcountsMapObserver<StdMapObserver<u8>>,
-) -> impl Feedback<Trace, S> + 'a
+// TODO: Use feedback_or_fast
+pub fn no_minimizer_feedback<'a, 'b, S: 'b>(
+    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
@@ -66,16 +70,18 @@ where
     ))
 }
 
-pub fn no_feedback<'a, S: 'a>() -> impl Feedback<Trace, S> + 'a
+pub fn no_feedback<'a, 'b, S: 'b>(
+    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+) -> impl Feedback<Trace, S> + 'b
 where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug,
+    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
 }
 
-pub fn minimizer_feedback<'a, S: 'a>(
+pub fn minimizer_feedback<'a, 'b, S: 'b>(
     time_observer: &'a TimeObserver,
-    edges_observer: &'a HitcountsMapObserver<StdMapObserver<u8>>,
-) -> impl Feedback<Trace, S> + 'a
+    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
@@ -89,29 +95,23 @@ where
     )
 }
 
-type Harness = fn(&Trace) -> ExitKind;
+type ConcreteExecutor<'a, H, OT, S> = TimeoutExecutor<InProcessExecutor<'a, H, Trace, OT, S>>;
 
-type ObserversType<'a> = (
-    HitcountsMapObserver<StdMapObserver<'a, u8>>,
-    (TimeObserver, ()),
-);
+type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
 
-type ExecutorType<'a, H, S> =
-    TimeoutExecutor<InProcessExecutor<'a, H, Trace, ObserversType<'a>, S>>;
-
-pub fn run_client<'a, H, S, EM, F, OF, CS>(
-    edges_observer: HitcountsMapObserver<StdMapObserver<'a, u8>>,
+pub fn run_client<'a, H, C, R, SC, EM, F, OF, OT, CS>(
+    observers: OT,
     harness_fn: &'a mut H,
     static_seed: Option<u64>,
     max_iters: Option<u64>,
-    state: Option<S>,
+    state: Option<ConcreteState<C, R, SC>>,
     scheduler: CS,
-    new_state: impl FnOnce(&mut F, &mut OF) -> S,
+    new_state: impl FnOnce(&mut F, &mut OF) -> ConcreteState<C, R, SC>,
     sender_id: u32,
     init_state: impl FnOnce(
-        &mut S,
-        &mut StdFuzzer<CS, F, Trace, OF, ObserversType<'a>, S>,
-        &mut ExecutorType<'a, H, S>,
+        &mut ConcreteState<C, R, SC>,
+        &mut StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
+        &mut ConcreteExecutor<'a, H, OT, ConcreteState<C, R, SC>>,
         &mut EM,
     ),
     mut event_manager: EM,
@@ -119,52 +119,37 @@ pub fn run_client<'a, H, S, EM, F, OF, CS>(
     mut objective: OF,
 ) -> Result<(), Error>
 where
+    C: Corpus<Trace>,
+    R: Rand,
+    SC: Corpus<Trace>,
     H: FnMut(&Trace) -> ExitKind,
-    OF: Feedback<Trace, S>,
-    F: Feedback<Trace, S>,
-    CS: Scheduler<Trace, S>,
+    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
+    OT: ObserversTuple<Trace, ConcreteState<C, R, SC>>
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
+    F: Feedback<Trace, ConcreteState<C, R, SC>>,
+    CS: Scheduler<Trace, ConcreteState<C, R, SC>>,
     EM: EventFirer<Trace>
-        + EventRestarter<S>
+        + EventRestarter<ConcreteState<C, R, SC>>
         + EventManager<
-            ExecutorType<'a, H, S>,
+            ConcreteExecutor<'a, H, OT, ConcreteState<C, R, SC>>,
             Trace,
-            S,
-            StdFuzzer<CS, F, Trace, OF, ObserversType<'a>, S>,
+            ConcreteState<C, R, SC>,
+            StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
         > + ProgressReporter<Trace>,
-    //E: Executor<EM, Trace, S, StdFuzzer<CS, F, Trace, OF, OT, S>>,
-    S: HasExecutions
-        + HasClientPerfMonitor
-        + HasSolutions<Trace>
-        + fmt::Debug
-        + HasMetadata
-        + HasRand
-        + HasCorpus<Trace>
-        + HasMaxSize,
 {
-    /*let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-        &mut EDGES_MAP[0..MAX_EDGES_NUM]
-    }));*/
-
-    let time_observer = TimeObserver::new("time");
-
-    //let edges_feedback_state = MapFeedbackState::with_observer(&edges_observer);
-
-    // A feedback to choose if an input is a solution or not
-    /*    let objective = feedback_or!(CrashFeedback::new(), TimeoutFeedback::new());*/
-    // [LH] [TODO] Why not using feedback_or_fast?
-
     //let sender_id = restarting_mgr.mgr_id();
     info!("Sender ID is {}", sender_id);
 
     // If not restarting, create a State from scratch
-    let mut state: S = state.unwrap_or_else(|| {
+    let mut state = state.unwrap_or_else(|| {
         let seed = static_seed.unwrap_or(sender_id as u64);
         info!("Seed is {}", seed);
-        let state: S = new_state(&mut feedback, &mut objective);
+        let state = new_state(&mut feedback, &mut objective);
         state
     });
 
-    let mutations = trace_mutations::<S>(
+    let mutations = trace_mutations(
         MIN_TRACE_LENGTH,
         MAX_TRACE_LENGTH,
         TermConstraints {
@@ -173,26 +158,21 @@ where
         },
         FRESH_ZOO_AFTER,
     );
+
     let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
     let mut stages = tuple_list!(
         PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
-        //StatsStage::new()
+        StatsStage::new()
     );
 
-    // A minimization+queue policy to get testcasess from the corpus
-    /*#[cfg(not(feature = "no-minimizer"))]
-    let scheduler = IndexesLenTimeMinimizerCorpusScheduler::new(QueueCorpusScheduler::new());
-    #[cfg(feature = "no-minimizer")]
-    let scheduler = RandCorpusScheduler::new();*/
-
-    let mut fuzzer: StdFuzzer<CS, F, Trace, OF, ObserversType, S> =
+    let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
         StdFuzzer::new(scheduler, feedback, objective);
 
-    let mut executor: ExecutorType<'a, H, S> = TimeoutExecutor::new(
+    let mut executor: ConcreteExecutor<'a, H, OT, _> = TimeoutExecutor::new(
         InProcessExecutor::new(
             harness_fn,
             // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
-            tuple_list!(edges_observer, time_observer),
+            observers,
             &mut fuzzer,
             &mut state,
             &mut event_manager,
@@ -252,23 +232,23 @@ pub fn start(
          -> Result<(), Error> {
             info!("We're a client, let's fuzz :)");
 
+            let time_observer = TimeObserver::new("time");
+
             let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
                 &mut EDGES_MAP[0..MAX_EDGES_NUM]
             }));
 
-            let feedback = feedback_or!(MaxMapFeedback::new_tracking(
-                &edges_observer,
-                false, // [TODO] [LH] Why are track_index and track_novelties are false?
-                false
-            ));
+            let feedback = minimizer_feedback(&time_observer, &edges_observer);
 
             run_client(
-                edges_observer,
+                tuple_list!(time_observer, edges_observer),
                 &mut harness::harness,
                 static_seed,
                 max_iters,
                 state,
-                RandScheduler::new(),
+                //RandScheduler::new(),
+                // A minimization+queue policy to get testcasess from the corpus
+                IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
                 |feedback, objective| {
                     StdState::new(
                         StdRand::with_seed(0),
@@ -281,14 +261,14 @@ pub fn start(
                     .unwrap()
                 },
                 0,
-                |state, fuzzer, executor, restarting_mgr| {
+                |state, fuzzer, executor, manager| {
                     // In case the corpus is empty (on first run), reset
                     if state.corpus().count() < 1 {
                         state
                             .load_initial_inputs(
                                 fuzzer,
                                 executor,
-                                restarting_mgr,
+                                manager,
                                 &[initial_corpus_dir.clone()],
                             )
                             .unwrap_or_else(|err| {
@@ -303,9 +283,7 @@ pub fn start(
                 restarting_mgr,
                 feedback,
                 feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
-            )?;
-
-            Ok(())
+            )
         };
 
     if let Err(error) = libafl::bolts::launcher::Launcher::builder()
