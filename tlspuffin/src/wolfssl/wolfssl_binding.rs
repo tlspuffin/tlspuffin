@@ -6,16 +6,12 @@ use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     os::raw::{c_int, c_void},
-    panic,
-    ptr, str,
+    panic, ptr, str,
 };
-
 
 use wolfssl_sys as wolf;
 
-use super::{
-    error::{ErrorStack}, wolfssl_bio as bio,
-};
+use super::{error::ErrorStack, wolfssl_bio as bio};
 use crate::{
     agent::TLSVersion,
     error::Error,
@@ -126,7 +122,6 @@ impl<S: Read + Write> SslStream<S> {
                 return "Unknown State";
             }
 
-            
             CStr::from_ptr(state_ptr as *const _)
         };
 

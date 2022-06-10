@@ -19,9 +19,7 @@ use libafl::{
     monitors::tui::TuiMonitor,
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    state::{
-        HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState,
-    },
+    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState},
     Error,
 };
 use log::info;
@@ -142,7 +140,7 @@ where
     let mut state = state.unwrap_or_else(|| {
         let seed = static_seed.unwrap_or(sender_id as u64);
         info!("Seed is {}", seed);
-        
+
         new_state(&mut feedback, &mut objective)
     });
 
