@@ -1,24 +1,10 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
-use crate::fuzzer::stats_observer::StatsStage;
-use crate::{
-    concretize::PUT_REGISTRY,
-    fuzzer::{
-        mutations::{trace_mutations, util::TermConstraints},
-        stages::{PuffinMutationalStage, PuffinScheduledMutator},
-        stats::PuffinMonitor,
-    },
-    trace::Trace,
-};
-use libafl::bolts::rands::Rand;
-use libafl::observers::ObserversTuple;
-use libafl::schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler};
 use libafl::{
     bolts::{
         core_affinity::Cores,
-        rands::StdRand,
+        rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
     },
@@ -31,8 +17,8 @@ use libafl::{
     feedbacks::{CrashFeedback, Feedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     monitors::tui::TuiMonitor,
-    observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    schedulers::{RandScheduler, Scheduler},
+    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
+    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, RandScheduler, Scheduler},
     state::{
         HasClientPerfMonitor, HasCorpus, HasExecutions, HasMaxSize, HasMetadata, HasNamedMetadata,
         HasRand, HasSolutions, StdState,
@@ -40,6 +26,18 @@ use libafl::{
     Error,
 };
 use log::info;
+
+use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
+use crate::{
+    concretize::PUT_REGISTRY,
+    fuzzer::{
+        mutations::{trace_mutations, util::TermConstraints},
+        stages::{PuffinMutationalStage, PuffinScheduledMutator},
+        stats::PuffinMonitor,
+        stats_observer::StatsStage,
+    },
+    trace::Trace,
+};
 
 /// Default value, how many iterations each stage gets, as an upper bound
 /// It may randomly continue earlier. Each iteration works on a different Input from the corpus

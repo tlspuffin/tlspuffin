@@ -42,15 +42,26 @@ impl<const N: usize> PutRegistry<N> {
 }
 
 pub const OPENSSL111: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
+pub const WOLFSSL510: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
 
 const N_REGISTERED: usize = 0 + if cfg!(feature = "openssl-binding") {
-    1
+    1 + if cfg!(feature = "wolfssl-binding") {
+        1
+    } else {
+        0
+    }
 } else {
-    0
+    if cfg!(feature = "wolfssl-binding") {
+        1
+    } else {
+        0
+    }
 };
 pub const PUT_REGISTRY: PutRegistry<N_REGISTERED> = PutRegistry([
     #[cfg(feature = "openssl-binding")]
     crate::openssl::new_openssl_factory,
+    #[cfg(feature = "wolfssl-binding")]
+    crate::wolfssl::new_wolfssl_factory,
 ]);
 
 pub trait Factory {
@@ -88,6 +99,8 @@ pub trait Put: Stream + Drop + 'static {
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;
+    /// Checks whether the Put is in a good state
+    fn is_state_successful(&self) -> bool;
     /// Returns a textual representation of the version of the PUT used by self
     fn version() -> &'static str
     where
