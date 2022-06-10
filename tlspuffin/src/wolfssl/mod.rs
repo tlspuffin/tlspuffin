@@ -14,7 +14,7 @@ use crate::{
     concretize::{Config, Put},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    registry::{Factory, WOLFSSL510},
+    registry::{Factory, WOLFSSL520},
     trace::VecClaimer,
     wolfssl::error::SslError,
 };
@@ -32,7 +32,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            WOLFSSL510
+            WOLFSSL520
         }
 
         fn put_version(&self) -> &'static str {

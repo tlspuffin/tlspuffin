@@ -22,7 +22,7 @@ pub mod seeds {
     #[cfg(feature = "openssl-binding")]
     const PUT: PutName = OPENSSL111;
     #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = WOLFSSL510;
+    const PUT: PutName = WOLFSSL520;
 
     fn expect_crash<R>(mut func: R)
     where
@@ -301,14 +301,14 @@ pub mod serialization {
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::{seed_successful, *},
-        registry::{OPENSSL111},
+        registry::OPENSSL111,
         trace::{Trace, TraceContext},
     };
 
     #[cfg(feature = "openssl-binding")]
     const PUT: PutName = OPENSSL111;
     #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = WOLFSSL510;
+    const PUT: PutName = WOLFSSL520;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {

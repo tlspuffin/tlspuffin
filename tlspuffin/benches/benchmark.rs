@@ -22,7 +22,7 @@ use tlspuffin::{
 #[cfg(feature = "openssl-binding")]
 const PUT: PutName = tlspuffin::registry::OPENSSL111;
 #[cfg(feature = "wolfssl-binding")]
-const PUT: PutName = tlspuffin::registry::WOLFSSL510;
+const PUT: PutName = tlspuffin::registry::WOLFSSL520;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)

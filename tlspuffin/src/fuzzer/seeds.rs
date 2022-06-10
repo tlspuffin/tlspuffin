@@ -13,7 +13,7 @@ use rustls::{
 
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
-    registry::{OPENSSL111},
+    registry::OPENSSL111,
     term,
     term::Term,
     tls::fn_impl::*,
@@ -1556,7 +1556,7 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
     #[cfg(feature = "openssl-binding")]
     const PUT: PutName = OPENSSL111;
     #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = WOLFSSL510;
+    const PUT: PutName = WOLFSSL520;
 
     [
         (seed_successful(agent_a, agent_b, PUT), "seed_successful"),
