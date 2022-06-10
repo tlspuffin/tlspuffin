@@ -16,8 +16,12 @@ use libc::{c_char, c_int, c_long, c_uint, c_void, strlen};
 use wolfssl_sys as wolf;
 
 use super::error::ErrorStack;
-use crate::wolfssl::util::{cvt, cvt_n, cvt_p};
-use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
+use crate::{
+    agent::TLSVersion,
+    error::Error,
+    io::MemoryStream,
+    wolfssl::util::{cvt, cvt_n, cvt_p},
+};
 
 pub type BIO = wolf::WOLFSSL_BIO;
 

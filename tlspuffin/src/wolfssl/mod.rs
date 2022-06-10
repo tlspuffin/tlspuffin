@@ -9,12 +9,12 @@ use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer, Claim};
 
 use self::wolfssl_binding::wolfssl_version;
-use crate::registry::{Factory, WOLFSSL510};
 use crate::{
     agent::{AgentName, PutName},
     concretize::{Config, Put},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
+    registry::{Factory, WOLFSSL510},
     trace::VecClaimer,
     wolfssl::error::SslError,
 };

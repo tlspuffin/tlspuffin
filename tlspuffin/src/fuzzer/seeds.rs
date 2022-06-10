@@ -2,16 +2,6 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use crate::registry::{OPENSSL111, WOLFSSL510};
-use crate::{
-    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
-    term,
-    term::Term,
-    tls::fn_impl::*,
-    trace::{
-        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
-    },
-};
 use rustls::{
     internal::msgs::{
         enums::{Compression, HandshakeType},
@@ -19,6 +9,17 @@ use rustls::{
     },
     msgs::handshake::{Random, SessionID},
     CipherSuite, ProtocolVersion,
+};
+
+use crate::{
+    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+    registry::{OPENSSL111, WOLFSSL510},
+    term,
+    term::Term,
+    tls::fn_impl::*,
+    trace::{
+        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
+    },
 };
 
 pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) -> Trace {

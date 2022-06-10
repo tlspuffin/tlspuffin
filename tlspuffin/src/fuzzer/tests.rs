@@ -7,7 +7,6 @@ use libafl::{
     state::StdState,
 };
 
-use crate::registry::{DUMMY_PUT, PUT_REGISTRY};
 use crate::{
     agent::AgentName,
     fuzzer::{
@@ -19,6 +18,7 @@ use crate::{
         seeds::*,
         term_zoo::generate_term_zoo,
     },
+    registry::{DUMMY_PUT, PUT_REGISTRY},
     term::{dynamic_function::DescribableFunction, Term},
     tls::{fn_impl::*, SIGNATURE},
     trace::{Action, Step, Trace},

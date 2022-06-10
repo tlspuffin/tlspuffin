@@ -1,7 +1,6 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use crate::registry::PUT_REGISTRY;
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -36,6 +35,7 @@ use crate::{
         stats::PuffinMonitor,
         stats_observer::StatsStage,
     },
+    registry::PUT_REGISTRY,
     trace::Trace,
 };
 

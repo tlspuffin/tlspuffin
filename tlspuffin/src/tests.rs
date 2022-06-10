@@ -12,10 +12,10 @@ pub mod seeds {
     };
     use test_log::test;
 
-    use crate::registry::{OPENSSL111, PUT_REGISTRY, WOLFSSL510};
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::*,
+        registry::{OPENSSL111, PUT_REGISTRY, WOLFSSL510},
         trace::{Action, TraceContext},
     };
 
@@ -298,10 +298,10 @@ pub mod seeds {
 pub mod serialization {
     use test_log::test;
 
-    use crate::registry::{OPENSSL111, WOLFSSL510};
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::{seed_successful, *},
+        registry::{OPENSSL111, WOLFSSL510},
         trace::{Trace, TraceContext},
     };
 

@@ -1,5 +1,7 @@
-use crate::agent::PutName;
-use crate::concretize::{Config, Put};
+use crate::{
+    agent::PutName,
+    concretize::{Config, Put},
+};
 
 pub struct PutRegistry<const N: usize>([fn() -> Box<dyn Factory>; N]);
 

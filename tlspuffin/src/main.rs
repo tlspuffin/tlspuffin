@@ -19,8 +19,7 @@ use log4rs::{
 };
 use trace::TraceContext;
 
-use crate::registry::PUT_REGISTRY;
-use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz};
+use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz, registry::PUT_REGISTRY};
 
 pub mod agent;
 pub mod concretize;
