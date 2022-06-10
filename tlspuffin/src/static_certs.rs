@@ -1,10 +1,4 @@
-use openssl::{
-    error::ErrorStack,
-    pkey::{PKey, Private},
-    x509::X509,
-};
-
-const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
+pub const PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
 WrcuAuKDcZNQW/0txKHBR7R8wqCtkBiiQ0WWslV6NHWiaaG/mba8oGQhVRcDMoxf
 BEOA0Eppq+PDJ5giB+9CxvD+cTlaHTZIMsj1qQL/6o6IUE6WBysth8vP6pIjYRPe
@@ -33,7 +27,7 @@ UbQ/245wgNlgATlVVRUcgnHz9bnNAW0dBG4YeLnQTkVl1I0TR8VDjJCi3F6l1nnr
 XIZqdO/MQ75qBeUM/r9tsdpu
 -----END PRIVATE KEY-----";
 
-const CERT: &str = "-----BEGIN CERTIFICATE-----
+pub const CERT: &str = "-----BEGIN CERTIFICATE-----
 MIIDajCCAlKgAwIBAgITdvXibPwwAIa0Bv65gaVuVie5VjANBgkqhkiG9w0BAQsF
 ADBFMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwY
 SW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMB4XDTIxMDUyNDE1MzAwMFoXDTIxMDYy
@@ -54,11 +48,3 @@ WAccqe3TAwAq6m2BWaH8YchExVPAnJ5AvO2pBbE8j8v6dF470vBs6szvBKvgV9pu
 +ullb9HQDft8lcQCI7Ib5reI/0YaYN02Mlhy3hLbxHKJaB1FlYMtqiiYL55GIEtZ
 i7RrmCDnL/ue3MkPP+8=
 -----END CERTIFICATE-----";
-
-pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
-    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
-    let pkey = PKey::from_rsa(rsa)?;
-
-    let cert = X509::from_pem(CERT.as_bytes())?;
-    Ok((cert, pkey))
-}

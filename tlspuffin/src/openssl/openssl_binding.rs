@@ -15,6 +15,7 @@ use openssl::{
     },
 };
 
+use crate::static_certs::{CERT, PRIVATE_KEY};
 use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
 
 /*
@@ -23,6 +24,14 @@ use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
    cd openssl-src/openssl
    git checkout OpenSSL_1_1_1j
 */
+
+pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+    let pkey = PKey::from_rsa(rsa)?;
+
+    let cert = X509::from_pem(CERT.as_bytes())?;
+    Ok((cert, pkey))
+}
 
 pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::generate(2048)?;

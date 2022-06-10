@@ -17,6 +17,7 @@ impl<const N: usize> PutRegistry<N> {
         }
         put_versions
     }
+
     pub fn make_deterministic(&self) {
         for func in self.0 {
             let factory = func();

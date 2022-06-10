@@ -11,7 +11,7 @@
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use tlspuffin::concretize::OPENSSL111;
+//! use tlspuffin::registry::OPENSSL111;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};

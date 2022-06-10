@@ -89,8 +89,7 @@ pub unsafe fn get_mut<'a, S: 'a>(bio: *mut BIO) -> &'a mut S {
 }
 
 pub unsafe fn take_error<S>(bio: *mut BIO) -> Option<io::Error> {
-    let state = state::<S>(bio); // [test_wolf_get_bio] [SEGFAULT] here we access the ptr field of bio that is set to NULL at this point
-    state.error.take() // BOOOM
+    state::<S>(bio).error.take()
 }
 
 pub unsafe fn take_panic<S>(bio: *mut BIO) -> Option<Box<dyn Any + Send>> {
@@ -186,6 +185,7 @@ unsafe extern "C" fn create(bio: *mut BIO) -> c_int {
     1
 }
 
+// FIXME: This is not called right now
 unsafe extern "C" fn destroy<S>(bio: *mut BIO) -> c_int {
     if bio.is_null() {
         return 0;

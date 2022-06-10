@@ -5,18 +5,18 @@ use openssl::error::ErrorStack;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer};
 
+use crate::openssl::openssl_binding::static_rsa_cert;
 use crate::{
     agent::{AgentName, PutName},
     concretize::{Config, Put},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    openssl::{openssl_binding::openssl_version, static_keys::static_rsa_cert},
+    openssl::openssl_binding::openssl_version,
     registry::{Factory, OPENSSL111},
     trace::VecClaimer,
 };
 
 mod openssl_binding;
-mod static_keys;
 
 pub fn new_openssl_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
