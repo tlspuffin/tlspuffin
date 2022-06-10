@@ -34,6 +34,7 @@ wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding"
+    # FIXME: support "claims", "deterministic", "asan", "session-resumption"
 ]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
