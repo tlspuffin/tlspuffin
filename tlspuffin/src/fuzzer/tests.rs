@@ -34,7 +34,7 @@ fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMem
 #[test]
 fn test_openssl_no_randomness() {
     use openssl::rand::rand_bytes;
-    PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
+    crate::registry::PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
     let mut buf1 = [0; 2];
     rand_bytes(&mut buf1).unwrap();
     assert_eq!(buf1, [70, 100]);
