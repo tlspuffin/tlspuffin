@@ -7,20 +7,16 @@ use std::{
     io,
     io::{ErrorKind, Read, Write},
     marker::PhantomData,
-    mem::ManuallyDrop,
     panic::{catch_unwind, AssertUnwindSafe},
     ptr, slice,
 };
 
-use libc::{c_char, c_int, c_long, c_uint, c_void, strlen};
+use libc::{c_char, c_int, c_long, c_void, strlen};
 use wolfssl_sys as wolf;
 
 use super::error::ErrorStack;
 use crate::{
-    agent::TLSVersion,
-    error::Error,
-    io::MemoryStream,
-    wolfssl::util::{cvt, cvt_n, cvt_p},
+    wolfssl::util::{cvt, cvt_p},
 };
 
 pub type BIO = wolf::WOLFSSL_BIO;
@@ -272,7 +268,7 @@ impl MemBio {
 
     pub fn get_buf(&self) -> &[u8] {
         unsafe {
-            let mut ptr = ptr::null_mut();
+            let ptr = ptr::null_mut();
             let len = wolfssl_sys::wolfSSL_BIO_get_mem_data(self.0, ptr);
             slice::from_raw_parts(ptr as *const _ as *const _, len as usize)
         }

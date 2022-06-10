@@ -3,7 +3,7 @@
 //! OpenSSL errors are stored in an `ErrorStack`.  Most methods in the crate
 //! returns a `Result<T, ErrorStack>` type.
 //!
-use std::{borrow::Cow, error, ffi::CStr, fmt, io, ptr, str};
+use std::{error, ffi::CStr, fmt, io, ptr, str};
 
 use libc::{c_char, c_int, c_ulong};
 use wolfssl_sys as wolf;

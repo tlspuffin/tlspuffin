@@ -1,12 +1,10 @@
 use std::{
     cell::RefCell,
-    ffi::CStr,
     io::{Read, Write},
     rc::Rc,
 };
 
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::{deregister_claimer, register_claimer, Claim};
 
 use self::wolfssl_binding::wolfssl_version;
 use crate::{
@@ -133,7 +131,7 @@ impl Put for WolfSSL {
         }
     }
 
-    fn deregister_claimer(&mut self) -> () {
+    fn deregister_claimer(&mut self) {
         #[cfg(feature = "claims")]
         unsafe {
             deregister_claimer(self.stream.ssl().as_ptr().cast());
@@ -160,8 +158,8 @@ impl Put for WolfSSL {
         unsafe { wolfssl_version() }
     }
 
-    fn make_deterministic() -> () {
-        () // TODO
+    fn make_deterministic() {
+        // TODO
     }
 
     fn is_state_successful(&self) -> bool {

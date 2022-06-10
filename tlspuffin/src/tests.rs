@@ -15,14 +15,14 @@ pub mod seeds {
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::*,
-        registry::{OPENSSL111, PUT_REGISTRY},
+        registry::PUT_REGISTRY,
         trace::{Action, TraceContext},
     };
 
     #[cfg(feature = "openssl-binding")]
-    const PUT: PutName = OPENSSL111;
+    const PUT: PutName = crate::registry::OPENSSL111;
     #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = WOLFSSL520;
+    const PUT: PutName = crate::registry::WOLFSSL520;
 
     fn expect_crash<R>(mut func: R)
     where
@@ -301,14 +301,13 @@ pub mod serialization {
     use crate::{
         agent::{AgentName, PutName},
         fuzzer::seeds::{seed_successful, *},
-        registry::OPENSSL111,
         trace::{Trace, TraceContext},
     };
 
     #[cfg(feature = "openssl-binding")]
-    const PUT: PutName = OPENSSL111;
+    const PUT: PutName = crate::registry::OPENSSL111;
     #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = WOLFSSL520;
+    const PUT: PutName = crate::registry::WOLFSSL520;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {

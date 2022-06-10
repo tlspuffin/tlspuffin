@@ -1,23 +1,20 @@
 use std::{
-    any::Any,
     cmp,
     ffi::{CStr, CString},
     io,
     io::{ErrorKind, Read, Write},
     marker::PhantomData,
     mem::ManuallyDrop,
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_int, c_void},
     panic,
-    panic::{catch_unwind, AssertUnwindSafe},
-    ptr, slice, str,
+    ptr, str,
 };
 
-use itertools::Itertools;
+
 use wolfssl_sys as wolf;
 
 use super::{
-    error::{Error as WolfError, ErrorStack},
-    wolfssl_binding, wolfssl_bio as bio,
+    error::{ErrorStack}, wolfssl_bio as bio,
 };
 use crate::{
     agent::TLSVersion,
@@ -129,8 +126,8 @@ impl<S: Read + Write> SslStream<S> {
                 return "Unknown State";
             }
 
-            let state = CStr::from_ptr(state_ptr as *const _);
-            state
+            
+            CStr::from_ptr(state_ptr as *const _)
         };
 
         let string = str::from_utf8(state.to_bytes()).unwrap();
