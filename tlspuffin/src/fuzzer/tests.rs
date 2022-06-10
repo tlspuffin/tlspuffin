@@ -11,7 +11,6 @@ use crate::{
     agent::AgentName,
     concretize::{OPENSSL111, PUT_REGISTRY},
     fuzzer::{
-        libafl_setup::no_feedback,
         mutations::{
             util::{TermConstraints, TracePath},
             RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
@@ -28,14 +27,7 @@ use crate::{
 fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-    StdState::new(
-        rand,
-        corpus,
-        InMemoryCorpus::new(),
-        &mut no_feedback(),
-        &mut no_feedback(),
-    )
-    .unwrap()
+    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
 #[cfg(all(feature = "deterministic", feature = "openssl-binding"))]

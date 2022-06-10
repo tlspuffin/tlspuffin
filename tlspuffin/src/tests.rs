@@ -13,11 +13,16 @@ pub mod seeds {
     use test_log::test;
 
     use crate::{
-        agent::AgentName,
-        concretize::{OPENSSL111, PUT_REGISTRY},
+        agent::{AgentName, PutName},
+        concretize::{OPENSSL111, PUT_REGISTRY, WOLFSSL510},
         fuzzer::seeds::*,
         trace::{Action, TraceContext},
     };
+
+    #[cfg(feature = "openssl-binding")]
+    const PUT: PutName = OPENSSL111;
+    #[cfg(feature = "wolfssl-binding")]
+    const PUT: PutName = WOLFSSL510;
 
     fn expect_crash<R>(mut func: R)
     where
@@ -59,7 +64,7 @@ pub mod seeds {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_heartbleed(client, server, OPENSSL111);
+            let trace = seed_heartbleed(client, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -68,7 +73,7 @@ pub mod seeds {
     #[test]
     fn test_seed_cve_2021_3449() {
         if !PUT_REGISTRY
-            .find_factory(OPENSSL111)
+            .find_factory(PUT)
             .unwrap()
             .put_version()
             .contains("1.1.1j")
@@ -79,7 +84,7 @@ pub mod seeds {
             PUT_REGISTRY.make_deterministic();
             let mut ctx = TraceContext::new();
             let server = AgentName::first();
-            let trace = seed_cve_2021_3449(server, OPENSSL111);
+            let trace = seed_cve_2021_3449(server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -90,28 +95,25 @@ pub mod seeds {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, OPENSSL111);
+        let trace = seed_client_attacker12(server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "claims")] // this depends on extracted transcripts -> claims are required FIXME: add claims to wolfssl
     #[test]
     fn test_seed_client_attacker() {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker(server, OPENSSL111);
+        let trace = seed_client_attacker(server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
@@ -120,13 +122,11 @@ pub mod seeds {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server, OPENSSL111);
+        let (trace, ..) = seed_client_attacker_full(server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful())
     }
 
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
@@ -136,13 +136,11 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server, OPENSSL111);
+        let trace = seed_session_resumption_dhe(initial_server, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful())
     }
 
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
@@ -152,13 +150,11 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server, OPENSSL111);
+        let trace = seed_session_resumption_dhe_full(initial_server, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful())
     }
 
     #[cfg(all(feature = "tls13", feature = "session-resumption"))]
@@ -168,13 +164,11 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server, OPENSSL111);
+        let trace = seed_session_resumption_ke(initial_server, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", server_state);
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful())
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
@@ -184,17 +178,12 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server, OPENSSL111);
-        //println!("{}", trace);
+        let trace = seed_successful(client, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", client_state);
-        //println!("{}", server_state);
-        assert!(client_state.contains("SSL negotiation finished successfully"));
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(client).unwrap().stream.is_state_successful());
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
@@ -208,17 +197,13 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_mitm(client, server, OPENSSL111);
+        let trace = seed_successful_mitm(client, server, PUT);
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", client_state);
-        //println!("{}", server_state);
-        assert!(client_state.contains("SSL negotiation finished successfully"));
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(client).unwrap().stream.is_state_successful());
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
@@ -228,16 +213,12 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_ccs(client, server, OPENSSL111);
+        let trace = seed_successful_with_ccs(client, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", client_state);
-        //println!("{}", server_state);
-        assert!(client_state.contains("SSL negotiation finished successfully"));
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(client).unwrap().stream.is_state_successful());
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     // require version which supports TLS 1.3
@@ -249,35 +230,25 @@ pub mod seeds {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_tickets(client, server, OPENSSL111);
+        let trace = seed_successful_with_tickets(client, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", client_state);
-        //println!("{}", server_state);
-        assert!(client_state.contains("SSL negotiation finished successfully"));
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(client).unwrap().stream.is_state_successful());
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     #[test]
     fn test_seed_successful12() {
-        // println!("{}", openssl_version());
-
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server, OPENSSL111);
+        let trace = seed_successful12(client, server, PUT);
 
         trace.execute(&mut ctx).unwrap();
 
-        let client_state = ctx.find_agent(client).unwrap().stream.describe_state();
-        let server_state = ctx.find_agent(server).unwrap().stream.describe_state();
-        //println!("{}", client_state);
-        //println!("{}", server_state);
-        assert!(client_state.contains("SSL negotiation finished successfully"));
-        assert!(server_state.contains("SSL negotiation finished successfully"));
+        assert!(ctx.find_agent(client).unwrap().stream.is_state_successful());
+        assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
     // Vulnerable up until OpenSSL 1.0.1j
@@ -292,7 +263,7 @@ pub mod seeds {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_freak(client, server, OPENSSL111);
+            let trace = seed_freak(client, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -304,11 +275,11 @@ pub mod seeds {
         let server = client.next();
 
         for trace in [
-            seed_successful12(client, server, OPENSSL111),
-            seed_successful(client, server, OPENSSL111),
-            seed_client_attacker12(server, OPENSSL111),
-            seed_cve_2021_3449(server, OPENSSL111),
-            seed_client_attacker(server, OPENSSL111),
+            seed_successful12(client, server, PUT),
+            seed_successful(client, server, PUT),
+            seed_client_attacker12(server, PUT),
+            seed_cve_2021_3449(server, PUT),
+            seed_client_attacker(server, PUT),
         ] {
             for step in &trace.steps {
                 match &step.action {
@@ -328,17 +299,20 @@ pub mod serialization {
     use test_log::test;
 
     use crate::{
-        agent::AgentName,
-        concretize::OPENSSL111,
+        agent::{AgentName, PutName},
+        concretize::{OPENSSL111, WOLFSSL510},
         fuzzer::seeds::{seed_successful, *},
         trace::{Trace, TraceContext},
     };
+
+    //const PUT: PutName = OPENSSL111;
+    const PUT: PutName = WOLFSSL510;
 
     #[test]
     fn test_serialisation_seed_seed_session_resumption_dhe_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server, OPENSSL111);
+        let trace = seed_session_resumption_dhe(initial_server, server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -352,7 +326,7 @@ pub mod serialization {
     fn test_serialisation_seed_seed_session_resumption_ke_json() {
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server, OPENSSL111);
+        let trace = seed_session_resumption_ke(initial_server, server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -365,7 +339,7 @@ pub mod serialization {
     #[test]
     fn test_serialisation_seed_client_attacker12_json() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, OPENSSL111);
+        let trace = seed_client_attacker12(server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -395,7 +369,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server, OPENSSL111);
+        let trace = seed_successful(client, server, PUT);
 
         let serialized1 = postcard::to_allocvec(&trace).unwrap();
 
@@ -410,7 +384,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server, OPENSSL111);
+        let trace = seed_successful12(client, server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -425,7 +399,7 @@ pub mod serialization {
         let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_heartbleed(client, server, OPENSSL111);
+        let trace = seed_heartbleed(client, server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 

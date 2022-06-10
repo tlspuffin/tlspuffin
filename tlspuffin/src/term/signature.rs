@@ -96,12 +96,6 @@ impl Signature {
     }
 }
 
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Signature{{{:?}}}", self)
-    }
-}
-
 #[macro_export]
 macro_rules! define_signature {
     ($name_signature:ident, $($f:path)+) => {

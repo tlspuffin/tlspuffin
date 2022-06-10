@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    ffi::CString,
     io,
     io::{ErrorKind, Read, Write},
     marker::PhantomData,
@@ -9,12 +8,11 @@ use std::{
     ptr, slice,
 };
 
-use libc::{c_char, c_int, c_long, c_void, strlen};
+use libc::{c_char, c_int, c_long, c_uint, c_void, strlen};
 use wolfssl_sys as wolf;
 
-use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
-
 use super::error::ErrorStack;
+use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
 
 /* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions
 from OpenSSL to WolfSSL but the internal calling conventions might differ so we may need to rework
@@ -25,7 +23,7 @@ this. */
 ********************/
 
 pub type BIO = wolf::WOLFSSL_BIO;
-#[allow(bad_style)]
+/*#[allow(bad_style)]
 unsafe fn BIO_set_flags(bio: *mut BIO, flags: c_int) {
     (*bio).flags = flags;
 }
@@ -47,35 +45,41 @@ unsafe fn BIO_set_num(bio: *mut BIO, num: c_int) {
 
 unsafe fn BIO_set_init(bio: *mut BIO, num: c_int) {
     wolf::wolfSSL_BIO_set_init(bio, num);
-}
-
-pub const BIO_TYPE_NONE: c_int = 0;
-pub const BIO_CTRL_EOF: c_int = 2;
-pub const BIO_CTRL_INFO: c_int = 3;
-pub const BIO_CTRL_FLUSH: c_int = 11;
-pub const BIO_CTRL_DGRAM_QUERY_MTU: c_int = 40;
-pub const BIO_C_SET_BUF_MEM_EOF_RETURN: c_int = 130;
-pub const BIO_FLAGS_READ: c_int = 0x01;
-pub const BIO_FLAGS_WRITE: c_int = 0x02;
-pub const BIO_FLAGS_IO_SPECIAL: c_int = 0x04;
-pub const BIO_FLAGS_RWS: c_int = BIO_FLAGS_READ | BIO_FLAGS_WRITE | BIO_FLAGS_IO_SPECIAL;
-pub const BIO_FLAGS_SHOULD_RETRY: c_int = 0x08;
+}*/
 
 pub unsafe fn BIO_set_retry_read(b: *mut BIO) {
-    BIO_set_flags(b, BIO_FLAGS_READ | BIO_FLAGS_SHOULD_RETRY)
+    wolf::wolfSSL_BIO_set_flags(
+        b,
+        (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_READ | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY)
+            .try_into()
+            .unwrap(),
+    )
 }
 
 pub unsafe fn BIO_set_retry_write(b: *mut BIO) {
-    BIO_set_flags(b, BIO_FLAGS_WRITE | BIO_FLAGS_SHOULD_RETRY)
+    wolf::wolfSSL_BIO_set_flags(
+        b,
+        (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_WRITE | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY)
+            .try_into()
+            .unwrap(),
+    )
 }
 
 pub unsafe fn BIO_clear_retry_flags(b: *mut BIO) {
-    wolf::wolfSSL_BIO_clear_flags(b, BIO_FLAGS_RWS | BIO_FLAGS_SHOULD_RETRY)
+    wolf::wolfSSL_BIO_clear_flags(
+        b,
+        (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_READ
+            | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_WRITE
+            | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY)
+            .try_into()
+            .unwrap(),
+    )
 }
 
 #[allow(clippy::match_like_matches_macro)] // matches macro requires rust 1.42.0
 fn retriable_error(err: &io::Error) -> bool {
-    match err.kind() {
+    let kind = err.kind();
+    match kind {
         ErrorKind::WouldBlock | ErrorKind::NotConnected => true,
         _ => false,
     }
@@ -84,9 +88,16 @@ fn retriable_error(err: &io::Error) -> bool {
 /*******************
  WolfSSL BIO METHOD
 ********************/
-// struct BIO_METHOD(*mut wolf::WOLFSSL_BIO_METHOD);
-/// Safe wrapper for BIO_METHOD
-pub struct BioMethod(*mut wolf::WOLFSSL_BIO_METHOD);
+pub struct BioMethod(BIO_METHOD);
+
+impl BioMethod {
+    fn new<S: Read + Write>() -> Result<BioMethod, ErrorStack> {
+        BIO_METHOD::new::<S>().map(BioMethod)
+    }
+}
+
+unsafe impl Sync for BioMethod {}
+unsafe impl Send for BioMethod {}
 
 pub struct StreamState<S> {
     pub stream: S,
@@ -95,7 +106,7 @@ pub struct StreamState<S> {
     pub dtls_mtu_size: c_long,
 }
 unsafe fn state<'a, S: 'a>(bio: *mut BIO) -> &'a mut StreamState<S> {
-    &mut *(BIO_get_data(bio) as *mut _)
+    &mut *(wolf::wolfSSL_BIO_get_data(bio) as *mut _)
 }
 
 pub unsafe fn get_mut<'a, S: 'a>(bio: *mut BIO) -> &'a mut S {
@@ -171,7 +182,8 @@ unsafe extern "C" fn ctrl<S: Write>(
 ) -> c_long {
     let state = state::<S>(bio);
 
-    if cmd == BIO_CTRL_FLUSH {
+    // FIXME: Cast is weird
+    if cmd == wolfssl_sys::BIO_CTRL_FLUSH as c_int {
         match catch_unwind(AssertUnwindSafe(|| state.stream.flush())) {
             Ok(Ok(())) => 1,
             Ok(Err(err)) => {
@@ -183,7 +195,8 @@ unsafe extern "C" fn ctrl<S: Write>(
                 0
             }
         }
-    } else if cmd == BIO_CTRL_DGRAM_QUERY_MTU {
+        // FIXME cast is weird
+    } else if cmd == wolfssl_sys::BIO_CTRL_DGRAM_QUERY_MTU as c_int {
         state.dtls_mtu_size
     } else {
         0
@@ -191,10 +204,10 @@ unsafe extern "C" fn ctrl<S: Write>(
 }
 
 unsafe extern "C" fn create(bio: *mut BIO) -> c_int {
-    BIO_set_init(bio, 0);
+    wolf::wolfSSL_BIO_set_init(bio, 0);
     BIO_set_num(bio, 0);
-    BIO_set_data(bio, ptr::null_mut());
-    BIO_set_flags(bio, 0);
+    wolf::wolfSSL_BIO_set_data(bio, ptr::null_mut());
+    wolf::wolfSSL_BIO_set_flags(bio, 0);
     1
 }
 
@@ -203,32 +216,13 @@ unsafe extern "C" fn destroy<S>(bio: *mut BIO) -> c_int {
         return 0;
     }
 
-    let data = BIO_get_data(bio);
+    let data = wolf::wolfSSL_BIO_get_data(bio);
     assert!(!data.is_null());
     Box::<StreamState<S>>::from_raw(data as *mut _);
-    BIO_set_data(bio, ptr::null_mut());
-    BIO_set_init(bio, 0);
+    wolf::wolfSSL_BIO_set_data(bio, ptr::null_mut());
+    wolf::wolfSSL_BIO_set_init(bio, 0);
     1
 }
-
-impl BioMethod {
-    fn new<S: Read + Write>() -> Result<BioMethod, ErrorStack> {
-        unsafe {
-            let ptr = wolf::wolfSSL_BIO_meth_new(BIO_TYPE_NONE, b"rust\0".as_ptr() as *const _);
-            let method = BioMethod(ptr); // we have one less wrapper compared to OpenSSL rust lib
-            wolf::wolfSSL_BIO_meth_set_write(method.0, Some(bwrite::<S>));
-            wolf::wolfSSL_BIO_meth_set_read(method.0, Some(bread::<S>));
-            wolf::wolfSSL_BIO_meth_set_puts(method.0, Some(bputs::<S>));
-            wolf::wolfSSL_BIO_meth_set_ctrl(method.0, Some(ctrl::<S>));
-            wolf::wolfSSL_BIO_meth_set_create(method.0, Some(create));
-            wolf::wolfSSL_BIO_meth_set_destroy(method.0, Some(destroy::<S>));
-            Ok(method)
-        }
-    }
-}
-
-unsafe impl Sync for BioMethod {}
-unsafe impl Send for BioMethod {}
 
 /*******************
  Main function to create a new BIO bound to a given stream
@@ -244,11 +238,167 @@ pub fn bio_new<S: Read + Write>(stream: S) -> Result<(*mut BIO, BioMethod), Erro
     });
 
     unsafe {
-        let bio = wolf::wolfSSL_BIO_new(method.0);
-        //wolf::wolfSSL_BIO_set_data(bio, ); FIXME BIO_set_data != wolfSSL_BIO_set_data
-        BIO_set_data(bio, Box::into_raw(state) as *mut _);
-        BIO_set_init(bio, 1);
+        let bio = cvt_p(wolf::wolfSSL_BIO_new(method.0.get()))?;
+        wolf::wolfSSL_BIO_set_data(bio, Box::into_raw(state) as *mut _);
+        wolf::wolfSSL_BIO_set_init(bio, 1);
 
         Ok((bio, method))
     }
 }
+
+pub struct MemBioSlice<'a>(*mut BIO, PhantomData<&'a [u8]>);
+
+impl<'a> Drop for MemBioSlice<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            wolfssl_sys::wolfSSL_BIO_free_all(self.0);
+        }
+    }
+}
+
+fn cvt_p<T>(r: *mut T) -> Result<*mut T, ErrorStack> {
+    if r.is_null() {
+        Err(ErrorStack::get())
+    } else {
+        Ok(r)
+    }
+}
+
+fn cvt(r: c_int) -> Result<c_int, ErrorStack> {
+    if r <= 0 {
+        Err(ErrorStack::get())
+    } else {
+        Ok(r)
+    }
+}
+
+fn cvt_n(r: c_int) -> Result<c_int, ErrorStack> {
+    if r < 0 {
+        Err(ErrorStack::get())
+    } else {
+        Ok(r)
+    }
+}
+
+impl<'a> MemBioSlice<'a> {
+    pub fn new(buf: &'a [u8]) -> Result<MemBioSlice<'a>, ErrorStack> {
+        assert!(buf.len() <= c_int::max_value() as usize);
+        let bio = unsafe {
+            cvt_p(wolfssl_sys::wolfSSL_BIO_new_mem_buf(
+                buf.as_ptr() as *const _,
+                buf.len() as c_int,
+            ))?
+        };
+
+        Ok(MemBioSlice(bio, PhantomData))
+    }
+
+    pub fn as_ptr(&self) -> *mut BIO {
+        self.0
+    }
+}
+
+pub struct MemBio(*mut BIO);
+
+impl Drop for MemBio {
+    fn drop(&mut self) {
+        unsafe {
+            wolfssl_sys::wolfSSL_BIO_free_all(self.0);
+        }
+    }
+}
+
+impl MemBio {
+    pub fn new() -> Result<MemBio, ErrorStack> {
+        let bio = unsafe {
+            cvt_p(wolfssl_sys::wolfSSL_BIO_new(
+                wolfssl_sys::wolfSSL_BIO_s_mem(),
+            ))?
+        };
+        Ok(MemBio(bio))
+    }
+
+    pub fn as_ptr(&self) -> *mut BIO {
+        self.0
+    }
+
+    pub fn get_buf(&self) -> &[u8] {
+        unsafe {
+            let mut ptr = ptr::null_mut();
+            let len = wolfssl_sys::wolfSSL_BIO_get_mem_data(self.0, ptr);
+            slice::from_raw_parts(ptr as *const _ as *const _, len as usize)
+        }
+    }
+
+    pub unsafe fn from_ptr(bio: *mut BIO) -> MemBio {
+        MemBio(bio)
+    }
+}
+
+#[allow(bad_style, clippy::upper_case_acronyms)]
+struct BIO_METHOD(*mut wolf::WOLFSSL_BIO_METHOD);
+
+impl BIO_METHOD {
+    fn new<S: Read + Write>() -> Result<BIO_METHOD, ErrorStack> {
+        unsafe {
+            let ptr = cvt_p(wolf::wolfSSL_BIO_meth_new(
+                0, // FIXME undefined in 520 wolf::BIO_TYPE_WOLFSSL_BIO_UNDEF,
+                b"rust\0".as_ptr() as *const _,
+            ))?;
+            let method = BIO_METHOD(ptr);
+            cvt(wolf::wolfSSL_BIO_meth_set_write(
+                method.0,
+                Some(bwrite::<S>),
+            ))?;
+            cvt(wolf::wolfSSL_BIO_meth_set_read(method.0, Some(bread::<S>)))?;
+            cvt(wolf::wolfSSL_BIO_meth_set_puts(method.0, Some(bputs::<S>)))?;
+            cvt(wolf::wolfSSL_BIO_meth_set_ctrl(method.0, Some(ctrl::<S>)))?;
+            cvt(wolf::wolfSSL_BIO_meth_set_create(method.0, Some(create)))?;
+            cvt(wolf::wolfSSL_BIO_meth_set_destroy(
+                method.0,
+                Some(destroy::<S>),
+            ))?;
+            Ok(method)
+        }
+    }
+
+    fn get(&self) -> *mut wolf::BIO_METHOD {
+        self.0
+    }
+}
+
+impl Drop for BIO_METHOD {
+    fn drop(&mut self) {
+        unsafe {
+            Box::<wolf::WOLFSSL_BIO_METHOD>::from_raw(self.0);
+        }
+    }
+}
+
+unsafe fn BIO_set_num(_bio: *mut wolf::WOLFSSL_BIO, _num: c_int) {}
+/*
+#[allow(bad_style)]
+unsafe fn BIO_set_init(bio: *mut wolf::WOLFSSL_BIO, init: c_int) {
+    (*bio).init = init;
+}
+
+#[allow(bad_style)]
+unsafe fn BIO_set_flags(bio: *mut wolf::WOLFSSL_BIO, flags: c_int) {
+    (*bio).flags = flags;
+}
+
+#[allow(bad_style)]
+unsafe fn BIO_get_data(bio: *mut wolf::WOLFSSL_BIO) -> *mut c_void {
+    (*bio).ptr
+}
+
+#[allow(bad_style)]
+unsafe fn BIO_set_data(bio: *mut wolf::WOLFSSL_BIO, data: *mut c_void) {
+    (*bio).ptr = data;
+}
+
+#[allow(bad_style)]
+unsafe fn BIO_set_num(bio: *mut wolf::WOLFSSL_BIO, num: c_int) {
+    (*bio).num = num;
+}
+*/

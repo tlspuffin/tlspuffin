@@ -144,6 +144,11 @@ impl Put for OpenSSL {
         self.stream.ssl().state_string_long()
     }
 
+    fn is_state_successful(&self) -> bool {
+        self.describe_state()
+            .contains("SSL negotiation finished successfully")
+    }
+
     fn version() -> &'static str {
         openssl_version()
     }

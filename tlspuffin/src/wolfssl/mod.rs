@@ -8,19 +8,48 @@ use std::{
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer, Claim};
 
+use self::wolfssl_binding::wolfssl_version;
 use crate::{
-    agent::AgentName,
-    concretize::{Config, Put},
+    agent::{AgentName, PutName},
+    concretize::{Config, Factory, Put, WOLFSSL510},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     trace::VecClaimer,
+    wolfssl::error::SslError,
 };
-
-use self::wolfssl_binding::wolfssl_version;
 
 mod error;
 mod wolfssl_binding;
 mod wolfssl_bio;
+
+pub fn new_wolfssl_factory() -> Box<dyn Factory> {
+    struct WolfSSLFactory;
+    impl Factory for WolfSSLFactory {
+        fn create(&self, config: Config) -> Box<dyn Put> {
+            Box::new(WolfSSL::new(config).unwrap())
+        }
+
+        fn put_name(&self) -> PutName {
+            WOLFSSL510
+        }
+
+        fn put_version(&self) -> &'static str {
+            WolfSSL::version()
+        }
+
+        fn make_deterministic(&self) {
+            WolfSSL::make_deterministic()
+        }
+    }
+
+    Box::new(WolfSSLFactory)
+}
+
+impl From<SslError> for Error {
+    fn from(err: SslError) -> Self {
+        Error::OpenSSL(err.to_string())
+    }
+}
 
 pub struct WolfSSL {
     stream: wolfssl_binding::SslStream<MemoryStream>,
@@ -70,8 +99,8 @@ impl Put for WolfSSL {
         let memory_stream = MemoryStream::new();
         let stream = if c.server {
             // we reuse static data obtained through the OpenSSL PUT, which is OK
-            let (cert, pkey) = openssl_binding::static_rsa_cert()?;
-            wolfssl_binding::create_server(memory_stream, &cert, &pkey, &c.tls_version)?
+            // FIXME: let (cert, pkey) = openssl_binding::static_rsa_cert()?;
+            wolfssl_binding::create_server(memory_stream, &c.tls_version)?
         } else {
             wolfssl_binding::create_client(memory_stream, &c.tls_version)?
         };
@@ -131,5 +160,9 @@ impl Put for WolfSSL {
 
     fn make_deterministic() -> () {
         () // TODO
+    }
+
+    fn is_state_successful(&self) -> bool {
+        self.stream.is_handshake_done()
     }
 }

@@ -22,7 +22,6 @@ jobs:
             features: libressl
           - name: wolfssl520
             features: wolfssl520
-            skip-tests: true
     name: Build "${{ matrix.features }}"
     steps:
       - uses: actions/checkout@v2
