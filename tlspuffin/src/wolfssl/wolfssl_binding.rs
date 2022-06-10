@@ -119,6 +119,7 @@ impl<S: Read + Write> SslStream<S> {
     /// This corresponds to [`SSL_state_string_long`].
     ///
     /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
+    /// FIXME: This function of wolfSSL currently does not work with TLS 1.3
     pub fn state_string_long(&self) -> &'static str {
         let state = unsafe {
             let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
@@ -382,7 +383,7 @@ pub fn create_client(
         //// SSL pointer builder
         let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));
 
-        // Force session ticket because `seed_successfull12` expects it
+        // Force session ticket because `seed_successfull12` expects it. FIXME: add new tests for this
         wolf::wolfSSL_UseSessionTicket(ssl.as_ptr());
 
         wolf::wolfSSL_set_connect_state(ssl.as_ptr());

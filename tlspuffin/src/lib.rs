@@ -18,14 +18,14 @@ pub mod experiment;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
+#[cfg(feature = "openssl-binding")]
+pub mod openssl;
+pub mod registry;
 pub mod term;
 pub mod tests;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
 pub mod variable_data;
-
-#[cfg(feature = "openssl-binding")]
-mod openssl;
 #[cfg(feature = "wolfssl-binding")]
-mod wolfssl;
+pub mod wolfssl;

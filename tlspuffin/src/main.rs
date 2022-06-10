@@ -19,7 +19,8 @@ use log4rs::{
 };
 use trace::TraceContext;
 
-use crate::{concretize::PUT_REGISTRY, experiment::*, fuzzer::start, graphviz::write_graphviz};
+use crate::registry::PUT_REGISTRY;
+use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz};
 
 pub mod agent;
 pub mod concretize;
@@ -29,15 +30,15 @@ pub mod experiment;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
+#[cfg(feature = "openssl-binding")]
+mod openssl;
+pub mod registry;
 pub mod term;
 pub mod tests;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
 pub mod variable_data;
-
-#[cfg(feature = "openssl-binding")]
-mod openssl;
 #[cfg(feature = "wolfssl-binding")]
 mod wolfssl;
 

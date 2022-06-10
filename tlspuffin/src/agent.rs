@@ -9,8 +9,9 @@ use std::{cell::RefCell, rc::Rc};
 
 use serde::{Deserialize, Serialize};
 
+use crate::registry::PUT_REGISTRY;
 use crate::{
-    concretize::{Config, Put, PUT_REGISTRY},
+    concretize::{Config, Put},
     error::Error,
     trace::VecClaimer,
 };
@@ -147,7 +148,7 @@ impl Agent {
             claimer,
         };
 
-        let factory = PUT_REGISTRY.find_factory(descriptor.put_name).unwrap();
+        let factory = PUT_REGISTRY.find_factory(descriptor.put_name).unwrap(); // FIXME: unwrap
         let stream = factory.create(config);
         let agent = Agent {
             descriptor: *descriptor,

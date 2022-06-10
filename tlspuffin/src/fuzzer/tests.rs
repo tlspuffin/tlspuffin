@@ -7,9 +7,9 @@ use libafl::{
     state::StdState,
 };
 
+use crate::registry::{DUMMY_PUT, PUT_REGISTRY};
 use crate::{
     agent::AgentName,
-    concretize::{OPENSSL111, PUT_REGISTRY},
     fuzzer::{
         mutations::{
             util::{TermConstraints, TracePath},
@@ -47,7 +47,7 @@ fn test_repeat_mutator() {
     let _corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
     let mut state = create_state();
     let server = AgentName::first();
-    let _trace = seed_client_attacker12(server, OPENSSL111);
+    let _trace = seed_client_attacker12(server, DUMMY_PUT);
 
     let mut mutator = RepeatMutator::new(15);
 
@@ -61,7 +61,7 @@ fn test_repeat_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let length = trace.steps.len();
@@ -84,7 +84,7 @@ fn test_replace_match_mutator() {
     let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(last) = trace.steps.iter().last() {
@@ -119,7 +119,7 @@ fn test_remove_lift_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         let before_mutation = sum_extension_appends(&trace);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -148,7 +148,7 @@ fn test_replace_reuse_mutator() {
     }
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let MutationResult::Mutated = result {
@@ -169,7 +169,7 @@ fn test_skip_mutator() {
     let mut mutator = SkipMutator::new(2);
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         let before_len = trace.steps.len();
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -186,7 +186,7 @@ fn test_swap_mutator() {
     let mut mutator = SwapMutator::new(TermConstraints::default());
 
     loop {
-        let mut trace = seed_client_attacker12(server, OPENSSL111);
+        let mut trace = seed_client_attacker12(server, DUMMY_PUT);
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
         let is_last_not_encrypt = if let Some(last) = trace.steps.iter().last() {
@@ -220,7 +220,7 @@ fn test_swap_mutator() {
 #[test]
 fn test_find_term() {
     let mut rand = StdRand::with_seed(45);
-    let (client_hello, mut trace) = util::setup_simple_trace(OPENSSL111);
+    let (client_hello, mut trace) = util::setup_simple_trace(DUMMY_PUT);
 
     let mut stats: HashSet<TracePath> = HashSet::new();
 
@@ -270,7 +270,7 @@ fn test_reservoir_sample_randomness() {
         }
     }
 
-    let (client_hello, trace) = util::setup_simple_trace(OPENSSL111);
+    let (client_hello, trace) = util::setup_simple_trace(DUMMY_PUT);
 
     let mut rand = StdRand::with_seed(45);
     let mut stats: HashMap<u32, u32> = HashMap::new();

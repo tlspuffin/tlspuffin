@@ -2,6 +2,16 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
+use crate::registry::{OPENSSL111, WOLFSSL510};
+use crate::{
+    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+    term,
+    term::Term,
+    tls::fn_impl::*,
+    trace::{
+        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
+    },
+};
 use rustls::{
     internal::msgs::{
         enums::{Compression, HandshakeType},
@@ -9,17 +19,6 @@ use rustls::{
     },
     msgs::handshake::{Random, SessionID},
     CipherSuite, ProtocolVersion,
-};
-
-use crate::{
-    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
-    concretize::OPENSSL111,
-    term,
-    term::Term,
-    tls::fn_impl::*,
-    trace::{
-        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
-    },
 };
 
 pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
@@ -1553,39 +1552,36 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
     let agent_b = agent_a.next();
 
-    let put_name = OPENSSL111;
+    #[cfg(feature = "openssl-binding")]
+    const PUT: PutName = OPENSSL111;
+    #[cfg(feature = "wolfssl-binding")]
+    const PUT: PutName = WOLFSSL510;
 
     [
+        (seed_successful(agent_a, agent_b, PUT), "seed_successful"),
         (
-            seed_successful(agent_a, agent_b, put_name),
-            "seed_successful",
-        ),
-        (
-            seed_successful_with_ccs(agent_a, agent_b, put_name),
+            seed_successful_with_ccs(agent_a, agent_b, PUT),
             "seed_successful_with_ccs",
         ),
         (
-            seed_successful_with_tickets(agent_a, agent_b, put_name),
+            seed_successful_with_tickets(agent_a, agent_b, PUT),
             "seed_successful_with_tickets",
         ),
         (
-            seed_successful12(agent_a, agent_b, put_name),
+            seed_successful12(agent_a, agent_b, PUT),
             "seed_successful12",
         ),
+        (seed_client_attacker(agent_a, PUT), "seed_client_attacker"),
         (
-            seed_client_attacker(agent_a, put_name),
-            "seed_client_attacker",
-        ),
-        (
-            seed_client_attacker12(agent_a, put_name),
+            seed_client_attacker12(agent_a, PUT),
             "seed_client_attacker12",
         ),
         (
-            seed_session_resumption_dhe(agent_a, agent_b, put_name),
+            seed_session_resumption_dhe(agent_a, agent_b, PUT),
             "seed_session_resumption_dhe",
         ),
         (
-            seed_session_resumption_ke(agent_a, agent_b, put_name),
+            seed_session_resumption_ke(agent_a, agent_b, PUT),
             "seed_session_resumption_ke",
         ),
     ]

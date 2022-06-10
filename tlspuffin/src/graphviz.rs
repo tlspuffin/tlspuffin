@@ -198,7 +198,8 @@ impl Term {
 
 #[cfg(test)]
 mod tests {
-    use crate::{agent::AgentName, concretize::OPENSSL111, fuzzer::seeds::seed_client_attacker12};
+    use crate::registry::OPENSSL111;
+    use crate::{agent::AgentName, fuzzer::seeds::seed_client_attacker12};
 
     #[test]
     fn test_dot_graph() {

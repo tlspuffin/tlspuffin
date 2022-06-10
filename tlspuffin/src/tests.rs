@@ -12,9 +12,9 @@ pub mod seeds {
     };
     use test_log::test;
 
+    use crate::registry::{OPENSSL111, PUT_REGISTRY, WOLFSSL510};
     use crate::{
         agent::{AgentName, PutName},
-        concretize::{OPENSSL111, PUT_REGISTRY, WOLFSSL510},
         fuzzer::seeds::*,
         trace::{Action, TraceContext},
     };
@@ -298,14 +298,16 @@ pub mod seeds {
 pub mod serialization {
     use test_log::test;
 
+    use crate::registry::{OPENSSL111, WOLFSSL510};
     use crate::{
         agent::{AgentName, PutName},
-        concretize::{OPENSSL111, WOLFSSL510},
         fuzzer::seeds::{seed_successful, *},
         trace::{Trace, TraceContext},
     };
 
-    //const PUT: PutName = OPENSSL111;
+    #[cfg(feature = "openssl-binding")]
+    const PUT: PutName = OPENSSL111;
+    #[cfg(feature = "wolfssl-binding")]
     const PUT: PutName = WOLFSSL510;
 
     #[test]

@@ -1,3 +1,7 @@
+//! Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C
+//! functions from OpenSSL to WolfSSL but the internal calling conventions might differ so we may
+//! need to rework this.
+
 use std::{
     any::Any,
     io,
@@ -12,40 +16,10 @@ use libc::{c_char, c_int, c_long, c_uint, c_void, strlen};
 use wolfssl_sys as wolf;
 
 use super::error::ErrorStack;
+use crate::wolfssl::util::{cvt, cvt_n, cvt_p};
 use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
 
-/* Note: for writing this, I tried to mimic the openssl::bio module. I adapted the calls to the C functions
-from OpenSSL to WolfSSL but the internal calling conventions might differ so we may need to rework
-this. */
-
-/*******************
- WolfSSL BIO
-********************/
-
 pub type BIO = wolf::WOLFSSL_BIO;
-/*#[allow(bad_style)]
-unsafe fn BIO_set_flags(bio: *mut BIO, flags: c_int) {
-    (*bio).flags = flags;
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_get_data(bio: *mut BIO) -> *mut c_void {
-    (*bio).ptr
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_set_data(bio: *mut BIO, data: *mut c_void) {
-    (*bio).ptr = data;
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_set_num(bio: *mut BIO, num: c_int) {
-    (*bio).num = num;
-}
-
-unsafe fn BIO_set_init(bio: *mut BIO, num: c_int) {
-    wolf::wolfSSL_BIO_set_init(bio, num);
-}*/
 
 pub unsafe fn BIO_set_retry_read(b: *mut BIO) {
     wolf::wolfSSL_BIO_set_flags(
@@ -85,9 +59,6 @@ fn retriable_error(err: &io::Error) -> bool {
     }
 }
 
-/*******************
- WolfSSL BIO METHOD
-********************/
 pub struct BioMethod(BIO_METHOD);
 
 impl BioMethod {
@@ -224,9 +195,6 @@ unsafe extern "C" fn destroy<S>(bio: *mut BIO) -> c_int {
     1
 }
 
-/*******************
- Main function to create a new BIO bound to a given stream
-********************/
 pub fn bio_new<S: Read + Write>(stream: S) -> Result<(*mut BIO, BioMethod), ErrorStack> {
     let method = BioMethod::new::<S>()?;
 
@@ -253,30 +221,6 @@ impl<'a> Drop for MemBioSlice<'a> {
         unsafe {
             wolfssl_sys::wolfSSL_BIO_free_all(self.0);
         }
-    }
-}
-
-fn cvt_p<T>(r: *mut T) -> Result<*mut T, ErrorStack> {
-    if r.is_null() {
-        Err(ErrorStack::get())
-    } else {
-        Ok(r)
-    }
-}
-
-fn cvt(r: c_int) -> Result<c_int, ErrorStack> {
-    if r <= 0 {
-        Err(ErrorStack::get())
-    } else {
-        Ok(r)
-    }
-}
-
-fn cvt_n(r: c_int) -> Result<c_int, ErrorStack> {
-    if r < 0 {
-        Err(ErrorStack::get())
-    } else {
-        Ok(r)
     }
 }
 
@@ -376,29 +320,3 @@ impl Drop for BIO_METHOD {
 }
 
 unsafe fn BIO_set_num(_bio: *mut wolf::WOLFSSL_BIO, _num: c_int) {}
-/*
-#[allow(bad_style)]
-unsafe fn BIO_set_init(bio: *mut wolf::WOLFSSL_BIO, init: c_int) {
-    (*bio).init = init;
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_set_flags(bio: *mut wolf::WOLFSSL_BIO, flags: c_int) {
-    (*bio).flags = flags;
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_get_data(bio: *mut wolf::WOLFSSL_BIO) -> *mut c_void {
-    (*bio).ptr
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_set_data(bio: *mut wolf::WOLFSSL_BIO, data: *mut c_void) {
-    (*bio).ptr = data;
-}
-
-#[allow(bad_style)]
-unsafe fn BIO_set_num(bio: *mut wolf::WOLFSSL_BIO, num: c_int) {
-    (*bio).num = num;
-}
-*/

@@ -1,6 +1,7 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
+use crate::registry::PUT_REGISTRY;
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -29,7 +30,6 @@ use log::info;
 
 use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
 use crate::{
-    concretize::PUT_REGISTRY,
     fuzzer::{
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
@@ -209,6 +209,7 @@ pub fn start(
     info!("Running on {} cores", core_definition);
 
     PUT_REGISTRY.make_deterministic();
+
     let shmem_provider: StdShMemProvider =
         StdShMemProvider::new().expect("Failed to init shared memory");
 
