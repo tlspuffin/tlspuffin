@@ -1,0 +1,108 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/static_certs.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>static_certs.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script src="../../crates.js"></script><script defer src="../../main.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script>
+    <noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../tlspuffin/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+</pre><pre class="rust"><code><span class="kw">pub</span> <span class="kw">const</span> <span class="ident">PRIVATE_KEY</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCm+I4KieF8pypN
+WrcuAuKDcZNQW/0txKHBR7R8wqCtkBiiQ0WWslV6NHWiaaG/mba8oGQhVRcDMoxf
+BEOA0Eppq+PDJ5giB+9CxvD+cTlaHTZIMsj1qQL/6o6IUE6WBysth8vP6pIjYRPe
+5fVsLv4XFYWXYV4LkmF+kuUqIznvqHkO0BUp7U6pyNEvO74uHbqvNbF2Y3Kgkg+s
+pbaCWPHyCdTGeiPbVzWWgEqBSv7QBRKGNnTZgd400NEG5sF7H1vNZkuZEEEiBLH3
+Ob2BSLtQ/ny0q9jkh2tYjfygJDDoqQOSd8ZjU/9gej2zhzHY2OpDyfR1XkmvrAPC
+9Fu1ts4PAgMBAAECggEAK4SSuMpw+6UyEFE5dwOHeAzNAV/IX/pk0lRXBUFQ0YvB
+7+CqrXkzcBNmKXtwjdiJWSZQkqNzyQCOt2EMGvGuw1Xqmf2i2BPLV1M0kox+Dy+X
+6z9ZQzXWs0618W9E3DNoHIjNJRaVGiV+IVU8HwMsdGXGmMrm0QtI3813bwEZY43Q
+mlDJXF1r5UugHIo2Hh6HRzsaUnC3pG1HNuKL8PcdTFNslVMeGQmO8IpYKxHN5Ldz
+loW6lkkSuBrRsbojvyDUveFLoEX/RhJoxg/Oic6JV7eBWewS/0Ps3gryBmBX3jBV
+6RZQlL8l4z2tDi+0t7flnqbQkqHof3wQCArkIsgOiQKBgQDTruiU3xRZ2WXvu3PN
+dLx9G+Q2I/0TmYw1viEyjhZOTWoinM614Gkn30GMGQU1+Lcq5BTujVdRaSQy0DWv
+1GkzwJye3q0xNBIj2qP7GFZa446UjShOu1NU7HvT2meGtEDmQHA26T55Fd+E1I9K
+te0sk71GNhI8nOLEsgcLf34hJQKBgQDJ7U4BQb0H5bDHdiyWABiEAUKe9CxmDesS
+/IElWI4kUYH+BJC3OKsPaGwKRHP9xM3/Z1xNuEaICru2nrTxjySGlHQLRm9b0x/w
+d4zF4Lmd+hx8Y3EuavwAsN2v9DzGCxksoZgmJPmA64u3HpfwnfkqJLR9yUdrAjOe
+iMwokzNOIwKBgDcvKOjugwKtXxqxNo5AOYcwBz1qAmbip5+3EjZ4vi3plpqxYF4f
+w6omVJMuTqJ0VWP0E9Tgufu6OjqY9vYAnPBl7S6phGMIXRZFwGwMOy70lc36QqDL
+yvyfreRb0pNWWHjuIZLfGW89mYiqVTS32r29QiGUpQpyJ9f5RUblFL+VAoGBAMPf
+YY9uiUMj13tkcpN+vEkwP8OY74h/b8wXC9+CKz+noQUawJY6bhSgIk1DYZCEW56o
+UK1DV4eXgcb/5F19kNzLHFXjmRnljlHgZbl86BEKEJ/Ihn2UYab56dFIhbtGAMF+
+buxxaWVZF0ombxSE6LGssThjCtgOZqwd3oxtXZMpAoGBALGK0dV3CSG0cS5Sya4P
+twtC36V0ynuef3YrRaOMYnj9zgXZD+Db/vpTZSYwSSBAvqVLGTt3EgzW/zwD5+62
+UbQ/245wgNlgATlVVRUcgnHz9bnNAW0dBG4YeLnQTkVl1I0TR8VDjJCi3F6l1nnr
+XIZqdO/MQ75qBeUM/r9tsdpu
+-----END PRIVATE KEY-----&quot;</span>;
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">CERT</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;-----BEGIN CERTIFICATE-----
+MIIDajCCAlKgAwIBAgITdvXibPwwAIa0Bv65gaVuVie5VjANBgkqhkiG9w0BAQsF
+ADBFMQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwY
+SW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMB4XDTIxMDUyNDE1MzAwMFoXDTIxMDYy
+MzE1MzAwMFowRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAf
+BgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDCCASIwDQYJKoZIhvcNAQEB
+BQADggEPADCCAQoCggEBAKb4jgqJ4XynKk1aty4C4oNxk1Bb/S3EocFHtHzCoK2Q
+GKJDRZayVXo0daJpob+ZtrygZCFVFwMyjF8EQ4DQSmmr48MnmCIH70LG8P5xOVod
+NkgyyPWpAv/qjohQTpYHKy2Hy8/qkiNhE97l9Wwu/hcVhZdhXguSYX6S5SojOe+o
+eQ7QFSntTqnI0S87vi4duq81sXZjcqCSD6yltoJY8fIJ1MZ6I9tXNZaASoFK/tAF
+EoY2dNmB3jTQ0QbmwXsfW81mS5kQQSIEsfc5vYFIu1D+fLSr2OSHa1iN/KAkMOip
+A5J3xmNT/2B6PbOHMdjY6kPJ9HVeSa+sA8L0W7W2zg8CAwEAAaNTMFEwHQYDVR0O
+BBYEFI4uUtLX7czsxVP8axN/jfVKjKOPMB8GA1UdIwQYMBaAFI4uUtLX7czsxVP8
+axN/jfVKjKOPMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBACfO
+f4Q93i5Ra3qt+a+MLbY1/EExNVxahePeI4ImmIP7i2ZaHP/sSSHO3L0m02X4hygI
+IMAg0PwN3kiV2elA39TqY0YZv3q0yc5gtssN1nsKwjm36O11RN1HlK1D07SMm00R
+zkMfeXUKErSFDB3PPHwwc+G6FUKMPW4g4rg49aVSizIdbCLmMPECNyXHsD4bo2fF
+WAccqe3TAwAq6m2BWaH8YchExVPAnJ5AvO2pBbE8j8v6dF470vBs6szvBKvgV9pu
++ullb9HQDft8lcQCI7Ib5reI/0YaYN02Mlhy3hLbxHKJaB1FlYMtqiiYL55GIEtZ
+i7RrmCDnL/ue3MkPP+8=
+-----END CERTIFICATE-----&quot;</span>;
+</code></pre></div>
+</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</body></html>

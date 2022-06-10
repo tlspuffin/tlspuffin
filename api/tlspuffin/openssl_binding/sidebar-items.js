@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["CERT",""],["PRIVATE_KEY",""]],"fn":[["create_openssl_client",""],["create_openssl_server",""],["do_handshake",""],["generate_cert",""],["log_io_error",""],["log_ssl_error",""],["make_deterministic",""],["openssl_version",""],["set_max_protocol_version",""],["static_rsa_cert",""]]});
