@@ -7,9 +7,8 @@ use libafl::{
     mutators::Mutator,
     state::StdState,
 };
-use tlspuffin::agent::PutName;
 use tlspuffin::{
-    agent::AgentName,
+    agent::{AgentName, PutName},
     fuzzer::{
         mutations::{util::TermConstraints, ReplaceReuseMutator},
         seeds::*,

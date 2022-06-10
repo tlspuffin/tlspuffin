@@ -32,6 +32,7 @@ pub mod io;
 #[cfg(feature = "openssl-binding")]
 mod openssl;
 pub mod registry;
+pub mod static_certs;
 pub mod term;
 pub mod tests;
 #[allow(clippy::ptr_arg)]

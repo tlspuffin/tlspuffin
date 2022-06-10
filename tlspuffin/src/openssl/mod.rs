@@ -5,13 +5,12 @@ use openssl::error::ErrorStack;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::{deregister_claimer, register_claimer};
 
-use crate::openssl::openssl_binding::static_rsa_cert;
 use crate::{
     agent::{AgentName, PutName},
     concretize::{Config, Put},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    openssl::openssl_binding::openssl_version,
+    openssl::openssl_binding::{openssl_version, static_rsa_cert},
     registry::{Factory, OPENSSL111},
     trace::VecClaimer,
 };

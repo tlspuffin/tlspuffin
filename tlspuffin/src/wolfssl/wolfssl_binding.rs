@@ -23,6 +23,7 @@ use crate::{
     agent::TLSVersion,
     error::Error,
     io::MemoryStream,
+    static_certs::{CERT, PRIVATE_KEY},
     wolfssl::{
         error::{ErrorCode, InnerError, SslError},
         wolfssl_bio::MemBioSlice,

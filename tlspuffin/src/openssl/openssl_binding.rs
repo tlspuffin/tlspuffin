@@ -15,8 +15,12 @@ use openssl::{
     },
 };
 
-use crate::static_certs::{CERT, PRIVATE_KEY};
-use crate::{agent::TLSVersion, error::Error, io::MemoryStream};
+use crate::{
+    agent::TLSVersion,
+    error::Error,
+    io::MemoryStream,
+    static_certs::{CERT, PRIVATE_KEY},
+};
 
 /*
    Change openssl version:
