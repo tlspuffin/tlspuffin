@@ -12,17 +12,14 @@ openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
-    "openssl",
     "openssl-binding"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl",
     "openssl-binding"
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl",
     "openssl-binding"
 ]
 # Some LibreSSL version
@@ -30,15 +27,14 @@ libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
     "claims",
-    "openssl",
     "openssl-binding"
 ]
 
 wolfssl520 = [
-    "wolfssl-sys",
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding"
+    # FIXME: support "claims", "deterministic", "asan", "session-resumption"
 ]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
@@ -49,9 +45,9 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = ["openssl/asan"]
 
 # WolfSSL bindings are used
-wolfssl-binding = []
+wolfssl-binding = ["wolfssl-sys"]
 # OpenSSL bindings are used
-openssl-binding = ["foreign-types-shared"]
+openssl-binding = ["openssl", "foreign-types-shared"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -60,7 +56,7 @@ session-resumption = []
 # PUT is determinisitic
 deterministic = []
 # Require the PUT to implement the claim-interface.h
-claims = ["security-claims"]
+claims = []
 
 introspection = ["libafl/introspection"]
 
@@ -76,7 +72,7 @@ webpki-roots = "0.22.3"
 ring = { version = "0.16.20", features = ["std"] }
 
 # LibAFL
-libafl = { version = "0.7.1", features = [] }
+libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "2e746bf439629e4fe8fa47cf9f39acd1395c828f", features = ["tui_monitor"] }
 libafl_derive = "0.7.1"
 libafl_targets = "0.7.1"
 
@@ -101,7 +97,7 @@ chrono = "0.4.19"
 # Uses build scripts from './openssl-src'
 openssl = { path = "../deps/rust-openssl/openssl", features = ["sancov"], optional = true }
 foreign-types-shared = { version = "0.1.1", optional = true }
-security-claims = { path = "../tlspuffin-claims", optional = true }
+security-claims = { path = "../tlspuffin-claims", optional = false }
 
 # WolfSSL
 wolfssl-sys = { path = "../deps/wolfssl-sys", features = [], optional = true }

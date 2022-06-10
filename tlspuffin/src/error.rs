@@ -1,12 +1,8 @@
-use std::fmt::Formatter;
-use std::{fmt, io};
+use std::{fmt, fmt::Formatter, io};
 
-use openssl::error::ErrorStack;
-
-use crate::agent::AgentName;
-use crate::tls::error::FnError;
 use rustls::msgs::enums::ContentType;
-use security_claims::Claim;
+
+use crate::{agent::AgentName, tls::error::FnError};
 
 // #[derive(Debug, Clone, Serialize)] Serialization not used right now
 #[derive(Debug, Clone)]
@@ -16,7 +12,7 @@ pub enum Error {
     Term(String),
     /// OpenSSL reported an error
     //#[serde(serialize_with = "serialize_openssl_error")]
-    OpenSSL(ErrorStack),
+    OpenSSL(String),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
     /// Some error which was caused because of agents or their names. Like an agent which was not found.
@@ -24,7 +20,7 @@ pub enum Error {
     /// Error while operating on a [`Stream`]
     Stream(String),
     Extraction(ContentType),
-    SecurityClaim(&'static str, Vec<(AgentName, Claim)>),
+    SecurityClaim(&'static str, Vec<(AgentName, security_claims::Claim)>),
 }
 
 /*fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
@@ -72,12 +68,6 @@ impl fmt::Display for Error {
                 msg, claims
             ),
         }
-    }
-}
-
-impl From<openssl::error::ErrorStack> for Error {
-    fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err)
     }
 }
 

@@ -5,11 +5,6 @@
 //! Return type is `Message`
 //!
 
-use rustls::msgs::enums::*;
-use rustls::msgs::handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension};
-
-use rustls::msgs::alert::AlertMessagePayload;
-use rustls::msgs::base::{PayloadU16, PayloadU24, PayloadU8};
 use rustls::{
     internal::msgs::{
         base::Payload,
@@ -18,14 +13,19 @@ use rustls::{
         heartbeat::HeartbeatPayload,
         message::{Message, MessagePayload},
     },
+    msgs::{
+        alert::AlertMessagePayload,
+        base::{PayloadU16, PayloadU24, PayloadU8},
+        enums::*,
+        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
+        message::OpaqueMessage,
+    },
     CipherSuite, ProtocolVersion, SignatureScheme,
 };
 use HandshakePayload::EncryptedExtensions;
 
-use crate::nyi_fn;
-
 use super::error::FnError;
-use rustls::msgs::message::OpaqueMessage;
+use crate::nyi_fn;
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

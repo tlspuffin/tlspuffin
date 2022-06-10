@@ -1,17 +1,18 @@
-use itertools::Itertools;
 use std::collections::HashMap;
-use std::fmt;
 
-use crate::term::{
-    atoms::Variable,
-    dynamic_function::{
-        make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
-    },
-};
+use itertools::Itertools;
 
 use super::atoms::Function;
-use crate::agent::AgentName;
-use crate::trace::{Query, TlsMessageType};
+use crate::{
+    agent::AgentName,
+    term::{
+        atoms::Variable,
+        dynamic_function::{
+            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+        },
+    },
+    trace::{Query, TlsMessageType},
+};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
@@ -92,12 +93,6 @@ impl Signature {
             counter,
         };
         Variable::new(type_shape, query)
-    }
-}
-
-impl fmt::Debug for Signature {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Signature{{{:?}}}", self)
     }
 }
 

@@ -1,6 +1,7 @@
+use std::fmt;
+
 use rustls::msgs::message::MessageError;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use webpki::InvalidDnsNameError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

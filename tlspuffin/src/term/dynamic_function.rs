@@ -49,7 +49,6 @@
 //! ```
 //!
 //! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.
-use itertools::Itertools;
 use std::{
     any::{type_name, Any, TypeId},
     collections::hash_map::DefaultHasher,
@@ -58,6 +57,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tls::{error::FnError, SIGNATURE};

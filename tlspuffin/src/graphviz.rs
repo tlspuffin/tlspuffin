@@ -1,13 +1,18 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use crate::term::{remove_fn_prefix, remove_prefix, Term};
-use crate::trace::{Action, Trace};
+use std::{
+    fmt, io,
+    io::{ErrorKind, Write},
+    process::{Command, Stdio},
+};
 
 use itertools::Itertools;
-use std::io::{ErrorKind, Write};
-use std::process::{Command, Stdio};
-use std::{fmt, io};
+
+use crate::{
+    term::{remove_fn_prefix, remove_prefix, Term},
+    trace::{Action, Trace},
+};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -193,16 +198,12 @@ impl Term {
 
 #[cfg(test)]
 mod tests {
-    use crate::agent::AgentName;
-    use crate::concretize::PUTType;
-    use crate::fuzzer::seeds::seed_client_attacker12;
-
-    static put_type: PUTType = PUTType::OpenSSL;
+    use crate::{agent::AgentName, fuzzer::seeds::seed_client_attacker12, registry::OPENSSL111};
 
     #[test]
     fn test_dot_graph() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, put_type);
+        let trace = seed_client_attacker12(server, OPENSSL111);
         let _string = trace.dot_graph(true);
         //println!("{}", string);
     }

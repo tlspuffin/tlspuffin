@@ -1,12 +1,16 @@
 use std::convert::TryInto;
 
 use ring::test::rand::FixedByteRandom;
-use rustls::conn::ConnectionRandoms;
-use rustls::kx::KeyExchange;
-use rustls::msgs::enums::NamedGroup;
-use rustls::msgs::handshake::{Random, ServerECDHParams};
-use rustls::tls12::ConnectionSecrets;
-use rustls::{SupportedKxGroup, ALL_KX_GROUPS};
+use rustls::{
+    conn::ConnectionRandoms,
+    kx::KeyExchange,
+    msgs::{
+        enums::NamedGroup,
+        handshake::{Random, ServerECDHParams},
+    },
+    tls12::ConnectionSecrets,
+    SupportedKxGroup, ALL_KX_GROUPS,
+};
 
 use crate::tls::error::FnError;
 
@@ -84,7 +88,6 @@ pub fn tls12_new_secrets(
 #[cfg(test)]
 mod tests {
     use rustls::kx_group::SECP384R1;
-
     use test_log::test;
 
     use crate::tls::key_exchange::deterministic_key_exchange;

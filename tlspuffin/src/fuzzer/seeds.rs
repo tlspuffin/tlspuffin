@@ -2,25 +2,26 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use rustls::internal::msgs::enums::{Compression, HandshakeType};
-
-use crate::agent::{AgentDescriptor, TLSVersion};
-use crate::concretize::PUTType;
-
-use crate::term;
-use crate::tls::fn_impl::*;
-use crate::trace::TlsMessageType;
-use crate::trace::TlsMessageType::Handshake;
-use crate::{
-    agent::AgentName,
-    term::Term,
-    trace::{Action, InputAction, OutputAction, Step, Trace},
+use rustls::{
+    internal::msgs::{
+        enums::{Compression, HandshakeType},
+        handshake::ServerExtension,
+    },
+    msgs::handshake::{Random, SessionID},
+    CipherSuite, ProtocolVersion,
 };
-use rustls::internal::msgs::handshake::ServerExtension;
-use rustls::msgs::handshake::{Random, SessionID};
-use rustls::{CipherSuite, ProtocolVersion};
 
-pub fn seed_successful(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+use crate::{
+    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+    term,
+    term::Term,
+    tls::fn_impl::*,
+    trace::{
+        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
+    },
+};
+
+pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -29,14 +30,14 @@ pub fn seed_successful(client: AgentName, server: AgentName, put_type: PUTType) 
                 tls_version: TLSVersion::V1_3,
                 server: false,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
         ],
         steps: vec![
@@ -133,7 +134,7 @@ pub fn seed_successful(client: AgentName, server: AgentName, put_type: PUTType) 
 }
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
-pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -142,14 +143,14 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_type: PUTT
                 tls_version: TLSVersion::V1_3,
                 server: false,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
         ],
         steps: vec![
@@ -248,7 +249,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_type: PUTT
     }
 }
 
-pub fn seed_successful12(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_successful12(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -257,14 +258,14 @@ pub fn seed_successful12(client: AgentName, server: AgentName, put_type: PUTType
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
         ],
         steps: vec![
@@ -398,8 +399,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName, put_type: PUTType
     }
 }
 
-pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
-    let mut trace = seed_successful(client, server, put_type);
+pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+    let mut trace = seed_successful(client, server, put_name);
 
     // CCS Server -> Client
     trace.steps.insert(
@@ -432,9 +433,9 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_type: 
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
-    put_type: PUTType,
+    put_name: PutName,
 ) -> Trace {
-    let mut trace = seed_successful_with_ccs(client, server, put_type);
+    let mut trace = seed_successful_with_ccs(client, server, put_name);
 
     trace.steps.push(Step {
         agent: server,
@@ -466,7 +467,7 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
-pub fn seed_client_attacker(server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_client_attacker(server: AgentName, put_name: PutName) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -511,7 +512,7 @@ pub fn seed_client_attacker(server: AgentName, put_type: PUTType) -> Trace {
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -546,11 +547,11 @@ pub fn seed_client_attacker(server: AgentName, put_type: PUTType) -> Trace {
     trace
 }
 
-pub fn seed_client_attacker12(server: AgentName, put_type: PUTType) -> Trace {
-    _seed_client_attacker12(server, put_type).0
+pub fn seed_client_attacker12(server: AgentName, put_name: PutName) -> Trace {
+    _seed_client_attacker12(server, put_name).0
 }
 
-fn _seed_client_attacker12(server: AgentName, put_type: PUTType) -> (Trace, Term) {
+fn _seed_client_attacker12(server: AgentName, put_name: PutName) -> (Trace, Term) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -647,7 +648,7 @@ fn _seed_client_attacker12(server: AgentName, put_type: PUTType) -> (Trace, Term
             tls_version: TLSVersion::V1_2,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -689,8 +690,8 @@ fn _seed_client_attacker12(server: AgentName, put_type: PUTType) -> (Trace, Term
     (trace, client_verify_data)
 }
 
-pub fn seed_cve_2021_3449(server: AgentName, put_type: PUTType) -> Trace {
-    let (mut trace, client_verify_data) = _seed_client_attacker12(server, put_type);
+pub fn seed_cve_2021_3449(server: AgentName, put_name: PutName) -> Trace {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server, put_name);
 
     let renegotiation_client_hello = term! {
           fn_client_hello(
@@ -759,7 +760,7 @@ pub fn seed_cve_2021_3449(server: AgentName, put_type: PUTType) -> Trace {
     trace
 }
 
-pub fn seed_heartbleed(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_heartbleed(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -792,14 +793,14 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName, put_type: PUTType) 
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
         ],
         steps: vec![
@@ -824,7 +825,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName, put_type: PUTType) 
     trace
 }
 
-pub fn seed_freak(client: AgentName, server: AgentName, put_type: PUTType) -> Trace {
+pub fn seed_freak(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -833,14 +834,14 @@ pub fn seed_freak(client: AgentName, server: AgentName, put_type: PUTType) -> Tr
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_type,
+                put_name,
             },
         ],
         steps: vec![
@@ -938,9 +939,9 @@ pub fn seed_freak(client: AgentName, server: AgentName, put_type: PUTType) -> Tr
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
-    put_type: PUTType,
+    put_name: PutName,
 ) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, put_type);
+    let initial_handshake = seed_client_attacker(initial_server, put_name);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1031,7 +1032,7 @@ pub fn seed_session_resumption_dhe(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -1065,9 +1066,9 @@ pub fn seed_session_resumption_dhe(
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
-    put_type: PUTType,
+    put_name: PutName,
 ) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, put_type);
+    let initial_handshake = seed_client_attacker(initial_server, put_name);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1158,7 +1159,7 @@ pub fn seed_session_resumption_ke(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -1192,7 +1193,7 @@ pub fn seed_session_resumption_ke(
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 pub fn seed_client_attacker_full(
     server: AgentName,
-    put_type: PUTType,
+    put_name: PutName,
 ) -> (Trace, Term, Term, Term) {
     let client_hello = term! {
           fn_client_hello(
@@ -1325,7 +1326,7 @@ pub fn seed_client_attacker_full(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -1374,14 +1375,14 @@ pub fn seed_client_attacker_full(
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
-    put_type: PUTType,
+    put_name: PutName,
 ) -> Trace {
     let (
         initial_handshake,
         server_hello_transcript,
         server_finished_transcript,
         client_finished_transcript,
-    ) = seed_client_attacker_full(initial_server, put_type);
+    ) = seed_client_attacker_full(initial_server, put_name);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1516,7 +1517,7 @@ pub fn seed_session_resumption_dhe_full(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_type,
+            put_name,
         }],
         steps: vec![
             Step {
@@ -1551,39 +1552,36 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
     let agent_b = agent_a.next();
 
-    let put_type = PUTType::OpenSSL;
+    #[cfg(feature = "openssl-binding")]
+    const PUT: PutName = crate::registry::OPENSSL111;
+    #[cfg(feature = "wolfssl-binding")]
+    const PUT: PutName = crate::registry::WOLFSSL520;
 
     [
+        (seed_successful(agent_a, agent_b, PUT), "seed_successful"),
         (
-            seed_successful(agent_a, agent_b, put_type),
-            "seed_successful",
-        ),
-        (
-            seed_successful_with_ccs(agent_a, agent_b, put_type),
+            seed_successful_with_ccs(agent_a, agent_b, PUT),
             "seed_successful_with_ccs",
         ),
         (
-            seed_successful_with_tickets(agent_a, agent_b, put_type),
+            seed_successful_with_tickets(agent_a, agent_b, PUT),
             "seed_successful_with_tickets",
         ),
         (
-            seed_successful12(agent_a, agent_b, put_type),
+            seed_successful12(agent_a, agent_b, PUT),
             "seed_successful12",
         ),
+        (seed_client_attacker(agent_a, PUT), "seed_client_attacker"),
         (
-            seed_client_attacker(agent_a, put_type),
-            "seed_client_attacker",
-        ),
-        (
-            seed_client_attacker12(agent_a, put_type),
+            seed_client_attacker12(agent_a, PUT),
             "seed_client_attacker12",
         ),
         (
-            seed_session_resumption_dhe(agent_a, agent_b, put_type),
+            seed_session_resumption_dhe(agent_a, agent_b, PUT),
             "seed_session_resumption_dhe",
         ),
         (
-            seed_session_resumption_ke(agent_a, agent_b, put_type),
+            seed_session_resumption_ke(agent_a, agent_b, PUT),
             "seed_session_resumption_ke",
         ),
     ]

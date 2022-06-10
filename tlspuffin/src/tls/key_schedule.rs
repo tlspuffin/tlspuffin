@@ -1,17 +1,15 @@
-use ring::digest;
-use ring::hkdf::Prk;
-use rustls::hash_hs::HandshakeHash;
-use rustls::tls13::key_schedule::{
-    KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake,
-    KeyScheduleTrafficWithClientFinishedPending,
+use ring::{digest, hkdf::Prk};
+use rustls::{
+    hash_hs::HandshakeHash,
+    msgs::enums::NamedGroup,
+    tls13::key_schedule::{
+        KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake,
+        KeyScheduleTrafficWithClientFinishedPending,
+    },
+    NoKeyLog, SupportedCipherSuite,
 };
 
-use rustls::msgs::enums::NamedGroup;
-use rustls::NoKeyLog;
-use rustls::SupportedCipherSuite;
-
-use crate::tls::error::FnError;
-use crate::tls::key_exchange::tls13_key_exchange;
+use crate::tls::{error::FnError, key_exchange::tls13_key_exchange};
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,

@@ -2,9 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::ffi::c_void;
-use std::fmt;
-use std::fmt::Formatter;
+use std::{ffi::c_void, fmt, fmt::Formatter};
 
 pub type TLSLike = *const c_void;
 

@@ -1,7 +1,6 @@
 extern crate bindgen;
 
-use std::env;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use bindgen::callbacks::ParseCallbacks;
 

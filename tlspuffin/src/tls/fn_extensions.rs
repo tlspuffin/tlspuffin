@@ -4,21 +4,25 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
-use rustls::kx_group::SECP384R1;
-use rustls::msgs::base::{Payload, PayloadU24};
-use rustls::msgs::base::{PayloadU16, PayloadU8};
-use rustls::msgs::enums::*;
-use rustls::msgs::handshake::*;
-
-use rustls::{x509, ProtocolVersion, SignatureScheme};
-
-use crate::nyi_fn;
-use crate::tls::key_exchange::deterministic_key_share;
+use rustls::{
+    kx_group::SECP384R1,
+    msgs::{
+        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        enums::*,
+        handshake::*,
+        message::Message,
+    },
+    x509, ProtocolVersion, SignatureScheme,
+};
 
 use super::error::FnError;
-use crate::tls::fn_impl::fn_get_ticket_age_add;
-use crate::tls::fn_utils::fn_get_ticket;
-use rustls::msgs::message::Message;
+use crate::{
+    nyi_fn,
+    tls::{
+        fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        key_exchange::deterministic_key_share,
+    },
+};
 
 pub fn fn_client_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])

@@ -7,14 +7,18 @@
 //! # Example
 //!
 //! ```rust
-//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
+//! use tlspuffin::agent::{PutName, AgentName, AgentDescriptor, TLSVersion::*};
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::term::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! use tlspuffin::concretize::PUTType;
+//!
+//! #[cfg(feature = "openssl-binding")]
+//! const PUT: PutName = tlspuffin::registry::OPENSSL111;   
+//! #[cfg(feature = "wolfssl-binding")]
+//! const PUT: PutName = tlspuffin::registry::WOLFSSL520;
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -27,8 +31,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, PUTType::OpenSSL),
-//!         AgentDescriptor::new_server(server, V1_3, PUTType::OpenSSL),
+//!         AgentDescriptor::new_client(client, V1_3, PUT),
+//!         AgentDescriptor::new_server(server, V1_3, PUT),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },
@@ -66,38 +70,29 @@
 //!
 
 use core::fmt;
-use std::cell::RefCell;
-use std::convert::TryFrom;
-use std::ops::Deref;
-use std::rc::Rc;
-use std::{any::TypeId, fmt::Formatter};
+use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
 
-use rustls::msgs::message::OpaqueMessage;
-use rustls::msgs::message::{Message, PlainMessage};
+use itertools::Itertools;
+use log::trace;
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
-    message::MessagePayload,
+    message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
-use security_claims::{Claim, ClaimType};
+use security_claims::{violation::is_violation, Claim, ClaimType};
 use serde::{Deserialize, Serialize};
 
-use crate::agent::AgentDescriptor;
-use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::error::Error;
 #[allow(unused)] // used in docs
 use crate::io::Channel;
-use crate::io::{MessageResult, Stream};
-use crate::term::remove_prefix;
-use crate::tls::error::FnError;
 use crate::{
-    agent::{Agent, AgentName},
-    term::{dynamic_function::TypeShape, Term},
+    agent::{Agent, AgentDescriptor, AgentName},
+    concretize::Put,
+    debug::{debug_message_with_info, debug_opaque_message_with_info},
+    error::Error,
+    io::{MessageResult, Stream},
+    term::{dynamic_function::TypeShape, remove_prefix, Term},
+    tls::error::FnError,
     variable_data::{extract_knowledge, VariableData},
 };
-use security_claims::violation::is_violation;
-
-use crate::concretize::{OpenSSL, PUTType, Put};
-use itertools::Itertools;
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -372,17 +367,8 @@ impl TraceContext {
         name
     }
 
-    pub fn new_openssl_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        // [TODO] There might be a cleaner way of doing this, e.g., if we could store a type
-        // instantiation in an enum, but this works
-        let agent = match descriptor.put_type {
-            PUTType::OpenSSL => Agent::new::<OpenSSL>(descriptor, self.claimer.clone())?,
-            #[cfg(feature = "wolfssl")]
-            PUTType::WolfSSL => {
-                Agent::new::<crate::concretize::wolfssl::WolfSSL>(descriptor, self.claimer.clone())?
-            }
-        };
-        let agent_name = self.add_agent(agent);
+    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
+        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
         Ok(agent_name)
     }
 
@@ -440,7 +426,7 @@ impl Trace {
                 reusable.rename(ctx.claimer.clone(), descriptor.name);
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_openssl_agent(descriptor)?;
+                ctx.new_agent(descriptor)?;
             }
         }
 

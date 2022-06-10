@@ -23,3 +23,5 @@ flame.svg
 *.profraw
 coverage.info
 coverage/
+
+corpus/

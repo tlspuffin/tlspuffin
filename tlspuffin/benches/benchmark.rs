@@ -1,22 +1,28 @@
 use std::any::Any;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use libafl::bolts::rands::StdRand;
-use libafl::corpus::InMemoryCorpus;
-use libafl::mutators::Mutator;
-use libafl::state::StdState;
+use libafl::{
+    bolts::rands::{RomuDuoJrRand, StdRand},
+    corpus::InMemoryCorpus,
+    mutators::Mutator,
+    state::StdState,
+};
+use tlspuffin::{
+    agent::{AgentName, PutName},
+    fuzzer::{
+        mutations::{util::TermConstraints, ReplaceReuseMutator},
+        seeds::*,
+    },
+    term,
+    term::dynamic_function::make_dynamic,
+    tls::{error::FnError, fn_impl::*},
+    trace::{Trace, TraceContext},
+};
 
-use tlspuffin::agent::AgentName;
-use tlspuffin::concretize::PUTType;
-use tlspuffin::fuzzer::mutations::util::TermConstraints;
-use tlspuffin::fuzzer::mutations::ReplaceReuseMutator;
-use tlspuffin::fuzzer::seeds::*;
-use tlspuffin::term;
-use tlspuffin::term::dynamic_function::make_dynamic;
-use tlspuffin::tls::error::FnError;
-use tlspuffin::tls::fn_impl::*;
-use tlspuffin::trace::Trace;
-use tlspuffin::trace::TraceContext;
+#[cfg(feature = "openssl-binding")]
+const PUT: PutName = tlspuffin::registry::OPENSSL111;
+#[cfg(feature = "wolfssl-binding")]
+const PUT: PutName = tlspuffin::registry::WOLFSSL520;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -40,19 +46,23 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.finish()
 }
 
+fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
+    let rand = StdRand::with_seed(1235);
+    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
 fn benchmark_mutations(c: &mut Criterion) {
     let mut group = c.benchmark_group("mutations");
 
     group.bench_function("ReplaceReuseMutator", |b| {
-        let rand = StdRand::with_seed(45);
-        let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
-        let mut state = StdState::new(rand, corpus, InMemoryCorpus::new(), ());
+        let mut state = create_state();
         let client = AgentName::first();
         let mut mutator = ReplaceReuseMutator::new(TermConstraints {
             min_term_size: 0,
             max_term_size: 200,
         });
-        let mut trace = seed_client_attacker12(client, PUTType::OpenSSL);
+        let mut trace = seed_client_attacker12(client, PUT);
 
         b.iter(|| {
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -111,7 +121,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful(client, server, PUTType::OpenSSL);
+            let trace = seed_successful(client, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -122,7 +132,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful12(client, server, PUTType::OpenSSL);
+            let trace = seed_successful12(client, server, PUT);
 
             trace.execute(&mut ctx).unwrap()
         })
@@ -132,7 +142,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let trace = seed_client_attacker(client, PUTType::OpenSSL);
+            let trace = seed_client_attacker(client, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -142,7 +152,7 @@ fn benchmark_seeds(c: &mut Criterion) {
         b.iter(|| {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
-            let trace = seed_client_attacker12(client, PUTType::OpenSSL);
+            let trace = seed_client_attacker12(client, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -153,7 +163,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_dhe(initial_server, server, PUTType::OpenSSL);
+            let trace = seed_session_resumption_dhe(initial_server, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -164,7 +174,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_ke(initial_server, server, PUTType::OpenSSL);
+            let trace = seed_session_resumption_ke(initial_server, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -175,7 +185,7 @@ fn benchmark_seeds(c: &mut Criterion) {
             let mut ctx = TraceContext::new();
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_dhe_full(initial_server, server, PUTType::OpenSSL);
+            let trace = seed_session_resumption_dhe_full(initial_server, server, PUT);
 
             trace.execute(&mut ctx).unwrap();
         })

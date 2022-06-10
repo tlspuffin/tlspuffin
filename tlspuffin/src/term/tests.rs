@@ -1,19 +1,18 @@
 use itertools::Itertools;
+use ring::{hmac, hmac::Key, test::rand::FixedByteRandom};
+use rustls::{msgs::handshake::SessionID, ProtocolVersion};
 
-use ring::hmac;
-use ring::hmac::Key;
-use ring::test::rand::FixedByteRandom;
-use rustls::msgs::handshake::SessionID;
-use rustls::ProtocolVersion;
-
-use crate::agent::AgentName;
-use crate::term;
-use crate::term::signature::Signature;
-use crate::tls::fn_impl::*;
-use crate::tls::fn_impl::{fn_client_hello, fn_new_session_id};
-use crate::tls::{error::FnError, SIGNATURE};
-use crate::trace::{Knowledge, Query};
-use crate::{term::Term, trace::TraceContext};
+use crate::{
+    agent::AgentName,
+    term,
+    term::{signature::Signature, Term},
+    tls::{
+        error::FnError,
+        fn_impl::{fn_client_hello, fn_new_session_id, *},
+        SIGNATURE,
+    },
+    trace::{Knowledge, Query, TraceContext},
+};
 
 pub fn fn_hmac256_new_key() -> Result<Key, FnError> {
     let random = FixedByteRandom { byte: 12 };
