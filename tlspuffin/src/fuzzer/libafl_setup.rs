@@ -1,7 +1,6 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::corpus::CachedOnDiskCorpus;
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -9,9 +8,10 @@ use libafl::{
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
     },
-    corpus::{Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus},
     events::{
-        EventFirer, EventManager, EventRestarter, LlmpRestartingEventManager, ProgressReporter,
+        EventFirer, EventManager, EventRestarter, HasEventManagerId, LlmpRestartingEventManager,
+        ProgressReporter,
     },
     executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
@@ -36,21 +36,6 @@ use crate::{
     registry::PUT_REGISTRY,
     trace::Trace,
 };
-
-/// Default value, how many iterations each stage gets, as an upper bound
-/// It may randomly continue earlier. Each iteration works on a different Input from the corpus
-pub static MAX_ITERATIONS_PER_STAGE: u64 = 256;
-pub static MAX_MUTATIONS_PER_ITERATION: u64 = 16;
-pub static MAX_TRACE_LENGTH: usize = 15;
-pub static MIN_TRACE_LENGTH: usize = 5;
-
-pub static FRESH_ZOO_AFTER: u64 = 100000;
-
-/// Below this term size we no longer mutate. Note that it is possible to reach
-/// smaller terms by having a mutation which removes all symbols in a single mutation.
-pub static MIN_TERM_SIZE: usize = 0;
-/// Above this term size we no longer mutate.
-pub static MAX_TERM_SIZE: usize = 300;
 
 // TODO: Use feedback_or_fast
 pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
@@ -104,7 +89,51 @@ pub struct FuzzerConfig {
     pub corpus_dir: PathBuf,
     pub objective_dir: PathBuf,
     pub broker_port: u16,
-    pub minimizer: bool,
+    pub minimizer: bool, // FIXME: support this property
+    pub mutation_stage_config: MutationStageConfig,
+    pub mutation_config: MutationConfig,
+}
+
+#[derive(Clone, Copy)]
+pub struct MutationStageConfig {
+    /// How many iterations each stage gets, as an upper bound
+    /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
+    pub max_iterations_per_stage: u64,
+    pub max_mutations_per_iteration: u64,
+}
+
+impl Default for MutationStageConfig {
+    fn default() -> Self {
+        Self {
+            max_iterations_per_stage: 256,
+            max_mutations_per_iteration: 16,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct MutationConfig {
+    pub fresh_zoo_after: u64,
+    pub max_trace_length: usize,
+    pub min_trace_length: usize,
+    /// Below this term size we no longer mutate. Note that it is possible to reach
+    /// smaller terms by having a mutation which removes all symbols in a single mutation.
+    /// Above this term size we no longer mutate.
+    pub term_constraints: TermConstraints,
+}
+
+impl Default for MutationConfig {
+    fn default() -> Self {
+        Self {
+            fresh_zoo_after: 100000,
+            max_trace_length: 15,
+            min_trace_length: 5,
+            term_constraints: TermConstraints {
+                min_term_size: 0,
+                max_term_size: 300,
+            },
+        }
+    }
 }
 
 struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
@@ -115,14 +144,14 @@ where
 {
     config: FuzzerConfig,
     harness_fn: &'harness mut H,
-    state: Option<ConcreteState<C, R, SC>>,
-    new_state: Box<dyn FnOnce(&FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>,
-    sender_id: u32,
-    scheduler: CS,
+    existing_state: Option<ConcreteState<C, R, SC>>,
+    new_state:
+        Option<Box<dyn FnOnce(u64, &FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>>,
+    scheduler: Option<CS>,
     event_manager: EM,
-    observers: OT,
-    feedback: F,
-    objective: OF,
+    observers: Option<OT>,
+    feedback: Option<F>,
+    objective: Option<OF>,
 }
 
 impl<'harness, H, C, R, SC, EM, F, OF, OT, CS>
@@ -147,16 +176,65 @@ where
             StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
         > + ProgressReporter<Trace>,
 {
+    fn new(
+        config: FuzzerConfig,
+        harness_fn: &'harness mut H,
+        existing_state: Option<ConcreteState<C, R, SC>>,
+        event_manager: EM,
+    ) -> Self {
+        Self {
+            config,
+            harness_fn,
+            existing_state,
+            new_state: None,
+            scheduler: None,
+            event_manager,
+            observers: None,
+            feedback: None,
+            objective: None,
+        }
+    }
+
+    fn with_new_state(
+        mut self,
+        new_state: Box<dyn FnOnce(u64, &FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>,
+    ) -> Self {
+        self.new_state = Some(new_state);
+        self
+    }
+
+    fn with_scheduler(mut self, scheduler: CS) -> Self {
+        self.scheduler = Some(scheduler);
+        self
+    }
+
+    fn with_feedback(mut self, feedback: F) -> Self {
+        self.feedback = Some(feedback);
+        self
+    }
+
+    fn with_objective(mut self, objective: OF) -> Self {
+        self.objective = Some(objective);
+        self
+    }
+
+    fn with_observers(mut self, observers: OT) -> Self {
+        self.observers = Some(observers);
+        self
+    }
+
     fn run_client(mut self) -> Result<(), Error> {
-        //let sender_id = restarting_mgr.mgr_id();
-        info!("Sender ID is {}", self.sender_id);
+        let event_manager_id = self.event_manager.mgr_id().id as u64;
+        info!("Event manager ID is {}", event_manager_id);
+
+        let mut feedback = self.feedback.unwrap();
+        let mut objective = self.objective.unwrap();
 
         // If not restarting, create a State from scratch
-        let mut state = self.state.unwrap_or_else(|| {
-            let seed = self.config.static_seed.unwrap_or(self.sender_id as u64);
+        let mut state = self.existing_state.unwrap_or_else(|| {
+            let seed = self.config.static_seed.unwrap_or(event_manager_id as u64);
             info!("Seed is {}", seed);
-
-            (self.new_state)(&self.config, &mut self.feedback, &mut self.objective)
+            (self.new_state.unwrap())(seed, &self.config, &mut feedback, &mut objective)
         });
 
         let FuzzerConfig {
@@ -168,33 +246,42 @@ where
             objective_dir,
             broker_port,
             minimizer,
+            mutation_stage_config:
+                MutationStageConfig {
+                    max_iterations_per_stage,
+                    max_mutations_per_iteration,
+                },
+            mutation_config:
+                MutationConfig {
+                    fresh_zoo_after,
+                    max_trace_length,
+                    min_trace_length,
+                    term_constraints,
+                },
             ..
         } = self.config;
 
         let mutations = trace_mutations(
-            MIN_TRACE_LENGTH,
-            MAX_TRACE_LENGTH,
-            TermConstraints {
-                min_term_size: MIN_TERM_SIZE,
-                max_term_size: MAX_TERM_SIZE,
-            },
-            FRESH_ZOO_AFTER,
+            min_trace_length,
+            max_trace_length,
+            term_constraints,
+            fresh_zoo_after,
         );
 
-        let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
+        let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
         let mut stages = tuple_list!(
-            PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
+            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StatsStage::new()
         );
 
         let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
-            StdFuzzer::new(self.scheduler, self.feedback, self.objective);
+            StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
         let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
                 // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
-                self.observers,
+                self.observers.unwrap(),
                 &mut fuzzer,
                 &mut state,
                 &mut self.event_manager,
@@ -244,11 +331,6 @@ where
 pub fn start(config: FuzzerConfig) {
     info!("Running on {} cores", &config.core_definition);
 
-    PUT_REGISTRY.make_deterministic();
-
-    let shmem_provider: StdShMemProvider =
-        StdShMemProvider::new().expect("Failed to init shared memory");
-
     let _monitor = PuffinMonitor::new(
         |s| {
             info!("{}", s);
@@ -260,11 +342,11 @@ pub fn start(config: FuzzerConfig) {
     let monitor = TuiMonitor::new("test".to_string(), false);
 
     let mut run_client =
-        |state: Option<StdState<_, _, _, _>>,
+        |state: Option<StdState<_, Trace, _, _>>,
          event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
-            info!("We're a client, let's fuzz :)");
+            PUT_REGISTRY.make_deterministic();
 
             #[cfg(not(feature = "sancov_libafl"))]
             let (feedback, observers) = { (no_feedback(), ()) };
@@ -281,32 +363,26 @@ pub fn start(config: FuzzerConfig) {
                 (feedback, observers)
             };
 
-            RunClientBuilder {
-                config: config.clone(),
-                harness_fn: &mut harness::harness,
-                state,
-                new_state: Box::new(|config, feedback, objective| {
+            RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
+                .with_new_state(Box::new(|seed, config, feedback, objective| {
                     StdState::new(
-                        StdRand::with_seed(0),
+                        StdRand::with_seed(seed),
                         CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap(),
                         OnDiskCorpus::new(config.objective_dir.clone()).unwrap(),
                         feedback,
                         objective,
                     )
                     .unwrap()
-                }),
-                sender_id: 0,
-                scheduler: IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
-                event_manager,
-                observers,
-                feedback,
-                objective: feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
-            }
-            .run_client()
+                }))
+                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
+                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
+                .with_observers(observers)
+                .with_feedback(feedback)
+                .run_client()
         };
 
     if let Err(error) = libafl::bolts::launcher::Launcher::builder()
-        .shmem_provider(shmem_provider)
+        .shmem_provider(StdShMemProvider::new().expect("Failed to init shared memory"))
         .configuration("launcher default".into())
         .monitor(monitor)
         .run_client(&mut run_client)

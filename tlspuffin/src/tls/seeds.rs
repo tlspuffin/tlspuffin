@@ -1868,7 +1868,7 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below 200, else we should increase MAX_TERM_SIZE in fuzzer setup
+                        // should be below 200, else we should increase max_term_size in fuzzer setup
                         assert!(input.recipe.size() < 200);
                     }
                     Action::Output(_) => {}

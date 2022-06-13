@@ -23,8 +23,7 @@ mod stages;
 mod stats_observer;
 mod term_zoo;
 
-pub use libafl_setup::start;
-pub use libafl_setup::FuzzerConfig;
+pub use libafl_setup::{start, FuzzerConfig};
 #[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};

@@ -19,8 +19,12 @@ use log4rs::{
 use tls::seeds::create_corpus;
 use trace::TraceContext;
 
-use crate::fuzzer::FuzzerConfig;
-use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz, registry::PUT_REGISTRY};
+use crate::{
+    experiment::*,
+    fuzzer::{start, FuzzerConfig},
+    graphviz::write_graphviz,
+    registry::PUT_REGISTRY,
+};
 
 pub mod agent;
 pub mod algebra;
@@ -217,6 +221,8 @@ fn main() {
             broker_port: port,
             monitor_file: experiment_path.join("stats.json"),
             minimizer,
+            mutation_stage_config: Default::default(),
+            mutation_config: Default::default(),
         });
     }
 }
