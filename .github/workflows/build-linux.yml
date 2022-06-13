@@ -13,11 +13,14 @@ jobs:
         include:
           - name: openssl111
             features: openssl111
+            clean-crates: openssl-sys
           - name: openssl101f
             features: openssl101f,asan
             apt-dependencies: xutils-dev
+            clean-crates: openssl-sys
           - name: openssl102u
             features: openssl102u
+            clean-crates: openssl-sys
           - name: libressl
             features: libressl
           - name: wolfssl520
@@ -39,6 +42,10 @@ jobs:
         if: matrix.apt-dependencies
         shell: bash
         run: sudo apt-get install -y ${{ matrix.apt-dependencies }}
+      - name: Clean
+        if: matrix.
+        shell: bash
+        run: cargo clean --target x86_64-unknown-linux-gnu --release -p ${{ matrix.clean-crates }}
       - name: Build
         shell: bash
         run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
