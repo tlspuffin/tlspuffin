@@ -1,9 +1,9 @@
 //! The fuzzer module setups the fuzzing loop. It also is responsible for gathering feedback from
 //! runs and restarting processes if they crash.
 
+use libafl::{bolts::HasLen, inputs::Input};
+
 use crate::trace::Trace;
-use libafl::bolts::HasLen;
-use libafl::inputs::Input;
 // Link against correct sancov impl
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_libafl"))]
 compile_error!("`sancov_pcguard_log` and `sancov_libafl` features are mutually exclusive.");
@@ -81,8 +81,7 @@ mod tests {
             term_zoo::generate_term_zoo,
         },
         registry::DUMMY_PUT,
-        tls::seeds::*,
-        tls::{fn_impl::*, SIGNATURE},
+        tls::{fn_impl::*, seeds::*, SIGNATURE},
         trace::{Action, Step, Trace},
     };
 

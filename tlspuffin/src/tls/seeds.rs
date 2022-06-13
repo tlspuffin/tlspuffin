@@ -1589,12 +1589,6 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
-    use crate::{
-        agent::{AgentName, PutName},
-        registry::PUT_REGISTRY,
-        trace::{Action, TraceContext},
-    };
     use nix::{
         sys::{
             signal::Signal,
@@ -1606,6 +1600,13 @@ pub mod tests {
         unistd::{fork, ForkResult},
     };
     use test_log::test;
+
+    use super::*;
+    use crate::{
+        agent::{AgentName, PutName},
+        registry::PUT_REGISTRY,
+        trace::{Action, TraceContext},
+    };
 
     #[cfg(feature = "openssl-binding")]
     const PUT: PutName = crate::registry::OPENSSL111;
@@ -1882,12 +1883,13 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use crate::tls::seeds::*;
+        use test_log::test;
+
         use crate::{
             agent::{AgentName, PutName},
+            tls::seeds::*,
             trace::{Trace, TraceContext},
         };
-        use test_log::test;
 
         #[cfg(feature = "openssl-binding")]
         const PUT: PutName = crate::registry::OPENSSL111;

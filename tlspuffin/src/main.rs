@@ -22,6 +22,7 @@ use trace::TraceContext;
 use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz, registry::PUT_REGISTRY};
 
 pub mod agent;
+pub mod algebra;
 pub mod concretize;
 pub mod debug;
 pub mod error;
@@ -33,7 +34,6 @@ pub mod io;
 mod openssl;
 pub mod registry;
 pub mod static_certs;
-pub mod term;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
