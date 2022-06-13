@@ -26,13 +26,15 @@ jobs:
             features: ""
             cargo-flags: "--no-default-features"
             skip-tests: true
-    name: Build "${{ matrix.features }}"
+    name: Build "${{ matrix.name }}"
     steps:
       - uses: actions/checkout@v2
         with:
           submodules: 'recursive'
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          key: ${{ matrix.name }}
       - name: APT Dependencies
         if: matrix.apt-dependencies
         shell: bash

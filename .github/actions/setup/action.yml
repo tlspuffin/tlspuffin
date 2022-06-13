@@ -2,6 +2,11 @@
 name: setup
 description: Setup toolchains and tools
 
+inputs:
+  key:
+    description: 'Additional key for caching'
+    required: false
+
 runs:
   using: "composite"
   steps:
@@ -10,3 +15,5 @@ runs:
       shell: bash
       run: just default-toolchain
     - uses: Swatinem/rust-cache@v1
+      with:
+        sharedKey: ${{ inputs.key }}
