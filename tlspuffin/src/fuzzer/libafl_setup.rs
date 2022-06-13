@@ -1,25 +1,24 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::bolts::rands::RomuDuoJrRand;
-use libafl::feedbacks::{
-    CombinedFeedback, DifferentIsNovel, LogicEagerOr, MapFeedback, MaxReducer,
-};
 use libafl::{
     bolts::{
         core_affinity::Cores,
-        rands::{Rand, StdRand},
+        rands::{Rand, RomuDuoJrRand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
     },
     corpus::{CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus},
     events::{
-        EventFirer, EventManager, EventRestarter, HasEventManagerId, LlmpRestartingEventManager,
-        ProgressReporter,
+        EventConfig, EventFirer, EventManager, EventRestarter, HasEventManagerId,
+        LlmpRestartingEventManager, ProgressReporter,
     },
     executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
-    feedbacks::{CrashFeedback, Feedback, MaxMapFeedback, TimeFeedback, TimeoutFeedback},
+    feedbacks::{
+        CombinedFeedback, CrashFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback,
+        MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
+    },
     fuzzer::{Fuzzer, StdFuzzer},
     monitors::tui::TuiMonitor,
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
@@ -97,6 +96,7 @@ pub struct FuzzerConfig {
     pub minimizer: bool, // FIXME: support this property
     pub mutation_stage_config: MutationStageConfig,
     pub mutation_config: MutationConfig,
+    pub monitor: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -150,8 +150,9 @@ where
     config: FuzzerConfig,
     harness_fn: &'harness mut H,
     existing_state: Option<ConcreteState<C, R, SC>>,
-    new_state:
-        Option<Box<dyn FnOnce(u64, &FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>>,
+    rand: Option<R>,
+    objective_corpus: Option<SC>,
+    corpus: Option<C>,
     scheduler: Option<CS>,
     event_manager: EM,
     observers: Option<OT>,
@@ -191,7 +192,9 @@ where
             config,
             harness_fn,
             existing_state,
-            new_state: None,
+            rand: None,
+            objective_corpus: None,
+            corpus: None,
             scheduler: None,
             event_manager,
             observers: None,
@@ -199,12 +202,18 @@ where
             objective: None,
         }
     }
+    fn with_rand(mut self, rand: R) -> Self {
+        self.rand = Some(rand);
+        self
+    }
 
-    fn with_new_state(
-        mut self,
-        new_state: Box<dyn FnOnce(u64, &FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>,
-    ) -> Self {
-        self.new_state = Some(new_state);
+    fn with_corpus(mut self, corpus: C) -> Self {
+        self.corpus = Some(corpus);
+        self
+    }
+
+    fn with_objective_corpus(mut self, objective_corpus: SC) -> Self {
+        self.objective_corpus = Some(objective_corpus);
         self
     }
 
@@ -237,9 +246,14 @@ where
 
         // If not restarting, create a State from scratch
         let mut state = self.existing_state.unwrap_or_else(|| {
-            let seed = self.config.static_seed.unwrap_or(event_manager_id as u64);
-            info!("Seed is {}", seed);
-            (self.new_state.unwrap())(seed, &self.config, &mut feedback, &mut objective)
+            StdState::new(
+                self.rand.unwrap(),
+                self.corpus.unwrap(),
+                self.objective_corpus.unwrap(),
+                &mut feedback,
+                &mut objective,
+            )
+            .unwrap()
         });
 
         let FuzzerConfig {
@@ -417,51 +431,62 @@ where
 pub fn start(config: FuzzerConfig) {
     info!("Running on {} cores", &config.core_definition);
 
-    let monitor = PuffinMonitor::new(
-        |s| {
-            info!("{}", s);
-        },
-        config.monitor_file.clone(),
-    )
-    .unwrap();
-
-    // let monitor = TuiMonitor::new("test".to_string(), false);
-
     let mut run_client =
         |state: Option<StdState<_, Trace, _, _>>,
          event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
             PUT_REGISTRY.make_deterministic();
-
+            let seed = config
+                .static_seed
+                .unwrap_or(event_manager.mgr_id().id as u64);
+            info!("Seed is {}", seed);
             RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
-                .with_new_state(Box::new(|seed, config, feedback, objective| {
-                    StdState::new(
-                        StdRand::with_seed(seed),
-                        CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap(),
-                        OnDiskCorpus::new(config.objective_dir.clone()).unwrap(),
-                        feedback,
-                        objective,
-                    )
-                    .unwrap()
-                }))
+                .with_rand(StdRand::with_seed(seed))
+                .with_corpus(CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap())
+                .with_objective_corpus(OnDiskCorpus::new(config.objective_dir.clone()).unwrap())
                 .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
                 .install_minimizer()
                 .run_client()
         };
 
-    if let Err(error) = libafl::bolts::launcher::Launcher::builder()
-        .shmem_provider(StdShMemProvider::new().expect("Failed to init shared memory"))
-        .configuration("launcher default".into())
-        .monitor(monitor)
-        .run_client(&mut run_client)
-        .cores(&Cores::from_cmdline(config.core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
-        .broker_port(config.broker_port)
-        //todo where should we log the output of the harness?
-        /*.stdout_file(Some("/dev/null"))*/
-        .build()
-        .launch()
-    {
+    let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
+    let configuration: EventConfig = "launcher default".into();
+    let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+
+    let launch_result = match config.monitor {
+        true => libafl::bolts::launcher::Launcher::builder()
+            .shmem_provider(sh_mem_provider)
+            .configuration(configuration)
+            .monitor(TuiMonitor::new("test".to_string(), false))
+            .run_client(&mut run_client)
+            .cores(&cores)
+            .broker_port(config.broker_port)
+            //todo where should we log the output of the harness?
+            /*.stdout_file(Some("/dev/null"))*/
+            .build()
+            .launch(),
+        false => libafl::bolts::launcher::Launcher::builder()
+            .shmem_provider(sh_mem_provider)
+            .configuration(configuration)
+            .monitor(
+                PuffinMonitor::new(
+                    |s| {
+                        info!("{}", s);
+                    },
+                    config.monitor_file.clone(),
+                )
+                .unwrap(),
+            )
+            .run_client(&mut run_client)
+            .cores(&cores)
+            .broker_port(config.broker_port)
+            //todo where should we log the output of the harness?
+            /*.stdout_file(Some("/dev/null"))*/
+            .build()
+            .launch(),
+    };
+    if let Err(error) = launch_result {
         match error {
             Error::ShuttingDown => {
                 // ignore

@@ -56,6 +56,7 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-p --port [n] "Port of the broker"))
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
         .arg(arg!(--minimizer "Use a minimizer"))
+        .arg(arg!(--monitor "Use a monitor"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
@@ -109,6 +110,7 @@ fn main() {
     let static_seed: Option<u64> = matches.value_of_t("seed").ok();
     let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
     let minimizer = matches.is_present("minimizer");
+    let monitor = matches.is_present("monitor");
 
     info!("{}", PUT_REGISTRY.versions());
 
@@ -222,6 +224,7 @@ fn main() {
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
+            monitor,
         });
     }
 }
