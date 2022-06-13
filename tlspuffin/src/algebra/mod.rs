@@ -44,8 +44,8 @@ mod tests {
 
     use crate::{
         agent::AgentName,
+        algebra::{signature::Signature, Term},
         term,
-        term::{signature::Signature, Term},
         tls::{
             error::FnError,
             fn_impl::{fn_client_hello, fn_new_session_id, *},

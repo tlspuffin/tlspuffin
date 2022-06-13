@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    term::{remove_fn_prefix, remove_prefix, Term},
+    algebra::{remove_fn_prefix, remove_prefix, Term},
     trace::{Action, Trace},
 };
 

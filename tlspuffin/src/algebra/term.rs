@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::{
+    algebra::dynamic_function::TypeShape,
     error::Error,
-    term::dynamic_function::TypeShape,
     tls::error::FnError,
     trace::{AgentClaimer, TraceContext, VecClaimer},
     variable_data::VariableData,

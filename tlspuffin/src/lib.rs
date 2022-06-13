@@ -11,6 +11,7 @@
 #![allow(unused_doc_comments)]
 
 pub mod agent;
+pub mod algebra;
 pub mod concretize;
 pub mod debug;
 pub mod error;
@@ -22,7 +23,6 @@ pub mod io;
 pub mod openssl;
 pub mod registry;
 pub mod static_certs;
-pub mod term;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;

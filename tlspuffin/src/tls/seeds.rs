@@ -13,8 +13,8 @@ use rustls::{
 
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+    algebra::Term,
     term,
-    term::Term,
     tls::fn_impl::*,
     trace::{
         Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,

@@ -71,6 +71,7 @@ mod tests {
 
     use crate::{
         agent::AgentName,
+        algebra::{dynamic_function::DescribableFunction, Term},
         fuzzer::{
             mutations::{
                 util::{TermConstraints, TracePath},
@@ -80,7 +81,6 @@ mod tests {
             term_zoo::generate_term_zoo,
         },
         registry::DUMMY_PUT,
-        term::{dynamic_function::DescribableFunction, Term},
         tls::seeds::*,
         tls::{fn_impl::*, SIGNATURE},
         trace::{Action, Step, Trace},
@@ -432,9 +432,9 @@ mod tests {
     mod util {
         use crate::{
             agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+            algebra::Term,
             graphviz::write_graphviz,
             term,
-            term::Term,
             tls::fn_impl::*,
             trace::{Action, InputAction, Step, Trace},
         };

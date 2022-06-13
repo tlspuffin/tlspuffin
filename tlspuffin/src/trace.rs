@@ -85,11 +85,11 @@ use serde::{Deserialize, Serialize};
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
+    algebra::{dynamic_function::TypeShape, remove_prefix, Term},
     concretize::Put,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     error::Error,
     io::{MessageResult, Stream},
-    term::{dynamic_function::TypeShape, remove_prefix, Term},
     tls::error::FnError,
     variable_data::{extract_knowledge, VariableData},
 };

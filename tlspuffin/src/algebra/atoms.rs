@@ -11,7 +11,7 @@ use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    term::{
+    algebra::{
         atoms::fn_container::FnContainer,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         remove_prefix,
@@ -167,7 +167,7 @@ mod fn_container {
     };
 
     use crate::{
-        term::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         tls::SIGNATURE,
     };
 

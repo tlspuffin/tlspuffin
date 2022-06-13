@@ -10,9 +10,9 @@ use libafl::{
 use util::{Choosable, *};
 
 use crate::{
+    algebra::{atoms::Function, Subterms, Term},
     fuzzer::term_zoo::{generate_term_zoo, Zoo},
     mutator,
-    term::{atoms::Function, Subterms, Term},
     tls::SIGNATURE,
     trace::Trace,
 };
@@ -329,7 +329,7 @@ pub mod util {
     use libafl::bolts::rands::Rand;
 
     use crate::{
-        term::Term,
+        algebra::Term,
         trace::{Action, Step, Trace},
     };
 
