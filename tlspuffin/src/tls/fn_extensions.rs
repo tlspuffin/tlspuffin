@@ -1,3 +1,6 @@
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
 //! Extensions according to IANA:
 //! https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml
 //!
@@ -16,7 +19,7 @@ use rustls::{
 };
 use webpki::DnsNameRef;
 
-use super::error::FnError;
+use crate::tls::error::FnError;
 use crate::{
     nyi_fn,
     tls::{

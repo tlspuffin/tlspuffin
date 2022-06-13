@@ -1,30 +1,32 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
-#![allow(clippy::ptr_arg)]
-#![allow(dead_code)]
-
-use fn_impl::*;
 
 use crate::define_signature;
+use fn_impl::*;
 
-pub mod fn_constants;
-pub mod fn_extensions;
-pub mod fn_fields;
-pub mod fn_messages;
-pub mod fn_transcript;
-pub mod fn_utils;
 mod key_exchange;
+mod key_schedule;
 
 pub mod error;
-mod key_schedule;
+
 pub mod seeds;
 
 /// This modules contains all the concrete implementations of function symbols.
+#[path = "."]
 pub mod fn_impl {
-    pub use crate::tls::{
-        fn_constants::*, fn_extensions::*, fn_fields::*, fn_messages::*, fn_transcript::*,
-        fn_utils::*,
-    };
+    pub mod fn_constants;
+    pub mod fn_extensions;
+    pub mod fn_fields;
+    pub mod fn_messages;
+    pub mod fn_transcript;
+    pub mod fn_utils;
+
+    pub use fn_constants::*;
+    pub use fn_extensions::*;
+    pub use fn_fields::*;
+    pub use fn_messages::*;
+    pub use fn_transcript::*;
+    pub use fn_utils::*;
 }
 
 /// Function symbol which can be used for debugging

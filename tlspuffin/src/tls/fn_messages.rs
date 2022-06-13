@@ -1,3 +1,6 @@
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
 //! Extensions according to IANA:
 //! https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-7
 //!
@@ -24,8 +27,8 @@ use rustls::{
 };
 use HandshakePayload::EncryptedExtensions;
 
-use super::error::FnError;
 use crate::nyi_fn;
+use crate::tls::error::FnError;
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

@@ -1,3 +1,6 @@
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
 use std::convert::TryFrom;
 
 use rustls::{
@@ -18,7 +21,7 @@ use rustls::{
     Certificate,
 };
 
-use super::error::FnError;
+use crate::tls::error::FnError;
 use crate::tls::{
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,

@@ -1,3 +1,6 @@
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
 use rustls::{hash_hs::HandshakeHash, tls13};
 use security_claims::{Claim, ClaimType};
 

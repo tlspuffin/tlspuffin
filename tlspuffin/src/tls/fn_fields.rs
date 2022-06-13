@@ -1,3 +1,6 @@
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
 use rustls::{
     hash_hs::HandshakeHash,
     msgs::{
@@ -8,7 +11,7 @@ use rustls::{
     CipherSuite, NoKeyLog, ProtocolVersion,
 };
 
-use super::error::FnError;
+use crate::tls::error::FnError;
 use crate::tls::{key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {

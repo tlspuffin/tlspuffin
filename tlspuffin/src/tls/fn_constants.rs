@@ -1,4 +1,7 @@
-use super::error::FnError;
+#![allow(clippy::ptr_arg)]
+#![allow(dead_code)]
+
+use crate::tls::error::FnError;
 
 pub fn fn_seq_0() -> Result<u64, FnError> {
     Ok(0)
