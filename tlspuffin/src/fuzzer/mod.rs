@@ -13,18 +13,18 @@ mod libafl_setup;
 pub mod mutations;
 mod stats;
 // Use log if explicitely enabled
-#[cfg(all(not(test), feature = "sancov_pcguard_log"))]
-mod sancov_pcguard_log;
-// Use dummy in tests
 mod macros;
 #[cfg(test)]
+// Use dummy in tests
 mod sancov_dummy;
+#[cfg(all(not(test), feature = "sancov_pcguard_log"))]
+mod sancov_pcguard_log;
 mod stages;
 mod stats_observer;
 mod term_zoo;
 
 pub use libafl_setup::start;
-#[cfg(feature = "sancov_libafl")]
+#[cfg(all(not(test), feature = "sancov_libafl"))]
 // This import achieves that OpenSSl compiled with -fsanitize-coverage=trace-pc-guard can link
 pub(crate) use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
 
