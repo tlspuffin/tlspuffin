@@ -33,8 +33,10 @@ pub trait Put: Stream + Drop + 'static {
     /// In-place reset of the state
     fn reset(&mut self) -> Result<(), Error>;
     /// Register a new claim for agent_name
+    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
     /// Remove all claims in self
+    #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
     /// Change the agent name and the claimer of self
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);

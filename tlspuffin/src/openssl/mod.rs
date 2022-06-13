@@ -53,7 +53,7 @@ pub struct OpenSSL {
 impl Drop for OpenSSL {
     fn drop(&mut self) {
         #[cfg(feature = "claims")]
-        OpenSSL::deregister_claimer(self);
+        self.deregister_claimer();
     }
 }
 
@@ -100,7 +100,8 @@ impl Put for OpenSSL {
         };
 
         let mut stream = OpenSSL { stream };
-        OpenSSL::register_claimer(&mut stream, config.claimer, config.agent_name);
+        #[cfg(feature = "claims")]
+        stream.register_claimer(config.claimer, config.agent_name);
         Ok(stream)
     }
 
@@ -113,26 +114,31 @@ impl Put for OpenSSL {
         Ok(())
     }
 
+    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
         unsafe {
-            use security_claims::Claim;
-            register_claimer(self.stream.ssl().as_ptr().cast(), move |claim: Claim| {
-                (*claimer).borrow_mut().claim(agent_name, claim)
-            });
+            register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    (*claimer).borrow_mut().claim(agent_name, claim)
+                },
+            );
         }
     }
 
+    #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
-        #[cfg(feature = "claims")]
         unsafe {
             deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        OpenSSL::deregister_claimer(self);
-        OpenSSL::register_claimer(self, claimer, agent_name)
+        #[cfg(feature = "claims")]
+        {
+            self.deregister_claimer();
+            self.register_claimer(claimer, agent_name)
+        }
     }
 
     fn describe_state(&self) -> &'static str {

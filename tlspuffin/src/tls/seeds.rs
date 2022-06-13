@@ -11,6 +11,7 @@ use rustls::{
     CipherSuite, ProtocolVersion,
 };
 
+use crate::registry::current_put;
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
     algebra::Term,
@@ -1552,10 +1553,7 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
     let agent_b = agent_a.next();
 
-    #[cfg(feature = "openssl-binding")]
-    const PUT: PutName = crate::registry::OPENSSL111;
-    #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = crate::registry::WOLFSSL520;
+    const PUT: PutName = current_put();
 
     [
         (seed_successful(agent_a, agent_b, PUT), "seed_successful"),
@@ -1608,10 +1606,7 @@ pub mod tests {
         trace::{Action, TraceContext},
     };
 
-    #[cfg(feature = "openssl-binding")]
-    const PUT: PutName = crate::registry::OPENSSL111;
-    #[cfg(feature = "wolfssl-binding")]
-    const PUT: PutName = crate::registry::WOLFSSL520;
+    const PUT: PutName = current_put();
 
     fn expect_crash<R>(mut func: R)
     where
@@ -1891,10 +1886,7 @@ pub mod tests {
             trace::{Trace, TraceContext},
         };
 
-        #[cfg(feature = "openssl-binding")]
-        const PUT: PutName = crate::registry::OPENSSL111;
-        #[cfg(feature = "wolfssl-binding")]
-        const PUT: PutName = crate::registry::WOLFSSL520;
+        const PUT: PutName = current_put();
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {
@@ -2001,9 +1993,7 @@ pub mod tests {
     pub mod rustls {
         use std::{
             convert::TryFrom,
-            io::{stdout, Read, Write},
-            net::TcpStream,
-            sync::Arc,
+            io::{Read},
         };
 
         use rustls::{
@@ -2023,8 +2013,7 @@ pub mod tests {
                 base::Payload,
                 codec::Reader,
                 message::{OpaqueMessage, PlainMessage},
-            },
-            ClientConfig, OwnedTrustAnchor, ProtocolVersion, RootCertStore,
+            }, ProtocolVersion,
         };
         use test_log::test;
 

@@ -327,28 +327,6 @@ pub unsafe fn wolfssl_version() -> &'static str {
         .unwrap()
 }
 
-unsafe fn set_max_protocol_version(
-    ctx: *mut wolf::WOLFSSL_CTX,
-    tls_version: &TLSVersion,
-) -> Result<(), ErrorStack> {
-    unsafe {
-        match tls_version {
-            TLSVersion::V1_3 => {
-                #[cfg(feature = "openssl111")]
-                wolf::wolfSSL_CTX_set_max_proto_version(ctx, wolf::TLS1_3_VERSION as i32);
-                // do nothing as the maximum available TLS version is 1.3
-                Ok(())
-            }
-            TLSVersion::V1_2 => {
-                wolf::wolfSSL_CTX_set_max_proto_version(ctx, wolf::TLS1_2_VERSION as i32);
-                Ok(())
-            }
-            TLSVersion::Unknown => Ok(()),
-        }?;
-    }
-    Ok(())
-}
-
 pub fn create_client(
     stream: MemoryStream,
     tls_version: &TLSVersion,

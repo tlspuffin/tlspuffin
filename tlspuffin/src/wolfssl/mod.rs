@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::{
     cell::RefCell,
     io::{Read, Write},
@@ -105,7 +107,8 @@ impl Put for WolfSSL {
             wolfssl_binding::create_client(memory_stream, &c.tls_version)?
         };
 
-        let mut wolfssl = WolfSSL { stream };
+        let wolfssl = WolfSSL { stream };
+        #[cfg(feature = "claims")]
         unsafe {
             wolfssl.register_claimer(c.claimer, c.agent_name);
         }
@@ -122,26 +125,29 @@ impl Put for WolfSSL {
         Ok(())
     }
 
+    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
         unsafe {
-            register_claimer(self.stream.ssl.as_ptr().cast(), move |claim: Claim| {
-                (*claimer).borrow_mut().claim(agent_name, claim)
-            });
+            security_claims::register_claimer(
+                self.stream.ssl.as_ptr().cast(),
+                move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
+            );
         }
     }
 
+    #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
-        #[cfg(feature = "claims")]
         unsafe {
-            deregister_claimer(self.stream.ssl().as_ptr().cast());
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
+    #[allow(unused_variables)]
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+        #[cfg(feature = "claims")]
         unsafe {
-            WolfSSL::deregister_claimer(self);
-            WolfSSL::register_claimer(self, claimer, agent_name)
+            self.deregister_claimer();
+            self.register_claimer(claimer, agent_name)
         }
     }
 

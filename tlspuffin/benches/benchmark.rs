@@ -9,20 +9,15 @@ use libafl::{
 };
 use tlspuffin::{
     agent::{AgentName, PutName},
-    fuzzer::{
-        mutations::{util::TermConstraints, ReplaceReuseMutator},
-        seeds::*,
-    },
+    algebra::dynamic_function::make_dynamic,
+    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
     term,
-    term::dynamic_function::make_dynamic,
+    tls::seeds::*,
     tls::{error::FnError, fn_impl::*},
     trace::{Trace, TraceContext},
 };
 
-#[cfg(feature = "openssl-binding")]
-const PUT: PutName = tlspuffin::registry::OPENSSL111;
-#[cfg(feature = "wolfssl-binding")]
-const PUT: PutName = tlspuffin::registry::WOLFSSL520;
+const PUT: PutName = tlspuffin::registry::current_put();
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)

@@ -61,3 +61,11 @@ pub trait Factory {
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);
 }
+
+pub const fn current_put() -> PutName {
+    #[cfg(feature = "openssl-binding")]
+    const PUT: PutName = OPENSSL111;
+    #[cfg(all(not(feature = "openssl-binding"), feature = "wolfssl-binding"))]
+    const PUT: PutName = WOLFSSL520;
+    PUT
+}

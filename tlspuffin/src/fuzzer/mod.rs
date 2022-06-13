@@ -10,7 +10,7 @@ compile_error!("`sancov_pcguard_log` and `sancov_libafl` features are mutually e
 
 mod harness;
 mod libafl_setup;
-mod mutations;
+pub mod mutations;
 mod stats;
 // Use log if explicitely enabled
 #[cfg(all(not(test), feature = "sancov_pcguard_log"))]
@@ -171,7 +171,6 @@ mod tests {
     fn test_remove_lift_mutator() {
         // Should remove an extension
         let mut state = create_state();
-        state = create_state();
         let server = AgentName::first();
         let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
 
