@@ -1,6 +1,7 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
+use libafl::corpus::CachedOnDiskCorpus;
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -52,8 +53,8 @@ pub static MIN_TERM_SIZE: usize = 0;
 pub static MAX_TERM_SIZE: usize = 300;
 
 // TODO: Use feedback_or_fast
-pub fn no_minimizer_feedback<'a, 'b, S: 'b>(
-    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
+    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
 ) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
@@ -65,15 +66,15 @@ where
     ))
 }
 
-pub fn no_feedback<'a, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
+pub fn no_feedback<'harness, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
 }
 
-pub fn minimizer_feedback<'a, 'b, S: 'b>(
-    time_observer: &'a TimeObserver,
-    edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
+pub fn minimizer_feedback<'harness, 'b, S: 'b>(
+    time_observer: &'harness TimeObserver,
+    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
 ) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
@@ -88,7 +89,8 @@ where
     )
 }
 
-type ConcreteExecutor<'a, H, OT, S> = TimeoutExecutor<InProcessExecutor<'a, H, Trace, OT, S>>;
+type ConcreteExecutor<'harness, H, OT, S> =
+    TimeoutExecutor<InProcessExecutor<'harness, H, Trace, OT, S>>;
 
 type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
 
@@ -99,28 +101,32 @@ pub struct FuzzerConfig {
     pub max_iters: Option<u64>,
     pub core_definition: String,
     pub monitor_file: PathBuf,
+    pub corpus_dir: PathBuf,
     pub objective_dir: PathBuf,
     pub broker_port: u16,
     pub minimizer: bool,
 }
 
-pub fn run_client<'a, H, C, R, SC, EM, F, OF, OT, CS>(
-    FuzzerConfig {
-        initial_corpus_dir,
-        static_seed,
-        max_iters,
-        ..
-    }: FuzzerConfig,
-    harness_fn: &'a mut H,
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+where
+    C: Corpus<Trace>,
+    R: Rand,
+    SC: Corpus<Trace>,
+{
+    config: FuzzerConfig,
+    harness_fn: &'harness mut H,
     state: Option<ConcreteState<C, R, SC>>,
-    new_state: impl FnOnce(&mut F, &mut OF) -> ConcreteState<C, R, SC>,
+    new_state: Box<dyn FnOnce(&FuzzerConfig, &mut F, &mut OF) -> ConcreteState<C, R, SC>>,
     sender_id: u32,
     scheduler: CS,
-    mut event_manager: EM,
+    event_manager: EM,
     observers: OT,
-    mut feedback: F,
-    mut objective: OF,
-) -> Result<(), Error>
+    feedback: F,
+    objective: OF,
+}
+
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
 where
     C: Corpus<Trace>,
     R: Rand,
@@ -135,84 +141,103 @@ where
     EM: EventFirer<Trace>
         + EventRestarter<ConcreteState<C, R, SC>>
         + EventManager<
-            ConcreteExecutor<'a, H, OT, ConcreteState<C, R, SC>>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC>>,
             Trace,
             ConcreteState<C, R, SC>,
             StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
         > + ProgressReporter<Trace>,
 {
-    //let sender_id = restarting_mgr.mgr_id();
-    info!("Sender ID is {}", sender_id);
+    fn run_client(mut self) -> Result<(), Error> {
+        //let sender_id = restarting_mgr.mgr_id();
+        info!("Sender ID is {}", self.sender_id);
 
-    // If not restarting, create a State from scratch
-    let mut state = state.unwrap_or_else(|| {
-        let seed = static_seed.unwrap_or(sender_id as u64);
-        info!("Seed is {}", seed);
+        // If not restarting, create a State from scratch
+        let mut state = self.state.unwrap_or_else(|| {
+            let seed = self.config.static_seed.unwrap_or(self.sender_id as u64);
+            info!("Seed is {}", seed);
 
-        new_state(&mut feedback, &mut objective)
-    });
+            (self.new_state)(&self.config, &mut self.feedback, &mut self.objective)
+        });
 
-    let mutations = trace_mutations(
-        MIN_TRACE_LENGTH,
-        MAX_TRACE_LENGTH,
-        TermConstraints {
-            min_term_size: MIN_TERM_SIZE,
-            max_term_size: MAX_TERM_SIZE,
-        },
-        FRESH_ZOO_AFTER,
-    );
-
-    let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
-    let mut stages = tuple_list!(
-        PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
-        StatsStage::new()
-    );
-
-    let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
-        StdFuzzer::new(scheduler, feedback, objective);
-
-    let mut executor: ConcreteExecutor<'a, H, OT, _> = TimeoutExecutor::new(
-        InProcessExecutor::new(
-            harness_fn,
-            // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
-            observers,
-            &mut fuzzer,
-            &mut state,
-            &mut event_manager,
-        )?,
-        Duration::new(2, 0),
-    );
-
-    // In case the corpus is empty (on first run), reset
-    if state.corpus().count() < 1 {
-        state
-            .load_initial_inputs(
-                &mut fuzzer,
-                &mut executor,
-                &mut event_manager,
-                &[initial_corpus_dir.clone()],
-            )
-            .unwrap_or_else(|err| {
-                panic!(
-                    "Failed to load initial corpus at {:?}: {}",
-                    &initial_corpus_dir, err
-                )
-            });
-        println!("We imported {} inputs from disk.", state.corpus().count());
-    }
-
-    if let Some(max_iters) = max_iters {
-        fuzzer.fuzz_loop_for(
-            &mut stages,
-            &mut executor,
-            &mut state,
-            &mut event_manager,
+        let FuzzerConfig {
+            initial_corpus_dir,
+            static_seed,
             max_iters,
-        )?;
-    } else {
-        fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut event_manager)?;
+            core_definition,
+            monitor_file,
+            objective_dir,
+            broker_port,
+            minimizer,
+            ..
+        } = self.config;
+
+        let mutations = trace_mutations(
+            MIN_TRACE_LENGTH,
+            MAX_TRACE_LENGTH,
+            TermConstraints {
+                min_term_size: MIN_TERM_SIZE,
+                max_term_size: MAX_TERM_SIZE,
+            },
+            FRESH_ZOO_AFTER,
+        );
+
+        let mutator = PuffinScheduledMutator::new(mutations, MAX_MUTATIONS_PER_ITERATION);
+        let mut stages = tuple_list!(
+            PuffinMutationalStage::new(mutator, MAX_ITERATIONS_PER_STAGE),
+            StatsStage::new()
+        );
+
+        let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
+            StdFuzzer::new(self.scheduler, self.feedback, self.objective);
+
+        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
+            InProcessExecutor::new(
+                self.harness_fn,
+                // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
+                self.observers,
+                &mut fuzzer,
+                &mut state,
+                &mut self.event_manager,
+            )?,
+            Duration::new(2, 0),
+        );
+
+        // In case the corpus is empty (on first run), reset
+        if state.corpus().count() < 1 {
+            state
+                .load_initial_inputs(
+                    &mut fuzzer,
+                    &mut executor,
+                    &mut self.event_manager,
+                    &[initial_corpus_dir.clone()],
+                )
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Failed to load initial corpus at {:?}: {}",
+                        &initial_corpus_dir, err
+                    )
+                });
+            println!("We imported {} inputs from disk.", state.corpus().count());
+        }
+
+        if let Some(max_iters) = max_iters {
+            fuzzer.fuzz_loop_for(
+                &mut stages,
+                &mut executor,
+                &mut state,
+                &mut self.event_manager,
+                max_iters,
+            )?;
+        } else {
+            fuzzer.fuzz_loop(
+                &mut stages,
+                &mut executor,
+                &mut state,
+                &mut self.event_manager,
+            )?;
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Starts the fuzzing loop
@@ -234,7 +259,6 @@ pub fn start(config: FuzzerConfig) {
 
     let monitor = TuiMonitor::new("test".to_string(), false);
 
-    //let path_buf = on_disk_corpus.unwrap();
     let mut run_client =
         |state: Option<StdState<_, _, _, _>>,
          event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
@@ -257,28 +281,28 @@ pub fn start(config: FuzzerConfig) {
                 (feedback, observers)
             };
 
-            run_client(
-                config.clone(),
-                &mut harness::harness,
+            RunClientBuilder {
+                config: config.clone(),
+                harness_fn: &mut harness::harness,
                 state,
-                |feedback, objective| {
+                new_state: Box::new(|config, feedback, objective| {
                     StdState::new(
                         StdRand::with_seed(0),
-                        //OnDiskCorpus::new(path_buf.clone()).unwrap(),
-                        InMemoryCorpus::new(),
+                        CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap(),
                         OnDiskCorpus::new(config.objective_dir.clone()).unwrap(),
                         feedback,
                         objective,
                     )
                     .unwrap()
-                },
-                0,
-                IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
+                }),
+                sender_id: 0,
+                scheduler: IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
                 event_manager,
                 observers,
                 feedback,
-                feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
-            )
+                objective: feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
+            }
+            .run_client()
         };
 
     if let Err(error) = libafl::bolts::launcher::Launcher::builder()
