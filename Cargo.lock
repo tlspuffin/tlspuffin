@@ -1798,6 +1798,7 @@ dependencies = [
  "chrono",
  "clap 3.1.18",
  "criterion",
+ "env_logger",
  "foreign-types-shared",
  "hex",
  "itertools",

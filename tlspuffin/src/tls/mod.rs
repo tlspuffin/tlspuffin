@@ -15,6 +15,10 @@ pub mod fn_transcript;
 pub mod fn_utils;
 mod key_exchange;
 
+pub mod error;
+mod key_schedule;
+pub mod seeds;
+
 /// This modules contains all the concrete implementations of function symbols.
 pub mod fn_impl {
     pub use crate::tls::{
@@ -30,9 +34,6 @@ fn fn_debug(
     dbg!(message);
     Ok(message.clone())
 }
-
-pub mod error;
-mod key_schedule;
 
 #[macro_export]
 macro_rules! nyi_fn {

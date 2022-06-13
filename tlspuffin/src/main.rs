@@ -9,7 +9,6 @@ use std::{
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
-use fuzzer::seeds::create_corpus;
 use log::LevelFilter;
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
@@ -17,6 +16,7 @@ use log4rs::{
     encode::{json::JsonEncoder, pattern::PatternEncoder},
     Config,
 };
+use tls::seeds::create_corpus;
 use trace::TraceContext;
 
 use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz, registry::PUT_REGISTRY};
@@ -34,7 +34,6 @@ mod openssl;
 pub mod registry;
 pub mod static_certs;
 pub mod term;
-pub mod tests;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
