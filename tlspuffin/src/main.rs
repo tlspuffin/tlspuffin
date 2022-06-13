@@ -55,7 +55,6 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients"))
         .arg(arg!(-p --port [n] "Port of the broker"))
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
-        .arg(arg!(--"disk-corpus" "Use a on disk corpus"))
         .arg(arg!(--minimizer "Use a minimizer"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
@@ -109,14 +108,14 @@ fn main() {
     let port: u16 = matches.value_of_t("port").unwrap_or(1337);
     let static_seed: Option<u64> = matches.value_of_t("seed").ok();
     let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
-    let disk_corpus = matches.is_present("disk-corpus");
     let minimizer = matches.is_present("minimizer");
 
     info!("{}", PUT_REGISTRY.versions());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
+        fs::create_dir_all("./seeds").unwrap();
         for (trace, name) in create_corpus() {
-            let mut file = File::create(format!("./corpus/{}.trace", name)).unwrap();
+            let mut file = File::create(format!("./seeds/{}.trace", name)).unwrap();
             let buffer = postcard::to_allocvec(&trace).unwrap();
             file.write_all(&buffer).unwrap();
             println!("Generated seed traces into the directory ./corpus")
@@ -212,7 +211,7 @@ fn main() {
         };
 
         start(FuzzerConfig {
-            initial_corpus_dir: Default::default(),
+            initial_corpus_dir: experiment_path.join("seeds"),
             static_seed,
             max_iters,
             core_definition: core_definition.to_string(),

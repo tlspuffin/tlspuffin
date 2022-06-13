@@ -331,7 +331,7 @@ where
 pub fn start(config: FuzzerConfig) {
     info!("Running on {} cores", &config.core_definition);
 
-    let _monitor = PuffinMonitor::new(
+    let monitor = PuffinMonitor::new(
         |s| {
             info!("{}", s);
         },
@@ -339,7 +339,7 @@ pub fn start(config: FuzzerConfig) {
     )
     .unwrap();
 
-    let monitor = TuiMonitor::new("test".to_string(), false);
+    // let monitor = TuiMonitor::new("test".to_string(), false);
 
     let mut run_client =
         |state: Option<StdState<_, Trace, _, _>>,

@@ -77,7 +77,7 @@ foreign-types-shared = { version = "0.1.1", optional = true }
 security-claims = { path = "../tlspuffin-claims", optional = false }
 
 # WolfSSL
-wolfssl-sys = { path = "../deps/wolfssl-sys", features = [], optional = true }
+wolfssl-sys = { path = "../deps/wolfssl-sys", features = ["sancov"], optional = true }
 libc = { version = "0.2.126", optional = true }
 
 # LibAFL
