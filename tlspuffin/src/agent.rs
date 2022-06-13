@@ -148,7 +148,9 @@ impl Agent {
             claimer,
         };
 
-        let factory = PUT_REGISTRY.find_factory(descriptor.put_name).unwrap(); // FIXME: unwrap
+        let factory = PUT_REGISTRY
+            .find_factory(descriptor.put_name)
+            .ok_or_else(|| Error::Agent("unable to find PUT in binary".to_string()))?;
         let stream = factory.create(config);
         let agent = Agent {
             descriptor: *descriptor,
