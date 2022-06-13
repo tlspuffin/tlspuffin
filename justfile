@@ -15,17 +15,17 @@ nightly-toolchain:
 install-clippy:
   rustup component add clippy
 
-check PROJECT ARCH FEATURES: install-clippy
-  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}"
+check PROJECT ARCH FEATURES CARGO_FLAGS="": install-clippy
+  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
-fix PROJECT ARCH FEATURES: install-clippy
-  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" --fix
+fix PROJECT ARCH FEATURES CARGO_FLAGS="": install-clippy
+  cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}} --fix
 
-test PROJECT ARCH FEATURES:
-  cargo test -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}"
+test PROJECT ARCH FEATURES CARGO_FLAGS="":
+  cargo test -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
-build PROJECT ARCH FEATURES:
-  cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}"
+build PROJECT ARCH FEATURES CARGO_FLAGS="":
+  cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
 benchmark:
   cargo bench -p tlspuffin --features "openssl111"

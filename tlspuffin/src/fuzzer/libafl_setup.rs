@@ -24,7 +24,7 @@ use libafl::{
 };
 use log::info;
 
-use super::{harness, EDGES_MAP, MAX_EDGES_NUM};
+use super::harness;
 use crate::{
     fuzzer::{
         mutations::{trace_mutations, util::TermConstraints},
@@ -65,9 +65,7 @@ where
     ))
 }
 
-pub fn no_feedback<'a, 'b, S: 'b>(
-    _edges_observer: &'a HitcountsMapObserver<StdMapObserver<'b, u8>>,
-) -> impl Feedback<Trace, S> + 'b
+pub fn no_feedback<'a, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
@@ -228,16 +226,23 @@ pub fn start(
          -> Result<(), Error> {
             info!("We're a client, let's fuzz :)");
 
-            let time_observer = TimeObserver::new("time");
+            #[cfg(not(feature = "sancov_libafl"))]
+            let (feedback, observers) = { (no_feedback(), ()) };
 
-            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-                &mut EDGES_MAP[0..MAX_EDGES_NUM]
-            }));
-
-            let feedback = minimizer_feedback(&time_observer, &edges_observer);
+            #[cfg(feature = "sancov_libafl")]
+            let (feedback, observers) = {
+                let time_observer = TimeObserver::new("time");
+                let edges_observer =
+                    HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
+                        &mut super::EDGES_MAP[0..super::MAX_EDGES_NUM]
+                    }));
+                let feedback = minimizer_feedback(&time_observer, &edges_observer);
+                let observers = tuple_list!(time_observer, edges_observer);
+                (feedback, observers)
+            };
 
             run_client(
-                tuple_list!(time_observer, edges_observer),
+                observers,
                 &mut harness::harness,
                 static_seed,
                 max_iters,

@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["openssl111", "openssl101f", "openssl102u", "libressl", "wolfssl520"]
+        name: ["openssl111", "openssl101f", "openssl102u", "libressl", "wolfssl520", "no_default_features"]
         include:
           - name: openssl111
             features: openssl111
@@ -22,6 +22,10 @@ jobs:
             features: libressl
           - name: wolfssl520
             features: wolfssl520
+          - name: no_default_features
+            features: ""
+            cargo-flags: "--no-default-features"
+            skip-tests: true
     name: Build "${{ matrix.features }}"
     steps:
       - uses: actions/checkout@v2
@@ -35,14 +39,14 @@ jobs:
         run: sudo apt-get install -y ${{ matrix.apt-dependencies }}
       - name: Build
         shell: bash
-        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}"
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
       - name: Check
         shell: bash
-        run: just check tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}"
+        run: just check tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
       - name: Test
         if: "!matrix.skip-tests"
         shell: bash
-        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}"
+        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
       - uses: actions/upload-artifact@v2
         with:
           name: tlspuffin

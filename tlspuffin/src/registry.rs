@@ -63,9 +63,13 @@ pub trait Factory {
 }
 
 pub const fn current_put() -> PutName {
-    #[cfg(feature = "openssl-binding")]
-    const PUT: PutName = OPENSSL111;
-    #[cfg(all(not(feature = "openssl-binding"), feature = "wolfssl-binding"))]
-    const PUT: PutName = WOLFSSL520;
-    PUT
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "openssl-binding")] {
+            OPENSSL111
+        } else if #[cfg(feature = "wolfssl-binding")] {
+            WOLFSSL520
+        } else {
+            OPENSSL111
+        }
+    }
 }

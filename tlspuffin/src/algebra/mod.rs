@@ -59,6 +59,7 @@ mod tests {
         Ok(hmac::Key::generate(hmac::HMAC_SHA256, &random)?)
     }
 
+    #[allow(clippy::ptr_arg)]
     pub fn fn_hmac256(key: &Key, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
         let tag = hmac::sign(key, msg);
         Ok(Vec::from(tag.as_ref()))
