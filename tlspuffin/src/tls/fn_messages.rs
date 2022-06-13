@@ -27,8 +27,7 @@ use rustls::{
 };
 use HandshakePayload::EncryptedExtensions;
 
-use crate::nyi_fn;
-use crate::tls::error::FnError;
+use crate::{nyi_fn, tls::error::FnError};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

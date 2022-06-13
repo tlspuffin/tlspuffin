@@ -1,9 +1,7 @@
 use std::{cell::RefCell, io, rc::Rc};
 
-use foreign_types_shared::ForeignTypeRef;
 use openssl::error::ErrorStack;
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::{deregister_claimer, register_claimer};
 
 use crate::{
     agent::{AgentName, PutName},
@@ -99,9 +97,15 @@ impl Put for OpenSSL {
             openssl_binding::create_openssl_client(memory_stream, &config.tls_version)?
         };
 
-        let mut stream = OpenSSL { stream };
+        #[cfg(not(feature = "claims"))]
+        let stream = OpenSSL { stream };
+
         #[cfg(feature = "claims")]
-        stream.register_claimer(config.claimer, config.agent_name);
+        let stream = {
+            let mut stream = OpenSSL { stream };
+            stream.register_claimer(config.claimer, config.agent_name);
+            stream
+        };
         Ok(stream)
     }
 
@@ -117,7 +121,8 @@ impl Put for OpenSSL {
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         unsafe {
-            register_claimer(
+            use foreign_types_shared::ForeignTypeRef;
+            security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
                     (*claimer).borrow_mut().claim(agent_name, claim)
@@ -129,10 +134,12 @@ impl Put for OpenSSL {
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            deregister_claimer(self.stream.ssl().as_ptr().cast());
+            use foreign_types_shared::ForeignTypeRef;
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
+    #[allow(unused_variables)]
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         {

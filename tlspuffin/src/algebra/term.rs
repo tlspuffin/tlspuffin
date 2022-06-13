@@ -11,7 +11,6 @@ use crate::{
     error::Error,
     tls::error::FnError,
     trace::{AgentClaimer, TraceContext, VecClaimer},
-    variable_data::VariableData,
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].

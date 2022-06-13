@@ -7,6 +7,7 @@ use std::{
     mem::ManuallyDrop,
     os::raw::{c_int, c_void},
     panic, ptr, str,
+    sync::Once,
 };
 
 use wolfssl_sys as wolf;
@@ -25,8 +26,6 @@ use crate::{
 
 /// WolfSSL library initialization (done only once statically)
 pub fn init(debug: bool) {
-    use std::{ptr, sync::Once};
-
     // explicitly initialize to work around https://github.com/openssl/openssl/issues/3505
     static INIT: Once = Once::new();
     let init_options = wolf::OPENSSL_INIT_LOAD_SSL_STRINGS;
@@ -66,7 +65,7 @@ impl Drop for Ssl {
 
 /// A TLS session over a stream.
 pub struct SslStream<S> {
-    pub(crate) ssl: ManuallyDrop<Ssl>,
+    ssl: ManuallyDrop<Ssl>,
     method: ManuallyDrop<bio::BioMethod>,
     _p: PhantomData<S>,
 }

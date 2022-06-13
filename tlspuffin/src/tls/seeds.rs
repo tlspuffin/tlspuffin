@@ -11,10 +11,10 @@ use rustls::{
     CipherSuite, ProtocolVersion,
 };
 
-use crate::registry::current_put;
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
     algebra::Term,
+    registry::current_put,
     term,
     tls::fn_impl::*,
     trace::{
@@ -1991,10 +1991,7 @@ pub mod tests {
     }
 
     pub mod rustls {
-        use std::{
-            convert::TryFrom,
-            io::{Read},
-        };
+        use std::convert::TryFrom;
 
         use rustls::{
             self,
@@ -2013,7 +2010,8 @@ pub mod tests {
                 base::Payload,
                 codec::Reader,
                 message::{OpaqueMessage, PlainMessage},
-            }, ProtocolVersion,
+            },
+            ProtocolVersion,
         };
         use test_log::test;
 

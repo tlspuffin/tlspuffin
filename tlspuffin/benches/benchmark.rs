@@ -12,8 +12,7 @@ use tlspuffin::{
     algebra::dynamic_function::make_dynamic,
     fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
     term,
-    tls::seeds::*,
-    tls::{error::FnError, fn_impl::*},
+    tls::{error::FnError, fn_impl::*, seeds::*},
     trace::{Trace, TraceContext},
 };
 

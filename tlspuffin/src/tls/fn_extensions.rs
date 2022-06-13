@@ -19,11 +19,10 @@ use rustls::{
 };
 use webpki::DnsNameRef;
 
-use crate::tls::error::FnError;
 use crate::{
     nyi_fn,
     tls::{
-        fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        error::FnError, fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
     },
 };

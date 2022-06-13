@@ -215,6 +215,7 @@ struct IntrospectFeatures {
 #[derive(Serialize)]
 struct ErrorStatistics {
     #[serde(skip)]
+    #[allow(dead_code)]
     total_execs: u64,
 
     fn_error: u64,

@@ -7,7 +7,7 @@ use openssl::{
     error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslContextBuilder, SslMethod, SslOptions, SslStream, SslVersion},
+    ssl::{Ssl, SslContext, SslContextBuilder, SslMethod, SslStream, SslVersion},
     version::version,
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
@@ -37,6 +37,7 @@ pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     Ok((cert, pkey))
 }
 
+// FIXME: remove or use
 pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::generate(2048)?;
     let pkey = PKey::from_rsa(rsa)?;
@@ -107,6 +108,7 @@ pub fn make_deterministic() {
     warn!("Failed to make PUT determinisitic!");
 }
 
+#[allow(unused_variables)]
 fn set_max_protocol_version(
     ctx_builder: &mut SslContextBuilder,
     tls_version: &TLSVersion,
@@ -137,10 +139,10 @@ pub fn create_openssl_server(
     ctx_builder.set_private_key(key)?;
 
     #[cfg(feature = "openssl111")]
-    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     #[cfg(feature = "openssl111")]
-    ctx_builder.set_options(SslOptions::ALLOW_NO_DHE_KEX);
+    ctx_builder.set_options(openssl::ssl::SslOptions::ALLOW_NO_DHE_KEX);
 
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 
@@ -208,7 +210,7 @@ pub fn create_openssl_client(
     // for now.
     // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
     #[cfg(feature = "openssl111")]
-    ctx_builder.clear_options(SslOptions::ENABLE_MIDDLEBOX_COMPAT);
+    ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
     set_max_protocol_version(&mut ctx_builder, tls_version)?;
 

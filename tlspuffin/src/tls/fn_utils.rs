@@ -21,8 +21,8 @@ use rustls::{
     Certificate,
 };
 
-use crate::tls::error::FnError;
 use crate::tls::{
+    error::FnError,
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
 };
