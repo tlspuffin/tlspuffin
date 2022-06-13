@@ -2,7 +2,6 @@ use std::fmt;
 
 use rustls::msgs::message::MessageError;
 use serde::{Deserialize, Serialize};
-use webpki::InvalidDnsNameError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FnError {
@@ -33,12 +32,6 @@ impl From<MessageError> for FnError {
 impl From<ring::error::Unspecified> for FnError {
     fn from(err: ring::error::Unspecified) -> Self {
         FnError::Unknown(err.to_string()) // Returns ring::error::Unspecified"
-    }
-}
-
-impl From<InvalidDnsNameError> for FnError {
-    fn from(err: InvalidDnsNameError) -> Self {
-        FnError::Unknown(err.to_string())
     }
 }
 

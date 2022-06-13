@@ -352,17 +352,17 @@ pub mod serialization {
 
     #[test]
     fn test_serialisation_seed_successful_json() {
-        /*let _ctx = TraceContext::new();
+        let _ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server);
+        let trace = seed_successful(client, server, PUT);
 
         let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
         let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
         let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
 
-        assert_eq!(serialized1, serialized2);*/
+        assert_eq!(serialized1, serialized2);
     }
 
     #[test]
@@ -441,9 +441,8 @@ pub mod rustls {
     };
     use test_log::test;
 
-    fn create_message(opaque_message: OpaqueMessage) {
-        let _message = Message::try_from(opaque_message.into_plain_message()).unwrap();
-        //println!("{:#?}", message);
+    fn create_message(opaque_message: OpaqueMessage) -> Message {
+        Message::try_from(opaque_message.into_plain_message()).unwrap()
     }
 
     #[test]
@@ -458,7 +457,6 @@ pub mod rustls {
         5ab4cdf01b04e9ffc0fc50";
 
         let hello_client = hex::decode(hello_client_hex).unwrap();
-        //hexdump::hexdump(&hello_client);
 
         let opaque_message =
             OpaqueMessage::read(&mut Reader::init(hello_client.as_slice())).unwrap();
@@ -604,7 +602,6 @@ pub mod rustls {
         1c8ee637128a82c053b77ef9b5e0364f051d1e485535cb00297d47ec634d2ce1000e4b1df3ac2ea17be0000";
 
         let cert = hex::decode(cert_hex).unwrap();
-        //hexdump::hexdump(&cert);
 
         let mut opaque_message = OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
         // Required for choosing the correct parsing function
@@ -651,59 +648,5 @@ pub mod rustls {
 
         let opaque_message = OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap();
         create_message(opaque_message);
-    }
-
-    /// This is the simplest possible client using rustls that does something useful:
-    /// it accepts the default configuration, loads some root certs, and then connects
-    /// to google.com and issues a basic HTTP request.  The response is printed to stdout.
-    ///
-    /// It makes use of rustls::Stream to treat the underlying TLS session as a basic
-    /// bi-directional stream -- the underlying IO is performed transparently.
-    ///
-    /// Note that `unwrap()` is used to deal with networking errors; this is not something
-    /// that is sensible outside of example code.
-    #[test] //Disable for now as it can fail because of missing internet
-    #[ignore]
-    fn test_execute_rustls() {
-        let mut root_store = RootCertStore::empty();
-        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-            OwnedTrustAnchor::from_subject_spki_name_constraints(
-                ta.subject,
-                ta.spki,
-                ta.name_constraints,
-            )
-        }));
-        let config = ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-
-        let mut conn =
-            rustls::ClientConnection::new(Arc::new(config), "google.com".try_into().unwrap())
-                .unwrap();
-        let mut sock = TcpStream::connect("google.com:443").unwrap();
-        let mut tls = rustls::Stream::new(&mut conn, &mut sock);
-        let _written = tls
-            .write(
-                concat!(
-                    "GET / HTTP/1.1\r\n",
-                    "Host: google.com\r\n",
-                    "Connection: close\r\n",
-                    "Accept-Encoding: identity\r\n",
-                    "\r\n"
-                )
-                .as_bytes(),
-            )
-            .unwrap();
-        let ciphersuite = tls.conn.negotiated_cipher_suite().unwrap();
-        writeln!(
-            &mut std::io::stderr(),
-            "Current ciphersuite: {:?}",
-            ciphersuite.suite()
-        )
-        .unwrap();
-        let mut plaintext = Vec::new();
-        tls.read_to_end(&mut plaintext).unwrap();
-        stdout().write_all(&plaintext).unwrap();
     }
 }

@@ -4,14 +4,12 @@ use rustls::msgs::enums::ContentType;
 
 use crate::{agent::AgentName, tls::error::FnError};
 
-// #[derive(Debug, Clone, Serialize)] Serialization not used right now
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
     Fn(FnError),
     Term(String),
     /// OpenSSL reported an error
-    //#[serde(serialize_with = "serialize_openssl_error")]
     OpenSSL(String),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
@@ -22,25 +20,6 @@ pub enum Error {
     Extraction(ContentType),
     SecurityClaim(&'static str, Vec<(AgentName, security_claims::Claim)>),
 }
-
-/*fn serialize_openssl_error<S>(error: &ErrorStack, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(error.to_string().as_str())
-}
-
-impl SerdeAny for Error {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-impl CustomExitKind for Error {}*/
 
 impl std::error::Error for Error {}
 

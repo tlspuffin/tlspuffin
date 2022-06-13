@@ -14,6 +14,7 @@ use rustls::{
     },
     x509, ProtocolVersion, SignatureScheme,
 };
+use webpki::DnsNameRef;
 
 use super::error::FnError;
 use crate::{
@@ -132,7 +133,9 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
         typ: ServerNameType::HostName,
         payload: ServerNamePayload::HostName((
             PayloadU16(dns_name.to_string().into_bytes()),
-            webpki::DnsNameRef::try_from_ascii_str(dns_name)?.to_owned(),
+            DnsNameRef::try_from_ascii_str(dns_name)
+                .map_err(|err| FnError::Unknown(err.to_string()))?
+                .to_owned(),
         )),
     }]))
 }
