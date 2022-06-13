@@ -28,9 +28,9 @@ use log::info;
 use super::harness;
 use crate::{
     fuzzer::{
+        monitor::PuffinMonitor,
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
-        stats::PuffinMonitor,
         stats_observer::StatsStage,
     },
     registry::PUT_REGISTRY,
@@ -245,7 +245,7 @@ where
             monitor_file,
             objective_dir,
             broker_port,
-            minimizer,
+            minimizer, // FIXME: Unused
             mutation_stage_config:
                 MutationStageConfig {
                     max_iterations_per_stage,

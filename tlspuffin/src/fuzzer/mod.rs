@@ -10,8 +10,8 @@ compile_error!("`sancov_pcguard_log` and `sancov_libafl` features are mutually e
 
 mod harness;
 mod libafl_setup;
+mod monitor;
 pub mod mutations;
-mod stats;
 // Use log if explicitely enabled
 mod macros;
 #[cfg(test)]
