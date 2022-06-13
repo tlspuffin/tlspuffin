@@ -92,22 +92,32 @@ type ConcreteExecutor<'a, H, OT, S> = TimeoutExecutor<InProcessExecutor<'a, H, T
 
 type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
 
+#[derive(Clone)]
+pub struct FuzzerConfig {
+    pub initial_corpus_dir: PathBuf,
+    pub static_seed: Option<u64>,
+    pub max_iters: Option<u64>,
+    pub core_definition: String,
+    pub monitor_file: PathBuf,
+    pub objective_dir: PathBuf,
+    pub broker_port: u16,
+    pub minimizer: bool,
+}
+
 pub fn run_client<'a, H, C, R, SC, EM, F, OF, OT, CS>(
-    observers: OT,
+    FuzzerConfig {
+        initial_corpus_dir,
+        static_seed,
+        max_iters,
+        ..
+    }: FuzzerConfig,
     harness_fn: &'a mut H,
-    static_seed: Option<u64>,
-    max_iters: Option<u64>,
     state: Option<ConcreteState<C, R, SC>>,
-    scheduler: CS,
     new_state: impl FnOnce(&mut F, &mut OF) -> ConcreteState<C, R, SC>,
     sender_id: u32,
-    init_state: impl FnOnce(
-        &mut ConcreteState<C, R, SC>,
-        &mut StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
-        &mut ConcreteExecutor<'a, H, OT, ConcreteState<C, R, SC>>,
-        &mut EM,
-    ),
+    scheduler: CS,
     mut event_manager: EM,
+    observers: OT,
     mut feedback: F,
     mut objective: OF,
 ) -> Result<(), Error>
@@ -173,7 +183,23 @@ where
         Duration::new(2, 0),
     );
 
-    init_state(&mut state, &mut fuzzer, &mut executor, &mut event_manager);
+    // In case the corpus is empty (on first run), reset
+    if state.corpus().count() < 1 {
+        state
+            .load_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut event_manager,
+                &[initial_corpus_dir.clone()],
+            )
+            .unwrap_or_else(|err| {
+                panic!(
+                    "Failed to load initial corpus at {:?}: {}",
+                    &initial_corpus_dir, err
+                )
+            });
+        println!("We imported {} inputs from disk.", state.corpus().count());
+    }
 
     if let Some(max_iters) = max_iters {
         fuzzer.fuzz_loop_for(
@@ -190,18 +216,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start(
-    core_definition: &str,
-    monitor_file: PathBuf,
-    _on_disk_corpus: Option<PathBuf>,
-    initial_corpus_dir: PathBuf,
-    objective_dir: PathBuf,
-    broker_port: u16,
-    max_iters: Option<u64>,
-    static_seed: Option<u64>,
-    _minimizer: bool,
-) {
-    info!("Running on {} cores", core_definition);
+pub fn start(config: FuzzerConfig) {
+    info!("Running on {} cores", &config.core_definition);
 
     PUT_REGISTRY.make_deterministic();
 
@@ -212,7 +228,7 @@ pub fn start(
         |s| {
             info!("{}", s);
         },
-        monitor_file,
+        config.monitor_file.clone(),
     )
     .unwrap();
 
@@ -221,7 +237,7 @@ pub fn start(
     //let path_buf = on_disk_corpus.unwrap();
     let mut run_client =
         |state: Option<StdState<_, _, _, _>>,
-         restarting_mgr: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
+         event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
             info!("We're a client, let's fuzz :)");
@@ -242,46 +258,24 @@ pub fn start(
             };
 
             run_client(
-                observers,
+                config.clone(),
                 &mut harness::harness,
-                static_seed,
-                max_iters,
                 state,
-                //RandScheduler::new(),
-                // A minimization+queue policy to get testcasess from the corpus
-                IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
                 |feedback, objective| {
                     StdState::new(
                         StdRand::with_seed(0),
                         //OnDiskCorpus::new(path_buf.clone()).unwrap(),
                         InMemoryCorpus::new(),
-                        OnDiskCorpus::new(objective_dir.clone()).unwrap(),
+                        OnDiskCorpus::new(config.objective_dir.clone()).unwrap(),
                         feedback,
                         objective,
                     )
                     .unwrap()
                 },
                 0,
-                |state, fuzzer, executor, manager| {
-                    // In case the corpus is empty (on first run), reset
-                    if state.corpus().count() < 1 {
-                        state
-                            .load_initial_inputs(
-                                fuzzer,
-                                executor,
-                                manager,
-                                &[initial_corpus_dir.clone()],
-                            )
-                            .unwrap_or_else(|err| {
-                                panic!(
-                                    "Failed to load initial corpus at {:?}: {}",
-                                    &initial_corpus_dir, err
-                                )
-                            });
-                        println!("We imported {} inputs from disk.", state.corpus().count());
-                    }
-                },
-                restarting_mgr,
+                IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()),
+                event_manager,
+                observers,
                 feedback,
                 feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()),
             )
@@ -292,8 +286,8 @@ pub fn start(
         .configuration("launcher default".into())
         .monitor(monitor)
         .run_client(&mut run_client)
-        .cores(&Cores::from_cmdline(core_definition).unwrap()) // possibly replace by parse_core_bind_arg
-        .broker_port(broker_port)
+        .cores(&Cores::from_cmdline(config.core_definition.as_str()).unwrap()) // possibly replace by parse_core_bind_arg
+        .broker_port(config.broker_port)
         //todo where should we log the output of the harness?
         /*.stdout_file(Some("/dev/null"))*/
         .build()

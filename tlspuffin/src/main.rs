@@ -19,6 +19,7 @@ use log4rs::{
 use tls::seeds::create_corpus;
 use trace::TraceContext;
 
+use crate::fuzzer::FuzzerConfig;
 use crate::{experiment::*, fuzzer::start, graphviz::write_graphviz, registry::PUT_REGISTRY};
 
 pub mod agent;
@@ -206,20 +207,15 @@ fn main() {
             PathBuf::from(".")
         };
 
-        start(
-            core_definition,
-            experiment_path.join("stats.json"),
-            if disk_corpus {
-                Some(experiment_path.join("disk-corpus"))
-            } else {
-                None
-            },
-            PathBuf::from("./corpus"),
-            experiment_path.join("crashes"),
-            port,
+        start(FuzzerConfig {
+            initial_corpus_dir: Default::default(),
             static_seed,
             max_iters,
+            core_definition: core_definition.to_string(),
+            objective_dir: experiment_path.join("crashes"),
+            broker_port: port,
+            monitor_file: experiment_path.join("stats.json"),
             minimizer,
-        );
+        });
     }
 }
