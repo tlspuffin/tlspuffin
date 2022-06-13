@@ -9,16 +9,14 @@
 //! ```rust
 //! use tlspuffin::agent::{PutName, AgentName, AgentDescriptor, TLSVersion::*};
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
-//! use tlspuffin::term::{Term, signature::Signature};
+//! use tlspuffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
+//! # use tlspuffin::registry::current_put;
 //!
-//! #[cfg(feature = "openssl-binding")]
-//! const PUT: PutName = tlspuffin::registry::OPENSSL111;   
-//! #[cfg(feature = "wolfssl-binding")]
-//! const PUT: PutName = tlspuffin::registry::WOLFSSL520;
+//! # const PUT: PutName = current_put();
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
