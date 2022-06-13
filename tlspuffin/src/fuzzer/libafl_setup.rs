@@ -1,6 +1,10 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
+use libafl::bolts::rands::RomuDuoJrRand;
+use libafl::feedbacks::{
+    CombinedFeedback, DifferentIsNovel, LogicEagerOr, MapFeedback, MaxReducer,
+};
 use libafl::{
     bolts::{
         core_affinity::Cores,
@@ -64,14 +68,15 @@ pub fn minimizer_feedback<'harness, 'b, S: 'b>(
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
-    feedback_or!(
+    let feedback = feedback_or!(
         // New maximization map feedback linked to the edges observer and the feedback state
         // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
         MaxMapFeedback::new_tracking(edges_observer, true, false),
         // Time feedback, this one does not need a feedback state
         // needed for IndexesLenTimeMinimizerCorpusScheduler
         TimeFeedback::new_with_observer(time_observer)
-    )
+    );
+    feedback
 }
 
 type ConcreteExecutor<'harness, H, OT, S> =
@@ -327,6 +332,87 @@ where
     }
 }
 
+type ConcreteMinimizer<C, R, SC> =
+    IndexesLenTimeMinimizerScheduler<QueueScheduler, Trace, ConcreteState<C, R, SC>>;
+
+type ConcreteObservers<'a> = (
+    TimeObserver,
+    (HitcountsMapObserver<StdMapObserver<'a, u8>>, ()),
+);
+
+type ConcreteFeedback<'a, C, R, SC> = CombinedFeedback<
+    MapFeedback<
+        Trace,
+        DifferentIsNovel,
+        HitcountsMapObserver<StdMapObserver<'a, u8>>,
+        MaxReducer,
+        ConcreteState<C, R, SC>,
+        u8,
+    >,
+    TimeFeedback,
+    LogicEagerOr,
+    Trace,
+    ConcreteState<C, R, SC>,
+>;
+
+impl<'harness, 'a, H, SC, C, R, EM, OF>
+    RunClientBuilder<
+        'harness,
+        H,
+        C,
+        R,
+        SC,
+        EM,
+        ConcreteFeedback<'a, C, R, SC>,
+        OF,
+        ConcreteObservers<'a>,
+        ConcreteMinimizer<C, R, SC>,
+    >
+where
+    C: Corpus<Trace> + fmt::Debug,
+    R: Rand,
+    SC: Corpus<Trace> + fmt::Debug,
+    H: FnMut(&Trace) -> ExitKind,
+    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
+    EM: EventFirer<Trace>
+        + EventRestarter<ConcreteState<C, R, SC>>
+        + EventManager<
+            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC>>,
+            Trace,
+            ConcreteState<C, R, SC>,
+            StdFuzzer<
+                ConcreteMinimizer<C, R, SC>,
+                ConcreteFeedback<'a, C, R, SC>,
+                Trace,
+                OF,
+                ConcreteObservers<'a>,
+                ConcreteState<C, R, SC>,
+            >,
+        > + ProgressReporter<Trace>,
+{
+    fn install_minimizer(self) -> Self {
+        let (feedback, observers) = {
+            let time_observer = TimeObserver::new("time");
+            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
+                &mut super::EDGES_MAP[0..super::MAX_EDGES_NUM]
+            }));
+            let feedback = feedback_or!(
+                // New maximization map feedback linked to the edges observer and the feedback state
+                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+                MaxMapFeedback::new_tracking(&edges_observer, true, false),
+                // Time feedback, this one does not need a feedback state
+                // needed for IndexesLenTimeMinimizerCorpusScheduler
+                TimeFeedback::new_with_observer(&time_observer)
+            );
+            let observers = tuple_list!(time_observer, edges_observer);
+            (feedback, observers)
+        };
+        self.with_feedback(feedback)
+            .with_observers(observers)
+            .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
+    }
+}
+
 /// Starts the fuzzing loop
 pub fn start(config: FuzzerConfig) {
     info!("Running on {} cores", &config.core_definition);
@@ -348,21 +434,6 @@ pub fn start(config: FuzzerConfig) {
          -> Result<(), Error> {
             PUT_REGISTRY.make_deterministic();
 
-            #[cfg(not(feature = "sancov_libafl"))]
-            let (feedback, observers) = { (no_feedback(), ()) };
-
-            #[cfg(feature = "sancov_libafl")]
-            let (feedback, observers) = {
-                let time_observer = TimeObserver::new("time");
-                let edges_observer =
-                    HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-                        &mut super::EDGES_MAP[0..super::MAX_EDGES_NUM]
-                    }));
-                let feedback = minimizer_feedback(&time_observer, &edges_observer);
-                let observers = tuple_list!(time_observer, edges_observer);
-                (feedback, observers)
-            };
-
             RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
                 .with_new_state(Box::new(|seed, config, feedback, objective| {
                     StdState::new(
@@ -374,10 +445,8 @@ pub fn start(config: FuzzerConfig) {
                     )
                     .unwrap()
                 }))
-                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
                 .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
-                .with_observers(observers)
-                .with_feedback(feedback)
+                .install_minimizer()
                 .run_client()
         };
 
