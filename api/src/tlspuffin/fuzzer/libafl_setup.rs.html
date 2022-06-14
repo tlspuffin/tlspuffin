@@ -827,7 +827,7 @@
                         <span class="kw-2">&amp;</span><span class="ident">initial_corpus_dir</span>, <span class="ident">err</span>
                     )
                 });
-            <span class="macro">println!</span>(<span class="string">&quot;We imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
+            <span class="macro">info!</span>(<span class="string">&quot;We imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_iters</span>) <span class="op">=</span> <span class="ident">max_iters</span> {

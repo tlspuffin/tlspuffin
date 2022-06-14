@@ -34,6 +34,9 @@
 <span id="29">29</span>
 <span id="30">30</span>
 <span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
 </pre><pre class="rust"><code><span class="doccomment">//! TODO: Write intro: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/64</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ### Used protocol and cryptographic libraries</span>
@@ -45,6 +48,9 @@
 <span class="doccomment">//! The cryptographic library [ring](https://github.com/briansmith/ring) allows us to use the derived secrets to encrypt and decrypt TLS messages.</span>
 
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_doc_comments</span>)]</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl-binding&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl-binding&quot;</span>))]</span>
+<span class="macro">compile_error!</span>(<span class="string">&quot;`Only one binding at the same time is currently supported.&quot;</span>);
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">agent</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">algebra</span>;

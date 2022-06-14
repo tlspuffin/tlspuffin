@@ -3872,7 +3872,7 @@
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_version</span>() {
-        <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">PUT_REGISTRY</span>.<span class="ident">versions</span>());
+        <span class="ident">PUT_REGISTRY</span>.<span class="ident">versions</span>();
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
