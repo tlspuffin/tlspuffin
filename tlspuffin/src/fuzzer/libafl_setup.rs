@@ -323,7 +323,7 @@ where
                         &initial_corpus_dir, err
                     )
                 });
-            println!("We imported {} inputs from disk.", state.corpus().count());
+            info!("We imported {} inputs from disk.", state.corpus().count());
         }
 
         if let Some(max_iters) = max_iters {

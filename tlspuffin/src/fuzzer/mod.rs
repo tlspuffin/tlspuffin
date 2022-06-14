@@ -352,8 +352,8 @@ mod tests {
 
         let std_dev =
             std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
-        println!("{:?}", std_dev);
-        println!("{:?}", stats);
+        /*        println!("{:?}", std_dev);
+        println!("{:?}", stats);*/
 
         assert!(std_dev < 30.0);
         assert_eq!(client_hello.size(), stats.len());
@@ -399,7 +399,7 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        println!("{:?}", &difference);
+        //println!("{:?}", &difference);
         assert_eq!(difference.count(), 0);
         //println!("{}", graph);
     }

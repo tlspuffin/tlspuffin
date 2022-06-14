@@ -1637,7 +1637,7 @@ pub mod tests {
     }
     #[test]
     fn test_version() {
-        println!("{}", PUT_REGISTRY.versions());
+        PUT_REGISTRY.versions();
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]

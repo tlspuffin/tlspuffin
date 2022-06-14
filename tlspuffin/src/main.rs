@@ -120,7 +120,7 @@ fn main() {
             let mut file = File::create(format!("./seeds/{}.trace", name)).unwrap();
             let buffer = postcard::to_allocvec(&trace).unwrap();
             file.write_all(&buffer).unwrap();
-            println!("Generated seed traces into the directory ./corpus")
+            info!("Generated seed traces into the directory ./corpus")
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
@@ -158,7 +158,7 @@ fn main() {
             }
         }
 
-        println!("Created plots")
+        info!("Created plots")
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         // Parse arguments
         let input = matches.value_of("input").unwrap();
@@ -181,9 +181,6 @@ fn main() {
             if experiment_path.as_path().exists() {
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
-            fs::create_dir_all(&experiment_path).unwrap();
-
-            handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
 
             write_experiment_markdown(&experiment_path, title, description).unwrap();
             experiment_path
@@ -202,15 +199,14 @@ fn main() {
                 i += 1;
             }
 
-            fs::create_dir_all(&experiment_path).unwrap();
-
-            handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
-
             write_experiment_markdown(&experiment_path, title, description).unwrap();
             experiment_path
         } else {
             PathBuf::from(".")
         };
+
+        fs::create_dir_all(&experiment_path).unwrap();
+        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
 
         start(FuzzerConfig {
             initial_corpus_dir: experiment_path.join("seeds"),

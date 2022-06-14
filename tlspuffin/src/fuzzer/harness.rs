@@ -1,5 +1,5 @@
 use libafl::executors::ExitKind;
-use log::{trace, warn};
+use log::{info, trace, warn};
 use rand::Rng;
 
 use crate::{
@@ -48,7 +48,7 @@ pub fn dummy_harness(_input: &Trace) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);
-    println!("Run {}", n1);
+    info!("Run {}", n1);
     if n1 <= 5 {
         return ExitKind::Timeout;
     }
