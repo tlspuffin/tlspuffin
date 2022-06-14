@@ -66,41 +66,18 @@
 <span id="61">61</span>
 <span id="62">62</span>
 <span id="63">63</span>
-<span id="64">64</span>
-<span id="65">65</span>
-<span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
-<span id="72">72</span>
-<span id="73">73</span>
-<span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
-<span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
-<span id="84">84</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">fmt::Formatter</span>, <span class="ident">io</span>};
 
 <span class="kw">use</span> <span class="ident">rustls::msgs::enums::ContentType</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">agent::AgentName</span>, <span class="ident">tls::error::FnError</span>};
 
-<span class="comment">// #[derive(Debug, Clone, Serialize)] Serialization not used right now</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Error</span> {
     <span class="doccomment">/// Returned if a concrete function from the module [`tls`] fails or term evaluation fails</span>
     <span class="ident">Fn</span>(<span class="ident">FnError</span>),
     <span class="ident">Term</span>(<span class="ident">String</span>),
     <span class="doccomment">/// OpenSSL reported an error</span>
-    <span class="comment">//#[serde(serialize_with = &quot;serialize_openssl_error&quot;)]</span>
     <span class="ident">OpenSSL</span>(<span class="ident">String</span>),
     <span class="doccomment">/// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.</span>
     <span class="ident">IO</span>(<span class="ident">String</span>),
@@ -111,25 +88,6 @@
     <span class="ident">Extraction</span>(<span class="ident">ContentType</span>),
     <span class="ident">SecurityClaim</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">AgentName</span>, <span class="ident">security_claims::Claim</span>)<span class="op">&gt;</span>),
 }
-
-<span class="comment">/*fn serialize_openssl_error&lt;S&gt;(error: &amp;ErrorStack, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;
-where
-    S: Serializer,
-{
-    serializer.serialize_str(error.to_string().as_str())
-}
-
-impl SerdeAny for Error {
-    fn as_any(&amp;self) -&gt; &amp;dyn Any {
-        self
-    }
-
-    fn as_any_mut(&amp;mut self) -&gt; &amp;mut dyn Any {
-        self
-    }
-}
-
-impl CustomExitKind for Error {}*/</span>
 
 <span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">Error</span> {}
 

@@ -172,6 +172,8 @@
 <span id="167">167</span>
 <span id="168">168</span>
 <span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually</span>
 <span class="doccomment">//! not represented by these [`Agent`]s.</span>
 <span class="doccomment">//! Attackers are represented through a recipe term (see [`InputAction`]).</span>
@@ -322,7 +324,9 @@
             <span class="ident">claimer</span>,
         };
 
-        <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> <span class="ident">PUT_REGISTRY</span>.<span class="ident">find_factory</span>(<span class="ident">descriptor</span>.<span class="ident">put_name</span>).<span class="ident">unwrap</span>(); <span class="comment">// FIXME: unwrap</span>
+        <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> <span class="ident">PUT_REGISTRY</span>
+            .<span class="ident">find_factory</span>(<span class="ident">descriptor</span>.<span class="ident">put_name</span>)
+            .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::Agent</span>(<span class="string">&quot;unable to find PUT in binary&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">factory</span>.<span class="ident">create</span>(<span class="ident">config</span>);
         <span class="kw">let</span> <span class="ident">agent</span> <span class="op">=</span> <span class="ident">Agent</span> {
             <span class="ident">descriptor</span>: <span class="kw-2">*</span><span class="ident">descriptor</span>,

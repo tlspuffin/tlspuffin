@@ -665,9 +665,6 @@
 <span id="660">660</span>
 <span id="661">661</span>
 <span id="662">662</span>
-<span id="663">663</span>
-<span id="664">664</span>
-<span id="665">665</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -679,16 +676,14 @@
 <span class="doccomment">//! ```rust</span>
 <span class="doccomment">//! use tlspuffin::agent::{PutName, AgentName, AgentDescriptor, TLSVersion::*};</span>
 <span class="doccomment">//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};</span>
-<span class="doccomment">//! use tlspuffin::term::{Term, signature::Signature};</span>
+<span class="doccomment">//! use tlspuffin::algebra::{Term, signature::Signature};</span>
 <span class="doccomment">//! use tlspuffin::tls::fn_impl::fn_client_hello;</span>
 <span class="doccomment">//! use rustls::{ProtocolVersion, CipherSuite};</span>
 <span class="doccomment">//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};</span>
 <span class="doccomment">//! use rustls::msgs::enums::{Compression, HandshakeType};</span>
+<span class="doccomment">//! # use tlspuffin::registry::current_put;</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! #[cfg(feature = &quot;openssl-binding&quot;)]</span>
-<span class="doccomment">//! const PUT: PutName = tlspuffin::registry::OPENSSL111;   </span>
-<span class="doccomment">//! #[cfg(feature = &quot;wolfssl-binding&quot;)]</span>
-<span class="doccomment">//! const PUT: PutName = tlspuffin::registry::WOLFSSL520;</span>
+<span class="doccomment">//! # const PUT: PutName = current_put();</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let client: AgentName = AgentName::first();</span>
 <span class="doccomment">//! let server: AgentName = client.next();</span>
@@ -755,11 +750,10 @@
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::io::Channel</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">agent</span>::{<span class="ident">Agent</span>, <span class="ident">AgentDescriptor</span>, <span class="ident">AgentName</span>},
-    <span class="ident">concretize::Put</span>,
+    <span class="ident">algebra</span>::{<span class="ident">dynamic_function::TypeShape</span>, <span class="ident">remove_prefix</span>, <span class="ident">Term</span>},
     <span class="ident">debug</span>::{<span class="ident">debug_message_with_info</span>, <span class="ident">debug_opaque_message_with_info</span>},
     <span class="ident">error::Error</span>,
-    <span class="ident">io</span>::{<span class="ident">MessageResult</span>, <span class="ident">Stream</span>},
-    <span class="ident">term</span>::{<span class="ident">dynamic_function::TypeShape</span>, <span class="ident">remove_prefix</span>, <span class="ident">Term</span>},
+    <span class="ident">io::MessageResult</span>,
     <span class="ident">tls::error::FnError</span>,
     <span class="ident">variable_data</span>::{<span class="ident">extract_knowledge</span>, <span class="ident">VariableData</span>},
 };

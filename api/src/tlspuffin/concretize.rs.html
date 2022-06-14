@@ -56,6 +56,8 @@
 <span id="51">51</span>
 <span id="52">52</span>
 <span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Generic [`PUT`] trait defining an interface with a TLS library with which we can:</span>
 <span class="doccomment">//! - [`new`] create a client (or server) new initial state + bind buffers</span>
 <span class="doccomment">//! - [`progress`] makes a state progress (interacting with the buffers)</span>
@@ -91,8 +93,10 @@
     <span class="doccomment">/// In-place reset of the state</span>
     <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
     <span class="doccomment">/// Register a new claim for agent_name</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>);
     <span class="doccomment">/// Remove all claims in self</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">deregister_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>);
     <span class="doccomment">/// Change the agent name and the claimer of self</span>
     <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>);

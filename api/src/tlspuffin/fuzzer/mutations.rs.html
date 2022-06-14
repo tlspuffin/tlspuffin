@@ -586,9 +586,9 @@
 <span class="kw">use</span> <span class="ident">util</span>::{<span class="ident">Choosable</span>, <span class="kw-2">*</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
+    <span class="ident">algebra</span>::{<span class="ident">atoms::Function</span>, <span class="ident">Subterms</span>, <span class="ident">Term</span>},
     <span class="ident">fuzzer::term_zoo</span>::{<span class="ident">generate_term_zoo</span>, <span class="ident">Zoo</span>},
     <span class="ident">mutator</span>,
-    <span class="ident">term</span>::{<span class="ident">atoms::Function</span>, <span class="ident">Subterms</span>, <span class="ident">Term</span>},
     <span class="ident">tls::SIGNATURE</span>,
     <span class="ident">trace::Trace</span>,
 };
@@ -905,7 +905,7 @@
     <span class="kw">use</span> <span class="ident">libafl::bolts::rands::Rand</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span>::{
-        <span class="ident">term::Term</span>,
+        <span class="ident">algebra::Term</span>,
         <span class="ident">trace</span>::{<span class="ident">Action</span>, <span class="ident">Step</span>, <span class="ident">Trace</span>},
     };
 
