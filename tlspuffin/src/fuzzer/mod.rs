@@ -4,7 +4,7 @@
 use libafl::{bolts::HasLen, inputs::Input};
 
 use crate::trace::Trace;
-// Link against correct sancov impl
+
 #[cfg(all(feature = "sancov_pcguard_log", feature = "sancov_libafl"))]
 compile_error!("`sancov_pcguard_log` and `sancov_libafl` features are mutually exclusive.");
 

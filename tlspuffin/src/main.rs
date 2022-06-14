@@ -1,6 +1,3 @@
-#![allow(unused_doc_comments)]
-#[macro_use]
-extern crate log;
 use std::{
     env, fs,
     fs::File,
@@ -9,6 +6,7 @@ use std::{
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
+use log::info;
 use log::LevelFilter;
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
@@ -16,35 +14,14 @@ use log4rs::{
     encode::{json::JsonEncoder, pattern::PatternEncoder},
     Config,
 };
-use tls::seeds::create_corpus;
-use trace::TraceContext;
-
-use crate::{
+use tlspuffin::tls::seeds::create_corpus;
+use tlspuffin::trace::{Trace, TraceContext};
+use tlspuffin::{
     experiment::*,
     fuzzer::{start, FuzzerConfig},
     graphviz::write_graphviz,
     registry::PUT_REGISTRY,
 };
-
-pub mod agent;
-pub mod algebra;
-pub mod concretize;
-pub mod debug;
-pub mod error;
-pub mod experiment;
-pub mod fuzzer;
-pub mod graphviz;
-pub mod io;
-#[cfg(feature = "openssl-binding")]
-mod openssl;
-pub mod registry;
-pub mod static_certs;
-#[allow(clippy::ptr_arg)]
-pub mod tls;
-pub mod trace;
-pub mod variable_data;
-#[cfg(feature = "wolfssl-binding")]
-mod wolfssl;
 
 fn create_app() -> Command<'static> {
     Command::new(crate_name!())
@@ -135,7 +112,7 @@ fn main() {
         // Read trace file
         let mut buffer = Vec::new();
         input_file.read_to_end(&mut buffer).unwrap();
-        let trace = postcard::from_bytes::<trace::Trace>(&buffer).unwrap();
+        let trace = postcard::from_bytes::<Trace>(&buffer).unwrap();
 
         // All-in-one tree
         write_graphviz(
@@ -168,7 +145,7 @@ fn main() {
         // Read trace file
         let mut buffer = Vec::new();
         input_file.read_to_end(&mut buffer).unwrap();
-        let trace = postcard::from_bytes::<trace::Trace>(&buffer).unwrap();
+        let trace = postcard::from_bytes::<Trace>(&buffer).unwrap();
 
         let mut ctx = TraceContext::new();
         trace.execute(&mut ctx).unwrap();
