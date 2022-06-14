@@ -6,21 +6,20 @@ use std::{
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
-use log::info;
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender},
     config::{Appender, Root},
     encode::{json::JsonEncoder, pattern::PatternEncoder},
     Config,
 };
-use tlspuffin::tls::seeds::create_corpus;
-use tlspuffin::trace::{Trace, TraceContext};
 use tlspuffin::{
     experiment::*,
     fuzzer::{start, FuzzerConfig},
     graphviz::write_graphviz,
     registry::PUT_REGISTRY,
+    tls::seeds::create_corpus,
+    trace::{Trace, TraceContext},
 };
 
 fn create_app() -> Command<'static> {
