@@ -1807,7 +1807,7 @@ pub mod tests {
 
     // require version which supports TLS 1.3
     // LibreSSL does not yet support PSK
-    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[cfg(all(feature = "tls13", feature = "session-resumption"))] // FIXME expression is a hack
     #[test]
     fn test_seed_successful_with_tickets() {
         PUT_REGISTRY.make_deterministic();

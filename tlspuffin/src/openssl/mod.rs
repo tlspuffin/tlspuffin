@@ -98,15 +98,15 @@ impl Put for OpenSSL {
         };
 
         #[cfg(not(feature = "claims"))]
-        let stream = OpenSSL { stream };
+        let openssl = OpenSSL { stream };
 
         #[cfg(feature = "claims")]
-        let stream = {
-            let mut stream = OpenSSL { stream };
-            stream.register_claimer(config.claimer, config.agent_name);
-            stream
+        let openssl = {
+            let mut openssl = OpenSSL { stream };
+            openssl.register_claimer(config.claimer, config.agent_name);
+            openssl
         };
-        Ok(stream)
+        Ok(openssl)
     }
 
     fn progress(&mut self) -> Result<(), Error> {

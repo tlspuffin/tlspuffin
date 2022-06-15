@@ -18,6 +18,7 @@ fn main() {
         .derive_copy(true)
         .derive_debug(true)
         .derive_eq(true)
+        .derive_default(true)
         .impl_debug(true)
         .parse_callbacks(Box::new(MyParseCallbacks {}))
         .impl_partialeq(true)

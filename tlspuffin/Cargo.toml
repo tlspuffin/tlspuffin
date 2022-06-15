@@ -33,7 +33,9 @@ libressl = [
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
-    "wolfssl-binding"
+    "wolfssl-binding",
+    "claims",
+    "session-resumption"
     # FIXME: support "claims", "deterministic", "asan", "session-resumption"
 ]
 

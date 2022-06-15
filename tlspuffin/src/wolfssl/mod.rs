@@ -7,6 +7,7 @@ use std::{
 };
 
 use rustls::msgs::message::OpaqueMessage;
+use security_claims::register::Claimer;
 
 use self::wolfssl_binding::wolfssl_version;
 use crate::{
@@ -94,24 +95,38 @@ impl Drop for WolfSSL {
 }
 
 impl Put for WolfSSL {
-    fn new(c: Config) -> Result<Self, Error>
+    fn new(config: Config) -> Result<Self, Error>
     where
         Self: Sized,
     {
         let memory_stream = MemoryStream::new();
-        let stream = if c.server {
+        let stream = if config.server {
             // we reuse static data obtained through the OpenSSL PUT, which is OK
             // FIXME: let (cert, pkey) = openssl_binding::static_rsa_cert()?;
-            wolfssl_binding::create_server(memory_stream, &c.tls_version)?
+            wolfssl_binding::create_server(
+                memory_stream,
+                &config.tls_version,
+                config.claimer.clone(),
+                config.agent_name,
+            )?
         } else {
-            wolfssl_binding::create_client(memory_stream, &c.tls_version)?
+            wolfssl_binding::create_client(
+                memory_stream,
+                &config.tls_version,
+                config.claimer.clone(),
+                config.agent_name,
+            )?
         };
 
+        #[cfg(not(feature = "claims"))]
         let wolfssl = WolfSSL { stream };
+
         #[cfg(feature = "claims")]
-        unsafe {
-            wolfssl.register_claimer(c.claimer, c.agent_name);
-        }
+        let wolfssl = {
+            let mut stream = WolfSSL { stream };
+            stream.register_claimer(config.claimer, config.agent_name);
+            stream
+        };
         Ok(wolfssl)
     }
 
@@ -128,17 +143,19 @@ impl Put for WolfSSL {
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         unsafe {
-            security_claims::register_claimer(
-                self.stream.ssl.as_ptr().cast(),
-                move |claim: Claim| (*claimer).borrow_mut().claim(agent_name, claim),
-            );
+            /*security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    (*claimer).borrow_mut().claim(agent_name, claim)
+                },
+            );*/
         }
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+            //security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
@@ -146,8 +163,19 @@ impl Put for WolfSSL {
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         unsafe {
-            self.deregister_claimer();
-            self.register_claimer(claimer, agent_name)
+            //self.deregister_claimer();
+            self.stream.agent_name = agent_name;
+            let cb: Box<Box<Claimer>> = Box::new(Box::new(move |claim: security_claims::Claim| {
+                let mut ref_mut = (*claimer).borrow_mut();
+                ref_mut.claim(agent_name, claim);
+            }));
+            let x = Box::into_raw(cb) as *mut _;
+            wolfssl_sys::wolfSSL_set_msg_callback_arg(
+                self.stream.ssl().as_ptr(),
+                x, // FIXME: memory leak
+            );
+
+            //self.register_claimer(claimer, agent_name)
         }
     }
 

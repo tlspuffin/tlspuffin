@@ -1,9 +1,17 @@
+use libafl::inputs::bytes;
+use libc::{c_char, c_ulong};
+use log::info;
+use security_claims::register::Claimer;
+use std::borrow::BorrowMut;
+use std::cell::{RefCell, RefMut};
+use std::rc::Rc;
 use std::{
     cmp,
     ffi::{CStr, CString},
     io,
     io::{ErrorKind, Read, Write},
     marker::PhantomData,
+    mem,
     mem::ManuallyDrop,
     os::raw::{c_int, c_void},
     panic, ptr, str,
@@ -13,6 +21,8 @@ use std::{
 use wolfssl_sys as wolf;
 
 use super::{error::ErrorStack, wolfssl_bio as bio};
+use crate::agent::AgentName;
+use crate::trace::VecClaimer;
 use crate::{
     agent::TLSVersion,
     error::Error,
@@ -55,86 +65,9 @@ impl Ssl {
         let len = cmp::min(c_int::max_value() as usize, buf.len()) as c_int;
         unsafe { wolf::wolfSSL_read(self.as_ptr(), buf.as_ptr() as *mut c_void, len) }
     }
-}
-impl Drop for Ssl {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe { wolf::wolfSSL_free(self.0) }
-    }
-}
-
-/// A TLS session over a stream.
-pub struct SslStream<S> {
-    ssl: ManuallyDrop<Ssl>,
-    method: ManuallyDrop<bio::BioMethod>,
-    _p: PhantomData<S>,
-}
-
-impl<S: Read + Write> SslStream<S> {
-    /// Creates a new `SslStream`.
-    ///
-    /// This function performs no IO; the stream will not have performed any part of the handshake
-    /// with the peer. If the `Ssl` was configured with [`SslRef::set_connect_state`] or
-    /// [`SslRef::set_accept_state`], the handshake can be performed automatically during the first
-    /// call to read or write. Otherwise the `connect` and `accept` methods can be used to
-    /// explicitly perform the handshake.
-    ///
-    /// This corresponds to [`SSL_set_bio`].
-    ///
-    /// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html
-    pub fn new(ssl: Ssl, stream: S) -> Result<Self, ErrorStack> {
-        let (bio, method) = bio::bio_new(stream)?;
-        unsafe {
-            wolf::wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
-        }
-        Ok(SslStream {
-            ssl: ManuallyDrop::new(ssl),
-            method: ManuallyDrop::new(method),
-            _p: PhantomData,
-        })
-    }
-    /// Returns a mutable reference to the underlying stream.
-    ///
-    /// # Warning
-    ///
-    /// It is inadvisable to read from or write to the underlying stream as it
-    /// will most likely corrupt the SSL session.
-    pub fn get_mut(&mut self) -> &mut S {
-        unsafe {
-            let bio = wolf::wolfSSL_SSL_get_rbio(self.ssl.as_ptr());
-
-            bio::get_mut(bio)
-        }
-    }
-
-    /// Returns a longer string describing the state of the session.
-    ///
-    /// This corresponds to [`SSL_state_string_long`].
-    ///
-    /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
-    /// FIXME: This function of wolfSSL currently does not work with TLS 1.3
-    pub fn state_string_long(&self) -> &'static str {
-        let state = unsafe {
-            let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
-
-            if state_ptr.is_null() {
-                return "Unknown State";
-            }
-
-            CStr::from_ptr(state_ptr as *const _)
-        };
-
-        let string = str::from_utf8(state.to_bytes()).unwrap();
-
-        string
-    }
-
-    pub fn is_handshake_done(&self) -> bool {
-        (unsafe { wolf::wolfSSL_is_init_finished(self.ssl.as_ptr()) }) > 0
-    }
 
     pub fn handshake_state(&self) -> &'static str {
-        let state = unsafe { (*self.ssl.as_ptr()).options.handShakeState };
+        let state = unsafe { (*self.0).options.handShakeState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
@@ -164,7 +97,7 @@ impl<S: Read + Write> SslStream<S> {
     }
 
     pub fn accept_state(&self, tls_version: TLSVersion) -> &'static str {
-        let state = unsafe { (*self.ssl.as_ptr()).options.acceptState };
+        let state = unsafe { (*self.0).options.acceptState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match tls_version {
@@ -222,6 +155,92 @@ impl<S: Read + Write> SslStream<S> {
                 _ => "Unknown",
             },
         }
+    }
+}
+impl Drop for Ssl {
+    #[inline]
+    fn drop(&mut self) {
+        // unsafe { wolf::wolfSSL_free(self.0) }
+    }
+}
+
+/// A TLS session over a stream.
+pub struct SslStream<S> {
+    ssl: ManuallyDrop<Ssl>,
+    vec_claimer: Rc<RefCell<VecClaimer>>,
+    pub agent_name: AgentName,
+    method: ManuallyDrop<bio::BioMethod>,
+    _p: PhantomData<S>,
+}
+
+impl<S: Read + Write> SslStream<S> {
+    /// Creates a new `SslStream`.
+    ///
+    /// This function performs no IO; the stream will not have performed any part of the handshake
+    /// with the peer. If the `Ssl` was configured with [`SslRef::set_connect_state`] or
+    /// [`SslRef::set_accept_state`], the handshake can be performed automatically during the first
+    /// call to read or write. Otherwise the `connect` and `accept` methods can be used to
+    /// explicitly perform the handshake.
+    ///
+    /// This corresponds to [`SSL_set_bio`].
+    ///
+    /// [`SSL_set_bio`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_bio.html
+    pub fn new(
+        ssl: Ssl,
+        stream: S,
+        agent_name: AgentName,
+        vec_claimer: Rc<RefCell<VecClaimer>>,
+    ) -> Result<Self, ErrorStack> {
+        let (bio, method) = bio::bio_new(stream)?;
+        unsafe {
+            wolf::wolfSSL_set_bio(ssl.as_ptr(), bio, bio);
+        }
+        Ok(SslStream {
+            agent_name,
+            vec_claimer,
+            ssl: ManuallyDrop::new(ssl),
+            method: ManuallyDrop::new(method),
+            _p: PhantomData,
+        })
+    }
+    /// Returns a mutable reference to the underlying stream.
+    ///
+    /// # Warning
+    ///
+    /// It is inadvisable to read from or write to the underlying stream as it
+    /// will most likely corrupt the SSL session.
+    pub fn get_mut(&mut self) -> &mut S {
+        unsafe {
+            let bio = wolf::wolfSSL_SSL_get_rbio(self.ssl.as_ptr());
+
+            bio::get_mut(bio)
+        }
+    }
+
+    /// Returns a longer string describing the state of the session.
+    ///
+    /// This corresponds to [`SSL_state_string_long`].
+    ///
+    /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
+    /// FIXME: This function of wolfSSL currently does not work with TLS 1.3
+    pub fn state_string_long(&self) -> &'static str {
+        let state = unsafe {
+            let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
+
+            if state_ptr.is_null() {
+                return "Unknown State";
+            }
+
+            CStr::from_ptr(state_ptr as *const _)
+        };
+
+        let string = str::from_utf8(state.to_bytes()).unwrap();
+
+        string
+    }
+
+    pub fn is_handshake_done(&self) -> bool {
+        (unsafe { wolf::wolfSSL_is_init_finished(self.ssl.as_ptr()) }) > 0
     }
 
     /// Returns a shared reference to the `Ssl` object associated with this stream.
@@ -306,7 +325,18 @@ impl<S: Read + Write> SslStream<S> {
     ///
     /// [`SSL_do_handshake`]: https://www.openssl.org/docs/manmaster/man3/SSL_do_handshake.html
     pub fn do_handshake(&mut self) -> Result<(), SslError> {
-        let ret = unsafe { wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr()) };
+        let ret = unsafe {
+            //wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr())
+            wolf::wolfSSL_accept_ex(
+                self.ssl.as_ptr(),
+                Some(SSL_connect_ex),
+                None,
+                wolf::WOLFSSL_TIMEVAL {
+                    tv_sec: 5,
+                    tv_usec: 0,
+                },
+            )
+        };
         if ret > 0 {
             Ok(())
         } else {
@@ -329,6 +359,8 @@ pub unsafe fn wolfssl_version() -> &'static str {
 pub fn create_client(
     stream: MemoryStream,
     tls_version: &TLSVersion,
+    claimer: Rc<RefCell<VecClaimer>>,
+    agent_name: AgentName,
 ) -> Result<SslStream<MemoryStream>, SslError> {
     unsafe {
         //// Global WolfSSL lib initialization
@@ -359,14 +391,151 @@ pub fn create_client(
         wolf::wolfSSL_set_connect_state(ssl.as_ptr());
 
         //// Stream builder
-        let ssl_stream = SslStream::new(ssl, stream)?;
+        let ssl_stream = SslStream::new(ssl, stream, agent_name, claimer)?;
         Ok(ssl_stream)
     }
+}
+
+unsafe extern "C" fn SSL_info(ssl: *const wolf::WOLFSSL, a: c_int, b: c_int) {
+    info!(
+        "SSL_info {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
+    );
+}
+
+unsafe extern "C" fn SSL_finished(
+    ssl: *mut wolf::WOLFSSL,
+    a: *const u8,
+    b: *const u8,
+    c: *mut u8,
+    d: *mut c_void,
+) -> i32 {
+    info!(
+        "SSL_finished {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
+    );
+    0
+}
+unsafe extern "C" fn SSL_keylog13(
+    ssl: *mut wolf::WOLFSSL,
+    a: c_int,
+    b: *const u8,
+    d: c_int,
+    c: *mut c_void,
+) -> i32 {
+    /*match a as u32 {
+        wolf::Tls13Secret_CLIENT_EARLY_TRAFFIC_SECRET => {
+            info!("Tls13Secret_CLIENT_EARLY_TRAFFIC_SECRET");
+        }
+        wolf::Tls13Secret_CLIENT_HANDSHAKE_TRAFFIC_SECRET => {
+            info!("Tls13Secret_CLIENT_HANDSHAKE_TRAFFIC_SECRET");
+        }
+        wolf::Tls13Secret_SERVER_HANDSHAKE_TRAFFIC_SECRET => {
+            info!("Tls13Secret_SERVER_HANDSHAKE_TRAFFIC_SECRET");
+        }
+        wolf::Tls13Secret_CLIENT_TRAFFIC_SECRET => {
+            info!("Tls13Secret_CLIENT_TRAFFIC_SECRET");
+        }
+        wolf::Tls13Secret_SERVER_TRAFFIC_SECRET => {
+            info!("Tls13Secret_SERVER_TRAFFIC_SECRET");
+        }
+        wolf::Tls13Secret_EARLY_EXPORTER_SECRET => {
+            info!("Tls13Secret_EARLY_EXPORTER_SECRET");
+        }
+        wolf::Tls13Secret_EXPORTER_SECRET => {
+            info!("Tls13Secret_EXPORTER_SECRET");
+        }
+        _ => {}
+    };*/
+    info!(
+        "SSL_keylog13 {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
+    );
+
+    0
+}
+unsafe extern "C" fn SSL_keylog(ssl: *const wolf::WOLFSSL, a: c_int, b: c_int) {
+    info!(
+        "SSL_keylog {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
+    );
+}
+
+unsafe fn check_transcript(ssl: *mut wolf::WOLFSSL, claimer: &mut Claimer) {
+    let mut sha256 = (*(*ssl).hsHashes).hashSha256;
+
+    let mut hash: [u8; 32] = [0; 32];
+    wolf::wc_Sha256GetHash(&mut sha256 as *mut wolf::wc_Sha256, hash.as_mut_ptr());
+
+    let mut target: [u8; 64] = [0; 64];
+    target[..32].clone_from_slice(&hash);
+
+    let state = unsafe { (*ssl).options.acceptState };
+
+    // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
+    match state as u32 {
+        wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => claimer(security_claims::Claim {
+            typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH,
+            transcript: security_claims::ClaimTranscript {
+                length: 32,
+                data: target,
+            },
+            ..security_claims::Claim::default()
+        }),
+        wolf::AcceptStateTls13_TLS13_CERT_VERIFY_SENT => claimer(security_claims::Claim {
+            typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN,
+            transcript: security_claims::ClaimTranscript {
+                length: 32,
+                data: target,
+            },
+            ..security_claims::Claim::default()
+        }),
+        // FIXME
+        wolf::AcceptStateTls13_TLS13_TICKET_SENT => claimer(security_claims::Claim {
+            typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN,
+            transcript: security_claims::ClaimTranscript {
+                length: 32,
+                data: target,
+            },
+            ..security_claims::Claim::default()
+        }),
+        _ => {}
+    };
+
+    info!(
+        "SSL_Msg_Cb {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3),
+    );
+}
+
+unsafe extern "C" fn SSL_Msg_Cb(
+    write_p: c_int,
+    version: c_int,
+    content_type: c_int,
+    buf: *const c_void,
+    len: c_ulong,
+    ssl: *mut wolf::WOLFSSL,
+    arg: *mut c_void,
+) {
+    let claimer: &mut Box<Claimer> = unsafe { mem::transmute(arg) };
+    check_transcript(ssl, claimer);
+
+    info!(
+        "SSL_Msg_Cb {:?}",
+        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3),
+    );
+}
+
+unsafe extern "C" fn SSL_connect_ex(arg1: *mut wolf::HandShakeInfo) -> i32 {
+    info!("SSL_connect_ex");
+    1
 }
 
 pub fn create_server(
     stream: MemoryStream,
     tls_version: &TLSVersion,
+    claimer: Rc<RefCell<VecClaimer>>,
+    agent_name: AgentName,
 ) -> Result<SslStream<MemoryStream>, SslError> {
     unsafe {
         //// Global WolfSSL lib initialization
@@ -405,12 +574,34 @@ pub fn create_server(
         wolf::wolfSSL_CTX_use_certificate(ctx, cert as *const _ as *mut _);
         wolf::wolfSSL_CTX_use_PrivateKey(ctx, evp as *const _ as *mut _);
 
+        //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
+        //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
+        //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
+
         //// SSL pointer builder
         let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));
+        // Requires WOLFSSL_CALLBACKS
+        wolf::wolfSSL_set_msg_callback(ssl.as_ptr(), Some(SSL_Msg_Cb));
+
+        let rc = claimer.clone();
+
+        let cb: Box<Box<Claimer>> = Box::new(Box::new(move |claim: security_claims::Claim| {
+            let mut ref_mut = (*claimer).borrow_mut();
+            ref_mut.claim(agent_name, claim);
+        }));
+        let x = Box::into_raw(cb) as *mut _;
+        wolf::wolfSSL_set_msg_callback_arg(
+            ssl.as_ptr(),
+            x, // FIXME: memory leak
+        );
+
+        wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
+
         wolf::wolfSSL_set_accept_state(ssl.as_ptr());
 
         //// Stream builder
-        let ssl_stream = SslStream::new(ssl, stream)?;
+
+        let ssl_stream = SslStream::new(ssl, stream, agent_name, rc)?;
         Ok(ssl_stream)
     }
 }
@@ -441,6 +632,26 @@ pub fn log_ssl_error(error: &SslError) -> Result<(), Error> {
 }
 
 pub fn do_handshake(stream: &mut SslStream<MemoryStream>) -> Result<(), Error> {
+    info!(
+        "do_handshake {:?}",
+        stream.ssl.accept_state(TLSVersion::V1_3)
+    );
+
+    unsafe {
+        let rc = stream.vec_claimer.clone();
+        let name = stream.agent_name;
+        check_transcript(
+            stream.ssl.as_ptr(),
+            &mut move |claim: security_claims::Claim| {
+                info!("check_transcript|do_handshake {}", claim);
+
+                let mut ref_mut = (*rc).borrow_mut();
+
+                ref_mut.claim(name, claim);
+            },
+        )
+    }
+
     if stream.is_handshake_done() {
         // todo improve this case
         let mut vec: Vec<u8> = Vec::from([1; 128]);

@@ -10,6 +10,7 @@
 
 #![allow(unused_doc_comments)]
 
+extern crate core;
 #[cfg(all(feature = "openssl-binding", feature = "wolfssl-binding"))]
 compile_error!("`Only one binding at the same time is currently supported.");
 
