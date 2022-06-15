@@ -42,12 +42,12 @@ jobs:
         if: matrix.apt-dependencies
         shell: bash
         run: sudo apt-get install -y ${{ matrix.apt-dependencies }}
-      #- name: Clean
-      #  if: matrix.clean-crates
-      #  shell: bash
-      #  run: |
-      #    cargo clean --target x86_64-unknown-linux-gnu -p ${{ matrix.clean-crates }}
-      #    cargo clean --target x86_64-unknown-linux-gnu --release -p ${{ matrix.clean-crates }}
+      - name: Clean
+        if: matrix.clean-crates
+        shell: bash
+        run: |
+          cargo clean --target x86_64-unknown-linux-gnu -p ${{ matrix.clean-crates }}
+          cargo clean --target x86_64-unknown-linux-gnu --release -p ${{ matrix.clean-crates }}
       - name: Build
         shell: bash
         run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }} --timings"
