@@ -385,7 +385,7 @@ pub fn create_client(
         //// SSL pointer builder
         let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));
 
-        // Force session ticket because `seed_successfull12` expects it. FIXME: add new tests for this
+        // Force requesting session ticket because `seed_successfull12` expects it. FIXME: add new tests for this
         wolf::wolfSSL_UseSessionTicket(ssl.as_ptr());
 
         wolf::wolfSSL_set_connect_state(ssl.as_ptr());
@@ -462,7 +462,13 @@ unsafe extern "C" fn SSL_keylog(ssl: *const wolf::WOLFSSL, a: c_int, b: c_int) {
 }
 
 unsafe fn check_transcript(ssl: *mut wolf::WOLFSSL, claimer: &mut Claimer) {
-    let mut sha256 = (*(*ssl).hsHashes).hashSha256;
+    let hashes = (*ssl).hsHashes;
+
+    if hashes.is_null() {
+        return;
+    }
+
+    let mut sha256 = (*hashes).hashSha256;
 
     let mut hash: [u8; 32] = [0; 32];
     wolf::wc_Sha256GetHash(&mut sha256 as *mut wolf::wc_Sha256, hash.as_mut_ptr());
@@ -577,6 +583,9 @@ pub fn create_server(
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
         //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
         //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
+
+
+        wolf::wolfSSL_CTX_set_num_tickets(ctx, 2); // We expect two tickets like in OpenSSL
 
         //// SSL pointer builder
         let ssl: Ssl = Ssl::from_ptr(wolf::wolfSSL_new(ctx));

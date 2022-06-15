@@ -1805,7 +1805,7 @@ pub mod tests {
         assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
     }
 
-    // require version which supports TLS 1.3
+    // require version which supports TLS 1.3 and session-resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
     #[cfg(all(feature = "tls13", feature = "session-resumption"))] // FIXME expression is a hack
     #[test]
