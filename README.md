@@ -84,9 +84,21 @@ coverage, expressiveness of executable protocol traces and stable and extensible
 * Writtin in Rust!
 
 
+## Dependencies
+
+* build-essential (make, gcc)
+* clang
+
+OpenSSL 1.0:
+* makedepend from `xutils-dev package
+
+WolfSSL:
+* autoconf
+* libtool
+
 ## Building
 
-Now, to build the project:
+Build the project:
 
 ```bash
 git clone git@github.com/tlspuffin/tlspuffin
