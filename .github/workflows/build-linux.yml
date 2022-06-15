@@ -3,6 +3,9 @@ name: Build
 on:
   workflow_call:
 
+env:
+  RUST_LOG: trace
+
 jobs:
   build-linux:
     runs-on: ubuntu-20.04

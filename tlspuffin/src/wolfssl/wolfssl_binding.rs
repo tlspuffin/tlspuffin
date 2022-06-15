@@ -364,7 +364,7 @@ pub fn create_client(
 ) -> Result<SslStream<MemoryStream>, SslError> {
     unsafe {
         //// Global WolfSSL lib initialization
-        init(false);
+        init(true);
 
         //// Context builder
         wolf::wolfSSL_Init();
@@ -545,7 +545,7 @@ pub fn create_server(
 ) -> Result<SslStream<MemoryStream>, SslError> {
     unsafe {
         //// Global WolfSSL lib initialization
-        init(false);
+        init(true);
 
         //// Context builder
         wolf::wolfSSL_Init();
