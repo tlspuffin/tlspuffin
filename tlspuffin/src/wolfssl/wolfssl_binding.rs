@@ -1,11 +1,6 @@
-use libafl::inputs::bytes;
-use libc::{c_char, c_ulong};
-use log::info;
-use security_claims::register::Claimer;
-use std::borrow::BorrowMut;
-use std::cell::{RefCell, RefMut};
-use std::rc::Rc;
 use std::{
+    borrow::BorrowMut,
+    cell::{RefCell, RefMut},
     cmp,
     ffi::{CStr, CString},
     io,
@@ -14,20 +9,25 @@ use std::{
     mem,
     mem::ManuallyDrop,
     os::raw::{c_int, c_void},
-    panic, ptr, str,
+    panic, ptr,
+    rc::Rc,
+    str,
     sync::Once,
 };
 
+use libafl::inputs::bytes;
+use libc::{c_char, c_ulong};
+use log::info;
+use security_claims::register::Claimer;
 use wolfssl_sys as wolf;
 
 use super::{error::ErrorStack, wolfssl_bio as bio};
-use crate::agent::AgentName;
-use crate::trace::VecClaimer;
 use crate::{
-    agent::TLSVersion,
+    agent::{AgentName, TLSVersion},
     error::Error,
     io::MemoryStream,
     static_certs::{CERT, PRIVATE_KEY},
+    trace::VecClaimer,
     wolfssl::{
         error::{ErrorCode, InnerError, SslError},
         wolfssl_bio::MemBioSlice,
@@ -583,7 +583,6 @@ pub fn create_server(
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
         //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
         //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
-
 
         wolf::wolfSSL_CTX_set_num_tickets(ctx, 2); // We expect two tickets like in OpenSSL
 
