@@ -15,6 +15,7 @@ use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
 use wolfssl_sys as wolf;
 
+use crate::wolfssl::callbacks::msg_callback;
 use crate::{
     agent::TLSVersion,
     wolfssl::{
@@ -86,7 +87,7 @@ foreign_type! {
 impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
-            init(true);
+            init(false);
             let ctx = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
 
             Ok(Self::from_ptr(ctx))
@@ -168,6 +169,19 @@ impl SslRef {
     fn read(&mut self, buf: &mut [u8]) -> c_int {
         let len = cmp::min(c_int::max_value() as usize, buf.len()) as c_int;
         unsafe { wolf::wolfSSL_read(self.as_ptr(), buf.as_ptr() as *mut _, len) }
+    }
+
+    pub fn set_msg_callback<F>(&mut self, callback: F)
+    where
+        F: Fn(&mut SslRef),
+    {
+        unsafe {
+            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));
+            wolf::wolfSSL_set_msg_callback_arg(
+                self.as_ptr(),
+                Box::into_raw(Box::new(Box::new(callback))) as *mut _,
+            );
+        }
     }
 
     /// Configure as an outgoing stream from a client.
@@ -359,6 +373,10 @@ impl<S: Read + Write> SslStream<S> {
     /// Returns a shared reference to the `Ssl` object associated with this stream.
     pub fn ssl(&self) -> &Ssl {
         &self.ssl
+    }
+
+    pub fn ssl_mut(&mut self) -> &mut Ssl {
+        &mut self.ssl
     }
 
     /// Like `read`, but returns an `ssl::Error` rather than an `io::Error`.

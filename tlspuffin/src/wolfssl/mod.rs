@@ -8,10 +8,7 @@ use std::{
     rc::Rc,
 };
 
-use foreign_types::ForeignType;
-use rustls::msgs::message::OpaqueMessage;
-use security_claims::register::Claimer;
-
+use crate::wolfssl::transcript::claim_transcript;
 use crate::{
     agent::{AgentName, PutName, TLSVersion},
     error::Error,
@@ -23,10 +20,14 @@ use crate::{
     wolfssl::{
         cert::{parse_cert, parse_rsa_key},
         error::{ErrorStack, SslError},
-        ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+        ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
         version::version,
     },
 };
+use foreign_types::ForeignType;
+use foreign_types::ForeignTypeRef;
+use rustls::msgs::message::OpaqueMessage;
+use security_claims::register::Claimer;
 
 mod bio;
 mod callbacks;
@@ -69,6 +70,7 @@ impl From<ErrorStack> for Error {
 
 pub struct WolfSSL {
     stream: SslStream<MemoryStream>,
+    config: Config,
 }
 
 impl Stream for WolfSSL {
@@ -116,7 +118,18 @@ impl Put for WolfSSL {
             //let (cert, pkey) = openssl_binding::generate_cert();
             // FIXME: let (cert, pkey) = static_rsa_cert()?;
 
-            Self::create_server(config.tls_version)?
+            let mut ssl = Self::create_server(config.tls_version)?;
+            let claimer = config.claimer.clone();
+            ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
+                let claimer = claimer.clone();
+                let mut fn_claimer = move |claim: security_claims::Claim| {
+                    let mut claimer = (*claimer).borrow_mut();
+                    claimer.claim(config.agent_name, claim);
+                };
+                claim_transcript(ssl.as_ptr(), &mut fn_claimer);
+            });
+
+            ssl
         } else {
             Self::create_client(config.tls_version)?
         };
@@ -128,7 +141,10 @@ impl Put for WolfSSL {
 
         #[cfg(feature = "claims")]
         let wolfssl = {
-            let mut stream = WolfSSL { stream };
+            let mut stream = WolfSSL {
+                stream,
+                config: config.clone(),
+            };
             stream.register_claimer(config.claimer, config.agent_name);
             stream
         };
@@ -136,20 +152,16 @@ impl Put for WolfSSL {
     }
 
     fn progress(&mut self) -> Result<(), Error> {
-        /*    unsafe {
-            let rc = stream.vec_claimer.clone();
-            let name = stream.agent_name;
-            check_transcript(
-                stream.ssl.as_ptr(),
+        unsafe {
+            let claimer = self.config.claimer.clone();
+            let name = self.config.agent_name;
+            claim_transcript(
+                self.stream.ssl().as_ptr(),
                 &mut move |claim: security_claims::Claim| {
-                    info!("check_transcript|do_handshake {}", claim);
-
-                    let mut ref_mut = (*rc).borrow_mut();
-
-                    ref_mut.claim(name, claim);
+                    (*claimer).borrow_mut().claim(name, claim);
                 },
             )
-        }*/
+        }
 
         if self.is_state_successful() {
             // Trigger another read
@@ -190,20 +202,23 @@ impl Put for WolfSSL {
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         unsafe {
-            //self.deregister_claimer();
-            // FIXME
-            /*            self.stream.agent_name = agent_name;
-            let cb: Box<Box<Claimer>> = Box::new(Box::new(move |claim: security_claims::Claim| {
-                let mut ref_mut = (*claimer).borrow_mut();
-                ref_mut.claim(agent_name, claim);
-            }));
-            let x = Box::into_raw(cb) as *mut _;
-            wolfssl_sys::wolfSSL_set_msg_callback_arg(
-                self.stream.ssl().as_ptr(),
-                x, // FIXME: memory leak
-            );*/
+            self.deregister_claimer();
+            self.register_claimer(claimer.clone(), agent_name);
 
-            //self.register_claimer(claimer, agent_name)
+            // FIXME
+            self.config.claimer = claimer.clone();
+            self.config.agent_name = agent_name;
+            let claimer = claimer.clone();
+            self.stream
+                .ssl_mut()
+                .set_msg_callback(move |ssl: &mut SslRef| unsafe {
+                    let claimer = claimer.clone();
+                    let mut fn_claimer = move |claim: security_claims::Claim| {
+                        let mut claimer = (*claimer).borrow_mut();
+                        claimer.claim(agent_name, claim);
+                    };
+                    claim_transcript(ssl.as_ptr(), &mut fn_claimer);
+                });
         }
     }
 
