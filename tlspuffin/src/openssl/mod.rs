@@ -1,5 +1,4 @@
-use std::io::ErrorKind;
-use std::{cell::RefCell, io, rc::Rc};
+use std::{cell::RefCell, io, io::ErrorKind, rc::Rc};
 
 use openssl::{
     error::ErrorStack,
@@ -9,12 +8,14 @@ use openssl::{
 };
 use rustls::msgs::message::OpaqueMessage;
 
-use crate::openssl::deterministic::set_openssl_deterministic;
-use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
 use crate::{
     agent::{AgentName, PutName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
+    openssl::{
+        deterministic::set_openssl_deterministic,
+        util::{set_max_protocol_version, static_rsa_cert},
+    },
     put::{Config, Put},
     put_registry::{Factory, OPENSSL111},
     trace::VecClaimer,

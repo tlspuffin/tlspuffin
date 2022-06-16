@@ -1,20 +1,28 @@
-use crate::agent::TLSVersion;
-use crate::wolfssl::bio;
-use crate::wolfssl::error::{Error, ErrorCode, ErrorStack, InnerError, SslError};
-use crate::wolfssl::util::{cvt, cvt_p};
+use std::{
+    cmp,
+    ffi::{CStr, CString},
+    io,
+    io::{Read, Write},
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    panic, ptr,
+    ptr::NonNull,
+    sync::Once,
+};
+
 use bitflags::bitflags;
-use foreign_types::foreign_type;
-use foreign_types::ForeignType;
-use foreign_types::ForeignTypeRef;
+use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
-use std::ffi::{CStr, CString};
-use std::io::{Read, Write};
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
-use std::ptr::NonNull;
-use std::sync::Once;
-use std::{cmp, io, panic, ptr};
 use wolfssl_sys as wolf;
+
+use crate::{
+    agent::TLSVersion,
+    wolfssl::{
+        bio,
+        error::{Error, ErrorCode, ErrorStack, InnerError, SslError},
+        util::{cvt, cvt_p},
+    },
+};
 
 bitflags! {
     /// Options controlling the behavior of certificate verification.

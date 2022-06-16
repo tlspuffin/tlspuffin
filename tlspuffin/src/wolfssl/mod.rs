@@ -1,33 +1,32 @@
 #![allow(non_snake_case)]
 
-use std::ffi::CString;
-use std::io::ErrorKind;
 use std::{
     cell::RefCell,
-    io::{Read, Write},
+    ffi::CString,
+    io::{ErrorKind, Read, Write},
     ptr,
     rc::Rc,
 };
 
-use crate::agent::TLSVersion;
-use crate::wolfssl::cert::{parse_cert, parse_rsa_key};
-use crate::wolfssl::error::ErrorStack;
-use crate::wolfssl::ssl::{Ssl, SslContext, SslMethod};
-use crate::wolfssl::ssl::{SslStream, SslVerifyMode};
-use crate::wolfssl::version::version;
+use foreign_types::ForeignType;
+use rustls::msgs::message::OpaqueMessage;
+use security_claims::register::Claimer;
+
 use crate::{
-    agent::{AgentName, PutName},
+    agent::{AgentName, PutName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     put::{Config, Put},
     put_registry::{Factory, WOLFSSL520},
     trace::VecClaimer,
     wolfssl,
-    wolfssl::error::SslError,
+    wolfssl::{
+        cert::{parse_cert, parse_rsa_key},
+        error::{ErrorStack, SslError},
+        ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+        version::version,
+    },
 };
-use foreign_types::ForeignType;
-use rustls::msgs::message::OpaqueMessage;
-use security_claims::register::Claimer;
 
 mod bio;
 mod callbacks;

@@ -1,6 +1,5 @@
 use std::io::ErrorKind;
 
-use openssl::x509::extension::KeyUsage;
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -9,7 +8,7 @@ use openssl::{
     pkey::{PKey, Private},
     ssl::{SslContextBuilder, SslVersion},
     x509::{
-        extension::{BasicConstraints, SubjectKeyIdentifier},
+        extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509,
     },
 };

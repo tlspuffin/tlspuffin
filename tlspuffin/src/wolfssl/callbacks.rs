@@ -1,11 +1,10 @@
-use crate::wolfssl::ssl::SslRef;
-use libc::{c_int, c_ulong};
-use std::ffi::c_void;
-use std::mem;
+use std::{ffi::c_void, mem};
 
-use crate::wolfssl::error::ErrorStack;
 use foreign_types::ForeignTypeRef;
+use libc::{c_int, c_ulong};
 use wolfssl_sys as wolf;
+
+use crate::wolfssl::{error::ErrorStack, ssl::SslRef};
 
 pub unsafe extern "C" fn msg_callback<F>(
     write_p: c_int,

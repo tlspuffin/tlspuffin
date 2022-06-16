@@ -1,8 +1,11 @@
-use crate::static_certs::{CERT, PRIVATE_KEY};
-use crate::wolfssl::bio::MemBioSlice;
-use crate::wolfssl::error::ErrorStack;
 use std::ptr;
+
 use wolfssl_sys as wolf;
+
+use crate::{
+    static_certs::{CERT, PRIVATE_KEY},
+    wolfssl::{bio::MemBioSlice, error::ErrorStack},
+};
 
 pub struct X509;
 

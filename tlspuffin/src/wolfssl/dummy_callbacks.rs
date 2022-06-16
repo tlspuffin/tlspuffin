@@ -1,12 +1,14 @@
 use std::mem;
 
-use crate::agent::TLSVersion;
-use crate::wolfssl::transcript::claim_transcript;
-use crate::wolfssl::Ssl;
 use libc::{c_int, c_ulong, c_void};
 use log::trace;
 use security_claims::register::Claimer;
 use wolfssl_sys as wolf;
+
+use crate::{
+    agent::TLSVersion,
+    wolfssl::{transcript::claim_transcript, Ssl},
+};
 
 pub unsafe extern "C" fn SSL_finished(
     ssl: *mut wolf::WOLFSSL,

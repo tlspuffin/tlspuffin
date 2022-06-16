@@ -1,5 +1,6 @@
-use log::warn;
 use std::os::raw::c_int;
+
+use log::warn;
 
 #[cfg(feature = "openssl111")]
 extern "C" {
