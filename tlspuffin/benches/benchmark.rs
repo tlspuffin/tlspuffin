@@ -16,7 +16,7 @@ use tlspuffin::{
     trace::{Trace, TraceContext},
 };
 
-const PUT: PutName = tlspuffin::registry::current_put();
+const PUT: PutName = tlspuffin::put_registry::current_put();
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)

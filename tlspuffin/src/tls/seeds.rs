@@ -14,7 +14,7 @@ use rustls::{
 use crate::{
     agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
     algebra::Term,
-    registry::current_put,
+    put_registry::current_put,
     term,
     tls::fn_impl::*,
     trace::{
@@ -1602,7 +1602,7 @@ pub mod tests {
     use super::*;
     use crate::{
         agent::{AgentName, PutName},
-        registry::PUT_REGISTRY,
+        put_registry::PUT_REGISTRY,
         trace::{Action, TraceContext},
     };
 
@@ -1687,7 +1687,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "claims")] // this depends on extracted transcripts -> claims are required FIXME: add claims to wolfssl
+    #[cfg(feature = "claims")] // this depends on extracted transcripts -> claims are required
     #[test]
     fn test_seed_client_attacker() {
         PUT_REGISTRY.make_deterministic();
@@ -1698,6 +1698,25 @@ pub mod tests {
         trace.execute(&mut ctx).unwrap();
 
         assert!(ctx.find_agent(server).unwrap().stream.is_state_successful());
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "wolfssl-binding")] // only breaks on wolfssl
+    #[test]
+    #[should_panic]
+    fn test_session_cache() {
+        PUT_REGISTRY.make_deterministic();
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let (trace, ..) = seed_client_attacker_full(server, PUT);
+
+        trace.execute(&mut ctx).unwrap();
+
+        let mut ctx = TraceContext::new();
+        let server = AgentName::first();
+        let trace = seed_client_attacker12(server, PUT);
+
+        trace.execute(&mut ctx).unwrap();
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
@@ -1996,10 +2015,7 @@ pub mod tests {
         use rustls::{
             self,
             internal::msgs::{
-                enums::{
-                    ContentType, HandshakeType,
-                    ProtocolVersion::{TLSv1_2, TLSv1_3},
-                },
+                enums::{ContentType, HandshakeType},
                 handshake::{
                     ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
                     SessionID,
@@ -2182,7 +2198,7 @@ pub mod tests {
             let mut opaque_message =
                 OpaqueMessage::read(&mut Reader::init(cert.as_slice())).unwrap();
             // Required for choosing the correct parsing function
-            opaque_message.version = TLSv1_3;
+            opaque_message.version = ProtocolVersion::TLSv1_3;
             create_message(opaque_message);
         }
 
@@ -2201,7 +2217,7 @@ pub mod tests {
         fn test_rustls_message_stability() {
             let random = [0u8; 32];
             let message = Message {
-                version: TLSv1_2,
+                version: ProtocolVersion::TLSv1_2,
                 payload: Handshake(HandshakeMessagePayload {
                     typ: HandshakeType::ClientHello,
                     payload: HandshakePayload::ClientHello(ClientHelloPayload {

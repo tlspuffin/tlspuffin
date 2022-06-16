@@ -17,7 +17,7 @@ use tlspuffin::{
     experiment::*,
     fuzzer::{start, FuzzerConfig},
     graphviz::write_graphviz,
-    registry::PUT_REGISTRY,
+    put_registry::PUT_REGISTRY,
     tls::seeds::create_corpus,
     trace::{Trace, TraceContext},
 };

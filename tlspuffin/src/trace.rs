@@ -14,7 +14,7 @@
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! # use tlspuffin::registry::current_put;
+//! # use tlspuffin::put_registry::current_put;
 //!
 //! # const PUT: PutName = current_put();
 //!
