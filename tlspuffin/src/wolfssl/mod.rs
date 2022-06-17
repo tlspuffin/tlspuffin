@@ -1,14 +1,9 @@
 #![allow(non_snake_case)]
 
-use std::{
-    cell::RefCell,
-    ffi::CString,
-    io::{ErrorKind, Read, Write},
-    ptr,
-    rc::Rc,
-};
-
+use crate::static_certs::{CERT, PRIVATE_KEY};
+use crate::wolfssl::pkey::PKey;
 use crate::wolfssl::transcript::claim_transcript;
+use crate::wolfssl::x509::X509;
 use crate::{
     agent::{AgentName, PutName, TLSVersion},
     error::Error,
@@ -18,7 +13,6 @@ use crate::{
     trace::VecClaimer,
     wolfssl,
     wolfssl::{
-        cert::{parse_cert, parse_rsa_key},
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
         version::version,
@@ -28,16 +22,25 @@ use foreign_types::ForeignType;
 use foreign_types::ForeignTypeRef;
 use rustls::msgs::message::OpaqueMessage;
 use security_claims::register::Claimer;
+use std::{
+    cell::RefCell,
+    ffi::CString,
+    io::{ErrorKind, Read, Write},
+    ptr,
+    rc::Rc,
+};
 
 mod bio;
 mod callbacks;
-mod cert;
 mod dummy_callbacks;
 mod error;
+mod pkey;
+mod rsa;
 mod ssl;
 mod transcript;
 mod util;
 mod version;
+mod x509;
 
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
@@ -273,21 +276,35 @@ impl WolfSSL {
             TLSVersion::Unknown => panic!("Unknown tls version"),
         };
 
-        //wolf::wolfSSL_CTX_set_session_cache_mode(ctx, wolf::WOLFSSL_SESS_CACHE_OFF.into());
+        /*unsafe {
+            wolfssl_sys::wolfSSL_CTX_set_session_cache_mode(
+                ctx.as_ptr(),
+                wolfssl_sys::WOLFSSL_SESS_CACHE_OFF.into(),
+            );
+        }*/
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
+        let cert = X509::from_pem(CERT.as_bytes())?;
+        ctx.set_certificate(cert.as_ref());
+
+        let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+        let pkey = PKey::from_rsa(rsa)?;
+        println!("{:p}", pkey.as_ptr());
+        println!("{:p}", ctx.as_ptr());
+        ctx.set_private_key(pkey.as_ref())?;
+
         // FIXME Set the static keys
         unsafe {
-            wolfssl_sys::wolfSSL_CTX_use_certificate(
+            /*wolfssl_sys::wolfSSL_CTX_use_certificate(
                 ctx.as_ptr(),
                 parse_cert()? as *const _ as *mut _,
-            );
-            wolfssl_sys::wolfSSL_CTX_use_PrivateKey(
+            );*/
+            /*wolfssl_sys::wolfSSL_CTX_use_PrivateKey(
                 ctx.as_ptr(),
                 parse_rsa_key()? as *const _ as *mut _,
-            );
+            );*/
         }
 
         // TODO: Callbacks for experiements
@@ -304,7 +321,7 @@ impl WolfSSL {
 
         ssl.set_accept_state();
 
-        // Requires WOLFSSL_CALLBACKS
+        // Requires WOLFSSL_CALLBACKS or OPENSSL_EXTRA
         /*TODO: wolf::wolfSSL_set_msg_callback(ssl.as_ptr(), Some(SSL_Msg_Cb));
 
         let claimer = claimer.clone();

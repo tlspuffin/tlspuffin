@@ -10,6 +10,10 @@ use std::{
     sync::Once,
 };
 
+use crate::wolfssl::pkey::HasPrivate;
+use crate::wolfssl::pkey::PKeyRef;
+use crate::wolfssl::x509::X509Ref;
+
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
@@ -87,7 +91,7 @@ foreign_type! {
 impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
-            init(false);
+            init(true);
             let ctx = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
 
             Ok(Self::from_ptr(ctx))
@@ -110,6 +114,38 @@ impl SslContext {
             cvt(wolf::wolfSSL_CTX_set_cipher_list(
                 self.as_ptr(),
                 cipher_list.as_ptr() as *const _,
+            ))
+            .map(|_| ())
+        }
+    }
+
+    /// Sets the leaf certificate.
+    ///
+    /// Use `add_extra_chain_cert` to add the remainder of the certificate chain.
+    ///
+    /// This corresponds to [`SSL_CTX_use_certificate`].
+    ///
+    /// [`SSL_CTX_use_certificate`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_use_certificate_file.html
+    pub fn set_certificate(&mut self, cert: &X509Ref) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt(wolf::wolfSSL_CTX_use_certificate(self.as_ptr(), cert.as_ptr()) as c_int)
+                .map(|_| ())
+        }
+    }
+
+    /// Sets the private key.
+    ///
+    /// This corresponds to [`SSL_CTX_use_PrivateKey`].
+    ///
+    /// [`SSL_CTX_use_PrivateKey`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_use_PrivateKey_file.html
+    pub fn set_private_key<T>(&mut self, key: &PKeyRef<T>) -> Result<(), ErrorStack>
+    where
+        T: HasPrivate,
+    {
+        unsafe {
+            cvt(wolf::wolfSSL_CTX_use_PrivateKey(
+                self.as_ptr(),
+                key.as_ptr(),
             ))
             .map(|_| ())
         }
@@ -180,7 +216,7 @@ impl SslRef {
             wolf::wolfSSL_set_msg_callback_arg(
                 self.as_ptr(),
                 Box::into_raw(Box::new(Box::new(callback))) as *mut _,
-            );
+            ); // FIXME: Memory leak
         }
     }
 
@@ -305,6 +341,16 @@ pub struct SslStream<S> {
     ssl: ManuallyDrop<Ssl>,
     method: ManuallyDrop<bio::BioMethod>,
     _p: PhantomData<S>,
+}
+
+impl<S> Drop for SslStream<S> {
+    fn drop(&mut self) {
+        // ssl holds a reference to method internally so it has to drop first
+        unsafe {
+            ManuallyDrop::drop(&mut self.ssl);
+            ManuallyDrop::drop(&mut self.method);
+        }
+    }
 }
 
 impl<S: Read + Write> SslStream<S> {
