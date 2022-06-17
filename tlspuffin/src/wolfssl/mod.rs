@@ -34,7 +34,6 @@ mod bio;
 mod callbacks;
 mod dummy_callbacks;
 mod error;
-mod ex_data;
 mod pkey;
 mod rsa;
 mod ssl;

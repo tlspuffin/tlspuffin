@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::{
@@ -22,8 +22,8 @@ use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_long, c_void};
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::callbacks::msg_callback;
-use crate::wolfssl::ex_data::{free_data_box, get_new_ssl_idx, Index, SSL_INDEXES};
+use crate::wolfssl::callbacks::{msg_callback, ExtraUserDataRegistry, UserData};
+use crate::wolfssl::dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex};
 use crate::wolfssl::util::cvt_n;
 use crate::{
     agent::TLSVersion,
@@ -96,7 +96,7 @@ foreign_type! {
 impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
-            init(true);
+            init(false);
             let ctx = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
 
             Ok(Self::from_ptr(ctx))
@@ -203,40 +203,9 @@ impl Ssl {
             let ptr = cvt_p(wolf::wolfSSL_new(ctx.as_ptr()))?;
             let mut ssl = Ssl::from_ptr(ptr);
 
+            ssl.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
+
             Ok(ssl)
-        }
-    }
-
-    /// Returns a new extra data index.
-    ///
-    /// Each invocation of this function is guaranteed to return a distinct index. These can be used
-    /// to store data in the context that can be retrieved later by callbacks, for example.
-    ///
-    /// This corresponds to [`SSL_get_ex_new_index`].
-    ///
-    /// [`SSL_get_ex_new_index`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_get_ex_new_index.html
-    pub fn new_ex_index<T>() -> Result<Index<Ssl, T>, ErrorStack>
-    where
-        T: 'static,
-    {
-        unsafe {
-            let idx = cvt_n(get_new_ssl_idx(Some(free_data_box::<T>)))?;
-            Ok(Index::from_raw(idx))
-        }
-    }
-
-    // FIXME should return a result?
-    pub fn cached_ex_index<T>() -> Index<Ssl, T>
-    where
-        T: 'static,
-    {
-        unsafe {
-            let idx = *SSL_INDEXES
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .entry(TypeId::of::<T>())
-                .or_insert_with(|| Ssl::new_ex_index::<T>().unwrap().as_raw());
-            Index::from_raw(idx)
         }
     }
 }
@@ -255,14 +224,10 @@ impl SslRef {
     /// This corresponds to [`SSL_set_ex_data`].
     ///
     /// [`SSL_set_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
-    pub fn set_ex_data<T>(&mut self, index: Index<Ssl, T>, data: T) {
+    pub fn set_ex_data<T>(&mut self, index: i32, data: T) {
         unsafe {
             let data = Box::new(data);
-            wolf::wolfSSL_set_ex_data(
-                self.as_ptr(),
-                index.as_raw(),
-                Box::into_raw(data) as *mut c_void,
-            );
+            wolf::wolfSSL_set_ex_data(self.as_ptr(), index, Box::into_raw(data) as *mut c_void);
         }
     }
 
@@ -271,15 +236,44 @@ impl SslRef {
     /// This corresponds to [`SSL_get_ex_data`].
     ///
     /// [`SSL_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
-    pub fn ex_data<T>(&self, index: Index<Ssl, T>) -> Option<&T> {
+    pub fn ex_data<T>(&self, index: i32) -> Option<&mut T> {
         unsafe {
-            let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index.as_raw());
+            let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index);
             if data.is_null() {
                 None
             } else {
-                Some(&*(data as *const T))
+                Some(&mut *(data as *mut T))
             }
         }
+    }
+
+    pub fn drop_ex_data<T>(&self, index: i32) {
+        unsafe {
+            let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index);
+            if !data.is_null() {
+                Box::<T>::from_raw(data as *mut T);
+            }
+        }
+    }
+
+    pub fn set_user_data<T: 'static>(&self, value: T) {
+        let registry: &mut ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.user_data.insert(
+            TypeId::of::<T>(),
+            UserData {
+                data: Box::new(value),
+            },
+        );
+    }
+
+    pub fn get_user_data<T: 'static>(&self) -> Option<&T> {
+        let registry: &mut ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry
+            .user_data
+            .get(&TypeId::of::<T>())
+            .and_then(|data| data.data.downcast_ref())
     }
 
     pub fn set_msg_callback<F>(&mut self, callback: F)
@@ -288,13 +282,8 @@ impl SslRef {
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
-            /*let index = Ssl::cached_ex_index();
-            self.set_ex_data(index, callback);
-            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));*/
-            /*            wolf::wolfSSL_set_msg_callback_arg(
-                self.as_ptr(),
-                Box::into_raw(Box::new(Box::new(callback))) as *mut _,
-            ); // FIXME: Memory leak*/
+            self.set_user_data(callback);
+            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));
         }
     }
 
@@ -425,6 +414,8 @@ impl<S> Drop for SslStream<S> {
     fn drop(&mut self) {
         // ssl holds a reference to method internally so it has to drop first
         unsafe {
+            self.ssl.drop_ex_data::<ExtraUserDataRegistry>(0);
+
             ManuallyDrop::drop(&mut self.ssl);
             ManuallyDrop::drop(&mut self.method);
         }
@@ -581,16 +572,16 @@ impl<S: Read + Write> SslStream<S> {
     /// [`SSL_do_handshake`]: https://www.openssl.org/docs/manmaster/man3/SSL_do_handshake.html
     pub fn do_handshake(&mut self) -> Result<(), SslError> {
         let ret = unsafe {
-            wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr())
-            /*wolf::wolfSSL_accept_ex(
+            //wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr())
+            wolf::wolfSSL_accept_ex(
                 self.ssl.as_ptr(),
                 Some(SSL_connect_ex),
-                None,
+                Some(SSL_connect_timeout_ex),
                 wolf::WOLFSSL_TIMEVAL {
                     tv_sec: 5,
                     tv_usec: 0,
                 },
-            )*/
+            )
         };
         if ret > 0 {
             Ok(())

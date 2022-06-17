@@ -1,3 +1,6 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::{ffi::c_void, mem};
 
 use foreign_types::ForeignTypeRef;
@@ -6,6 +9,26 @@ use wolfssl_sys as wolf;
 
 use crate::wolfssl::Ssl;
 use crate::wolfssl::{error::ErrorStack, ssl::SslRef};
+
+///
+/// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does
+/// not support freeing data
+pub struct ExtraUserDataRegistry {
+    pub user_data: HashMap<TypeId, UserData>,
+}
+
+impl ExtraUserDataRegistry {
+    pub fn new() -> Self {
+        Self {
+            user_data: Default::default(),
+        }
+    }
+}
+
+pub struct UserData {
+    pub data: Box<dyn Any>,
+}
+
 pub unsafe extern "C" fn msg_callback<F>(
     write_p: c_int,
     version: c_int,
@@ -19,10 +42,7 @@ pub unsafe extern "C" fn msg_callback<F>(
 {
     let ssl = SslRef::from_ptr_mut(ssl);
 
-    //let callback: &mut Box<F> = unsafe { mem::transmute(arg) };
-    let callback = ssl
-        .ex_data(Ssl::cached_ex_index::<F>())
-        .expect("BUG: missing msg_callback") as *const F;
+    let callback = ssl.get_user_data::<F>().expect("BUG: missing msg_callback") as *const F;
 
     (*callback)(ssl);
 }
