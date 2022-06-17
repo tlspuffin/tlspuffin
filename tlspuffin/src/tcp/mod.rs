@@ -1,18 +1,26 @@
-use crate::agent::{AgentName, PutName};
-use crate::error::Error;
-use crate::io::{MessageResult, Stream};
-use crate::put::{Config, Put};
-use crate::put_registry::{Factory, OPENSSL111, TCP};
-use crate::trace::VecClaimer;
+use std::{
+    cell::RefCell,
+    io,
+    io::{Read, Write},
+    net::TcpStream,
+    rc::Rc,
+    time::Duration,
+};
+
 use log::error;
-use rustls::msgs::deframer::MessageDeframer;
-use rustls::msgs::message::{Message, OpaqueMessage};
-use std::cell::RefCell;
-use std::io;
-use std::io::{Read, Write};
-use std::net::TcpStream;
-use std::rc::Rc;
-use std::time::Duration;
+use rustls::msgs::{
+    deframer::MessageDeframer,
+    message::{Message, OpaqueMessage},
+};
+
+use crate::{
+    agent::{AgentName, PutName},
+    error::Error,
+    io::{MessageResult, Stream},
+    put::{Config, Put},
+    put_registry::{Factory, OPENSSL111, TCP},
+    trace::VecClaimer,
+};
 
 pub fn new_tcp_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;

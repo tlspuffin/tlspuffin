@@ -1,8 +1,7 @@
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::{
+    any::{Any, TypeId},
     cmp,
+    collections::HashMap,
     ffi::{CStr, CString},
     io,
     io::{Read, Write},
@@ -10,27 +9,24 @@ use std::{
     mem::ManuallyDrop,
     panic, ptr,
     ptr::NonNull,
-    sync::Once,
+    sync::{Arc, Mutex, Once},
 };
-
-use crate::wolfssl::pkey::HasPrivate;
-use crate::wolfssl::pkey::PKeyRef;
-use crate::wolfssl::x509::X509Ref;
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_long, c_void};
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::callbacks::{msg_callback, ExtraUserDataRegistry, UserData};
-use crate::wolfssl::dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex};
-use crate::wolfssl::util::cvt_n;
 use crate::{
     agent::TLSVersion,
     wolfssl::{
         bio,
+        callbacks::{msg_callback, ExtraUserDataRegistry, UserData},
+        dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex},
         error::{Error, ErrorCode, ErrorStack, InnerError, SslError},
-        util::{cvt, cvt_p},
+        pkey::{HasPrivate, PKeyRef},
+        util::{cvt, cvt_n, cvt_p},
+        x509::X509Ref,
     },
 };
 

@@ -1,33 +1,34 @@
 #![allow(non_snake_case)]
 
-use crate::static_certs::{CERT, PRIVATE_KEY};
-use crate::wolfssl::pkey::PKey;
-use crate::wolfssl::transcript::claim_transcript;
-use crate::wolfssl::x509::X509;
-use crate::{
-    agent::{AgentName, PutName, TLSVersion},
-    error::Error,
-    io::{MemoryStream, MessageResult, Stream},
-    put::{Config, Put},
-    put_registry::{Factory, WOLFSSL520},
-    trace::VecClaimer,
-    wolfssl,
-    wolfssl::{
-        error::{ErrorStack, SslError},
-        ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
-        version::version,
-    },
-};
-use foreign_types::ForeignType;
-use foreign_types::ForeignTypeRef;
-use rustls::msgs::message::OpaqueMessage;
-use security_claims::register::Claimer;
 use std::{
     cell::RefCell,
     ffi::CString,
     io::{ErrorKind, Read, Write},
     ptr,
     rc::Rc,
+};
+
+use foreign_types::{ForeignType, ForeignTypeRef};
+use rustls::msgs::message::OpaqueMessage;
+use security_claims::register::Claimer;
+
+use crate::{
+    agent::{AgentName, PutName, TLSVersion},
+    error::Error,
+    io::{MemoryStream, MessageResult, Stream},
+    put::{Config, Put},
+    put_registry::{Factory, WOLFSSL520},
+    static_certs::{CERT, PRIVATE_KEY},
+    trace::VecClaimer,
+    wolfssl,
+    wolfssl::{
+        error::{ErrorStack, SslError},
+        pkey::PKey,
+        ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
+        transcript::claim_transcript,
+        version::version,
+        x509::X509,
+    },
 };
 
 mod bio;

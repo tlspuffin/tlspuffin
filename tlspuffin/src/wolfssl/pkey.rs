@@ -1,10 +1,13 @@
-use crate::wolfssl::error::ErrorStack;
-use crate::wolfssl::rsa::Rsa;
-use crate::wolfssl::util::{cvt, cvt_p};
-use foreign_types::foreign_type;
-use foreign_types::ForeignType;
 use std::mem;
+
+use foreign_types::{foreign_type, ForeignType};
 use wolfssl_sys as wolf;
+
+use crate::wolfssl::{
+    error::ErrorStack,
+    rsa::Rsa,
+    util::{cvt, cvt_p},
+};
 
 /// A tag type indicating that a key only has public components.
 pub enum Public {}

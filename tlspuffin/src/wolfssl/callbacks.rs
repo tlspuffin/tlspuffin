@@ -1,14 +1,16 @@
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::{ffi::c_void, mem};
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    ffi::c_void,
+    marker::PhantomData,
+    mem,
+};
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::Ssl;
-use crate::wolfssl::{error::ErrorStack, ssl::SslRef};
+use crate::wolfssl::{error::ErrorStack, ssl::SslRef, Ssl};
 
 ///
 /// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does
