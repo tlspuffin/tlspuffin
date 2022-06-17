@@ -1600,6 +1600,7 @@ pub mod tests {
     use test_log::test;
 
     use super::*;
+    use crate::put_registry::TCP;
     use crate::{
         agent::{AgentName, PutName},
         put_registry::PUT_REGISTRY,
@@ -1715,6 +1716,17 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_client_attacker12(server, PUT);
+
+        trace.execute(&mut ctx).unwrap();
+    }
+
+    #[test]
+    fn test_tcp_put() {
+        let mut ctx = TraceContext::new();
+        let initial_server = AgentName::first();
+        //let (trace, ..) = seed_client_attacker_full(initial_server, TCP);
+        let server = initial_server.next();
+        let trace = seed_session_resumption_dhe_full(initial_server, server, TCP);
 
         trace.execute(&mut ctx).unwrap();
     }

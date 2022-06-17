@@ -27,6 +27,7 @@ pub mod openssl;
 pub mod put;
 pub mod put_registry;
 pub mod static_certs;
+mod tcp;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;
