@@ -1,3 +1,6 @@
+use std::any::TypeId;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::{
     cmp,
     ffi::{CStr, CString},
@@ -16,10 +19,12 @@ use crate::wolfssl::x509::X509Ref;
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
-use libc::{c_int, c_void};
+use libc::{c_int, c_long, c_void};
 use wolfssl_sys as wolf;
 
 use crate::wolfssl::callbacks::msg_callback;
+use crate::wolfssl::ex_data::{free_data_box, get_new_ssl_idx, Index, SSL_INDEXES};
+use crate::wolfssl::util::cvt_n;
 use crate::{
     agent::TLSVersion,
     wolfssl::{
@@ -97,7 +102,9 @@ impl SslContext {
             Ok(Self::from_ptr(ctx))
         }
     }
+}
 
+impl SslContextRef {
     /// Sets the list of supported ciphers for protocols before TLSv1.3.
     ///
     /// The `set_ciphersuites` method controls the cipher suites for TLSv1.3.
@@ -199,6 +206,39 @@ impl Ssl {
             Ok(ssl)
         }
     }
+
+    /// Returns a new extra data index.
+    ///
+    /// Each invocation of this function is guaranteed to return a distinct index. These can be used
+    /// to store data in the context that can be retrieved later by callbacks, for example.
+    ///
+    /// This corresponds to [`SSL_get_ex_new_index`].
+    ///
+    /// [`SSL_get_ex_new_index`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_get_ex_new_index.html
+    pub fn new_ex_index<T>() -> Result<Index<Ssl, T>, ErrorStack>
+    where
+        T: 'static,
+    {
+        unsafe {
+            let idx = cvt_n(get_new_ssl_idx(Some(free_data_box::<T>)))?;
+            Ok(Index::from_raw(idx))
+        }
+    }
+
+    // FIXME should return a result?
+    pub fn cached_ex_index<T>() -> Index<Ssl, T>
+    where
+        T: 'static,
+    {
+        unsafe {
+            let idx = *SSL_INDEXES
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .entry(TypeId::of::<T>())
+                .or_insert_with(|| Ssl::new_ex_index::<T>().unwrap().as_raw());
+            Index::from_raw(idx)
+        }
+    }
 }
 
 impl SslRef {
@@ -207,16 +247,54 @@ impl SslRef {
         unsafe { wolf::wolfSSL_read(self.as_ptr(), buf.as_ptr() as *mut _, len) }
     }
 
+    /// Sets the extra data at the specified index.
+    ///
+    /// This can be used to provide data to callbacks registered with the context. Use the
+    /// `Ssl::new_ex_index` method to create an `Index`.
+    ///
+    /// This corresponds to [`SSL_set_ex_data`].
+    ///
+    /// [`SSL_set_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
+    pub fn set_ex_data<T>(&mut self, index: Index<Ssl, T>, data: T) {
+        unsafe {
+            let data = Box::new(data);
+            wolf::wolfSSL_set_ex_data(
+                self.as_ptr(),
+                index.as_raw(),
+                Box::into_raw(data) as *mut c_void,
+            );
+        }
+    }
+
+    /// Returns a reference to the extra data at the specified index.
+    ///
+    /// This corresponds to [`SSL_get_ex_data`].
+    ///
+    /// [`SSL_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
+    pub fn ex_data<T>(&self, index: Index<Ssl, T>) -> Option<&T> {
+        unsafe {
+            let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index.as_raw());
+            if data.is_null() {
+                None
+            } else {
+                Some(&*(data as *const T))
+            }
+        }
+    }
+
     pub fn set_msg_callback<F>(&mut self, callback: F)
     where
-        F: Fn(&mut SslRef),
+        F: Fn(&mut SslRef) + 'static,
     {
+        // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
-            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));
-            wolf::wolfSSL_set_msg_callback_arg(
+            /*let index = Ssl::cached_ex_index();
+            self.set_ex_data(index, callback);
+            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));*/
+            /*            wolf::wolfSSL_set_msg_callback_arg(
                 self.as_ptr(),
                 Box::into_raw(Box::new(Box::new(callback))) as *mut _,
-            ); // FIXME: Memory leak
+            ); // FIXME: Memory leak*/
         }
     }
 

@@ -34,6 +34,7 @@ mod bio;
 mod callbacks;
 mod dummy_callbacks;
 mod error;
+mod ex_data;
 mod pkey;
 mod rsa;
 mod ssl;
@@ -287,25 +288,11 @@ impl WolfSSL {
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
         let cert = X509::from_pem(CERT.as_bytes())?;
-        ctx.set_certificate(cert.as_ref());
+        ctx.set_certificate(cert.as_ref())?;
 
         let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
         let pkey = PKey::from_rsa(rsa)?;
-        println!("{:p}", pkey.as_ptr());
-        println!("{:p}", ctx.as_ptr());
         ctx.set_private_key(pkey.as_ref())?;
-
-        // FIXME Set the static keys
-        unsafe {
-            /*wolfssl_sys::wolfSSL_CTX_use_certificate(
-                ctx.as_ptr(),
-                parse_cert()? as *const _ as *mut _,
-            );*/
-            /*wolfssl_sys::wolfSSL_CTX_use_PrivateKey(
-                ctx.as_ptr(),
-                parse_rsa_key()? as *const _ as *mut _,
-            );*/
-        }
 
         // TODO: Callbacks for experiements
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
@@ -320,18 +307,6 @@ impl WolfSSL {
         let mut ssl: Ssl = Ssl::new(&ctx)?;
 
         ssl.set_accept_state();
-
-        // Requires WOLFSSL_CALLBACKS or OPENSSL_EXTRA
-        /*TODO: wolf::wolfSSL_set_msg_callback(ssl.as_ptr(), Some(SSL_Msg_Cb));
-
-        let claimer = claimer.clone();
-        let cb: Box<Box<Claimer>> = Box::new(Box::new(move |claim: security_claims::Claim| {
-            let mut claimer = (*claimer).borrow_mut();
-            claimer.claim(agent_name, claim);
-        }));
-        // FIXME: memory leak
-        wolf::wolfSSL_set_msg_callback_arg(ssl.as_ptr(), Box::into_raw(cb) as *mut _);*/
-
         Ok(ssl)
     }
 }
