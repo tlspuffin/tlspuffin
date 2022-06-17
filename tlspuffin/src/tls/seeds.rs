@@ -1360,6 +1360,25 @@ pub fn seed_client_attacker_full(
                 agent: server,
                 action: Action::Output(OutputAction {}),
             },
+            /*            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_application(
+                            fn_alert_close_notify,
+                            (@server_hello_transcript),
+                            (@server_finished_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction {}),
+            },*/
         ],
     };
 
@@ -1543,6 +1562,21 @@ pub fn seed_session_resumption_dhe_full(
                     },
                 }),
             },
+            /* Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_application(
+                            fn_alert_close_notify,
+                            (@resumption_server_hello_transcript),
+                            (@resumption_server_finished_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            (fn_psk((@psk))),
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },*/
         ],
     };
 
