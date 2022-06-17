@@ -35,7 +35,8 @@ wolfssl520 = [
     "tls13",
     "wolfssl-binding",
     "claims",
-    "session-resumption"
+    "session-resumption",
+    "asan"
     # FIXME: support "claims", "deterministic", "asan", "session-resumption"
 ]
 
@@ -44,7 +45,7 @@ sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
 sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 # Enables ASAN
-asan = ["openssl/asan"]
+asan = ["openssl/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl-sys", "libc", "foreign-types-shared", "foreign-types", "bitflags"]
