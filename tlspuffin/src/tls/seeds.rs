@@ -165,7 +165,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_name: PutN
                             ((client, 0)),
                             ((client, 0)),
                             ((client, 0)),
-                            (fn_append_cipher_suite(
+                            (fn_append_cipher_suite(   // here is the cipher suite replacement
                                 fn_new_cipher_suites,
                                 fn_cipher_suite13_aes_128_gcm_sha256
                             )),

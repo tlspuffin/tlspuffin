@@ -59,6 +59,7 @@ typedef struct ClaimSecret {
 
 typedef struct ClaimCertData {
     ClaimKeyType key_type;
+    unsigned char pkey[256];
     int key_length;
 } ClaimCertData;
 

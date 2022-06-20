@@ -1,6 +1,7 @@
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 use itertools::Itertools;
+use log::trace;
 
 use crate::{Claim, ClaimCipher, ClaimType};
 
@@ -107,7 +108,9 @@ where
                     }
 
                     // TODO@MAX: Do you agree that this policy below will capture server authentication bypass attacks?
-                    if client.peer_cert == server.cert {
+                    if client.peer_cert.pkey != server.cert.pkey {
+                        trace!("Client peer cert: {:?}", client.peer_cert);
+                        trace!("Server cert {:?}", server.cert);
                         return Some("Mismatching server certificate");
                     }
 

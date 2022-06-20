@@ -1518,6 +1518,7 @@ dependencies = [
  "bindgen 0.60.1",
  "hex",
  "itertools",
+ "log",
 ]
 
 [[package]]
