@@ -106,6 +106,12 @@ where
                         return Some("Mismatching ciphers");
                     }
 
+                    // TODO@MAX: Do you agree that this policy below will capture server authentication bypass attacks?
+                    if client.peer_cert == server.cert {
+                        return Some("Mismatching server certificate");
+                    }
+
+
                     if client.available_ciphers.length > 0 && server.available_ciphers.length > 0 {
                         let best_cipher = {
                             let mut cipher: Option<ClaimCipher> = None;
@@ -144,9 +150,12 @@ where
         } else {
             // Could not choose exactly one server and client
             // possibly two server because of session resumption
+            // TODO: we fail to check anything here but we could (see below)
         }
     } else {
         // this is the case for seed_client_attacker12 which records only the server claims
+        // TODO: we fail to check anything here but we could. For instance, when honest client
+        // believes he has authenticated a public certificate (whose private key is private)
     }
 
     None
