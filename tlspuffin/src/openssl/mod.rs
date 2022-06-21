@@ -188,7 +188,7 @@ impl Put for OpenSSL {
         #[cfg(feature = "openssl111")]
         deterministic::set_openssl_deterministic();
         #[cfg(not(feature = "openssl111"))]
-        warn!("Failed to make PUT determinisitic!");
+        log::warn!("Unable to make PUT determinisitic!");
     }
 }
 
