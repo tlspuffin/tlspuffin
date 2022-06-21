@@ -3,9 +3,9 @@ use crate::{
     put::{Config, Put},
 };
 
-pub struct PutRegistry<const N: usize>([fn() -> Box<dyn Factory>; N]);
+pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
 
-impl<const N: usize> PutRegistry<N> {
+impl PutRegistry {
     pub fn versions(&self) -> String {
         let mut put_versions: String = "".to_owned();
         for func in self.0 {
@@ -38,20 +38,7 @@ pub const OPENSSL111: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1',
 pub const WOLFSSL520: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
 pub const TCP: PutName = PutName(['T', 'C', 'P', 'T', 'C', 'P', 'T', 'C', 'P', 'T']);
 
-const N_REGISTERED: usize = 1
-    + 0
-    + if cfg!(feature = "openssl-binding") {
-        1 + if cfg!(feature = "wolfssl-binding") {
-            1
-        } else {
-            0
-        }
-    } else if cfg!(feature = "wolfssl-binding") {
-        1
-    } else {
-        0
-    };
-pub const PUT_REGISTRY: PutRegistry<N_REGISTERED> = PutRegistry([
+pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
     crate::tcp::new_tcp_factory,
     #[cfg(feature = "openssl-binding")]
     crate::openssl::new_openssl_factory,
