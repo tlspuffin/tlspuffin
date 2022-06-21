@@ -617,7 +617,7 @@
             },
             <span class="ident">term_zoo::generate_term_zoo</span>,
         },
-        <span class="ident">registry::DUMMY_PUT</span>,
+        <span class="ident">put_registry::DUMMY_PUT</span>,
         <span class="ident">tls</span>::{<span class="ident">fn_impl</span>::<span class="kw-2">*</span>, <span class="ident">seeds</span>::<span class="kw-2">*</span>, <span class="ident">SIGNATURE</span>},
         <span class="ident">trace</span>::{<span class="ident">Action</span>, <span class="ident">Step</span>, <span class="ident">Trace</span>},
     };
@@ -633,7 +633,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_openssl_no_randomness</span>() {
         <span class="kw">use</span> <span class="ident">openssl::rand::rand_bytes</span>;
-        <span class="ident"><span class="kw">crate</span>::registry::PUT_REGISTRY</span>.<span class="ident">make_deterministic</span>(); <span class="comment">// his affects also other tests, which is fine as we generally prefer deterministic tests</span>
+        <span class="ident"><span class="kw">crate</span>::put_registry::PUT_REGISTRY</span>.<span class="ident">make_deterministic</span>(); <span class="comment">// his affects also other tests, which is fine as we generally prefer deterministic tests</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf1</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">2</span>];
         <span class="ident">rand_bytes</span>(<span class="kw-2">&amp;mut</span> <span class="ident">buf1</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq!</span>(<span class="ident">buf1</span>, [<span class="number">70</span>, <span class="number">100</span>]);

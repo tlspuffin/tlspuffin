@@ -665,6 +665,9 @@
 <span id="660">660</span>
 <span id="661">661</span>
 <span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -681,7 +684,7 @@
 <span class="doccomment">//! use rustls::{ProtocolVersion, CipherSuite};</span>
 <span class="doccomment">//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};</span>
 <span class="doccomment">//! use rustls::msgs::enums::{Compression, HandshakeType};</span>
-<span class="doccomment">//! # use tlspuffin::registry::current_put;</span>
+<span class="doccomment">//! # use tlspuffin::put_registry::current_put;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! # const PUT: PutName = current_put();</span>
 <span class="doccomment">//!</span>
@@ -735,7 +738,10 @@
 <span class="doccomment">//!</span>
 
 <span class="kw">use</span> <span class="ident">core::fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">any::TypeId</span>, <span class="ident">cell::RefCell</span>, <span class="ident">convert::TryFrom</span>, <span class="ident">fmt::Formatter</span>, <span class="ident">ops::Deref</span>, <span class="ident">rc::Rc</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{
+    <span class="ident">any::TypeId</span>, <span class="ident">cell::RefCell</span>, <span class="ident">collections::HashMap</span>, <span class="ident">convert::TryFrom</span>, <span class="ident">fmt::Formatter</span>, <span class="ident">ops::Deref</span>,
+    <span class="ident">rc::Rc</span>,
+};
 
 <span class="kw">use</span> <span class="ident">itertools::Itertools</span>;
 <span class="kw">use</span> <span class="ident">log::trace</span>;

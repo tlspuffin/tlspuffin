@@ -186,9 +186,9 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">concretize</span>::{<span class="ident">Config</span>, <span class="ident">Put</span>},
     <span class="ident">error::Error</span>,
-    <span class="ident">registry::PUT_REGISTRY</span>,
+    <span class="ident">put</span>::{<span class="ident">Config</span>, <span class="ident">Put</span>},
+    <span class="ident">put_registry::PUT_REGISTRY</span>,
     <span class="ident">trace::VecClaimer</span>,
 };
 
