@@ -13,6 +13,7 @@ use crate::{
 };
 
 /// Static configuration for creating a new agent state for the PUT
+#[derive(Clone)]
 pub struct Config {
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.

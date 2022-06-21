@@ -64,7 +64,7 @@ impl From<ErrorStack> for fmt::Error {
     }
 }
 
-/// An error reported from OpenSSL.
+/// An error reported from WolfSSL.
 #[derive(Clone)]
 pub struct Error {
     code: c_ulong,

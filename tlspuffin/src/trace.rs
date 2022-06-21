@@ -14,7 +14,7 @@
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! # use tlspuffin::registry::current_put;
+//! # use tlspuffin::put_registry::current_put;
 //!
 //! # const PUT: PutName = current_put();
 //!
@@ -68,7 +68,10 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
+use std::{
+    any::TypeId, cell::RefCell, collections::HashMap, convert::TryFrom, fmt::Formatter, ops::Deref,
+    rc::Rc,
+};
 
 use itertools::Itertools;
 use log::trace;

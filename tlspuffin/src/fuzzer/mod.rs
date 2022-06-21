@@ -80,7 +80,7 @@ mod tests {
             },
             term_zoo::generate_term_zoo,
         },
-        registry::DUMMY_PUT,
+        put_registry::DUMMY_PUT,
         tls::{fn_impl::*, seeds::*, SIGNATURE},
         trace::{Action, Step, Trace},
     };
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn test_openssl_no_randomness() {
         use openssl::rand::rand_bytes;
-        crate::registry::PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
+        crate::put_registry::PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
         assert_eq!(buf1, [70, 100]);

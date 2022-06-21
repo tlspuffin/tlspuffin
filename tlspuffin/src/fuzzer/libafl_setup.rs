@@ -36,7 +36,7 @@ use crate::{
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
         stats_observer::StatsStage,
     },
-    registry::PUT_REGISTRY,
+    put_registry::PUT_REGISTRY,
     trace::Trace,
 };
 

@@ -10,9 +10,9 @@ use std::{cell::RefCell, rc::Rc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    concretize::{Config, Put},
     error::Error,
-    registry::PUT_REGISTRY,
+    put::{Config, Put},
+    put_registry::PUT_REGISTRY,
     trace::VecClaimer,
 };
 

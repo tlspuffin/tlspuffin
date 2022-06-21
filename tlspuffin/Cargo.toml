@@ -12,29 +12,33 @@ openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
-    "openssl-binding"
+    "openssl-binding",
+    "transcript-extraction"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl-binding"
+    "openssl-binding",
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl-binding"
+    "openssl-binding",
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
     "claims",
-    "openssl-binding"
+    "openssl-binding",
+    "transcript-extraction",
 ]
 
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
-    "wolfssl-binding"
-    # FIXME: support "claims", "deterministic", "asan", "session-resumption"
+    "wolfssl-binding",
+    "session-resumption",
+    "transcript-extraction",
+    # FIXME: support "claims", "deterministic"
 ]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
@@ -42,10 +46,10 @@ sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
 sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 # Enables ASAN
-asan = ["openssl/asan"]
+asan = ["openssl/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
-wolfssl-binding = ["wolfssl-sys", "libc"]
+wolfssl-binding = ["wolfssl-sys", "libc", "foreign-types-shared", "foreign-types", "bitflags"]
 # OpenSSL bindings are used
 openssl-binding = ["openssl", "foreign-types-shared"]
 
@@ -57,6 +61,8 @@ session-resumption = []
 deterministic = []
 # Require the PUT to implement the claim-interface.h
 claims = []
+# Whether transcript extraction is supported. This is needed for simplified traces.
+transcript-extraction = []
 
 introspection = ["libafl/introspection"]
 
@@ -78,6 +84,8 @@ security-claims = { path = "../tlspuffin-claims", optional = false }
 
 # WolfSSL
 wolfssl-sys = { path = "../deps/wolfssl-sys", features = ["sancov"], optional = true }
+foreign-types = { version = "0.5.0", optional = true }
+bitflags = { version = "1.3.2", optional = true }
 libc = { version = "0.2.126", optional = true }
 
 # LibAFL
@@ -106,6 +114,7 @@ criterion = "0.3.5"
 test-log = "0.2.10"
 env_logger = "0.9.0"
 nix = "0.24.1"
+tempfile = "3.3.0"
 
 [[bench]]
 name = "benchmark"

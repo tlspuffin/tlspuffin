@@ -15,7 +15,6 @@ compile_error!("`Only one binding at the same time is currently supported.");
 
 pub mod agent;
 pub mod algebra;
-pub mod concretize;
 pub mod debug;
 pub mod error;
 pub mod experiment;
@@ -24,8 +23,10 @@ pub mod graphviz;
 pub mod io;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
-pub mod registry;
+pub mod put;
+pub mod put_registry;
 pub mod static_certs;
+pub mod tcp;
 #[allow(clippy::ptr_arg)]
 pub mod tls;
 pub mod trace;

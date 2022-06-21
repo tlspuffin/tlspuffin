@@ -198,7 +198,7 @@ impl Term {
 
 #[cfg(test)]
 mod tests {
-    use crate::{agent::AgentName, registry::OPENSSL111, tls::seeds::*};
+    use crate::{agent::AgentName, put_registry::OPENSSL111, tls::seeds::*};
 
     #[test]
     fn test_dot_graph() {
