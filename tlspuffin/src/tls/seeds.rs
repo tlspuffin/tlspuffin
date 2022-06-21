@@ -1360,7 +1360,7 @@ pub fn seed_client_attacker_full(
                 agent: server,
                 action: Action::Output(OutputAction {}),
             },
-            Step {
+            /*Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
@@ -1378,7 +1378,7 @@ pub fn seed_client_attacker_full(
             Step {
                 agent: server,
                 action: Action::Output(OutputAction {}),
-            },
+            },*/
         ],
     };
 
@@ -1562,7 +1562,7 @@ pub fn seed_session_resumption_dhe_full(
                     },
                 }),
             },
-            Step {
+            /*Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
@@ -1576,7 +1576,7 @@ pub fn seed_session_resumption_dhe_full(
                         )
                     },
                 }),
-            },
+            },*/
         ],
     };
 
