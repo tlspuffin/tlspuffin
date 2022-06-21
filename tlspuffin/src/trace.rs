@@ -403,7 +403,7 @@ impl TraceContext {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Hash)]
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
@@ -496,7 +496,7 @@ impl fmt::Display for Trace {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Step {
     pub agent: AgentName,
     pub action: Action,
@@ -511,7 +511,7 @@ pub struct Step {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub enum Action {
     Input(InputAction),
     Output(OutputAction),
@@ -538,7 +538,7 @@ impl fmt::Display for Action {
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct OutputAction {}
 
 impl OutputAction {
@@ -617,7 +617,7 @@ impl fmt::Display for OutputAction {
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct InputAction {
     pub recipe: Term,
 }

@@ -41,12 +41,12 @@ impl fmt::Display for AgentName {
     }
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutName(pub [char; 10]);
 
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct AgentDescriptor {
     pub name: AgentName,
     pub put_name: PutName,
@@ -113,7 +113,7 @@ impl AgentDescriptor {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
