@@ -67,7 +67,7 @@ pub struct TcpPut {
 impl TcpPut {
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
         let stream = TcpStream::connect(addr)?;
-        stream.set_read_timeout(Some(Duration::from_millis(1)))?;
+        stream.set_read_timeout(Some(Duration::from_millis(500)))?;
         Ok(stream)
     }
 }
@@ -197,7 +197,7 @@ mod tests {
     use std::{
         fs::File,
         path::{Path, PathBuf},
-        process::{Child, Command},
+        process::{Child, Command, Stdio},
     };
 
     use tempfile::{tempdir, TempDir};
@@ -233,6 +233,8 @@ mod tests {
                 .arg("-nodes")
                 .arg("-subj")
                 .arg("/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...")
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .spawn()
                 .expect("failed to generate certs")
                 .wait()
@@ -247,6 +249,8 @@ mod tests {
                     .arg(key.as_path().to_str().unwrap())
                     .arg("-cert")
                     .arg(cert.as_path().to_str().unwrap())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .spawn()
                     .expect("failed to execute process"),
                 tmp: dir,
