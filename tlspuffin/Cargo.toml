@@ -36,8 +36,7 @@ wolfssl520 = [
     "wolfssl-binding",
     "claims",
     "session-resumption",
-    "asan"
-    # FIXME: support "claims", "deterministic", "asan", "session-resumption"
+    # FIXME: support "claims", "deterministic"
 ]
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
