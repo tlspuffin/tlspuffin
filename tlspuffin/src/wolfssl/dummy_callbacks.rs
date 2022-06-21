@@ -100,13 +100,13 @@ extern "C" {
 }
 
 pub unsafe extern "C" fn SSL_connect_timeout_ex(info: *mut wolf::TimeoutInfo) -> i32 {
-    for i in 0..(*info).numberPackets {
+    /*    for i in 0..(*info).numberPackets {
         let buffer = (*info).packets[i as usize].bufferValue;
 
         if !buffer.is_null() {
             free(buffer as *mut _);
         }
-    }
+    }*/
 
     0
 }
