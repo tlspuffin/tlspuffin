@@ -124,6 +124,7 @@ impl Put for WolfSSL {
 
             let mut ssl = Self::create_server(config.tls_version)?;
             let claimer = config.claimer.clone();
+            // FIXME: Improve code here -> deduplicate
             ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
                 let claimer = claimer.clone();
                 let mut fn_claimer = move |claim: security_claims::Claim| {
@@ -141,7 +142,10 @@ impl Put for WolfSSL {
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
         #[cfg(not(feature = "claims"))]
-        let wolfssl = WolfSSL { stream };
+        let wolfssl = WolfSSL {
+            stream,
+            config: config.clone(),
+        };
 
         #[cfg(feature = "claims")]
         let wolfssl = {
@@ -157,6 +161,7 @@ impl Put for WolfSSL {
 
     fn progress(&mut self) -> Result<(), Error> {
         unsafe {
+            // FIXME: Improve code here -> deduplicate
             let claimer = self.config.claimer.clone();
             let name = self.config.agent_name;
             claim_transcript(
@@ -186,32 +191,35 @@ impl Put for WolfSSL {
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         unsafe {
-            /*security_claims::register_claimer(
+            security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
                     (*claimer).borrow_mut().claim(agent_name, claim)
                 },
-            );*/
+            );
         }
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            //security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
     #[allow(unused_variables)]
     fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
-        unsafe {
+        {
             self.deregister_claimer();
             self.register_claimer(claimer.clone(), agent_name);
+        }
 
+        unsafe {
             // FIXME
             self.config.claimer = claimer.clone();
             self.config.agent_name = agent_name;
+            // FIXME: Improve code here -> deduplicate
             let claimer = claimer.clone();
             self.stream
                 .ssl_mut()
