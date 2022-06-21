@@ -67,6 +67,8 @@ pub struct TcpPut {
 impl TcpPut {
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
         let stream = TcpStream::connect(addr)?;
+        // FIXME: instead of having a timeout, switch to non-blocking sockets. In this case
+        // we would wait for new data with the Put::progress function
         stream.set_read_timeout(Some(Duration::from_millis(500)))?;
         Ok(stream)
     }
@@ -233,8 +235,8 @@ mod tests {
                 .arg("-nodes")
                 .arg("-subj")
                 .arg("/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                /*.stdout(Stdio::null())
+                .stderr(Stdio::null())*/
                 .spawn()
                 .expect("failed to generate certs")
                 .wait()
@@ -245,12 +247,15 @@ mod tests {
                     .arg("s_server")
                     .arg("-accept")
                     .arg(port.to_string())
+                    .arg("-msg")
+                    .arg("-debug")
+                    .arg("-state")
                     .arg("-key")
                     .arg(key.as_path().to_str().unwrap())
                     .arg("-cert")
                     .arg(cert.as_path().to_str().unwrap())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
+                    /*.stdout(Stdio::null())
+                    .stderr(Stdio::null())*/
                     .spawn()
                     .expect("failed to execute process"),
                 tmp: dir,
@@ -263,8 +268,6 @@ mod tests {
             self.child.kill().expect("failed to stop server");
         }
     }
-
-    fn start_openssl_server() {}
 
     #[test]
     fn test_tcp_put_session_resumption_dhe_full() {
