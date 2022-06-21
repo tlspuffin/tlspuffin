@@ -122,6 +122,16 @@ impl SslContextRef {
         }
     }
 
+    pub fn disable_session_cache(&mut self) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt(wolfssl_sys::wolfSSL_CTX_set_session_cache_mode(
+                self.as_ptr(),
+                wolfssl_sys::WOLFSSL_SESS_CACHE_OFF.into(),
+            ) as i32)
+            .map(|_| ())
+        }
+    }
+
     /// Sets the leaf certificate.
     ///
     /// Use `add_extra_chain_cert` to add the remainder of the certificate chain.
@@ -165,10 +175,8 @@ impl SslContextRef {
         }
     }
 
-    pub fn set_num_tickets(&mut self, n: u64) {
-        unsafe {
-            wolf::wolfSSL_CTX_set_num_tickets(self.as_ptr(), n);
-        }
+    pub fn set_num_tickets(&mut self, n: u64) -> Result<(), ErrorStack> {
+        unsafe { cvt(wolf::wolfSSL_CTX_set_num_tickets(self.as_ptr(), n)).map(|_| ()) }
     }
 }
 

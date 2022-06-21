@@ -277,12 +277,8 @@ impl WolfSSL {
             TLSVersion::Unknown => panic!("Unknown tls version"),
         };
 
-        /*unsafe {
-            wolfssl_sys::wolfSSL_CTX_set_session_cache_mode(
-                ctx.as_ptr(),
-                wolfssl_sys::WOLFSSL_SESS_CACHE_OFF.into(),
-            );
-        }*/
+        // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
+        ctx.disable_session_cache();
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -301,7 +297,7 @@ impl WolfSSL {
         //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
 
         // We expect two tickets like in OpenSSL
-        ctx.set_num_tickets(2);
+        ctx.set_num_tickets(2)?;
 
         //// SSL pointer builder
         let mut ssl: Ssl = Ssl::new(&ctx)?;

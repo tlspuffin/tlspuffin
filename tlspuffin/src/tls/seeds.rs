@@ -1735,25 +1735,6 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "wolfssl-binding")] // only breaks on wolfssl
-    #[test]
-    #[should_panic]
-    fn test_session_cache() {
-        PUT_REGISTRY.make_deterministic();
-        let mut ctx = TraceContext::new();
-        let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server, PUT);
-
-        trace.execute(&mut ctx).unwrap();
-
-        let mut ctx = TraceContext::new();
-        let server = AgentName::first();
-        let trace = seed_client_attacker12(server, PUT);
-
-        trace.execute(&mut ctx).unwrap();
-    }
-
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker_full() {
         PUT_REGISTRY.make_deterministic();
