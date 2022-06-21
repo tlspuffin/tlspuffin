@@ -1,5 +1,3 @@
-use std::io::ErrorKind;
-
 use openssl::{
     asn1::Asn1Time,
     bn::{BigNum, MsbOption},
@@ -15,7 +13,6 @@ use openssl::{
 
 use crate::{
     agent::TLSVersion,
-    error::Error,
     static_certs::{CERT, PRIVATE_KEY},
 };
 

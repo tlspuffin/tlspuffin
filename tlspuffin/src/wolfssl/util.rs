@@ -1,11 +1,6 @@
-use std::io::ErrorKind;
-
 use libc::c_int;
 
-use crate::{
-    error::Error,
-    wolfssl::error::{Error as SSLError, ErrorStack},
-};
+use crate::wolfssl::error::ErrorStack;
 
 pub fn cvt_p<T>(r: *mut T) -> Result<*mut T, ErrorStack> {
     if r.is_null() {

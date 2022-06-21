@@ -2,15 +2,12 @@
 
 use std::{
     cell::RefCell,
-    ffi::CString,
     io::{ErrorKind, Read, Write},
-    ptr,
     rc::Rc,
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use rustls::msgs::message::OpaqueMessage;
-use security_claims::register::Claimer;
 
 use crate::{
     agent::{AgentName, PutName, TLSVersion},
@@ -20,7 +17,6 @@ use crate::{
     put_registry::{Factory, WOLFSSL520},
     static_certs::{CERT, PRIVATE_KEY},
     trace::VecClaimer,
-    wolfssl,
     wolfssl::{
         error::{ErrorStack, SslError},
         pkey::PKey,
@@ -141,21 +137,13 @@ impl Put for WolfSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
-        #[cfg(not(feature = "claims"))]
-        let wolfssl = WolfSSL {
+        let mut wolfssl = WolfSSL {
             stream,
             config: config.clone(),
         };
 
         #[cfg(feature = "claims")]
-        let wolfssl = {
-            let mut stream = WolfSSL {
-                stream,
-                config: config.clone(),
-            };
-            stream.register_claimer(config.claimer, config.agent_name);
-            stream
-        };
+        stream.register_claimer(config.claimer, config.agent_name);
         Ok(wolfssl)
     }
 
@@ -220,7 +208,7 @@ impl Put for WolfSSL {
             self.config.claimer = claimer.clone();
             self.config.agent_name = agent_name;
             // FIXME: Improve code here -> deduplicate
-            let claimer = claimer.clone();
+            let claimer = claimer;
             self.stream
                 .ssl_mut()
                 .set_msg_callback(move |ssl: &mut SslRef| unsafe {
@@ -286,7 +274,7 @@ impl WolfSSL {
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
-        ctx.disable_session_cache();
+        ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;

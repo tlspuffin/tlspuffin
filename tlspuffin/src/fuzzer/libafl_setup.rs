@@ -4,11 +4,11 @@ use std::{fmt, path::PathBuf};
 use libafl::{
     bolts::{
         core_affinity::Cores,
-        rands::{Rand, RomuDuoJrRand, StdRand},
+        rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
     },
-    corpus::{CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
         EventConfig, EventFirer, EventManager, EventRestarter, HasEventManagerId,
         LlmpRestartingEventManager, ProgressReporter,
@@ -258,13 +258,13 @@ where
 
         let FuzzerConfig {
             initial_corpus_dir,
-            static_seed,
+            static_seed: _,
             max_iters,
-            core_definition,
-            monitor_file,
-            objective_dir,
-            broker_port,
-            minimizer, // FIXME: Unused
+            core_definition: _,
+            monitor_file: _,
+            objective_dir: _,
+            broker_port: _,
+            minimizer: _, // FIXME: Unused
             mutation_stage_config:
                 MutationStageConfig {
                     max_iterations_per_stage,

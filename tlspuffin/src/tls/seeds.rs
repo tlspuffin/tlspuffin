@@ -1636,7 +1636,7 @@ pub mod tests {
     use super::*;
     use crate::{
         agent::{AgentName, PutName},
-        put_registry::{PUT_REGISTRY, TCP},
+        put_registry::PUT_REGISTRY,
         trace::{Action, TraceContext},
     };
 

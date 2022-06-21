@@ -1,20 +1,18 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     cmp,
-    collections::HashMap,
     ffi::{CStr, CString},
     io,
     io::{Read, Write},
     marker::PhantomData,
     mem::ManuallyDrop,
     panic, ptr,
-    ptr::NonNull,
-    sync::{Arc, Mutex, Once},
+    sync::Once,
 };
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
-use libc::{c_int, c_long, c_void};
+use libc::{c_int, c_void};
 use wolfssl_sys as wolf;
 
 use crate::{
@@ -23,9 +21,9 @@ use crate::{
         bio,
         callbacks::{msg_callback, ExtraUserDataRegistry, UserData},
         dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex},
-        error::{Error, ErrorCode, ErrorStack, InnerError, SslError},
+        error::{ErrorCode, ErrorStack, InnerError, SslError},
         pkey::{HasPrivate, PKeyRef},
-        util::{cvt, cvt_n, cvt_p},
+        util::{cvt, cvt_p},
         x509::X509Ref,
     },
 };
