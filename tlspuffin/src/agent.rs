@@ -6,6 +6,7 @@
 
 use core::fmt;
 use std::{cell::RefCell, rc::Rc};
+use std::fmt::Formatter;
 
 use serde::{Deserialize, Serialize};
 
@@ -167,5 +168,11 @@ impl Agent {
 
     pub fn reset(&mut self) -> Result<(), Error> {
         self.stream.reset()
+    }
+}
+
+impl fmt::Debug for Agent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.descriptor.fmt(f)
     }
 }

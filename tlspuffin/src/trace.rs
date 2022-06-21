@@ -212,13 +212,14 @@ impl fmt::Display for Query {
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+#[derive(Debug)]
 pub struct Knowledge {
     pub agent_name: AgentName,
     pub tls_message_type: Option<TlsMessageType>,
     pub data: Box<dyn VariableData>,
 }
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct VecClaimer {
     claims: Vec<(AgentName, Claim)>,
 }
@@ -259,6 +260,7 @@ impl VecClaimer {
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
+#[derive(Debug)]
 pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
@@ -437,6 +439,7 @@ impl Trace {
             ctx.reset_agents()?;
         }
         self.spawn_agents(ctx)?;
+        trace!("Initial trace context: {:#?}", ctx);
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             trace!("Executing step #{}", i);

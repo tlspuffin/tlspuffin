@@ -108,10 +108,10 @@ where
                     }
 
                     // TODO@MAX: Do you agree that this policy below will capture server authentication bypass attacks?
-                    if client.peer_cert.pkey != server.cert.pkey {
+                    if client.peer_cert.data != server.cert.data {
                         trace!("Client peer cert: {:?}", client.peer_cert);
                         trace!("Server cert {:?}", server.cert);
-                        return Some("Mismatching server certificate");
+                        return Some("Mismatching server certificate hash");
                     }
 
 
