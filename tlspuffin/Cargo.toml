@@ -12,30 +12,32 @@ openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls13", "session-resumption", "deterministic", # Supported features by openssl111
     "claims",
-    "openssl-binding"
+    "openssl-binding",
+    "transcript-extraction"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl-binding"
+    "openssl-binding",
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "openssl-binding"
+    "openssl-binding",
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
     "claims",
-    "openssl-binding"
+    "openssl-binding",
+    "transcript-extraction",
 ]
 
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding",
-    "claims",
     "session-resumption",
+    "transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -59,6 +61,8 @@ session-resumption = []
 deterministic = []
 # Require the PUT to implement the claim-interface.h
 claims = []
+# Whether transcript extraction is supported. This is needed for simplified traces.
+transcript-extraction = []
 
 introspection = ["libafl/introspection"]
 

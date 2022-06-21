@@ -1721,7 +1721,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "claims")] // this depends on extracted transcripts -> claims are required
+    #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
     #[test]
     fn test_seed_client_attacker() {
         PUT_REGISTRY.make_deterministic();
