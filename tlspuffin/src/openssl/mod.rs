@@ -12,10 +12,7 @@ use crate::{
     agent::{AgentName, PutName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    openssl::{
-        deterministic::set_openssl_deterministic,
-        util::{set_max_protocol_version, static_rsa_cert},
-    },
+    openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Config, Put},
     put_registry::{Factory, OPENSSL111},
     trace::VecClaimer,
@@ -188,7 +185,10 @@ impl Put for OpenSSL {
     }
 
     fn make_deterministic() {
-        set_openssl_deterministic();
+        #[cfg(feature = "openssl111")]
+        deterministic::set_openssl_deterministic();
+        #[cfg(not(feature = "openssl111"))]
+        warn!("Failed to make PUT determinisitic!");
     }
 }
 

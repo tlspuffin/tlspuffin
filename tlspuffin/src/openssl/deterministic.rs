@@ -18,8 +18,3 @@ pub fn set_openssl_deterministic() {
         RAND_seed(buf, 4);
     }
 }
-
-#[cfg(not(feature = "openssl111"))]
-pub fn make_openssl_deterministic() {
-    warn!("Failed to make PUT determinisitic!");
-}
