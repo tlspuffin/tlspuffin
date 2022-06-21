@@ -68,7 +68,10 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
+use std::{
+    any::TypeId, cell::RefCell, collections::HashMap, convert::TryFrom, fmt::Formatter, ops::Deref,
+    rc::Rc,
+};
 
 use itertools::Itertools;
 use log::trace;

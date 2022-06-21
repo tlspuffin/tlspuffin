@@ -1360,7 +1360,7 @@ pub fn seed_client_attacker_full(
                 agent: server,
                 action: Action::Output(OutputAction {}),
             },
-            /*            Step {
+            Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
@@ -1378,7 +1378,7 @@ pub fn seed_client_attacker_full(
             Step {
                 agent: server,
                 action: Action::Output(OutputAction {}),
-            },*/
+            },
         ],
     };
 
@@ -1562,7 +1562,7 @@ pub fn seed_session_resumption_dhe_full(
                     },
                 }),
             },
-            /* Step {
+            Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
@@ -1576,7 +1576,7 @@ pub fn seed_session_resumption_dhe_full(
                         )
                     },
                 }),
-            },*/
+            },
         ],
     };
 
@@ -1749,17 +1749,6 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
         let trace = seed_client_attacker12(server, PUT);
-
-        trace.execute(&mut ctx).unwrap();
-    }
-
-    #[test]
-    fn test_tcp_put() {
-        let mut ctx = TraceContext::new();
-        let initial_server = AgentName::first();
-        //let (trace, ..) = seed_client_attacker_full(initial_server, TCP);
-        let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server, TCP);
 
         trace.execute(&mut ctx).unwrap();
     }
