@@ -52,12 +52,6 @@ impl HasLen for Trace {
     }
 }
 
-impl std::hash::Hash for Trace {
-    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {
-        todo!()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
