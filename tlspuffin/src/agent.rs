@@ -13,7 +13,7 @@ use crate::{
     error::Error,
     put::{Config, Put},
     put_registry::PUT_REGISTRY,
-    trace::VecClaimer,
+    trace::ClaimList,
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -139,18 +139,16 @@ pub struct Agent {
 impl Agent {
     pub fn new(
         descriptor: &AgentDescriptor,
-        claimer: Rc<RefCell<VecClaimer>>,
+        claims: Rc<RefCell<ClaimList>>,
     ) -> Result<Self, Error> {
         let config = Config {
-            tls_version: descriptor.tls_version,
-            server: descriptor.server,
-            agent_name: descriptor.name,
-            claimer,
+            descriptor: *descriptor,
+            claims,
         };
 
         let factory = PUT_REGISTRY
             .find_factory(descriptor.put_name)
-            .ok_or_else(|| Error::Agent("unable to find PUT in binary".to_string()))?;
+            .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
         let stream = factory.create(config);
         let agent = Agent {
             descriptor: *descriptor,
@@ -160,9 +158,9 @@ impl Agent {
         Ok(agent)
     }
 
-    pub fn rename(&mut self, claimer: Rc<RefCell<VecClaimer>>, new_name: AgentName) {
+    pub fn rename(&mut self, claims: Rc<RefCell<ClaimList>>, new_name: AgentName) {
         self.descriptor.name = new_name;
-        self.stream.change_agent_name(claimer, new_name);
+        self.stream.rename_agent(claims, new_name);
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {

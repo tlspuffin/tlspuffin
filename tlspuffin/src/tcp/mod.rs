@@ -20,7 +20,7 @@ use crate::{
     io::{MessageResult, Stream},
     put::{Config, Put},
     put_registry::{Factory, TCP},
-    trace::VecClaimer,
+    trace::ClaimList,
 };
 
 pub fn new_tcp_factory() -> Box<dyn Factory> {
@@ -164,7 +164,7 @@ impl Put for TcpPut {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _claimer: Rc<RefCell<VecClaimer>>, _agent_name: AgentName) {
+    fn register_claimer(&mut self, _claims: Rc<RefCell<ClaimList>>, _agent_name: AgentName) {
         panic!("Claims are not supported with TcpPut")
     }
 
@@ -173,7 +173,7 @@ impl Put for TcpPut {
         panic!("Claims are not supported with TcpPut")
     }
 
-    fn change_agent_name(&mut self, _claimer: Rc<RefCell<VecClaimer>>, _agent_name: AgentName) {}
+    fn rename_agent(&mut self, _claims: Rc<RefCell<ClaimList>>, _agent_name: AgentName) {}
 
     fn describe_state(&self) -> &'static str {
         panic!("Can not describe the state with TcpPut")
@@ -200,6 +200,7 @@ impl Put for TcpPut {
 #[cfg(test)]
 mod tests {
     use std::{
+        ffi::OsStr,
         io::{stderr, Read, Write},
         os::unix::io::RawFd,
         process::{Child, Command, Stdio},
@@ -217,95 +218,84 @@ mod tests {
 
     struct OpenSSLServer {
         child: Option<Child>,
-        tmp: TempDir,
+        temp_dir: TempDir,
     }
 
     impl OpenSSLServer {
         pub fn new(port: u16) -> Self {
-            let output = Command::new("openssl")
-                .arg("version")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .expect("failed to output version")
-                .wait_with_output()
-                .expect("failed to wait on child");
+            Self::wait_and_print(Self::execute_command(["version"]));
 
-            stderr().write_all(&output.stderr).unwrap();
-            stderr().write_all(&output.stdout).unwrap();
+            let temp_dir = tempdir().unwrap();
 
-            let dir = tempdir().unwrap();
-            let key = dir.path().join("key.pem");
-            let key_path = key.as_path().to_str().unwrap();
-            let cert = dir.path().join("cert.pem");
-            let cert_path = cert.as_path().to_str().unwrap();
-            let output = Command::new("openssl")
-                .arg("req")
-                .arg("-x509")
-                .arg("-newkey")
-                .arg("rsa:2048")
-                .arg("-keyout")
-                .arg(key_path)
-                .arg("-out")
-                .arg(cert_path)
-                .arg("-days")
-                .arg("365")
-                .arg("-nodes")
-                .arg("-subj")
-                .arg("/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...")
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .expect("failed to generate certs")
-                .wait_with_output()
-                .expect("failed to wait on child");
+            let key = temp_dir.path().join("key.pem");
+            let key_path = key.as_os_str().to_str().unwrap();
+            let cert = temp_dir.path().join("cert.pem");
+            let cert_path = cert.as_os_str().to_str().unwrap();
 
-            stderr().write_all(&output.stderr).unwrap();
-            stderr().write_all(&output.stdout).unwrap();
+            Self::wait_and_print(Self::execute_command([
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:2048",
+                "-keyout",
+                key_path,
+                "-out",
+                cert_path,
+                "-days",
+                "365",
+                "-nodes",
+                "-subj",
+                "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...",
+            ]));
 
             Self {
-                child: Some(
-                    Command::new("openssl")
-                        .arg("s_server")
-                        .arg("-accept")
-                        .arg(port.to_string())
-                        .arg("-msg")
-                        .arg("-state")
-                        .arg("-key")
-                        .arg(key_path)
-                        .arg("-cert")
-                        .arg(cert_path)
-                        .stdin(Stdio::piped()) // This line is super important! Else the OpenSSL server immediately stops
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .spawn()
-                        .expect("failed to execute process"),
-                ),
-                tmp: dir,
+                child: Some(Self::execute_command([
+                    "s_server",
+                    "-accept",
+                    &port.to_string(),
+                    "-msg",
+                    "-state",
+                    "-key",
+                    key_path,
+                    "-cert",
+                    cert_path,
+                ])),
+                temp_dir,
             }
+        }
+
+        fn wait_and_print(child: Child) {
+            let output = child.wait_with_output().expect("failed to wait on child");
+            eprintln!("--- stderr");
+            stderr().write_all(&output.stderr).unwrap();
+            eprintln!("--- stderr");
+            eprintln!("--- stdout");
+            stderr().write_all(&output.stdout).unwrap();
+            eprintln!("--- stdout");
+        }
+
+        fn execute_command<I, S>(args: I) -> Child
+        where
+            I: IntoIterator<Item = S>,
+            S: AsRef<OsStr>,
+        {
+            Command::new("openssl")
+                .args(args)
+                .stdin(Stdio::piped()) // This line is super important! Else the OpenSSL server immediately stops
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("failed to execute process")
         }
     }
 
     impl Drop for OpenSSLServer {
         fn drop(&mut self) {
-            let child = &mut self.child;
-            child
-                .as_mut()
-                .unwrap()
-                .kill()
-                .expect("failed to stop server");
-            let output = child
-                .take()
-                .unwrap()
-                .wait_with_output()
-                .expect("failed to wait on child");
-            eprintln!("--- stderr from openssl server");
-            stderr().write_all(&output.stderr).unwrap();
-            eprintln!("--- stdout from openssl server");
-            stderr().write_all(&output.stdout).unwrap();
-            eprintln!("---");
+            if let Some(mut child) = self.child.take() {
+                child.kill().expect("failed to stop server");
+
+                Self::wait_and_print(child)
+            }
         }
     }
 
@@ -322,7 +312,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_tcp_put_seed_client_attacker_full() {
         let _guard = OpenSSLServer::new(44330);
 

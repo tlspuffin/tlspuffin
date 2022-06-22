@@ -16,7 +16,7 @@ use crate::{
     put::{Config, Put},
     put_registry::{Factory, WOLFSSL520},
     static_certs::{CERT, PRIVATE_KEY},
-    trace::VecClaimer,
+    trace::ClaimList,
     wolfssl::{
         error::{ErrorStack, SslError},
         pkey::PKey,
@@ -119,7 +119,7 @@ impl Put for WolfSSL {
             // FIXME: let (cert, pkey) = static_rsa_cert()?;
 
             let mut ssl = Self::create_server(config.tls_version)?;
-            let claimer = config.claimer.clone();
+            let claimer = config.claims.clone();
             // FIXME: Improve code here -> deduplicate
             ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
                 let claimer = claimer.clone();
@@ -143,14 +143,14 @@ impl Put for WolfSSL {
         };
 
         #[cfg(feature = "claims")]
-        stream.register_claimer(config.claimer, config.agent_name);
+        stream.register_claimer(config.claims, config.agent_name);
         Ok(wolfssl)
     }
 
     fn progress(&mut self) -> Result<(), Error> {
         unsafe {
             // FIXME: Improve code here -> deduplicate
-            let claimer = self.config.claimer.clone();
+            let claimer = self.config.claims.clone();
             let name = self.config.agent_name;
             claim_transcript(
                 self.stream.ssl().as_ptr(),
@@ -177,12 +177,12 @@ impl Put for WolfSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         unsafe {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(agent_name, claim)
+                    (*claims).borrow_mut().claim(agent_name, claim)
                 },
             );
         }
@@ -196,19 +196,19 @@ impl Put for WolfSSL {
     }
 
     #[allow(unused_variables)]
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn rename_agent(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(claimer.clone(), agent_name);
+            self.register_claimer(claims.clone(), agent_name);
         }
 
         unsafe {
             // FIXME
-            self.config.claimer = claimer.clone();
+            self.config.claims = claims.clone();
             self.config.agent_name = agent_name;
             // FIXME: Improve code here -> deduplicate
-            let claimer = claimer;
+            let claimer = claims;
             self.stream
                 .ssl_mut()
                 .set_msg_callback(move |ssl: &mut SslRef| unsafe {

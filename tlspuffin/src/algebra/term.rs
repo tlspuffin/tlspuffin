@@ -10,7 +10,7 @@ use crate::{
     algebra::dynamic_function::TypeShape,
     error::Error,
     tls::error::FnError,
-    trace::{AgentClaimer, TraceContext, VecClaimer},
+    trace::{ByAgentClaimList, ClaimList, TraceContext},
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -104,17 +104,16 @@ impl Term {
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
-            Term::Variable(v) => {
-                if v.typ == TypeShape::of::<AgentClaimer>() {
-                    let claimer: &VecClaimer = &context.claimer.deref().borrow();
-                    let ret: Box<dyn Any> =
-                        Box::new(AgentClaimer::new(claimer.clone(), v.query.agent_name));
-                    Ok(ret)
+            Term::Variable(variable) => {
+                if variable.typ == TypeShape::of::<ByAgentClaimList>() {
+                    Ok(Box::new(context.claims_by_agent(variable.query.agent_name)))
                 } else {
                     context
-                        .find_variable(v.typ, v.query)
+                        .find_variable(variable.typ, variable.query)
                         .map(|data| data.clone_box_any())
-                        .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", v)))
+                        .ok_or_else(|| {
+                            Error::Term(format!("Unable to find variable {}!", variable))
+                        })
                 }
             }
             Term::Application(func, args) => {

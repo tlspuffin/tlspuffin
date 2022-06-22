@@ -15,7 +15,7 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Config, Put},
     put_registry::{Factory, OPENSSL111},
-    trace::VecClaimer,
+    trace::ClaimList,
 };
 
 mod deterministic;
@@ -110,7 +110,7 @@ impl Put for OpenSSL {
         let mut openssl = OpenSSL { stream };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(config.claimer, config.agent_name);
+        openssl.register_claimer(config.claims, config.agent_name);
 
         Ok(openssl)
     }
@@ -133,13 +133,13 @@ impl Put for OpenSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         unsafe {
             use foreign_types_shared::ForeignTypeRef;
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(agent_name, claim)
+                    (*claims).borrow_mut().claim(agent_name, claim)
                 },
             );
         }
@@ -154,11 +154,11 @@ impl Put for OpenSSL {
     }
 
     #[allow(unused_variables)]
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn rename_agent(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(claimer, agent_name)
+            self.register_claimer(claims, agent_name)
         }
     }
 
