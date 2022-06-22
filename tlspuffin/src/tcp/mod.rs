@@ -19,7 +19,7 @@ use crate::{
     error::Error,
     io::{MessageResult, Stream},
     put::{Config, Put},
-    put_registry::{Factory, OPENSSL111, TCP},
+    put_registry::{Factory, TCP},
     trace::VecClaimer,
 };
 
@@ -141,7 +141,7 @@ impl Put for TcpPut {
     where
         Self: Sized,
     {
-        let mut stream = Self::new_stream(SocketAddr::new(IpAddr::from_str("127.0.0.1")?, 44330))?;
+        let stream = Self::new_stream(SocketAddr::new(IpAddr::from_str("127.0.0.1")?, 44330))?;
 
         Ok(Self {
             stream,
@@ -161,7 +161,7 @@ impl Put for TcpPut {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, _claimer: Rc<RefCell<VecClaimer>>, _agent_name: AgentName) {
         panic!("Claims are not supported with TcpPut")
     }
 
@@ -170,7 +170,7 @@ impl Put for TcpPut {
         panic!("Claims are not supported with TcpPut")
     }
 
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {}
+    fn change_agent_name(&mut self, _claimer: Rc<RefCell<VecClaimer>>, _agent_name: AgentName) {}
 
     fn describe_state(&self) -> &'static str {
         panic!("Can not describe the state with TcpPut")
@@ -196,11 +196,7 @@ impl Put for TcpPut {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs::File,
-        path::{Path, PathBuf},
-        process::{Child, Command, Stdio},
-    };
+    use std::process::{Child, Command};
 
     use tempfile::{tempdir, TempDir};
 
@@ -221,7 +217,7 @@ mod tests {
             let dir = tempdir().unwrap();
             let key = dir.path().join("key.pem");
             let cert = dir.path().join("cert.pem");
-            let output = Command::new("openssl")
+            let _output = Command::new("openssl")
                 .arg("req")
                 .arg("-x509")
                 .arg("-newkey")

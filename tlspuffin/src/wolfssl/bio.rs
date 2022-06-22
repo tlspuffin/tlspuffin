@@ -19,7 +19,7 @@ use crate::wolfssl::util::{cvt, cvt_p};
 
 pub type BIO = wolf::WOLFSSL_BIO;
 
-pub unsafe fn BIO_set_retry_read(b: *mut BIO) {
+pub unsafe fn BIO_set_retry_read(b: *mut wolf::WOLFSSL_BIO) {
     wolf::wolfSSL_BIO_set_flags(
         b,
         (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_READ | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY)
@@ -28,7 +28,7 @@ pub unsafe fn BIO_set_retry_read(b: *mut BIO) {
     )
 }
 
-pub unsafe fn BIO_set_retry_write(b: *mut BIO) {
+pub unsafe fn BIO_set_retry_write(b: *mut wolf::WOLFSSL_BIO) {
     wolf::wolfSSL_BIO_set_flags(
         b,
         (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_WRITE | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY)
@@ -37,7 +37,7 @@ pub unsafe fn BIO_set_retry_write(b: *mut BIO) {
     )
 }
 
-pub unsafe fn BIO_clear_retry_flags(b: *mut BIO) {
+pub unsafe fn BIO_clear_retry_flags(b: *mut wolf::WOLFSSL_BIO) {
     wolf::wolfSSL_BIO_clear_flags(
         b,
         (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_READ
@@ -74,19 +74,19 @@ pub struct StreamState<S> {
     pub panic: Option<Box<dyn Any + Send>>,
     pub dtls_mtu_size: c_long,
 }
-unsafe fn state<'a, S: 'a>(bio: *mut BIO) -> &'a mut StreamState<S> {
+unsafe fn state<'a, S: 'a>(bio: *mut wolf::WOLFSSL_BIO) -> &'a mut StreamState<S> {
     &mut *(wolf::wolfSSL_BIO_get_data(bio) as *mut _)
 }
 
-pub unsafe fn get_mut<'a, S: 'a>(bio: *mut BIO) -> &'a mut S {
+pub unsafe fn get_mut<'a, S: 'a>(bio: *mut wolf::WOLFSSL_BIO) -> &'a mut S {
     &mut state(bio).stream
 }
 
-pub unsafe fn take_error<S>(bio: *mut BIO) -> Option<io::Error> {
+pub unsafe fn take_error<S>(bio: *mut wolf::WOLFSSL_BIO) -> Option<io::Error> {
     state::<S>(bio).error.take()
 }
 
-pub unsafe fn take_panic<S>(bio: *mut BIO) -> Option<Box<dyn Any + Send>> {
+pub unsafe fn take_panic<S>(bio: *mut wolf::WOLFSSL_BIO) -> Option<Box<dyn Any + Send>> {
     let state = state::<S>(bio);
     state.panic.take()
 }
@@ -117,7 +117,11 @@ unsafe extern "C" fn bwrite<S: Write>(
     }
 }
 
-unsafe extern "C" fn bread<S: Read>(bio: *mut BIO, buf: *mut c_char, len: c_int) -> c_int {
+unsafe extern "C" fn bread<S: Read>(
+    bio: *mut wolf::WOLFSSL_BIO,
+    buf: *mut c_char,
+    len: c_int,
+) -> c_int {
     BIO_clear_retry_flags(bio);
 
     let state = state::<S>(bio);
@@ -138,12 +142,12 @@ unsafe extern "C" fn bread<S: Read>(bio: *mut BIO, buf: *mut c_char, len: c_int)
         }
     }
 }
-unsafe extern "C" fn bputs<S: Write>(bio: *mut BIO, s: *const c_char) -> c_int {
+unsafe extern "C" fn bputs<S: Write>(bio: *mut wolf::WOLFSSL_BIO, s: *const c_char) -> c_int {
     bwrite::<S>(bio, s, strlen(s) as c_int)
 }
 
 unsafe extern "C" fn ctrl<S: Write>(
-    bio: *mut BIO,
+    bio: *mut wolf::WOLFSSL_BIO,
     cmd: c_int,
     _num: c_long,
     _ptr: *mut c_void,
@@ -171,7 +175,7 @@ unsafe extern "C" fn ctrl<S: Write>(
     }
 }
 
-unsafe extern "C" fn create(bio: *mut BIO) -> c_int {
+unsafe extern "C" fn create(bio: *mut wolf::WOLFSSL_BIO) -> c_int {
     wolf::wolfSSL_BIO_set_init(bio, 0);
     BIO_set_num(bio, 0);
     wolf::wolfSSL_BIO_set_data(bio, ptr::null_mut());
@@ -180,7 +184,7 @@ unsafe extern "C" fn create(bio: *mut BIO) -> c_int {
 }
 
 // FIXME: This is not called right now
-unsafe extern "C" fn destroy<S>(bio: *mut BIO) -> c_int {
+unsafe extern "C" fn destroy<S>(bio: *mut wolf::WOLFSSL_BIO) -> c_int {
     if bio.is_null() {
         return 0;
     }
@@ -193,7 +197,9 @@ unsafe extern "C" fn destroy<S>(bio: *mut BIO) -> c_int {
     1
 }
 
-pub fn bio_new<S: Read + Write>(stream: S) -> Result<(*mut BIO, BioMethod), ErrorStack> {
+pub fn bio_new<S: Read + Write>(
+    stream: S,
+) -> Result<(*mut wolf::WOLFSSL_BIO, BioMethod), ErrorStack> {
     let method = BioMethod::new::<S>()?;
 
     let state = Box::new(StreamState {
@@ -212,7 +218,7 @@ pub fn bio_new<S: Read + Write>(stream: S) -> Result<(*mut BIO, BioMethod), Erro
     }
 }
 
-pub struct MemBioSlice<'a>(*mut BIO, PhantomData<&'a [u8]>);
+pub struct MemBioSlice<'a>(*mut wolf::WOLFSSL_BIO, PhantomData<&'a [u8]>);
 
 impl<'a> Drop for MemBioSlice<'a> {
     fn drop(&mut self) {
@@ -235,12 +241,12 @@ impl<'a> MemBioSlice<'a> {
         Ok(MemBioSlice(bio, PhantomData))
     }
 
-    pub fn as_ptr(&self) -> *mut BIO {
+    pub fn as_ptr(&self) -> *mut wolf::WOLFSSL_BIO {
         self.0
     }
 }
 
-pub struct MemBio(*mut BIO);
+pub struct MemBio(*mut wolf::WOLFSSL_BIO);
 
 impl Drop for MemBio {
     fn drop(&mut self) {
@@ -260,7 +266,7 @@ impl MemBio {
         Ok(MemBio(bio))
     }
 
-    pub fn as_ptr(&self) -> *mut BIO {
+    pub fn as_ptr(&self) -> *mut wolf::WOLFSSL_BIO {
         self.0
     }
 
@@ -272,7 +278,7 @@ impl MemBio {
         }
     }
 
-    pub unsafe fn from_ptr(bio: *mut BIO) -> MemBio {
+    pub unsafe fn from_ptr(bio: *mut wolf::WOLFSSL_BIO) -> MemBio {
         MemBio(bio)
     }
 }

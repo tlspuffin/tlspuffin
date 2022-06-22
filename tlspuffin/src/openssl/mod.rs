@@ -107,15 +107,11 @@ impl Put for OpenSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
-        #[cfg(not(feature = "claims"))]
-        let openssl = OpenSSL { stream };
+        let mut openssl = OpenSSL { stream };
 
         #[cfg(feature = "claims")]
-        let openssl = {
-            let mut openssl = OpenSSL { stream };
-            openssl.register_claimer(config.claimer, config.agent_name);
-            openssl
-        };
+        openssl.register_claimer(config.claimer, config.agent_name);
+
         Ok(openssl)
     }
 

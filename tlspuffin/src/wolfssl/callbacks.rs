@@ -2,15 +2,13 @@ use std::{
     any::{Any, TypeId},
     collections::HashMap,
     ffi::c_void,
-    marker::PhantomData,
-    mem,
 };
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::{error::ErrorStack, ssl::SslRef, Ssl};
+use crate::wolfssl::ssl::SslRef;
 
 ///
 /// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does
@@ -32,13 +30,13 @@ pub struct UserData {
 }
 
 pub unsafe extern "C" fn msg_callback<F>(
-    write_p: c_int,
-    version: c_int,
-    content_type: c_int,
-    buf: *const c_void,
-    len: c_ulong,
+    _write_p: c_int,
+    _version: c_int,
+    _content_type: c_int,
+    _buf: *const c_void,
+    _len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
-    arg: *mut c_void,
+    _arg: *mut c_void,
 ) where
     F: Fn(&mut SslRef) + 'static,
 {
