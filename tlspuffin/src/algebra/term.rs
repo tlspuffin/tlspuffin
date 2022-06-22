@@ -110,7 +110,7 @@ impl Term {
                 } else {
                     context
                         .find_variable(variable.typ, variable.query)
-                        .map(|data| data.clone_box_any())
+                        .map(|data| data.boxed_any())
                         .ok_or_else(|| {
                             Error::Term(format!("Unable to find variable {}!", variable))
                         })

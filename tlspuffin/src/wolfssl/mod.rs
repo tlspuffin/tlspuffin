@@ -13,7 +13,7 @@ use crate::{
     agent::{AgentName, PutName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    put::{Config, Put},
+    put::{Put, PutConfig},
     put_registry::{Factory, WOLFSSL520},
     static_certs::{CERT, PRIVATE_KEY},
     trace::ClaimList,
@@ -42,7 +42,7 @@ mod x509;
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
     impl Factory for WolfSSLFactory {
-        fn create(&self, config: Config) -> Box<dyn Put> {
+        fn create(&self, config: PutConfig) -> Box<dyn Put> {
             Box::new(WolfSSL::new(config).unwrap())
         }
 
@@ -70,7 +70,7 @@ impl From<ErrorStack> for Error {
 
 pub struct WolfSSL {
     stream: SslStream<MemoryStream>,
-    config: Config,
+    config: PutConfig,
 }
 
 impl Stream for WolfSSL {
@@ -110,7 +110,7 @@ impl Drop for WolfSSL {
 }
 
 impl Put for WolfSSL {
-    fn new(config: Config) -> Result<Self, Error>
+    fn new(config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {

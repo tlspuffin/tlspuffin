@@ -18,7 +18,7 @@ use crate::{
     agent::{AgentName, PutName},
     error::Error,
     io::{MessageResult, Stream},
-    put::{Config, Put},
+    put::{Put, PutConfig},
     put_registry::{Factory, TCP},
     trace::ClaimList,
 };
@@ -26,7 +26,7 @@ use crate::{
 pub fn new_tcp_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, config: Config) -> Box<dyn Put> {
+        fn create(&self, config: PutConfig) -> Box<dyn Put> {
             Box::new(TcpPut::new(config).unwrap())
         }
 
@@ -140,7 +140,7 @@ impl Drop for TcpPut {
 }
 
 impl Put for TcpPut {
-    fn new(_config: Config) -> Result<Self, Error>
+    fn new(_config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {

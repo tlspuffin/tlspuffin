@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
-    put::{Config, Put},
+    put::{Put, PutConfig},
     put_registry::PUT_REGISTRY,
     trace::ClaimList,
 };
@@ -117,17 +117,6 @@ impl AgentDescriptor {
 pub enum TLSVersion {
     V1_3,
     V1_2,
-    Unknown,
-}
-
-impl From<i32> for TLSVersion {
-    fn from(value: i32) -> Self {
-        match value {
-            0x303 => TLSVersion::V1_2,
-            0x304 => TLSVersion::V1_3,
-            _ => TLSVersion::Unknown,
-        }
-    }
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
@@ -141,7 +130,7 @@ impl Agent {
         descriptor: &AgentDescriptor,
         claims: Rc<RefCell<ClaimList>>,
     ) -> Result<Self, Error> {
-        let config = Config {
+        let config = PutConfig {
             descriptor: *descriptor,
             claims,
         };

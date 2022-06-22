@@ -13,7 +13,7 @@ use crate::{
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    put::{Config, Put},
+    put::{Put, PutConfig},
     put_registry::{Factory, OPENSSL111},
     trace::ClaimList,
 };
@@ -31,7 +31,7 @@ mod util;
 pub fn new_openssl_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, config: Config) -> Box<dyn Put> {
+        fn create(&self, config: PutConfig) -> Box<dyn Put> {
             Box::new(OpenSSL::new(config).unwrap())
         }
 
@@ -95,7 +95,7 @@ impl io::Write for OpenSSL {
 }
 
 impl Put for OpenSSL {
-    fn new(config: Config) -> Result<OpenSSL, Error> {
+    fn new(config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = if config.server {
             //let (cert, pkey) = openssl_binding::generate_cert();
             let (cert, pkey) = static_rsa_cert()?;

@@ -3,7 +3,7 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     agent::{AgentDescriptor, AgentName, TLSVersion},
@@ -14,14 +14,15 @@ use crate::{
 
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone)]
-pub struct Config {
+pub struct PutConfig {
     pub descriptor: AgentDescriptor,
     pub claims: Rc<RefCell<ClaimList>>,
+    //pub options: HashMap,
 }
 
 pub trait Put: Stream + Drop + 'static {
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(config: Config) -> Result<Self, Error>
+    fn new(config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer

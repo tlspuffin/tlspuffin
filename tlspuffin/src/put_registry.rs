@@ -1,6 +1,6 @@
 use crate::{
     agent::PutName,
-    put::{Config, Put},
+    put::{Put, PutConfig},
 };
 
 pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
@@ -47,7 +47,7 @@ pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
 ]);
 
 pub trait Factory {
-    fn create(&self, config: Config) -> Box<dyn Put>;
+    fn create(&self, config: PutConfig) -> Box<dyn Put>;
     fn put_name(&self) -> PutName;
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);
