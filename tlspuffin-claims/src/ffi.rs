@@ -85,7 +85,7 @@ impl fmt::Display for Claim {
 
 impl fmt::Display for ClaimVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.data.to_be_bytes()))
+        write!(f, "{:?}", self.data)
     }
 }
 

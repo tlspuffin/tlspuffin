@@ -1,9 +1,15 @@
-#ifndef TLSPUFFIN_DETECTOR_H
-#define TLSPUFFIN_DETECTOR_H
+#ifndef TLSPUFFIN_CLAIM_INTERFACE_H
+#define TLSPUFFIN_CLAIM_INTERFACE_H
 
 #define CLAIM_MAX_AVAILABLE_CIPHERS 128
 #define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
 #define CLAIM_SESSION_ID_LENGTH 32
+
+typedef enum ClaimTLSVersion {
+    CLAIM_TLS_VERSION_UNDEFINED = 0,
+    CLAIM_TLS_VERSION_V1_2 = 1,
+    CLAIM_TLS_VERSION_V1_3 = 2,
+} TLSVersion;
 
 typedef enum ClaimType {
     CLAIM_NOT_SET = -1,
@@ -73,7 +79,7 @@ typedef struct ClaimCiphers {
 } ClaimCiphers;
 
 typedef struct ClaimVersion {
-    int data;
+    TLSVersion data;
 } ClaimVersion;
 
 typedef struct ClaimRandom {
@@ -162,4 +168,4 @@ void register_claimer(const void *tls_like, claim_t claimer, void *ctx);
  */
 void *deregister_claimer(const void *tls_like);
 
-#endif
+#endif // TLSPUFFIN_CLAIM_INTERFACE_H
