@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use crate::{
-    agent::PutName,
-    put::{Put, PutConfig},
+    agent::AgentName,
+    put::{Put, PutConfig, PutDescriptor, PutName},
 };
 
 pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
@@ -47,20 +49,27 @@ pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
 ]);
 
 pub trait Factory {
-    fn create(&self, config: PutConfig) -> Box<dyn Put>;
+    fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put>;
     fn put_name(&self) -> PutName;
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);
 }
 
-pub const fn current_put() -> PutName {
+pub const CURRENT_PUT_NAME: PutName = {
     cfg_if::cfg_if! {
         if #[cfg(feature = "openssl-binding")] {
             OPENSSL111
         } else if #[cfg(feature = "wolfssl-binding")] {
             WOLFSSL520
         } else {
-            OPENSSL111
+            TCP
         }
+    }
+};
+
+pub fn current_put() -> PutDescriptor {
+    PutDescriptor {
+        name: CURRENT_PUT_NAME,
+        ..PutDescriptor::default()
     }
 }

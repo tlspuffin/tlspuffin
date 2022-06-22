@@ -381,7 +381,7 @@ impl TraceContext {
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
-        let name = agent.descriptor.name;
+        let name = agent.name;
         self.agents.push(agent);
         name
     }
@@ -394,24 +394,22 @@ impl TraceContext {
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
@@ -439,7 +437,7 @@ impl Trace {
             if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.descriptor.is_reusable_with(descriptor))
+                .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(ctx.claims.clone(), descriptor.name);

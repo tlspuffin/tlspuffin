@@ -9,11 +9,11 @@ use openssl::{
 use rustls::msgs::message::OpaqueMessage;
 
 use crate::{
-    agent::{AgentName, PutName, TLSVersion},
+    agent::{AgentName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    put::{Put, PutConfig},
+    put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111},
     trace::ClaimList,
 };
@@ -31,8 +31,8 @@ mod util;
 pub fn new_openssl_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, config: PutConfig) -> Box<dyn Put> {
-            Box::new(OpenSSL::new(config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
+            Box::new(OpenSSL::new(agent_name, config).unwrap())
         }
 
         fn put_name(&self) -> PutName {
@@ -95,7 +95,7 @@ impl io::Write for OpenSSL {
 }
 
 impl Put for OpenSSL {
-    fn new(config: PutConfig) -> Result<OpenSSL, Error> {
+    fn new(agent_name: AgentName, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = if config.server {
             //let (cert, pkey) = openssl_binding::generate_cert();
             let (cert, pkey) = static_rsa_cert()?;
@@ -110,7 +110,7 @@ impl Put for OpenSSL {
         let mut openssl = OpenSSL { stream };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(config.claims, config.agent_name);
+        openssl.register_claimer(config.claims, agent_name);
 
         Ok(openssl)
     }

@@ -3,26 +3,46 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
     agent::{AgentDescriptor, AgentName, TLSVersion},
     error::Error,
     io::Stream,
+    put_registry::DUMMY_PUT,
     trace::ClaimList,
 };
+
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
+pub struct PutName(pub [char; 10]);
+
+impl Default for PutName {
+    fn default() -> Self {
+        DUMMY_PUT
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+pub struct PutDescriptor {
+    // FIXME: Rename?
+    pub name: PutName,
+    pub options: Vec<(String, String)>,
+}
 
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone)]
 pub struct PutConfig {
-    pub descriptor: AgentDescriptor,
+    pub descriptor: PutDescriptor,
+    pub server: bool,
+    pub tls_version: TLSVersion,
     pub claims: Rc<RefCell<ClaimList>>,
-    //pub options: HashMap,
 }
 
 pub trait Put: Stream + Drop + 'static {
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(config: PutConfig) -> Result<Self, Error>
+    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer

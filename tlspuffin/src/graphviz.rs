@@ -198,12 +198,12 @@ impl Term {
 
 #[cfg(test)]
 mod tests {
-    use crate::{agent::AgentName, put_registry::OPENSSL111, tls::seeds::*};
+    use crate::{agent::AgentName, put_registry::current_put, tls::seeds::*};
 
     #[test]
     fn test_dot_graph() {
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, OPENSSL111);
+        let trace = seed_client_attacker12(server, current_put());
         let _string = trace.dot_graph(true);
         //println!("{}", string);
     }

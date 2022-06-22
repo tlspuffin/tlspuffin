@@ -5,6 +5,7 @@ use std::{
     net::{AddrParseError, IpAddr, Shutdown, SocketAddr, TcpStream, ToSocketAddrs},
     rc::Rc,
     str::FromStr,
+    thread,
     time::Duration,
 };
 
@@ -15,10 +16,10 @@ use rustls::msgs::{
 };
 
 use crate::{
-    agent::{AgentName, PutName},
+    agent::AgentName,
     error::Error,
     io::{MessageResult, Stream},
-    put::{Put, PutConfig},
+    put::{Put, PutConfig, PutName},
     put_registry::{Factory, TCP},
     trace::ClaimList,
 };
@@ -26,8 +27,8 @@ use crate::{
 pub fn new_tcp_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, config: PutConfig) -> Box<dyn Put> {
-            Box::new(TcpPut::new(config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
+            Box::new(TcpPut::new(agent_name, config).unwrap())
         }
 
         fn put_name(&self) -> PutName {
@@ -66,13 +67,30 @@ pub struct TcpPut {
 
 impl TcpPut {
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let stream = TcpStream::connect(addr)?;
-        // We are waiting 1 second for a response of the PUT behind the TCP socket.
-        // If we are expecting data from it and this timeout is reached, then we assume that
-        // no more will follow.
-        stream.set_read_timeout(Some(Duration::from_millis(500)))?;
-        stream.set_nodelay(true)?;
-        Ok(stream)
+        let mut tries = 3;
+        let stream = loop {
+            if let Ok(stream) = TcpStream::connect(&addr) {
+                // We are waiting 1 second for a response of the PUT behind the TCP socket.
+                // If we are expecting data from it and this timeout is reached, then we assume that
+                // no more will follow.
+                stream.set_read_timeout(Some(Duration::from_millis(500)))?;
+                stream.set_nodelay(true)?;
+                break Some(stream);
+            }
+
+            tries -= 1;
+
+            if tries == 0 {
+                break None;
+            }
+
+            thread::sleep(Duration::from_millis(500));
+        };
+
+        stream.ok_or(io::Error::new(
+            ErrorKind::NotConnected,
+            "TcpPut failed to connect",
+        ))
     }
 }
 
@@ -140,11 +158,21 @@ impl Drop for TcpPut {
 }
 
 impl Put for TcpPut {
-    fn new(_config: PutConfig) -> Result<Self, Error>
+    fn new(_agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {
-        let stream = Self::new_stream(SocketAddr::new(IpAddr::from_str("127.0.0.1")?, 44330))?;
+        let (_, value) = config
+            .descriptor
+            .options
+            .iter()
+            .find(|(key, value)| -> bool { key == "port" })
+            .unwrap();
+
+        let stream = Self::new_stream(SocketAddr::new(
+            IpAddr::from_str("127.0.0.1")?,
+            u16::from_str(value).unwrap(),
+        ))?;
 
         Ok(Self {
             stream,
@@ -200,10 +228,13 @@ impl Put for TcpPut {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::HashMap,
         ffi::OsStr,
         io::{stderr, Read, Write},
         os::unix::io::RawFd,
         process::{Child, Command, Stdio},
+        thread,
+        time::Duration,
     };
 
     use libafl::executors::forkserver::ConfigTarget;
@@ -211,7 +242,8 @@ mod tests {
 
     use crate::{
         agent::AgentName,
-        put_registry::TCP,
+        put::PutDescriptor,
+        put_registry::{current_put, TCP},
         tls::seeds::{seed_client_attacker_full, seed_session_resumption_dhe_full},
         trace::TraceContext,
     };
@@ -301,23 +333,38 @@ mod tests {
 
     #[test]
     fn test_tcp_put_session_resumption_dhe_full() {
-        let _guard = OpenSSLServer::new(44330);
+        let port = 44330;
+        let _guard = OpenSSLServer::new(port);
+
+        let put = PutDescriptor {
+            name: TCP,
+            options: vec![("port".to_owned(), port.to_string())],
+            ..PutDescriptor::default()
+        };
 
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server, TCP);
+        let trace =
+            seed_session_resumption_dhe_full(initial_server, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
     }
 
     #[test]
     fn test_tcp_put_seed_client_attacker_full() {
-        let _guard = OpenSSLServer::new(44330);
+        let port = 44331;
+        let _guard = OpenSSLServer::new(port);
+
+        let put = PutDescriptor {
+            name: TCP,
+            options: vec![("port".to_owned(), port.to_string())],
+            ..PutDescriptor::default()
+        };
 
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server, TCP);
+        let (trace, ..) = seed_client_attacker_full(server, put);
 
         trace.execute(&mut ctx).unwrap();
     }

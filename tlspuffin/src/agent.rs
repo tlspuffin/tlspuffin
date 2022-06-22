@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
-    put::{Put, PutConfig},
+    put::{Put, PutConfig, PutDescriptor, PutName},
     put_registry::PUT_REGISTRY,
     trace::ClaimList,
 };
@@ -41,15 +41,12 @@ impl fmt::Display for AgentName {
     }
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-pub struct PutName(pub [char; 10]);
-
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct AgentDescriptor {
     pub name: AgentName,
-    pub put_name: PutName,
+    pub put_descriptor: PutDescriptor,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
     pub server: bool,
@@ -59,56 +56,59 @@ pub struct AgentDescriptor {
 }
 
 impl AgentDescriptor {
-    /// checks whether a agent with this descriptor is reusable with the other descriptor
-    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        self.server == other.server && self.tls_version == other.tls_version
-    }
-
     pub fn new_reusable_server(
         name: AgentName,
         tls_version: TLSVersion,
-        put_name: PutName,
+        put_descriptor: PutDescriptor,
     ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
-            put_name,
+            put_descriptor,
         }
     }
 
     pub fn new_reusable_client(
         name: AgentName,
         tls_version: TLSVersion,
-        put_name: PutName,
+        put_descriptor: PutDescriptor,
     ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: true,
-            put_name,
+            put_descriptor,
         }
     }
 
-    pub fn new_server(name: AgentName, tls_version: TLSVersion, put_name: PutName) -> Self {
+    pub fn new_server(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_descriptor: PutDescriptor,
+    ) -> Self {
         Self {
             name,
             tls_version,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor,
         }
     }
 
-    pub fn new_client(name: AgentName, tls_version: TLSVersion, put_name: PutName) -> Self {
+    pub fn new_client(
+        name: AgentName,
+        tls_version: TLSVersion,
+        put_descriptor: PutDescriptor,
+    ) -> Self {
         Self {
             name,
             tls_version,
             server: false,
             try_reuse: false,
-            put_name,
+            put_descriptor,
         }
     }
 }
@@ -121,7 +121,9 @@ pub enum TLSVersion {
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
-    pub descriptor: AgentDescriptor,
+    pub name: AgentName,
+    pub tls_version: TLSVersion,
+    pub server: bool,
     pub stream: Box<dyn Put>,
 }
 
@@ -130,25 +132,34 @@ impl Agent {
         descriptor: &AgentDescriptor,
         claims: Rc<RefCell<ClaimList>>,
     ) -> Result<Self, Error> {
+        let factory = PUT_REGISTRY
+            .find_factory(descriptor.put_descriptor.name)
+            .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
         let config = PutConfig {
-            descriptor: *descriptor,
+            descriptor: descriptor.put_descriptor.clone(),
+            server: descriptor.server,
+            tls_version: descriptor.tls_version,
             claims,
         };
 
-        let factory = PUT_REGISTRY
-            .find_factory(descriptor.put_name)
-            .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
-        let stream = factory.create(config);
+        let stream = factory.create(descriptor.name, config);
         let agent = Agent {
-            descriptor: *descriptor,
+            name: descriptor.name,
+            tls_version: descriptor.tls_version,
+            server: descriptor.server,
             stream,
         };
 
         Ok(agent)
     }
 
+    /// checks whether a agent is reusable with the descriptor
+    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        self.server == other.server && self.tls_version == other.tls_version
+    }
+
     pub fn rename(&mut self, claims: Rc<RefCell<ClaimList>>, new_name: AgentName) {
-        self.descriptor.name = new_name;
+        self.name = new_name;
         self.stream.rename_agent(claims, new_name);
     }
 

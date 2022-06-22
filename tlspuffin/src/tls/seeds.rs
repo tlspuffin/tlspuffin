@@ -12,8 +12,9 @@ use rustls::{
 };
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, PutName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, TLSVersion},
     algebra::Term,
+    put::{PutDescriptor, PutName},
     put_registry::current_put,
     term,
     tls::fn_impl::*,
@@ -22,7 +23,12 @@ use crate::{
     },
 };
 
-pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_successful(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -31,14 +37,14 @@ pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) 
                 tls_version: TLSVersion::V1_3,
                 server: false,
                 try_reuse: false,
-                put_name,
+                put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
                 try_reuse: false,
-                put_name,
+                put_descriptor: server_put,
             },
         ],
         steps: vec![
@@ -135,7 +141,12 @@ pub fn seed_successful(client: AgentName, server: AgentName, put_name: PutName) 
 }
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
-pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_successful_mitm(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -144,14 +155,14 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_name: PutN
                 tls_version: TLSVersion::V1_3,
                 server: false,
                 try_reuse: false,
-                put_name,
+                put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 server: true,
                 try_reuse: false,
-                put_name,
+                put_descriptor: server_put,
             },
         ],
         steps: vec![
@@ -250,7 +261,12 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName, put_name: PutN
     }
 }
 
-pub fn seed_successful12(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_successful12(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -259,14 +275,14 @@ pub fn seed_successful12(client: AgentName, server: AgentName, put_name: PutName
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_name,
+                put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_name,
+                put_descriptor: server_put,
             },
         ],
         steps: vec![
@@ -400,8 +416,13 @@ pub fn seed_successful12(client: AgentName, server: AgentName, put_name: PutName
     }
 }
 
-pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
-    let mut trace = seed_successful(client, server, put_name);
+pub fn seed_successful_with_ccs(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
+    let mut trace = seed_successful(client, server, client_put, server_put);
 
     // CCS Server -> Client
     trace.steps.insert(
@@ -434,9 +455,10 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName, put_name: 
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
-    put_name: PutName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
 ) -> Trace {
-    let mut trace = seed_successful_with_ccs(client, server, put_name);
+    let mut trace = seed_successful_with_ccs(client, server, client_put, server_put);
 
     trace.steps.push(Step {
         agent: server,
@@ -468,7 +490,7 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
-pub fn seed_client_attacker(server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -513,7 +535,7 @@ pub fn seed_client_attacker(server: AgentName, put_name: PutName) -> Trace {
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor: server_put,
         }],
         steps: vec![
             Step {
@@ -548,11 +570,11 @@ pub fn seed_client_attacker(server: AgentName, put_name: PutName) -> Trace {
     trace
 }
 
-pub fn seed_client_attacker12(server: AgentName, put_name: PutName) -> Trace {
-    _seed_client_attacker12(server, put_name).0
+pub fn seed_client_attacker12(server: AgentName, client_put: PutDescriptor) -> Trace {
+    _seed_client_attacker12(server, client_put).0
 }
 
-fn _seed_client_attacker12(server: AgentName, put_name: PutName) -> (Trace, Term) {
+fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Trace, Term) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -649,7 +671,7 @@ fn _seed_client_attacker12(server: AgentName, put_name: PutName) -> (Trace, Term
             tls_version: TLSVersion::V1_2,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor: server_put,
         }],
         steps: vec![
             Step {
@@ -691,8 +713,8 @@ fn _seed_client_attacker12(server: AgentName, put_name: PutName) -> (Trace, Term
     (trace, client_verify_data)
 }
 
-pub fn seed_cve_2021_3449(server: AgentName, put_name: PutName) -> Trace {
-    let (mut trace, client_verify_data) = _seed_client_attacker12(server, put_name);
+pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server, server_put);
 
     let renegotiation_client_hello = term! {
           fn_client_hello(
@@ -761,7 +783,12 @@ pub fn seed_cve_2021_3449(server: AgentName, put_name: PutName) -> Trace {
     trace
 }
 
-pub fn seed_heartbleed(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_heartbleed(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -794,14 +821,14 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName, put_name: PutName) 
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_name,
+                put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_name,
+                put_descriptor: server_put,
             },
         ],
         steps: vec![
@@ -826,7 +853,12 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName, put_name: PutName) 
     trace
 }
 
-pub fn seed_freak(client: AgentName, server: AgentName, put_name: PutName) -> Trace {
+pub fn seed_freak(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -835,14 +867,14 @@ pub fn seed_freak(client: AgentName, server: AgentName, put_name: PutName) -> Tr
                 tls_version: TLSVersion::V1_2,
                 server: false,
                 try_reuse: false,
-                put_name,
+                put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
                 server: true,
                 try_reuse: false,
-                put_name,
+                put_descriptor: server_put,
             },
         ],
         steps: vec![
@@ -940,9 +972,10 @@ pub fn seed_freak(client: AgentName, server: AgentName, put_name: PutName) -> Tr
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
-    put_name: PutName,
+    initial_server_put: PutDescriptor,
+    server_put: PutDescriptor,
 ) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, put_name);
+    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1033,7 +1066,7 @@ pub fn seed_session_resumption_dhe(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor: server_put,
         }],
         steps: vec![
             Step {
@@ -1067,9 +1100,10 @@ pub fn seed_session_resumption_dhe(
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
-    put_name: PutName,
+    initial_server_put: PutDescriptor,
+    server_put: PutDescriptor,
 ) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, put_name);
+    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1160,7 +1194,7 @@ pub fn seed_session_resumption_ke(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor: server_put,
         }],
         steps: vec![
             Step {
@@ -1194,7 +1228,7 @@ pub fn seed_session_resumption_ke(
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 pub fn seed_client_attacker_full(
     server: AgentName,
-    put_name: PutName,
+    put_descriptor: PutDescriptor,
 ) -> (Trace, Term, Term, Term) {
     let client_hello = term! {
           fn_client_hello(
@@ -1327,7 +1361,7 @@ pub fn seed_client_attacker_full(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor,
         }],
         steps: vec![
             Step {
@@ -1395,14 +1429,15 @@ pub fn seed_client_attacker_full(
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
-    put_name: PutName,
+    initial_server_put: PutDescriptor,
+    server_put: PutDescriptor,
 ) -> Trace {
     let (
         initial_handshake,
         server_hello_transcript,
         server_finished_transcript,
         client_finished_transcript,
-    ) = seed_client_attacker_full(initial_server, put_name);
+    ) = seed_client_attacker_full(initial_server, initial_server_put);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1537,7 +1572,7 @@ pub fn seed_session_resumption_dhe_full(
             tls_version: TLSVersion::V1_3,
             server: true,
             try_reuse: false,
-            put_name,
+            put_descriptor: server_put,
         }],
         steps: vec![
             Step {
@@ -1587,33 +1622,39 @@ pub fn create_corpus() -> [(Trace, &'static str); 8] {
     let agent_a = AgentName::first();
     let agent_b = agent_a.next();
 
-    const PUT: PutName = current_put();
+    let put = current_put();
 
     [
-        (seed_successful(agent_a, agent_b, PUT), "seed_successful"),
         (
-            seed_successful_with_ccs(agent_a, agent_b, PUT),
+            seed_successful(agent_a, agent_b, current_put(), current_put()),
+            "seed_successful",
+        ),
+        (
+            seed_successful_with_ccs(agent_a, agent_b, current_put(), current_put()),
             "seed_successful_with_ccs",
         ),
         (
-            seed_successful_with_tickets(agent_a, agent_b, PUT),
+            seed_successful_with_tickets(agent_a, agent_b, current_put(), current_put()),
             "seed_successful_with_tickets",
         ),
         (
-            seed_successful12(agent_a, agent_b, PUT),
+            seed_successful12(agent_a, agent_b, current_put(), current_put()),
             "seed_successful12",
         ),
-        (seed_client_attacker(agent_a, PUT), "seed_client_attacker"),
         (
-            seed_client_attacker12(agent_a, PUT),
+            seed_client_attacker(agent_a, current_put()),
+            "seed_client_attacker",
+        ),
+        (
+            seed_client_attacker12(agent_a, current_put()),
             "seed_client_attacker12",
         ),
         (
-            seed_session_resumption_dhe(agent_a, agent_b, PUT),
+            seed_session_resumption_dhe(agent_a, agent_b, current_put(), current_put()),
             "seed_session_resumption_dhe",
         ),
         (
-            seed_session_resumption_ke(agent_a, agent_b, PUT),
+            seed_session_resumption_ke(agent_a, agent_b, current_put(), current_put()),
             "seed_session_resumption_ke",
         ),
     ]
@@ -1635,12 +1676,11 @@ pub mod tests {
 
     use super::*;
     use crate::{
-        agent::{AgentName, PutName},
-        put_registry::PUT_REGISTRY,
+        agent::AgentName,
+        put::PutName,
+        put_registry::{CURRENT_PUT_NAME, PUT_REGISTRY},
         trace::{Action, TraceContext},
     };
-
-    const PUT: PutName = current_put();
 
     fn expect_crash<R>(mut func: R)
     where
@@ -1682,7 +1722,7 @@ pub mod tests {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_heartbleed(client, server, PUT);
+            let trace = seed_heartbleed(client, server, current_put());
 
             trace.execute(&mut ctx).unwrap();
         })
@@ -1691,7 +1731,7 @@ pub mod tests {
     #[test]
     fn test_seed_cve_2021_3449() {
         if !PUT_REGISTRY
-            .find_factory(PUT)
+            .find_factory(CURRENT_PUT_NAME)
             .unwrap()
             .put_version()
             .contains("1.1.1j")
@@ -1702,7 +1742,7 @@ pub mod tests {
             PUT_REGISTRY.make_deterministic();
             let mut ctx = TraceContext::new();
             let server = AgentName::first();
-            let trace = seed_cve_2021_3449(server, PUT);
+            let trace = seed_cve_2021_3449(server, current_put());
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -1713,7 +1753,7 @@ pub mod tests {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker12(server, PUT);
+        let trace = seed_client_attacker12(server, current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1727,7 +1767,7 @@ pub mod tests {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let trace = seed_client_attacker(server, PUT);
+        let trace = seed_client_attacker(server, current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1740,7 +1780,7 @@ pub mod tests {
         PUT_REGISTRY.make_deterministic();
         let mut ctx = TraceContext::new();
         let server = AgentName::first();
-        let (trace, ..) = seed_client_attacker_full(server, PUT);
+        let (trace, ..) = seed_client_attacker_full(server, current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1754,7 +1794,8 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe(initial_server, server, PUT);
+        let trace =
+            seed_session_resumption_dhe(initial_server, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1768,7 +1809,8 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_dhe_full(initial_server, server, PUT);
+        let trace =
+            seed_session_resumption_dhe_full(initial_server, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1782,7 +1824,8 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let initial_server = AgentName::first();
         let server = initial_server.next();
-        let trace = seed_session_resumption_ke(initial_server, server, PUT);
+        let trace =
+            seed_session_resumption_ke(initial_server, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1796,7 +1839,7 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful(client, server, PUT);
+        let trace = seed_successful(client, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1815,7 +1858,7 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_mitm(client, server, PUT);
+        let trace = seed_successful_mitm(client, server, current_put(), current_put());
         //println!("{}", trace);
 
         trace.execute(&mut ctx).unwrap();
@@ -1831,7 +1874,7 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_ccs(client, server, PUT);
+        let trace = seed_successful_with_ccs(client, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1848,7 +1891,7 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful_with_tickets(client, server, PUT);
+        let trace = seed_successful_with_tickets(client, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1861,7 +1904,7 @@ pub mod tests {
         let mut ctx = TraceContext::new();
         let client = AgentName::first();
         let server = client.next();
-        let trace = seed_successful12(client, server, PUT);
+        let trace = seed_successful12(client, server, current_put(), current_put());
 
         trace.execute(&mut ctx).unwrap();
 
@@ -1881,7 +1924,7 @@ pub mod tests {
             let mut ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_freak(client, server, PUT);
+            let trace = seed_freak(client, server, current_put());
 
             trace.execute(&mut ctx).unwrap();
         });
@@ -1893,11 +1936,11 @@ pub mod tests {
         let server = client.next();
 
         for trace in [
-            seed_successful12(client, server, PUT),
-            seed_successful(client, server, PUT),
-            seed_client_attacker12(server, PUT),
-            seed_cve_2021_3449(server, PUT),
-            seed_client_attacker(server, PUT),
+            seed_successful12(client, server, current_put(), current_put()),
+            seed_successful(client, server, current_put(), current_put()),
+            seed_client_attacker12(server, current_put()),
+            seed_cve_2021_3449(server, current_put()),
+            seed_client_attacker(server, current_put()),
         ] {
             for step in &trace.steps {
                 match &step.action {
@@ -1915,18 +1958,18 @@ pub mod tests {
         use test_log::test;
 
         use crate::{
-            agent::{AgentName, PutName},
+            agent::AgentName,
+            put::PutName,
             tls::seeds::*,
             trace::{Trace, TraceContext},
         };
-
-        const PUT: PutName = current_put();
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_dhe(initial_server, server, PUT);
+            let trace =
+                seed_session_resumption_dhe(initial_server, server, current_put(), current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -1940,7 +1983,8 @@ pub mod tests {
         fn test_serialisation_seed_seed_session_resumption_ke_json() {
             let initial_server = AgentName::first();
             let server = initial_server.next();
-            let trace = seed_session_resumption_ke(initial_server, server, PUT);
+            let trace =
+                seed_session_resumption_ke(initial_server, server, current_put(), current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -1953,7 +1997,7 @@ pub mod tests {
         #[test]
         fn test_serialisation_seed_client_attacker12_json() {
             let server = AgentName::first();
-            let trace = seed_client_attacker12(server, PUT);
+            let trace = seed_client_attacker12(server, current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -1968,7 +2012,7 @@ pub mod tests {
             let _ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful(client, server, PUT);
+            let trace = seed_successful(client, server, current_put(), current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -1983,7 +2027,7 @@ pub mod tests {
             let _ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful(client, server, PUT);
+            let trace = seed_successful(client, server, current_put(), current_put());
 
             let serialized1 = postcard::to_allocvec(&trace).unwrap();
 
@@ -1998,7 +2042,7 @@ pub mod tests {
             let _ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_successful12(client, server, PUT);
+            let trace = seed_successful12(client, server, current_put(), current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
@@ -2013,7 +2057,7 @@ pub mod tests {
             let _ctx = TraceContext::new();
             let client = AgentName::first();
             let server = client.next();
-            let trace = seed_heartbleed(client, server, PUT);
+            let trace = seed_heartbleed(client, server, current_put(), current_put());
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 
