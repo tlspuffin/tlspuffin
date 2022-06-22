@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 env:
-  RUST_LOG: trace
+  RUST_LOG: info
 
 jobs:
   build-linux:

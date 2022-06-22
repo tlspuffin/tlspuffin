@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - main
+      - trailofbits
 
 jobs:
   run-check:

@@ -15,6 +15,6 @@ jobs:
   build-deploy-docs:
     uses: ./.github/workflows/build-deploy-docs.yml
     with:
-      deploy: true
+      deploy: ${{ github.ref == 'refs/heads/main' }}
   build-linux:
     uses: ./.github/workflows/build-linux.yml
