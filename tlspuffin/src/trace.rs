@@ -71,7 +71,7 @@ use core::fmt;
 use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
 
 use itertools::Itertools;
-use log::trace;
+use log::{info, trace};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
@@ -560,7 +560,7 @@ impl OutputAction {
                 Some(message) => {
                     let knowledge = extract_knowledge(message)?;
 
-                    trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+                    info!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
@@ -572,13 +572,13 @@ impl OutputAction {
                             tls_message_type,
                             data: variable,
                         };
-                        trace!(
-                            "New knowledge {}: {} - {:?}  (counter: {})",
+                        info!(
+                            "New knowledge {}: {}  (counter: {})",
                             &knowledge,
                             remove_prefix(knowledge.data.type_name()),
-                            knowledge.data,
                             counter
                         );
+                        trace!("Knowledge data: {:?}", knowledge.data);
                         ctx.add_knowledge(knowledge)
                     }
                 }

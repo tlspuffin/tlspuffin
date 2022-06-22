@@ -2,13 +2,13 @@ use std::{
     cell::RefCell,
     io,
     io::{ErrorKind, Read, Write},
-    net::{AddrParseError, IpAddr, SocketAddr, TcpStream, ToSocketAddrs},
+    net::{AddrParseError, IpAddr, Shutdown, SocketAddr, TcpStream, ToSocketAddrs},
     rc::Rc,
     str::FromStr,
     time::Duration,
 };
 
-use log::error;
+use log::{error, info};
 use rustls::msgs::{
     deframer::MessageDeframer,
     message::{Message, OpaqueMessage},
@@ -67,39 +67,42 @@ pub struct TcpPut {
 impl TcpPut {
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
         let stream = TcpStream::connect(addr)?;
-        // FIXME: instead of having a timeout, switch to non-blocking sockets. In this case
-        // we would wait for new data with the Put::progress function
+        // We are waiting 1 second for a response of the PUT behind the TCP socket.
+        // If we are expecting data from it and this timeout is reached, then we assume that
+        // no more will follow.
         stream.set_read_timeout(Some(Duration::from_millis(500)))?;
+        stream.set_nodelay(true)?;
         Ok(stream)
     }
 }
 
 impl Stream for TcpPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.stream
-            .write_all(&mut opaque_message.clone().encode())
+        self.write_all(&mut opaque_message.clone().encode())
             .unwrap();
+        self.flush().unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        let mut first_message = self.deframer.frames.pop_front();
-
         // Retry to read if no more frames in the deframer buffer
-        if first_message.is_none() {
-            if let Err(e) = self.deframer.read(&mut self.stream) {
-                let kind = e.kind();
-                match kind {
-                    ErrorKind::WouldBlock => {
-                        // This is not a hard error. It just means we will should read again from
-                        // the TCPStream in the next steps.
+        let opaque_message = loop {
+            if let Some(opaque_message) = self.deframer.frames.pop_front() {
+                break Some(opaque_message);
+            } else {
+                if let Err(e) = self.deframer.read(&mut self.stream) {
+                    match e.kind() {
+                        ErrorKind::WouldBlock => {
+                            // This is not a hard error. It just means we will should read again from
+                            // the TCPStream in the next steps.
+                            break None;
+                        }
+                        _ => return Err(e.into()),
                     }
-                    _ => return Err(e.into()),
                 }
             }
-            first_message = self.deframer.frames.pop_front()
-        }
+        };
 
-        if let Some(opaque_message) = first_message {
+        if let Some(opaque_message) = opaque_message {
             let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
                 Ok(message) => Some(message),
                 Err(err) => {
@@ -196,8 +199,13 @@ impl Put for TcpPut {
 
 #[cfg(test)]
 mod tests {
-    use std::process::{Child, Command};
+    use std::{
+        io::{stderr, Read, Write},
+        os::unix::io::RawFd,
+        process::{Child, Command, Stdio},
+    };
 
+    use libafl::executors::forkserver::ConfigTarget;
     use tempfile::{tempdir, TempDir};
 
     use crate::{
@@ -208,52 +216,73 @@ mod tests {
     };
 
     struct OpenSSLServer {
-        child: Child,
+        child: Option<Child>,
         tmp: TempDir,
     }
 
     impl OpenSSLServer {
         pub fn new(port: u16) -> Self {
+            let output = Command::new("openssl")
+                .arg("version")
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("failed to output version")
+                .wait_with_output()
+                .expect("failed to wait on child");
+
+            stderr().write_all(&output.stderr).unwrap();
+            stderr().write_all(&output.stdout).unwrap();
+
             let dir = tempdir().unwrap();
             let key = dir.path().join("key.pem");
+            let key_path = key.as_path().to_str().unwrap();
             let cert = dir.path().join("cert.pem");
-            let _output = Command::new("openssl")
+            let cert_path = cert.as_path().to_str().unwrap();
+            let output = Command::new("openssl")
                 .arg("req")
                 .arg("-x509")
                 .arg("-newkey")
                 .arg("rsa:2048")
                 .arg("-keyout")
-                .arg(key.as_path().to_str().unwrap())
+                .arg(key_path)
                 .arg("-out")
-                .arg(cert.as_path().to_str().unwrap())
+                .arg(cert_path)
                 .arg("-days")
                 .arg("365")
                 .arg("-nodes")
                 .arg("-subj")
                 .arg("/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...")
-                /*.stdout(Stdio::null())
-                .stderr(Stdio::null())*/
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .spawn()
                 .expect("failed to generate certs")
-                .wait()
+                .wait_with_output()
                 .expect("failed to wait on child");
 
+            stderr().write_all(&output.stderr).unwrap();
+            stderr().write_all(&output.stdout).unwrap();
+
             Self {
-                child: Command::new("openssl")
-                    .arg("s_server")
-                    .arg("-accept")
-                    .arg(port.to_string())
-                    .arg("-msg")
-                    .arg("-debug")
-                    .arg("-state")
-                    .arg("-key")
-                    .arg(key.as_path().to_str().unwrap())
-                    .arg("-cert")
-                    .arg(cert.as_path().to_str().unwrap())
-                    /*.stdout(Stdio::null())
-                    .stderr(Stdio::null())*/
-                    .spawn()
-                    .expect("failed to execute process"),
+                child: Some(
+                    Command::new("openssl")
+                        .arg("s_server")
+                        .arg("-accept")
+                        .arg(port.to_string())
+                        .arg("-msg")
+                        .arg("-state")
+                        .arg("-key")
+                        .arg(key_path)
+                        .arg("-cert")
+                        .arg(cert_path)
+                        .stdin(Stdio::piped()) // This line is super important! Else the OpenSSL server immediately stops
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                        .expect("failed to execute process"),
+                ),
                 tmp: dir,
             }
         }
@@ -261,12 +290,26 @@ mod tests {
 
     impl Drop for OpenSSLServer {
         fn drop(&mut self) {
-            self.child.kill().expect("failed to stop server");
+            let child = &mut self.child;
+            child
+                .as_mut()
+                .unwrap()
+                .kill()
+                .expect("failed to stop server");
+            let output = child
+                .take()
+                .unwrap()
+                .wait_with_output()
+                .expect("failed to wait on child");
+            eprintln!("--- stderr from openssl server");
+            stderr().write_all(&output.stderr).unwrap();
+            eprintln!("--- stdout from openssl server");
+            stderr().write_all(&output.stdout).unwrap();
+            eprintln!("---");
         }
     }
 
     #[test]
-    #[ignore]
     fn test_tcp_put_session_resumption_dhe_full() {
         let _guard = OpenSSLServer::new(44330);
 
