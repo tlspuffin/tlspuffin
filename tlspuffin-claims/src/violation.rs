@@ -2,28 +2,10 @@ use std::{any::Any, fmt::Debug, hash::Hash};
 
 use itertools::Itertools;
 
-use crate::{Claim, ClaimCipher, ClaimType};
+use crate::{ffi, Claim, ClaimCipher, ClaimType};
 
 // Will be instantiated with (AgentName,Claim)
 pub type ClaimMessage<AgentName> = (AgentName, Claim);
-
-// This code is duplicated from super::super::agent, which is unfortunate.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum TLSVersion {
-    V1_3,
-    V1_2,
-    Unknown,
-}
-// This code is duplicated from super::super::agent, which is unfortunate.
-impl From<i32> for TLSVersion {
-    fn from(value: i32) -> Self {
-        match value {
-            0x303 => TLSVersion::V1_2,
-            0x304 => TLSVersion::V1_3,
-            _ => TLSVersion::Unknown,
-        }
-    }
-}
 
 pub fn is_violation<A>(claims: &[ClaimMessage<A>]) -> Option<&'static str>
 where
@@ -37,8 +19,8 @@ where
 
             let version = claim_a.version;
 
-            match version.data.into() {
-                TLSVersion::V1_2 => {
+            match version.data {
+                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
                     // TLS 1.2 Checks
                     if client.master_secret_12 != server.master_secret_12 {
                         return Some("Mismatching master secrets");
@@ -78,7 +60,7 @@ where
                         return Some("mismatching signature algorithms");
                     }
                 }
-                TLSVersion::V1_3 => {
+                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
                     // TLS 1.3 Checks
                     if client.master_secret != server.master_secret {
                         return Some("Mismatching master secrets");
@@ -137,7 +119,7 @@ where
                         return Some("mismatching signature algorithms");
                     }
                 }
-                _ => {
+                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
                     // no checks available
                 }
             }
