@@ -7,16 +7,16 @@
 //! # Example
 //!
 //! ```rust
-//! use tlspuffin::agent::{PutName, AgentName, AgentDescriptor, TLSVersion::*};
+//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! # use tlspuffin::put_registry::current_put;
 //!
-//! # const PUT: PutName = current_put();
+//! # let client_put = tlspuffin::put_registry::current_put();
+//! # let server_put = tlspuffin::put_registry::current_put();
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -29,8 +29,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, PUT),
-//!         AgentDescriptor::new_server(server, V1_3, PUT),
+//!         AgentDescriptor::new_client(client, V1_3, client_put),
+//!         AgentDescriptor::new_server(server, V1_3, server_put),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },
@@ -68,7 +68,9 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc};
+use std::{
+    any::TypeId, cell::RefCell, convert::TryFrom, fmt::Formatter, ops::Deref, rc::Rc, slice::Iter,
+};
 
 use itertools::Itertools;
 use log::{info, trace};
@@ -219,32 +221,47 @@ pub struct Knowledge {
 }
 
 #[derive(Clone)]
-pub struct VecClaimer {
+pub struct ClaimList {
     claims: Vec<(AgentName, Claim)>,
 }
 
-/// Claimer which gets claims from a VecClaimer but filters by [`AgentName`]
-pub struct AgentClaimer {
-    claimer: VecClaimer,
-    agent: AgentName,
+impl ClaimList {
+    pub fn iter(&self) -> Iter<'_, (AgentName, Claim)> {
+        self.claims.iter()
+    }
 }
 
-impl AgentClaimer {
-    pub fn new(claimer: VecClaimer, agent: AgentName) -> Self {
-        Self { claimer, agent }
+impl From<Vec<(AgentName, Claim)>> for ClaimList {
+    fn from(claims: Vec<(AgentName, Claim)>) -> Self {
+        Self { claims }
+    }
+}
+
+/// Claimer which gets claims from a VecClaimer but filters by [`AgentName`]
+pub struct ByAgentClaimList {
+    claims: ClaimList,
+}
+
+impl ByAgentClaimList {
+    pub fn new(claims: &ClaimList, agent_name: AgentName) -> Self {
+        let filtered = claims
+            .iter()
+            .cloned()
+            .rev()
+            .filter(|(name, _claim)| agent_name == *name)
+            .collect::<Vec<_>>();
+        Self {
+            claims: filtered.into(),
+        }
     }
 
     /// finds the last claim matching `type`
     pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claimer
-            .claims
-            .iter()
-            .rev()
-            .find(|(name, claim)| claim.typ == typ && self.agent == *name)
+        self.claims.iter().find(|(_name, claim)| claim.typ == typ)
     }
 }
 
-impl VecClaimer {
+impl ClaimList {
     pub fn new() -> Self {
         Self { claims: vec![] }
     }
@@ -263,7 +280,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    pub claimer: Rc<RefCell<VecClaimer>>,
+    claims: Rc<RefCell<ClaimList>>,
 }
 
 pub trait QueryMatcher {
@@ -272,13 +289,18 @@ pub trait QueryMatcher {
 
 impl TraceContext {
     pub fn new() -> Self {
-        let claimer = Rc::new(RefCell::new(VecClaimer::new()));
+        let claimer = Rc::new(RefCell::new(ClaimList::new()));
 
         Self {
             knowledge: vec![],
             agents: vec![],
-            claimer,
+            claims: claimer,
         }
+    }
+
+    pub fn claims_by_agent(&self, agent_name: AgentName) -> ByAgentClaimList {
+        let claims: &ClaimList = &self.claims.deref().borrow();
+        ByAgentClaimList::new(claims, agent_name)
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge) {
@@ -345,7 +367,7 @@ impl TraceContext {
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.progress()
+        agent.stream.progress(&agent_name)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -359,37 +381,35 @@ impl TraceContext {
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
-        let name = agent.descriptor.name;
+        let name = agent.name;
         self.agents.push(agent);
         name
     }
 
     pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
+        let agent_name = self.add_agent(Agent::new(descriptor, self.claims.clone())?);
         Ok(agent_name)
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
@@ -397,6 +417,16 @@ impl TraceContext {
             agent.reset()?;
         }
         Ok(())
+    }
+
+    pub fn agents_successful(&self) -> bool {
+        for agent in &self.agents {
+            if !agent.stream.is_state_successful() {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -417,10 +447,10 @@ impl Trace {
             if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.descriptor.is_reusable_with(descriptor))
+                .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(ctx.claimer.clone(), descriptor.name);
+                reusable.rename(ctx.claims.clone(), descriptor.name);
             } else {
                 // only spawn completely new if not yet existing
                 ctx.new_agent(descriptor)?;
@@ -456,7 +486,7 @@ impl Trace {
                 Action::Output(_) => {}
             }
 
-            let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
+            let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
 
             trace!(
                 "New Claims:\n{}",
@@ -467,13 +497,19 @@ impl Trace {
             );
         }
 
-        let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
+        let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
         if let Some(msg) = is_violation(claims) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 
         Ok(())
+    }
+
+    pub fn execute_default(&self) -> TraceContext {
+        let mut ctx = TraceContext::new();
+        self.execute(&mut ctx).unwrap();
+        ctx
     }
 }
 

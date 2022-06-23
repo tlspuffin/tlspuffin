@@ -19,8 +19,8 @@ use rustls::{
 use crate::error::Error;
 
 pub trait VariableData: Debug {
-    fn clone_box(&self) -> Box<dyn VariableData>;
-    fn clone_box_any(&self) -> Box<dyn Any>;
+    fn boxed(&self) -> Box<dyn VariableData>;
+    fn boxed_any(&self) -> Box<dyn Any>;
     fn type_id(&self) -> TypeId;
     fn type_name(&self) -> &'static str;
 }
@@ -31,11 +31,11 @@ impl<T: 'static> VariableData for T
 where
     T: Clone + Debug,
 {
-    fn clone_box(&self) -> Box<dyn VariableData> {
+    fn boxed(&self) -> Box<dyn VariableData> {
         Box::new(self.clone())
     }
 
-    fn clone_box_any(&self) -> Box<dyn Any> {
+    fn boxed_any(&self) -> Box<dyn Any> {
         Box::new(self.clone())
     }
 
@@ -52,6 +52,7 @@ where
 /// knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted
 /// Heartbeet or Handhake message (TLS 1.2), then only the message itself and the binary payload is
 /// returned.
+// FIXME: should be moved to a better spot
 pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
     Ok(match &message.payload {
         MessagePayload::Alert(alert) => {
@@ -101,7 +102,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                 HandshakePayload::ServerHello(sh) => {
                     let vars: Vec<Box<dyn VariableData>> = vec![
                         Box::new(message.clone()),
-                        hs.typ.clone_box(),
+                        Box::new(hs.typ),
                         Box::new(sh.random),
                         Box::new(sh.session_id),
                         Box::new(sh.cipher_suite),

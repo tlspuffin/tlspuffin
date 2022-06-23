@@ -379,7 +379,7 @@ impl SslRef {
                 wolf::AcceptStateTls13_TLS13_TICKET_SENT => "TLS13_TICKET_SENT",
                 _ => "Unknown",
             },
-            TLSVersion::Unknown | TLSVersion::V1_2 => match state as u32 {
+            TLSVersion::V1_2 => match state as u32 {
                 wolf::AcceptState_ACCEPT_BEGIN => "ACCEPT_BEGIN",
                 wolf::AcceptState_ACCEPT_BEGIN_RENEG => "ACCEPT_BEGIN_RENEG",
                 wolf::AcceptState_ACCEPT_CLIENT_HELLO_DONE => "ACCEPT_CLIENT_HELLO_DONE",

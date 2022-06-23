@@ -85,7 +85,6 @@ pub fn set_max_protocol_version(
             Ok(())
         }
         TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
-        TLSVersion::Unknown => Ok(()),
     }?;
 
     Ok(())

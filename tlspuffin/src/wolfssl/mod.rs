@@ -10,13 +10,13 @@ use foreign_types::{ForeignType, ForeignTypeRef};
 use rustls::msgs::message::OpaqueMessage;
 
 use crate::{
-    agent::{AgentName, PutName, TLSVersion},
+    agent::{AgentName, TLSVersion},
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    put::{Config, Put},
+    put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520},
     static_certs::{CERT, PRIVATE_KEY},
-    trace::VecClaimer,
+    trace::ClaimList,
     wolfssl::{
         error::{ErrorStack, SslError},
         pkey::PKey,
@@ -42,8 +42,8 @@ mod x509;
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
     impl Factory for WolfSSLFactory {
-        fn create(&self, config: Config) -> Box<dyn Put> {
-            Box::new(WolfSSL::new(config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
+            Box::new(WolfSSL::new(agent_name, config).unwrap())
         }
 
         fn put_name(&self) -> PutName {
@@ -70,7 +70,7 @@ impl From<ErrorStack> for Error {
 
 pub struct WolfSSL {
     stream: SslStream<MemoryStream>,
-    config: Config,
+    config: PutConfig,
 }
 
 impl Stream for WolfSSL {
@@ -110,7 +110,7 @@ impl Drop for WolfSSL {
 }
 
 impl Put for WolfSSL {
-    fn new(config: Config) -> Result<Self, Error>
+    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -119,13 +119,13 @@ impl Put for WolfSSL {
             // FIXME: let (cert, pkey) = static_rsa_cert()?;
 
             let mut ssl = Self::create_server(config.tls_version)?;
-            let claimer = config.claimer.clone();
+            let claimer = config.claims.clone();
             // FIXME: Improve code here -> deduplicate
             ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
                 let claimer = claimer.clone();
                 let mut fn_claimer = move |claim: security_claims::Claim| {
                     let mut claimer = (*claimer).borrow_mut();
-                    claimer.claim(config.agent_name, claim);
+                    claimer.claim(agent_name, claim);
                 };
                 claim_transcript(ssl.as_ptr(), &mut fn_claimer);
             });
@@ -143,19 +143,19 @@ impl Put for WolfSSL {
         };
 
         #[cfg(feature = "claims")]
-        stream.register_claimer(config.claimer, config.agent_name);
+        stream.register_claimer(config.claims, config.agent_name);
         Ok(wolfssl)
     }
 
-    fn progress(&mut self) -> Result<(), Error> {
+    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
         unsafe {
             // FIXME: Improve code here -> deduplicate
-            let claimer = self.config.claimer.clone();
-            let name = self.config.agent_name;
+            let claimer = self.config.claims.clone();
+            let agent_name = *agent_name;
             claim_transcript(
                 self.stream.ssl().as_ptr(),
                 &mut move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(name, claim);
+                    (*claimer).borrow_mut().claim(agent_name, claim);
                 },
             )
         }
@@ -177,12 +177,12 @@ impl Put for WolfSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         unsafe {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(agent_name, claim)
+                    (*claims).borrow_mut().claim(agent_name, claim)
                 },
             );
         }
@@ -196,19 +196,19 @@ impl Put for WolfSSL {
     }
 
     #[allow(unused_variables)]
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn rename_agent(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(claimer.clone(), agent_name);
+            self.register_claimer(claims.clone(), agent_name);
         }
 
         unsafe {
             // FIXME
-            self.config.claimer = claimer.clone();
-            self.config.agent_name = agent_name;
+            self.config.claims = claims.clone();
+            //self.config.agent_name = agent_name;
             // FIXME: Improve code here -> deduplicate
-            let claimer = claimer;
+            let claimer = claims;
             self.stream
                 .ssl_mut()
                 .set_msg_callback(move |ssl: &mut SslRef| unsafe {
@@ -249,7 +249,6 @@ impl WolfSSL {
         let mut ctx = match tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
-            TLSVersion::Unknown => panic!("Unknown tls version"),
         };
 
         // Disallow EXPORT in client
@@ -270,7 +269,6 @@ impl WolfSSL {
         let mut ctx = match tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
-            TLSVersion::Unknown => panic!("Unknown tls version"),
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"

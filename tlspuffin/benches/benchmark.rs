@@ -8,15 +8,12 @@ use libafl::{
     state::StdState,
 };
 use tlspuffin::{
-    agent::{AgentName, PutName},
     algebra::dynamic_function::make_dynamic,
     fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
     term,
     tls::{error::FnError, fn_impl::*, seeds::*},
-    trace::{Trace, TraceContext},
+    trace::Trace,
 };
-
-const PUT: PutName = tlspuffin::put_registry::current_put();
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -51,12 +48,11 @@ fn benchmark_mutations(c: &mut Criterion) {
 
     group.bench_function("ReplaceReuseMutator", |b| {
         let mut state = create_state();
-        let client = AgentName::first();
         let mut mutator = ReplaceReuseMutator::new(TermConstraints {
             min_term_size: 0,
             max_term_size: 200,
         });
-        let mut trace = seed_client_attacker12(client, PUT);
+        let mut trace = seed_client_attacker12.build_trace();
 
         b.iter(|| {
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -112,76 +108,43 @@ fn benchmark_seeds(c: &mut Criterion) {
 
     group.bench_function("seed_successful", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_successful(client, server, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_successful.execute_trace();
         })
     });
 
     group.bench_function("seed_successful12", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_successful12(client, server, PUT);
-
-            trace.execute(&mut ctx).unwrap()
+            seed_successful12.execute_trace();
         })
     });
 
     group.bench_function("seed_client_attacker", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let trace = seed_client_attacker(client, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_client_attacker.execute_trace();
         })
     });
 
     group.bench_function("seed_client_attacker12", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let client = AgentName::first();
-            let trace = seed_client_attacker12(client, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_client_attacker12.execute_trace();
         })
     });
 
     group.bench_function("seed_session_resumption_dhe", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let initial_server = AgentName::first();
-            let server = initial_server.next();
-            let trace = seed_session_resumption_dhe(initial_server, server, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_session_resumption_dhe.execute_trace();
         })
     });
 
     group.bench_function("seed_session_resumption_ke", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let initial_server = AgentName::first();
-            let server = initial_server.next();
-            let trace = seed_session_resumption_ke(initial_server, server, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_session_resumption_ke.execute_trace();
         })
     });
 
     group.bench_function("seed_session_resumption_dhe_full", |b| {
         b.iter(|| {
-            let mut ctx = TraceContext::new();
-            let initial_server = AgentName::first();
-            let server = initial_server.next();
-            let trace = seed_session_resumption_dhe_full(initial_server, server, PUT);
-
-            trace.execute(&mut ctx).unwrap();
+            seed_session_resumption_dhe_full.execute_trace();
         })
     });
 

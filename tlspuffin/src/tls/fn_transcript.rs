@@ -4,7 +4,7 @@
 use rustls::{hash_hs::HandshakeHash, tls13};
 use security_claims::{Claim, ClaimType};
 
-use crate::{agent::AgentName, tls::error::FnError, trace::AgentClaimer};
+use crate::{agent::AgentName, tls::error::FnError, trace::ByAgentClaimList};
 
 fn into_transcript(
     claim: Option<&(AgentName, Claim)>,
@@ -23,18 +23,18 @@ fn into_transcript(
     )))
 }
 
-fn find_transcript(claims: &AgentClaimer, typ: ClaimType) -> Result<HandshakeHash, FnError> {
+fn find_transcript(claims: &ByAgentClaimList, typ: ClaimType) -> Result<HandshakeHash, FnError> {
     let claim = claims.find_last_claim(typ);
     into_transcript(claim, typ)
 }
 
-pub fn fn_server_hello_transcript(claims: &AgentClaimer) -> Result<HandshakeHash, FnError> {
+pub fn fn_server_hello_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
     find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SH)
 }
 
-pub fn fn_server_finished_transcript(claims: &AgentClaimer) -> Result<HandshakeHash, FnError> {
+pub fn fn_server_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
     find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN)
 }
-pub fn fn_client_finished_transcript(claims: &AgentClaimer) -> Result<HandshakeHash, FnError> {
+pub fn fn_client_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
     find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN)
 }
