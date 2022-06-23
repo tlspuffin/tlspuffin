@@ -10,36 +10,23 @@ def main():
     parser = argparse.ArgumentParser(description='Plots statistics')
     parser.add_argument('experiment', type=str,
                         help='Name of the experiment')
-    parser.add_argument('--ssh',
-                        action='store_true',
-                        help='Enable SSH mode')
     parser.add_argument('--worker_id', type=int,
                         default=1,
                         help='Filter log entries from this worker id (deprecated, before was set to 0) but it seems that libAFL changed its logs.')
-    parser.add_argument('--host', type=str,
-                        default=HOST,
-                        help='If --ssh is enabled, this defines the host name of the target machine.')
-    parser.add_argument('--path', type=str,
-                        default=PATH,
-                        help='If --ssh is enabled, this defines the path of the tlspuffin folder at the target machine.')
-    parser.add_argument('--user', type=str,
-                        default=USER,
-                        help='If --ssh is enabled, this defines the user name at the target machine.')
     parser.add_argument('--save', type=str,
                         help='Save the output as a PDF at the given path.')
     parser.add_argument('--fewer', dest='fewer', action='store_true',
                         help='Only displays most important tables.')
     args = parser.parse_args()
 
-    if not args.ssh:
-        stats_path = "%s/stats.json" % args.experiment
-        print("Loading file \"%s\"." % stats_path)
-        id_0_stats = load_json_slurpy(stats_path, args.worker_id)
-        log_path = "%s/tlspuffin-log.json" % args.experiment
-        print("Loading file \"%s\"." % log_path)
-        log = load_json_slurpy_log(log_path)
-    else:
-        (id_0_stats,log) = load_json_slurpy_ssh(args.host, args.path, args.experiment, args.user, args.worker_id)
+
+    stats_path = "%s/stats.json" % args.experiment
+    print("Loading file \"%s\"." % stats_path)
+    id_0_stats = load_json_slurpy(stats_path, args.worker_id)
+    log_path = "%s/tlspuffin-log.json" % args.experiment
+    print("Loading file \"%s\"." % log_path)
+    log = load_json_slurpy_log(log_path)
+
     print("Files loaded.")
 
     if id_0_stats == []:

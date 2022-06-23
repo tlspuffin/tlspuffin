@@ -84,22 +84,6 @@ impl Stream for WolfSSL {
     }
 }
 
-impl Read for WolfSSL {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.stream.get_mut().read(buf)
-    }
-}
-
-impl Write for WolfSSL {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.stream.get_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.stream.get_mut().flush()
-    }
-}
-
 impl Drop for WolfSSL {
     fn drop(&mut self) {
         #[cfg(feature = "claims")]

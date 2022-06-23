@@ -17,6 +17,7 @@ use tlspuffin::{
     experiment::*,
     fuzzer::{start, FuzzerConfig},
     graphviz::write_graphviz,
+    log::create_stdout_config,
     put_registry::PUT_REGISTRY,
     tls::seeds::create_corpus,
     trace::{Trace, TraceContext},
@@ -53,31 +54,8 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-fn create_config(log_path: &PathBuf) -> Config {
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new(
-            "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
-        )))
-        .build();
-    let file_appender = FileAppender::builder()
-        .encoder(Box::new(JsonEncoder::new()))
-        .encoder(Box::new(JsonEncoder::new()))
-        .build(&log_path)
-        .unwrap();
-
-    Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .appender(Appender::builder().build("file", Box::new(file_appender)))
-        .build(
-            Root::builder()
-                .appenders(vec!["stdout", "file"])
-                .build(LevelFilter::Info),
-        )
-        .unwrap()
-}
-
 fn main() {
-    let handle = log4rs::init_config(create_config(&PathBuf::from("tlspuffin-log.json"))).unwrap();
+    let log_handle = log4rs::init_config(create_stdout_config()).unwrap();
 
     let matches = create_app().get_matches();
 
@@ -182,21 +160,23 @@ fn main() {
         };
 
         fs::create_dir_all(&experiment_path).unwrap();
-        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
 
-        start(FuzzerConfig {
-            initial_corpus_dir: experiment_path.join("seeds"),
-            static_seed,
-            max_iters,
-            core_definition: core_definition.to_string(),
-            corpus_dir: experiment_path.join("corpus"),
-            objective_dir: experiment_path.join("objective"),
-            broker_port: port,
-            monitor_file: experiment_path.join("stats.json"),
-            minimizer,
-            mutation_stage_config: Default::default(),
-            mutation_config: Default::default(),
-            monitor,
-        });
+        start(
+            FuzzerConfig {
+                initial_corpus_dir: experiment_path.join("seeds"),
+                static_seed,
+                max_iters,
+                core_definition: core_definition.to_string(),
+                corpus_dir: experiment_path.join("corpus"),
+                objective_dir: experiment_path.join("objective"),
+                broker_port: port,
+                monitor_file: experiment_path.join("stats.json"),
+                minimizer,
+                mutation_stage_config: Default::default(),
+                mutation_config: Default::default(),
+                monitor,
+            },
+            log_handle,
+        );
     }
 }

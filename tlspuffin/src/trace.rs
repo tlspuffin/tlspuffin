@@ -73,7 +73,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use log::{info, trace};
+use log::{debug, info, trace};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
@@ -500,7 +500,8 @@ impl Trace {
         let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
         if let Some(msg) = is_violation(claims) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            return Err(Error::SecurityClaim(msg, claims.clone()));
+            let claims: Vec<_> = claims.clone();
+            return Err(Error::SecurityClaim(msg, claims));
         }
 
         Ok(())
@@ -596,7 +597,7 @@ impl OutputAction {
                 Some(message) => {
                     let knowledge = extract_knowledge(message)?;
 
-                    info!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+                    trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
@@ -608,13 +609,13 @@ impl OutputAction {
                             tls_message_type,
                             data: variable,
                         };
-                        info!(
+                        trace!(
                             "New knowledge {}: {}  (counter: {})",
                             &knowledge,
                             remove_prefix(knowledge.data.type_name()),
                             counter
                         );
-                        trace!("Knowledge data: {:?}", knowledge.data);
+                        debug!("Knowledge data: {:?}", knowledge.data);
                         ctx.add_knowledge(knowledge)
                     }
                 }
@@ -629,7 +630,7 @@ impl OutputAction {
             };
 
             let counter = ctx.number_matching_message(step.agent, type_id, None);
-            trace!(
+            debug!(
                 "New knowledge {}: {} (counter: {})",
                 &knowledge,
                 remove_prefix(knowledge.data.type_name()),

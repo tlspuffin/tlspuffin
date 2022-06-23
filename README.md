@@ -96,6 +96,10 @@ WolfSSL:
 * autoconf
 * libtool
 
+For the python `tlspuffin-analyzer`:
+* libyajl-dev
+* `wheel` from Python pip
+
 ## Building
 
 Build the project:

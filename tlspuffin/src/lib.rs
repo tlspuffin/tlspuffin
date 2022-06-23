@@ -21,6 +21,7 @@ pub mod experiment;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
+pub mod log;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
 pub mod put;

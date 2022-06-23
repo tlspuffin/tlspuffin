@@ -78,22 +78,6 @@ impl Stream for OpenSSL {
     }
 }
 
-impl io::Read for OpenSSL {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.stream.get_mut().read(buf)
-    }
-}
-
-impl io::Write for OpenSSL {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.stream.get_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.stream.get_mut().flush()
-    }
-}
-
 impl Put for OpenSSL {
     fn new(agent_name: AgentName, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = if config.server {

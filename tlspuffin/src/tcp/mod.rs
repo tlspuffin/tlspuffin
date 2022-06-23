@@ -95,9 +95,10 @@ impl TcpPut {
 
 impl Stream for TcpPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_all(&mut opaque_message.clone().encode())
+        self.stream
+            .write_all(&mut opaque_message.clone().encode())
             .unwrap();
-        self.flush().unwrap();
+        self.stream.flush().unwrap()
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
@@ -131,22 +132,6 @@ impl Stream for TcpPut {
             // no message to return
             Ok(None)
         }
-    }
-}
-
-impl Read for TcpPut {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.stream.read(buf)
-    }
-}
-
-impl Write for TcpPut {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.stream.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.stream.flush()
     }
 }
 
