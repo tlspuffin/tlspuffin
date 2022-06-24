@@ -8,7 +8,7 @@ use libafl::{
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
     },
-    corpus::{CachedOnDiskCorpus, Corpus, OnDiskCorpus},
+    corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
         EventConfig, EventFirer, EventManager, EventRestarter, HasEventManagerId,
         LlmpRestartingEventManager, ProgressReporter,
@@ -455,8 +455,21 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) {
             info!("Seed is {}", seed);
             RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
                 .with_rand(StdRand::with_seed(seed))
-                .with_corpus(CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap())
-                .with_objective_corpus(OnDiskCorpus::new(config.objective_dir.clone()).unwrap())
+                .with_corpus(
+                    CachedOnDiskCorpus::new_save_meta(
+                        config.corpus_dir.clone(),
+                        Some(OnDiskMetadataFormat::Json),
+                        1000,
+                    )
+                    .unwrap(),
+                )
+                .with_objective_corpus(
+                    OnDiskCorpus::new_save_meta(
+                        config.objective_dir.clone(),
+                        Some(OnDiskMetadataFormat::JsonPretty),
+                    )
+                    .unwrap(),
+                )
                 .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
                 .install_minimizer()
                 .run_client()
