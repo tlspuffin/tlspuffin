@@ -1,8 +1,11 @@
 use std::{
-    env, fs,
+    env,
+    ffi::CStr,
+    fs,
     fs::File,
     io::{Read, Write},
     path::PathBuf,
+    ptr,
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
@@ -54,6 +57,29 @@ fn create_app() -> Command<'static> {
         ])
 }
 
+unsafe extern "C" fn iter(
+    info: *mut libc::dl_phdr_info,
+    _size: libc::size_t,
+    _data: *mut libc::c_void,
+) -> libc::c_int {
+    let library_name = CStr::from_ptr((*info).dlpi_name).to_str().unwrap();
+    if library_name.contains("libasan") {
+        1
+    } else {
+        0
+    }
+}
+
+fn asan_info() {
+    unsafe {
+        if libc::dl_iterate_phdr(Some(iter), ptr::null_mut()) > 0 {
+            info!("Running with ASAN support.")
+        } else {
+            info!("Running WITHOUT ASAN support.")
+        }
+    }
+}
+
 fn main() {
     let log_handle = log4rs::init_config(create_stdout_config()).unwrap();
 
@@ -71,6 +97,8 @@ fn main() {
     for version in PUT_REGISTRY.version_strings() {
         info!("{}", version);
     }
+
+    asan_info();
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         fs::create_dir_all("./seeds").unwrap();

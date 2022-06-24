@@ -196,7 +196,7 @@ nyi_fn!();
 /// NewSessionTicket => 0x04,
 pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -214,7 +214,7 @@ pub fn fn_new_session_ticket13(
     extensions: &Vec<NewSessionTicketExtension>,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -283,7 +283,7 @@ pub fn fn_certificate13(
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      Vec<CertificateEntry> is not possible to create
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -310,7 +310,7 @@ pub fn fn_server_key_exchange(data: &Vec<u8>) -> Result<Message, FnError> {
 /// CertificateRequest => 0x0d,
 pub fn fn_certificate_request() -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -329,7 +329,7 @@ pub fn fn_certificate_request13(
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      Vec<CertReqExtension> is not possible to create
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -354,7 +354,7 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
 /// CertificateVerify => 0x0f,
 pub fn fn_certificate_verify(signature: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
@@ -426,7 +426,7 @@ nyi_fn!();
 /// MessageHash => 0xfe
 pub fn fn_message_hash(hash: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {

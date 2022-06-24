@@ -1,4 +1,4 @@
-//! TODO: Write intro: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/64
+//! TODO: Write intro:https://github.com/tlspuffin/tlspuffin/issues/94
 //!
 //! ### Used protocol and cryptographic libraries
 //!
@@ -18,6 +18,7 @@ pub mod algebra;
 pub mod debug;
 pub mod error;
 pub mod experiment;
+pub mod extraction;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;

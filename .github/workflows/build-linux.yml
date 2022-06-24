@@ -59,6 +59,11 @@ jobs:
         with:
           name: cargo-timings-${{ matrix.name }}
           path: target/cargo-timings/cargo-timing.html
+      - name: Upload Build
+        uses: actions/upload-artifact@v2
+        with:
+          name: tlspuffin-${{ matrix.name }}
+          path: target/x86_64-unknown-linux-gnu/release/tlspuffin
       - name: Check
         shell: bash
         run: just check tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
@@ -66,7 +71,3 @@ jobs:
         if: "!matrix.skip-tests"
         shell: bash
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
-      - uses: actions/upload-artifact@v2
-        with:
-          name: tlspuffin-${{ matrix.name }}
-          path: target/x86_64-unknown-linux-gnu/release/tlspuffin

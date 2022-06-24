@@ -37,7 +37,6 @@ impl Display for PutName {
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
 pub struct PutDescriptor {
-    // FIXME: Rename?
     pub name: PutName,
     pub options: Vec<(String, String)>,
 }

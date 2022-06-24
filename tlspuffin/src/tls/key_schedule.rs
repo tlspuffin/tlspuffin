@@ -17,9 +17,9 @@ pub fn tls13_handshake_traffic_secret(
     psk: &Option<Vec<u8>>,
     server: bool,
 ) -> Result<(&'static SupportedCipherSuite, Prk, KeyScheduleHandshake), FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
-    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://github.com/tlspuffin/tlspuffin/issues/129
+    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
@@ -49,7 +49,7 @@ pub fn tls13_application_traffic_secret(
     ),
     FnError,
 > {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
     let (suite, _key, key_schedule) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
 
@@ -115,7 +115,7 @@ pub fn dhe_key_schedule(
             Ok(KeySchedulePreHandshake::new(hkdf_algorithm).into_handshake(&shared_secret))
         }
         (None, Some(psk)) => {
-            // todo this empty secret is not specified in the RFC 8446
+            // Note: his empty secret is not specified in the RFC 8446
             let zeroes = [0u8; digest::MAX_OUTPUT_LEN];
             let early = KeyScheduleEarly::new(hkdf_algorithm, psk.as_slice());
             let pre: KeySchedulePreHandshake = early.into();

@@ -18,6 +18,7 @@ use crate::{
     trace::ClaimList,
 };
 
+#[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
 
@@ -165,7 +166,7 @@ impl Put for OpenSSL {
     }
 
     fn make_deterministic() {
-        #[cfg(feature = "openssl111")]
+        #[cfg(all(feature = "deterministic", feature = "openssl111"))]
         deterministic::set_openssl_deterministic();
         #[cfg(not(feature = "openssl111"))]
         log::warn!("Unable to make PUT determinisitic!");
@@ -197,17 +198,11 @@ impl OpenSSL {
                     .as_ref()
                     .unwrap(),
             )?;
-            // TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback after fix
-            //ctx_builder.set_tmp_ecdh_callback(|_, _, _| {
-            //   openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
-            //});
         }
 
         #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
         {
             ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref().unwrap())?;
-            // TODO: https://github.com/sfackler/rust-openssl/issues/1529 use callback use callback after fix
-            //ctx_builder.set_tmp_rsa_callback(|_, is_export, keylength| openssl::rsa::Rsa::generate(keylength));
         }
 
         // Allow EXPORT in server
@@ -221,7 +216,7 @@ impl OpenSSL {
 
     fn create_client(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        // Not sure whether we want this disabled or enabled: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/26
+        // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
         // for now.
         // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode

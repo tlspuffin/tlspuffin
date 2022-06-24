@@ -158,7 +158,7 @@ pub fn fn_status_request_extension(
     extensions: &Vec<u8>,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::CertificateStatusRequest(
         CertificateStatusRequest::OCSP(OCSPCertificateStatusRequest {
             responder_ids: responder_ids
@@ -177,7 +177,7 @@ pub fn fn_status_request_certificate_extension(
     ocsp_response: &Vec<u8>,
 ) -> Result<CertificateExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(CertificateExtension::CertificateStatus(CertificateStatus {
         ocsp_response: PayloadU24::new(ocsp_response.clone()),
     }))
@@ -231,7 +231,7 @@ pub fn fn_empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
 }
 pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Vec<u8>>, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     let mut new = vec_of_vec.clone();
     new.push(data.clone());
     Ok(new)
@@ -264,7 +264,7 @@ pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, Fn
 }
 pub fn fn_signed_certificate_timestamp_server_extension() -> Result<ServerExtension, FnError> {
     // todo unclear where what to put here
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ServerExtension::SignedCertificateTimestamp(vec![
         PayloadU16::new(Vec::from([42u8; 128])),
     ]))
@@ -272,7 +272,7 @@ pub fn fn_signed_certificate_timestamp_server_extension() -> Result<ServerExtens
 pub fn fn_signed_certificate_timestamp_certificate_extension(
 ) -> Result<CertificateExtension, FnError> {
     // todo unclear where what to put here
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(CertificateExtension::SignedCertificateTimestamp(vec![
         PayloadU16::new(Vec::from([42u8; 128])),
     ]))
@@ -320,7 +320,7 @@ pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError>
 }
 pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::SessionTicket(ClientSessionTicket::Offer(
         Payload::new(ticket.clone()),
     )))
@@ -339,7 +339,7 @@ nyi_fn!();
 /// PreSharedKey => 0x0029,
 pub fn fn_new_preshared_key_identity(identity: &Vec<u8>) -> Result<PresharedKeyIdentity, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(PresharedKeyIdentity {
         identity: PayloadU16::new(identity.clone()),
         obfuscated_ticket_age: 10,
@@ -509,14 +509,14 @@ nyi_fn!();
 /// TransportParameters/quic_transport_parameters => 0x0039,
 pub fn fn_transport_parameters_extension(parameters: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::TransportParameters(parameters.clone()))
 }
 pub fn fn_transport_parameters_server_extension(
     parameters: &Vec<u8>,
 ) -> Result<ServerExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ServerExtension::TransportParameters(parameters.clone()))
 }
 /// NextProtocolNegotiation => 0x3374,
@@ -539,7 +539,7 @@ pub fn fn_transport_parameters_draft_extension(
     parameters: &Vec<u8>,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::TransportParametersDraft(
         parameters.clone(),
     ))
@@ -548,7 +548,7 @@ pub fn fn_transport_parameters_draft_server_extension(
     parameters: &Vec<u8>,
 ) -> Result<ServerExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
-    //      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+    //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ServerExtension::TransportParametersDraft(
         parameters.clone(),
     ))

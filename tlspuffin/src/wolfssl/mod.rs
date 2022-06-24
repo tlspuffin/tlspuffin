@@ -99,9 +99,6 @@ impl Put for WolfSSL {
         Self: Sized,
     {
         let ssl = if config.server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            // FIXME: let (cert, pkey) = static_rsa_cert()?;
-
             let mut ssl = Self::create_server(config.tls_version)?;
             let claimer = config.claims.clone();
             // FIXME: Improve code here -> deduplicate
@@ -190,7 +187,6 @@ impl Put for WolfSSL {
         unsafe {
             // FIXME
             self.config.claims = claims.clone();
-            //self.config.agent_name = agent_name;
             // FIXME: Improve code here -> deduplicate
             let claimer = claims;
             self.stream
@@ -215,16 +211,16 @@ impl Put for WolfSSL {
         self.stream.state_string_long()
     }
 
+    fn is_state_successful(&self) -> bool {
+        self.stream.is_handshake_done()
+    }
+
     fn version() -> &'static str {
         unsafe { version() }
     }
 
     fn make_deterministic() {
         // TODO
-    }
-
-    fn is_state_successful(&self) -> bool {
-        self.stream.is_handshake_done()
     }
 }
 
@@ -268,7 +264,7 @@ impl WolfSSL {
         let pkey = PKey::from_rsa(rsa)?;
         ctx.set_private_key(pkey.as_ref())?;
 
-        // TODO: Callbacks for experiements
+        // Callbacks for experiements
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
         //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
         //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));

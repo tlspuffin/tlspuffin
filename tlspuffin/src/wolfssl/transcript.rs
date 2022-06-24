@@ -36,7 +36,6 @@ pub unsafe fn claim_transcript(ssl: *mut wolf::WOLFSSL, claimer: &mut Claimer) {
             },
             ..security_claims::Claim::default()
         }),
-        // FIXME
         wolf::AcceptStateTls13_TLS13_TICKET_SENT => claimer(security_claims::Claim {
             typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN,
             transcript: security_claims::ClaimTranscript {

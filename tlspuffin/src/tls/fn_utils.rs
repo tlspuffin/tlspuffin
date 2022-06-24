@@ -174,7 +174,7 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
     let hkdf_alg = suite
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
@@ -285,7 +285,7 @@ pub fn fn_encrypt12(
 ) -> Result<Message, FnError> {
     let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
-    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client); // FIXME (update)
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client);
     let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
     Ok(Message::try_from(encrypted.into_plain_message())?)
 }

@@ -1,4 +1,4 @@
-//! Stats to disply both cumulative and per-client stats
+//! Stats to display both cumulative and per-client stats
 
 use core::{time, time::Duration};
 use std::{
@@ -16,10 +16,10 @@ use libafl::{
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
-use crate::fuzzer::stats_observer::{RuntimeStats, STATS};
+use crate::fuzzer::stats_stage::{RuntimeStats, STATS};
 
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
-pub struct PuffinMonitor<F>
+pub struct StatsMonitor<F>
 where
     F: FnMut(String),
 {
@@ -28,10 +28,10 @@ where
     client_stats: Vec<ClientStats>,
     log_count: u64,
     stats_file: PathBuf,
-    serializer: JSONSerializer<BufWriter<File>>,
+    json_writer: JSONSerializer<BufWriter<File>>,
 }
 
-impl<F> Clone for PuffinMonitor<F>
+impl<F> Clone for StatsMonitor<F>
 where
     F: FnMut(String) + Clone,
 {
@@ -42,7 +42,7 @@ where
             client_stats: self.client_stats.clone(),
             log_count: self.log_count,
             stats_file: self.stats_file.clone(),
-            serializer: JSONSerializer::new(BufWriter::new(
+            json_writer: JSONSerializer::new(BufWriter::new(
                 OpenOptions::new()
                     .append(true)
                     .open(&self.stats_file)
@@ -52,7 +52,7 @@ where
     }
 }
 
-impl<F> PuffinMonitor<F>
+impl<F> StatsMonitor<F>
 where
     F: FnMut(String),
 {
@@ -147,7 +147,7 @@ where
             total_execs,
             exec_per_sec: exec_sec,
         }
-        .serialize(&mut self.serializer)
+        .serialize(&mut self.json_writer)
         .unwrap();
     }
 
@@ -374,7 +374,7 @@ impl TraceStatistics {
     }
 }
 
-impl<F> Monitor for PuffinMonitor<F>
+impl<F> Monitor for StatsMonitor<F>
 where
     F: FnMut(String),
 {
@@ -405,12 +405,12 @@ where
     }
 }
 
-impl<F> PuffinMonitor<F>
+impl<F> StatsMonitor<F>
 where
     F: FnMut(String),
 {
     pub fn new(print_fn: F, stats_file: PathBuf) -> Result<Self, io::Error> {
-        let writer = JSONSerializer::new(BufWriter::new(
+        let json_writer = JSONSerializer::new(BufWriter::new(
             OpenOptions::new()
                 .append(true)
                 .create(true)
@@ -422,7 +422,7 @@ where
             client_stats: vec![],
             log_count: 0,
             stats_file,
-            serializer: writer,
+            json_writer,
         })
     }
 }

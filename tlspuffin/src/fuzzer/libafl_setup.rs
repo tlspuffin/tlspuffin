@@ -32,10 +32,10 @@ use log4rs::Handle;
 use super::harness;
 use crate::{
     fuzzer::{
-        monitor::PuffinMonitor,
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
-        stats_observer::StatsStage,
+        stats_monitor::StatsMonitor,
+        stats_stage::StatsStage,
     },
     log::create_file_config,
     put_registry::PUT_REGISTRY,
@@ -50,11 +50,7 @@ pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
-    feedback_or!(MaxMapFeedback::new_tracking(
-        edges_observer,
-        false, // [TODO] [LH] Why are track_index and track_novelties are false?
-        false
-    ))
+    feedback_or!(MaxMapFeedback::new_tracking(edges_observer, false, false))
 }
 
 pub fn no_feedback<'harness, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
@@ -415,7 +411,7 @@ where
         let (feedback, observers) = {
             let time_observer = TimeObserver::new("time");
             let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-                &mut super::EDGES_MAP[0..super::MAX_EDGES_NUM]
+                &mut super::sanitizer::EDGES_MAP[0..super::sanitizer::MAX_EDGES_NUM]
             }));
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
@@ -487,17 +483,13 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) {
             .run_client(&mut run_client)
             .cores(&cores)
             .broker_port(config.broker_port)
-            // There is no need to disable the stdout of the clients.
-            // tlspuffin never logs or outputs to stdout. It always logs its output
-            // to tlspuffin-log.json.
-            // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
             .build()
             .launch(),
         false => libafl::bolts::launcher::Launcher::builder()
             .shmem_provider(sh_mem_provider)
             .configuration(configuration)
             .monitor(
-                PuffinMonitor::new(
+                StatsMonitor::new(
                     |s| {
                         info!("{}", s);
                     },
@@ -508,8 +500,10 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) {
             .run_client(&mut run_client)
             .cores(&cores)
             .broker_port(config.broker_port)
-            //todo where should we log the output of the harness?
-            //.stdout_file(Some("/dev/null"))
+            // There is no need to disable the stdout of the clients.
+            // tlspuffin never logs or outputs to stdout. It always logs its output
+            // to tlspuffin-log.json.
+            // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
             .build()
             .launch(),
     };
