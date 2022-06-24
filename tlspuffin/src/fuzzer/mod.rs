@@ -15,6 +15,7 @@ mod stats_stage;
 mod term_zoo;
 // Public for benchmarks
 pub mod mutations;
+pub mod tracing_stage;
 
 pub use libafl_setup::{start, FuzzerConfig};
 

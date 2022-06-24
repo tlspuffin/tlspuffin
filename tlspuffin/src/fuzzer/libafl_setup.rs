@@ -36,6 +36,7 @@ use crate::{
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
         stats_monitor::StatsMonitor,
         stats_stage::StatsStage,
+        tracing_stage::TracingStage,
     },
     log::create_file_config,
     put_registry::PUT_REGISTRY,
@@ -283,7 +284,8 @@ where
         let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
         let mut stages = tuple_list!(
             PuffinMutationalStage::new(mutator, max_iterations_per_stage),
-            StatsStage::new()
+            StatsStage::new(),
+            TracingStage::new()
         );
 
         let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =

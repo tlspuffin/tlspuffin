@@ -114,11 +114,11 @@ impl Fire for Counter {
 pub struct MinMaxMean {
     pub name: &'static str,
     min_set: AtomicBool,
-    min: AtomicUsize,
+    pub min: AtomicUsize,
     max_set: AtomicBool,
-    max: AtomicUsize,
+    pub max: AtomicUsize,
     mean_set: AtomicBool,
-    mean: AtomicUsize,
+    pub mean: AtomicUsize,
 }
 
 impl MinMaxMean {
