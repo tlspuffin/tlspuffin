@@ -50,7 +50,7 @@ pub fn write_experiment_markdown(
                 * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
                 {description}\n",
         title = &title,
-        put_versions = PUT_REGISTRY.versions(),
+        put_versions = PUT_REGISTRY.version_strings().join(", "),
         date = Local::now().to_rfc3339(),
         git_ref = git_ref,
         git_msg = git_msg,

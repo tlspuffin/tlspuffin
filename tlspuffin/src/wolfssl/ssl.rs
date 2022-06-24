@@ -20,7 +20,6 @@ use crate::{
     wolfssl::{
         bio,
         callbacks::{msg_callback, ExtraUserDataRegistry, UserData},
-        dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex},
         error::{ErrorCode, ErrorStack, InnerError, SslError},
         pkey::{HasPrivate, PKeyRef},
         util::{cvt, cvt_p},
@@ -573,6 +572,14 @@ impl<S: Read + Write> SslStream<S> {
     ///
     /// [`SSL_do_handshake`]: https://www.openssl.org/docs/manmaster/man3/SSL_do_handshake.html
     pub fn do_handshake(&mut self) -> Result<(), SslError> {
+        pub unsafe extern "C" fn SSL_connect_timeout_ex(_info: *mut wolf::TimeoutInfo) -> i32 {
+            0
+        }
+
+        pub unsafe extern "C" fn SSL_connect_ex(_info: *mut wolf::HandShakeInfo) -> i32 {
+            0
+        }
+
         let ret = unsafe {
             //wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr())
             wolf::wolfSSL_accept_ex(

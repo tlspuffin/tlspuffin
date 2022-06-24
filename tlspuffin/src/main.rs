@@ -66,7 +66,9 @@ fn main() {
     let minimizer = matches.is_present("minimizer");
     let monitor = matches.is_present("monitor");
 
-    info!("{}", PUT_REGISTRY.versions());
+    for version in PUT_REGISTRY.version_strings() {
+        info!("{}", version);
+    }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         fs::create_dir_all("./seeds").unwrap();

@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use log::trace;
+use log::{debug, trace};
 use rustls::msgs::{
     codec::Reader,
     message::{Message, MessagePayload, OpaqueMessage},
@@ -18,14 +18,14 @@ pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8
                 debug_message_with_info(info, &message);
             }
             Err(err) => {
-                trace!(
+                debug!(
                     "Failed to debug message as decoding to an Message failed: {}",
                     err
                 );
             }
         },
         Err(err) => {
-            trace!(
+            debug!(
                 "Failed to debug message as decoding to an OpaqueMessage failed: {:?}",
                 err
             );
@@ -38,7 +38,7 @@ pub fn debug_message(message: &Message) {
 }
 
 pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
-    trace!(
+    debug!(
         "{}Opaque Message  ({} bytes) ({:?}): {:?}",
         if info.is_empty() {
             info.to_string()
@@ -66,7 +66,7 @@ pub fn debug_message_with_info(info: &str, message: &Message) {
         MessagePayload::Heartbeat(_) => "Heartbeat".to_string(),
     };
 
-    trace!(
+    debug!(
         "{}Message ({:?}): {}",
         if info.is_empty() {
             info.to_string()

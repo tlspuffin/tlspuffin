@@ -6,14 +6,14 @@ use crate::{
 pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
 
 impl PutRegistry {
-    pub fn versions(&self) -> String {
-        let mut put_versions: String = "".to_owned();
+    pub fn version_strings(&self) -> Vec<String> {
+        let mut put_versions = Vec::new();
         for func in self.0 {
             let factory = func();
 
             let name = factory.put_name();
             let version = factory.put_version();
-            put_versions.push_str(format!("{:?}: {}", name, version).as_str());
+            put_versions.push(format!("{}: {}", name, version));
         }
         put_versions
     }
@@ -34,9 +34,9 @@ impl PutRegistry {
 }
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
-pub const OPENSSL111: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
-pub const WOLFSSL520: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
-pub const TCP: PutName = PutName(['T', 'C', 'P', 'T', 'C', 'P', 'T', 'C', 'P', 'T']);
+pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
+pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
+pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', 'T', 'C', 'P', 'T', 'C', 'P', 'T']);
 
 pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
     crate::tcp::new_tcp_factory,
@@ -56,9 +56,9 @@ pub trait Factory {
 pub const CURRENT_PUT_NAME: PutName = {
     cfg_if::cfg_if! {
         if #[cfg(feature = "openssl-binding")] {
-            OPENSSL111
+            OPENSSL111_PUT
         } else if #[cfg(feature = "wolfssl-binding")] {
-            WOLFSSL520
+            WOLFSSL520_PUT
         } else {
             DUMMY_PUT
         }

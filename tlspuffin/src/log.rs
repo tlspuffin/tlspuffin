@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{env, path::PathBuf, str::FromStr};
 
 use log::LevelFilter;
 use log4rs::{
@@ -7,6 +7,13 @@ use log4rs::{
     encode::{json::JsonEncoder, pattern::PatternEncoder},
     Config,
 };
+
+fn get_level_filter() -> LevelFilter {
+    env::var("RUST_LOG")
+        .ok()
+        .and_then(|level| LevelFilter::from_str(&level).ok())
+        .unwrap_or(LevelFilter::Info)
+}
 
 pub fn create_stdout_config() -> Config {
     let stdout = ConsoleAppender::builder()
@@ -19,7 +26,7 @@ pub fn create_stdout_config() -> Config {
         .build(
             Root::builder()
                 .appenders(vec!["stdout"])
-                .build(LevelFilter::Info),
+                .build(get_level_filter()),
         )
         .unwrap()
 }
@@ -35,7 +42,7 @@ pub fn create_file_config(log_path: &PathBuf) -> Config {
         .build(
             Root::builder()
                 .appenders(vec!["file"])
-                .build(LevelFilter::Info),
+                .build(get_level_filter()),
         )
         .unwrap()
 }

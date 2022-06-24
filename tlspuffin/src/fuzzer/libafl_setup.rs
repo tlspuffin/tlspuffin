@@ -302,7 +302,7 @@ where
                 &mut state,
                 &mut self.event_manager,
             )?,
-            Duration::new(2, 0),
+            Duration::new(5, 0),
         );
 
         // In case the corpus is empty (on first run), reset
