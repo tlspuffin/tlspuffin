@@ -3,7 +3,12 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::{cell::RefCell, fmt::Debug, hash::Hash, rc::Rc};
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Display, Formatter, Write},
+    hash::Hash,
+    rc::Rc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +26,12 @@ pub struct PutName(pub [char; 10]);
 impl Default for PutName {
     fn default() -> Self {
         DUMMY_PUT
+    }
+}
+
+impl Display for PutName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from_iter(self.0))
     }
 }
 

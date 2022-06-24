@@ -20,7 +20,7 @@ use crate::{
     error::Error,
     io::{MessageResult, Stream},
     put::{Put, PutConfig, PutName},
-    put_registry::{Factory, TCP},
+    put_registry::{Factory, TCP_PUT},
     trace::ClaimList,
 };
 
@@ -32,7 +32,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            TCP
+            TCP_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -214,7 +214,7 @@ mod tests {
 
     use crate::{
         put::PutDescriptor,
-        put_registry::TCP,
+        put_registry::TCP_PUT,
         tls::seeds::{seed_client_attacker_full, seed_session_resumption_dhe_full, SeedHelper},
     };
 
@@ -307,7 +307,7 @@ mod tests {
         let _guard = OpenSSLServer::new(port);
 
         let put = PutDescriptor {
-            name: TCP,
+            name: TCP_PUT,
             options: vec![("port".to_owned(), port.to_string())],
             ..PutDescriptor::default()
         };
@@ -322,7 +322,7 @@ mod tests {
         let _guard = OpenSSLServer::new(port);
 
         let put = PutDescriptor {
-            name: TCP,
+            name: TCP_PUT,
             options: vec![("port".to_owned(), port.to_string())],
             ..PutDescriptor::default()
         };

@@ -14,7 +14,7 @@ use crate::{
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
-    put_registry::{Factory, WOLFSSL520},
+    put_registry::{Factory, WOLFSSL520_PUT},
     static_certs::{CERT, PRIVATE_KEY},
     trace::ClaimList,
     wolfssl::{
@@ -29,7 +29,7 @@ use crate::{
 
 mod bio;
 mod callbacks;
-mod dummy_callbacks;
+// TODO: remove: mod dummy_callbacks;
 mod error;
 mod pkey;
 mod rsa;
@@ -47,7 +47,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            WOLFSSL520
+            WOLFSSL520_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -297,7 +297,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // trace!("Would have blocked but the underlying stream is non-blocking!");
+                        // debug!("Would have blocked but the underlying stream is non-blocking!");
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

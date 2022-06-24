@@ -14,7 +14,7 @@ use crate::{
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
-    put_registry::{Factory, OPENSSL111},
+    put_registry::{Factory, OPENSSL111_PUT},
     trace::ClaimList,
 };
 
@@ -36,7 +36,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            OPENSSL111
+            OPENSSL111_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -252,7 +252,7 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // trace!("Would have blocked but the underlying stream is non-blocking!");
+                        // debug!("Would have blocked but the underlying stream is non-blocking!");
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

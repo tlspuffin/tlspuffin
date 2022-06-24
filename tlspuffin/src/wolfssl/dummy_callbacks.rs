@@ -1,7 +1,7 @@
 use std::mem;
 
 use libc::{c_int, c_ulong, c_void};
-use log::trace;
+use log::debug;
 use security_claims::register::Claimer;
 use wolfssl_sys as wolf;
 
@@ -14,7 +14,7 @@ pub unsafe extern "C" fn SSL_finished(
     _c: *mut u8,
     _d: *mut c_void,
 ) -> i32 {
-    /*trace!(
+    /*debug!(
         "SSL_finished {:?}",
         Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
     );*/
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn SSL_keylog13(
         }
         _ => {}
     };*/
-    /*trace!(
+    /*debug!(
         "SSL_keylog13 {:?}",
         Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
     );*/
@@ -61,14 +61,14 @@ pub unsafe extern "C" fn SSL_keylog13(
 }
 
 pub unsafe extern "C" fn SSL_info(_ssl: *const wolf::WOLFSSL, _a: c_int, _b: c_int) {
-    /*trace!(
+    /*debug!(
         "SSL_info {:?}",
         Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
     );*/
 }
 
 pub unsafe extern "C" fn SSL_keylog(_ssl: *const wolf::WOLFSSL, _a: *const i8) {
-    /*trace!(
+    /*debug!(
         "SSL_keylog {:?}",
         Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3)
     );*/
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn SSL_Msg_Cb(
     let claimer: &mut Box<Claimer> = unsafe { mem::transmute(arg) };
     claim_transcript(ssl, claimer);
 
-    /*trace!(
+    /*debug!(
         "SSL_Msg_Cb {:?}",
         Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3),
     );*/
@@ -109,6 +109,6 @@ pub unsafe extern "C" fn SSL_connect_timeout_ex(_info: *mut wolf::TimeoutInfo) -
 }
 
 pub unsafe extern "C" fn SSL_connect_ex(_info: *mut wolf::HandShakeInfo) -> i32 {
-    trace!("SSL_connect_ex");
+    debug!("SSL_connect_ex");
     0
 }

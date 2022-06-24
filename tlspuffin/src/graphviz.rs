@@ -37,7 +37,16 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
         .args(&["-o", output, "-T", format])
         .stdin(Stdio::piped())
         .spawn()
-        .expect("failed to spawn dot");
+        .map_err(|err| {
+            if let ErrorKind::NotFound = err.kind() {
+                io::Error::new(
+                    ErrorKind::NotFound,
+                    "Unable to find dot in PATH. Install graphviz.",
+                )
+            } else {
+                err
+            }
+        })?;
 
     let mut dot_stdin = child
         .stdin
@@ -45,7 +54,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
         .ok_or_else(|| io::Error::new(ErrorKind::Other, "Failed to open stdin"))?;
     dot_stdin.write_all(dot_script.as_bytes().as_ref())?;
     drop(dot_stdin);
-    child.wait().expect("failed to execute dot");
+    child.wait()?;
     Ok(())
 }
 

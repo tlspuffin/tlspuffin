@@ -469,7 +469,7 @@ impl Trace {
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
-            trace!("Executing step #{}", i);
+            debug!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -488,13 +488,16 @@ impl Trace {
 
             let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
 
-            trace!(
-                "New Claims:\n{}",
+            debug!(
+                "New Claims: {}",
                 &claims
                     .iter()
-                    .map(|(name, claim)| format!("{}: {}", name, claim))
-                    .join("\n")
+                    .map(|(name, claim)| format!("{name}: {}", claim.typ))
+                    .join(", ")
             );
+            for (name, claim) in claims {
+                trace!("{}", claim);
+            }
         }
 
         let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
@@ -597,7 +600,7 @@ impl OutputAction {
                 Some(message) => {
                     let knowledge = extract_knowledge(message)?;
 
-                    trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+                    debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
@@ -609,13 +612,13 @@ impl OutputAction {
                             tls_message_type,
                             data: variable,
                         };
-                        trace!(
+                        debug!(
                             "New knowledge {}: {}  (counter: {})",
                             &knowledge,
                             remove_prefix(knowledge.data.type_name()),
                             counter
                         );
-                        debug!("Knowledge data: {:?}", knowledge.data);
+                        trace!("Knowledge data: {:?}", knowledge.data);
                         ctx.add_knowledge(knowledge)
                     }
                 }

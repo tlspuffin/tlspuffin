@@ -34,3 +34,13 @@ pub mod trace;
 pub mod variable_data;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
+
+pub const GIT_REF: &str = match option_env!("GIT_REF") {
+    Some(env) => env,
+    None => "undefined",
+};
+
+pub const GIT_MSG: &str = match option_env!("GIT_MSG") {
+    Some(env) => env,
+    None => "undefined",
+};
