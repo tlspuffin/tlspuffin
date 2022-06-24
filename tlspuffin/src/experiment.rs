@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs::File, io, io::Write, path::Path, process::Command};
+use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path, process::Command};
 
 use chrono::Local;
 
@@ -56,6 +56,8 @@ pub fn write_experiment_markdown(
         git_msg = git_msg,
         description = description_text
     );
+
+    fs::create_dir_all(directory)?;
 
     let mut file = File::create(directory.join("README.md")).unwrap();
 
