@@ -141,7 +141,7 @@ mod tests {
             .collect::<HashSet<String>>();
 
         let ignored_functions = [
-            // transcript functions -> VecClaimer is usually available as Variable
+            // transcript functions -> ClaimList is usually available as Variable
             fn_decrypt_application.name(),
             fn_server_finished_transcript.name(),
             fn_client_finished_transcript.name(),

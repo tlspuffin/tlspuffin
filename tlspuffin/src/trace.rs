@@ -70,10 +70,10 @@
 use core::fmt;
 use std::{
     any::TypeId,
-    borrow::Borrow,
-    cell::{Ref, RefCell},
+    borrow::{Borrow, BorrowMut},
+    cell::{Ref, RefCell, RefMut},
     convert::TryFrom,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     rc::Rc,
     slice::Iter,
 };
@@ -241,6 +241,20 @@ impl ClaimList {
     pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
         self.claims.iter().find(|(_name, claim)| claim.typ == typ)
     }
+
+    pub fn log(&self) {
+        debug!(
+            "New Claims: {}",
+            &self
+                .claims
+                .iter()
+                .map(|(name, claim)| format!("{name}: {}", claim.typ))
+                .join(", ")
+        );
+        for (name, claim) in &self.claims {
+            trace!("{}", claim);
+        }
+    }
 }
 
 impl From<Vec<(AgentName, Claim)>> for ClaimList {
@@ -249,7 +263,7 @@ impl From<Vec<(AgentName, Claim)>> for ClaimList {
     }
 }
 
-/// Claimer which gets claims from a VecClaimer but filters by [`AgentName`]
+/// Claims filters by [`AgentName`]
 pub struct ByAgentClaimList {
     claims: ClaimList,
 }
@@ -258,9 +272,9 @@ impl ByAgentClaimList {
     pub fn new(claims: &ClaimList, agent_name: AgentName) -> Option<Self> {
         let filtered = claims
             .iter()
+            .filter(|(name, _claim)| agent_name == *name)
             .cloned()
             .rev()
-            .filter(|(name, _claim)| agent_name == *name)
             .collect::<Vec<_>>();
         if filtered.is_empty() {
             None
@@ -287,6 +301,21 @@ impl ClaimList {
     }
 }
 
+#[derive(Clone)]
+pub struct GlobalClaimList {
+    claims: Rc<RefCell<ClaimList>>,
+}
+
+impl GlobalClaimList {
+    pub fn deref_borrow(&self) -> Ref<'_, ClaimList> {
+        self.claims.deref().borrow()
+    }
+
+    pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList> {
+        self.claims.deref().borrow_mut()
+    }
+}
+
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
 /// of the attacker. [`VariableData`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
@@ -296,7 +325,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    pub claims: Rc<RefCell<ClaimList>>,
+    claims: GlobalClaimList,
 }
 
 pub trait QueryMatcher {
@@ -305,7 +334,11 @@ pub trait QueryMatcher {
 
 impl TraceContext {
     pub fn new() -> Self {
-        let claims = Rc::new(RefCell::new(ClaimList::new()));
+        // We keep a global list of all claims throughout the execution. Each claim is identified
+        // by the AgentName. A rename of an Agent does not interfere with this.
+        let claims = GlobalClaimList {
+            claims: Rc::new(RefCell::new(ClaimList::new())),
+        };
 
         Self {
             knowledge: vec![],
@@ -314,8 +347,12 @@ impl TraceContext {
         }
     }
 
+    pub fn claims(&self) -> &GlobalClaimList {
+        &self.claims
+    }
+
     pub fn claims_by_agent(&self, agent_name: AgentName) -> Option<ByAgentClaimList> {
-        let claims: &ClaimList = &self.claims.deref().borrow();
+        let claims: &ClaimList = &self.claims.deref_borrow_mut();
         ByAgentClaimList::new(claims, agent_name)
     }
 
@@ -502,21 +539,10 @@ impl Trace {
                 Action::Output(_) => {}
             }
 
-            let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
-
-            debug!(
-                "New Claims: {}",
-                &claims
-                    .iter()
-                    .map(|(name, claim)| format!("{name}: {}", claim.typ))
-                    .join(", ")
-            );
-            for (name, claim) in claims {
-                trace!("{}", claim);
-            }
+            ctx.claims.deref_borrow().log();
         }
 
-        let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref().borrow().claims;
+        let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref_borrow().claims;
         if let Some(msg) = is_violation(claims) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             let claims: Vec<_> = claims.clone();

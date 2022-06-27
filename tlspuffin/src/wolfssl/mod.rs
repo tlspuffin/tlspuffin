@@ -137,7 +137,7 @@ impl Put for WolfSSL {
         claim_transcript(
             self.stream.ssl_mut().as_mut(),
             *agent_name,
-            &mut self.config.claims.borrow_mut(),
+            &mut self.config.claims.deref_borrow_mut(),
         );
 
         if self.is_state_successful() {

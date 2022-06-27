@@ -18,7 +18,7 @@ use crate::{
     error::Error,
     put::{Put, PutConfig, PutDescriptor},
     put_registry::PUT_REGISTRY,
-    trace::{ClaimList, TraceContext},
+    trace::{ClaimList, GlobalClaimList, TraceContext},
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -141,7 +141,7 @@ impl Agent {
             descriptor: descriptor.put_descriptor.clone(),
             server: descriptor.server,
             tls_version: descriptor.tls_version,
-            claims: context.claims.clone(),
+            claims: context.claims().clone(),
         };
 
         let mut stream = factory.create(&descriptor, config)?;
@@ -153,10 +153,6 @@ impl Agent {
         };
 
         Ok(agent)
-    }
-
-    pub fn claims(&self) -> Rc<RefCell<ClaimList>> {
-        self.stream.config().claims.clone()
     }
 
     /// checks whether a agent is reusable with the descriptor

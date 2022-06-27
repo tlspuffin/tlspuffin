@@ -7,6 +7,7 @@ use std::{
     cell::RefCell,
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
+    ops::DerefMut,
     rc::Rc,
 };
 
@@ -17,7 +18,7 @@ use crate::{
     error::Error,
     io::Stream,
     put_registry::DUMMY_PUT,
-    trace::ClaimList,
+    trace::{ClaimList, GlobalClaimList},
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
@@ -47,7 +48,7 @@ pub struct PutConfig {
     pub descriptor: PutDescriptor,
     pub server: bool,
     pub tls_version: TLSVersion,
-    pub claims: Rc<RefCell<ClaimList>>,
+    pub claims: GlobalClaimList,
 }
 
 impl PutConfig {
@@ -58,9 +59,7 @@ impl PutConfig {
         let claims = self.claims.clone();
 
         move |context: &mut C| unsafe {
-            let claims = claims.clone();
-
-            callback(context, &mut claims.borrow_mut());
+            callback(context, &mut claims.deref_borrow_mut());
         }
     }
 
@@ -89,7 +88,7 @@ pub trait Put: Stream + Drop + 'static {
     /// Remove all claims in self
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
-    /// Change the agent name and the claimer of self
+    /// Propagate agent changes to the PUT
     fn rename_agent(&mut self, agent_name: AgentName);
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;

@@ -74,24 +74,6 @@ pub unsafe extern "C" fn SSL_keylog(_ssl: *const wolf::WOLFSSL, _a: *const i8) {
     );*/
 }
 
-pub unsafe extern "C" fn SSL_Msg_Cb(
-    _write_p: c_int,
-    _version: c_int,
-    _content_type: c_int,
-    _buf: *const c_void,
-    _len: c_ulong,
-    ssl: *mut wolf::WOLFSSL,
-    arg: *mut c_void,
-) {
-    let claimer: &mut Box<Claimer> = unsafe { mem::transmute(arg) };
-    claim_transcript(ssl, claimer);
-
-    /*debug!(
-        "SSL_Msg_Cb {:?}",
-        Ssl::from_ptr(ssl as *mut wolf::WOLFSSL).accept_state(TLSVersion::V1_3),
-    );*/
-}
-
 extern "C" {
     fn free(ptr: *mut c_void);
 }

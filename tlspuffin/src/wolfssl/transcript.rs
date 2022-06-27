@@ -1,5 +1,4 @@
 use foreign_types::ForeignTypeRef;
-use security_claims::register::Claimer;
 use wolfssl_sys as wolf;
 
 use crate::{agent::AgentName, trace::ClaimList, wolfssl::ssl::SslRef};
