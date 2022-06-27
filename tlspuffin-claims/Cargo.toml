@@ -7,6 +7,8 @@ edition = "2021"
 [dependencies]
 hex = "0.4.3"
 itertools = "0.10.3"
+# Logging
+log = "0.4.17"
 
 [build-dependencies]
 bindgen = "0.60.1"

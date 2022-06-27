@@ -60,6 +60,7 @@ typedef struct ClaimSecret {
 typedef struct ClaimCertData {
     ClaimKeyType key_type;
     int key_length;
+    unsigned char data[32]; // SHA256 of the certificate
 } ClaimCertData;
 
 typedef struct ClaimCipher {
