@@ -1947,10 +1947,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_successful_json() {
-            let _ctx = TraceContext::new();
-            let client = AgentName::first();
-            let server = client.next();
-            let trace = seed_successful(client, server, current_put(), current_put());
+            let trace = seed_successful.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
 

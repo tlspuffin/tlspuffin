@@ -3,7 +3,7 @@ use std::{cell::RefCell, io, io::ErrorKind, rc::Rc};
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslStream},
+    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
     x509::X509Ref,
 };
 use rustls::msgs::message::OpaqueMessage;
@@ -82,10 +82,7 @@ impl Stream for OpenSSL {
 impl Put for OpenSSL {
     fn new(agent_name: AgentName, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = if config.server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            let (cert, pkey) = static_rsa_cert()?;
-
-            Self::create_server(&cert, &pkey, config.tls_version)?
+            Self::create_server(config.tls_version)?
         } else {
             Self::create_client(config.tls_version)?
         };
@@ -174,14 +171,13 @@ impl Put for OpenSSL {
 }
 
 impl OpenSSL {
-    fn create_server(
-        cert: &X509Ref,
-        key: &PKeyRef<Private>,
-        tls_version: TLSVersion,
-    ) -> Result<Ssl, ErrorStack> {
+    fn create_server(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        ctx_builder.set_certificate(cert)?;
-        ctx_builder.set_private_key(key)?;
+
+        //let (cert, pkey) = openssl_binding::generate_cert();
+        let (cert, key) = static_rsa_cert()?;
+        ctx_builder.set_certificate(&cert)?;
+        ctx_builder.set_private_key(&key)?;
 
         #[cfg(feature = "openssl111")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
@@ -194,15 +190,10 @@ impl OpenSSL {
         #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
         {
             ctx_builder.set_tmp_ecdh(
-                openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
-                    .as_ref()
-                    .unwrap(),
+                openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1).as_ref()?,
             )?;
-        }
 
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
-        {
-            ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref().unwrap())?;
+            ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref()?)?;
         }
 
         // Allow EXPORT in server
@@ -227,6 +218,8 @@ impl OpenSSL {
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+
+        ctx_builder.set_verify(SslVerifyMode::NONE);
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
         ssl.set_connect_state();
