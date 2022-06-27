@@ -13,7 +13,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    agent::{AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, TLSVersion},
     error::Error,
     io::Stream,
     put_registry::DUMMY_PUT,
@@ -51,6 +51,19 @@ pub struct PutConfig {
 }
 
 impl PutConfig {
+    pub fn claim_closure<C, F>(&self, mut callback: F) -> impl Fn(&mut C)
+    where
+        F: Fn(&mut C, &mut ClaimList),
+    {
+        let claims = self.claims.clone();
+
+        move |context: &mut C| unsafe {
+            let claims = claims.clone();
+
+            callback(context, &mut claims.borrow_mut());
+        }
+    }
+
     pub fn get_option(&self, key: &str) -> Option<&str> {
         self.descriptor
             .options
@@ -62,21 +75,22 @@ impl PutConfig {
 
 pub trait Put: Stream + Drop + 'static {
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
+    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
     fn reset(&mut self) -> Result<(), Error>;
+    fn config(&self) -> &PutConfig;
     /// Register a new claim for agent_name
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName);
+    fn register_claimer(&mut self, agent_name: AgentName);
     /// Remove all claims in self
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
     /// Change the agent name and the claimer of self
-    fn rename_agent(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName);
+    fn rename_agent(&mut self, agent_name: AgentName);
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;
     /// Checks whether the Put is in a good state

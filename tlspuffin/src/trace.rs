@@ -68,7 +68,15 @@
 //!
 
 use core::fmt;
-use std::{any::TypeId, cell::RefCell, convert::TryFrom, ops::Deref, rc::Rc, slice::Iter};
+use std::{
+    any::TypeId,
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+    convert::TryFrom,
+    ops::Deref,
+    rc::Rc,
+    slice::Iter,
+};
 
 use itertools::Itertools;
 use log::{debug, info, trace};
@@ -77,7 +85,7 @@ use rustls::msgs::{
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
 use security_claims::{violation::is_violation, Claim, ClaimType};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, __private::de::Borrowed};
 
 #[allow(unused)] // used in docs
 use crate::io::Channel;
@@ -228,6 +236,11 @@ impl ClaimList {
     pub fn iter(&self) -> Iter<'_, (AgentName, Claim)> {
         self.claims.iter()
     }
+
+    /// finds the last claim matching `type`
+    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+        self.claims.iter().find(|(_name, claim)| claim.typ == typ)
+    }
 }
 
 impl From<Vec<(AgentName, Claim)>> for ClaimList {
@@ -242,15 +255,19 @@ pub struct ByAgentClaimList {
 }
 
 impl ByAgentClaimList {
-    pub fn new(claims: &ClaimList, agent_name: AgentName) -> Self {
+    pub fn new(claims: &ClaimList, agent_name: AgentName) -> Option<Self> {
         let filtered = claims
             .iter()
             .cloned()
             .rev()
             .filter(|(name, _claim)| agent_name == *name)
             .collect::<Vec<_>>();
-        Self {
-            claims: filtered.into(),
+        if filtered.is_empty() {
+            None
+        } else {
+            Some(Self {
+                claims: filtered.into(),
+            })
         }
     }
 
@@ -279,7 +296,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    claims: Rc<RefCell<ClaimList>>,
+    pub claims: Rc<RefCell<ClaimList>>,
 }
 
 pub trait QueryMatcher {
@@ -288,16 +305,16 @@ pub trait QueryMatcher {
 
 impl TraceContext {
     pub fn new() -> Self {
-        let claimer = Rc::new(RefCell::new(ClaimList::new()));
+        let claims = Rc::new(RefCell::new(ClaimList::new()));
 
         Self {
             knowledge: vec![],
             agents: vec![],
-            claims: claimer,
+            claims,
         }
     }
 
-    pub fn claims_by_agent(&self, agent_name: AgentName) -> ByAgentClaimList {
+    pub fn claims_by_agent(&self, agent_name: AgentName) -> Option<ByAgentClaimList> {
         let claims: &ClaimList = &self.claims.deref().borrow();
         ByAgentClaimList::new(claims, agent_name)
     }
@@ -386,7 +403,7 @@ impl TraceContext {
     }
 
     pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(descriptor, self.claims.clone())?);
+        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
         Ok(agent_name)
     }
 
@@ -449,7 +466,7 @@ impl Trace {
                 .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(ctx.claims.clone(), descriptor.name);
+                reusable.rename(descriptor.name);
             } else {
                 // only spawn completely new if not yet existing
                 ctx.new_agent(descriptor)?;

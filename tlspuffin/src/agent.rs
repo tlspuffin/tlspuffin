@@ -5,7 +5,12 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+    ops::Deref,
+    rc::Rc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +18,7 @@ use crate::{
     error::Error,
     put::{Put, PutConfig, PutDescriptor},
     put_registry::PUT_REGISTRY,
-    trace::ClaimList,
+    trace::{ClaimList, TraceContext},
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -128,10 +133,7 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(
-        descriptor: &AgentDescriptor,
-        claims: Rc<RefCell<ClaimList>>,
-    ) -> Result<Self, Error> {
+    pub fn new(context: &TraceContext, descriptor: &AgentDescriptor) -> Result<Self, Error> {
         let factory = PUT_REGISTRY
             .find_factory(descriptor.put_descriptor.name)
             .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
@@ -139,10 +141,10 @@ impl Agent {
             descriptor: descriptor.put_descriptor.clone(),
             server: descriptor.server,
             tls_version: descriptor.tls_version,
-            claims,
+            claims: context.claims.clone(),
         };
 
-        let stream = factory.create(descriptor.name, config)?;
+        let mut stream = factory.create(&descriptor, config)?;
         let agent = Agent {
             name: descriptor.name,
             tls_version: descriptor.tls_version,
@@ -153,14 +155,18 @@ impl Agent {
         Ok(agent)
     }
 
+    pub fn claims(&self) -> Rc<RefCell<ClaimList>> {
+        self.stream.config().claims.clone()
+    }
+
     /// checks whether a agent is reusable with the descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
         self.server == other.server && self.tls_version == other.tls_version
     }
 
-    pub fn rename(&mut self, claims: Rc<RefCell<ClaimList>>, new_name: AgentName) {
+    pub fn rename(&mut self, new_name: AgentName) {
         self.name = new_name;
-        self.stream.rename_agent(claims, new_name);
+        self.stream.rename_agent(new_name);
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {

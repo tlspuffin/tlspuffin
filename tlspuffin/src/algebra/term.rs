@@ -10,7 +10,7 @@ use crate::{
     algebra::dynamic_function::TypeShape,
     error::Error,
     tls::error::FnError,
-    trace::{ByAgentClaimList, TraceContext},
+    trace::{ByAgentClaimList, ClaimList, TraceContext},
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -106,7 +106,11 @@ impl Term {
         match self {
             Term::Variable(variable) => {
                 if variable.typ == TypeShape::of::<ByAgentClaimList>() {
-                    Ok(Box::new(context.claims_by_agent(variable.query.agent_name)))
+                    Ok(Box::new(
+                        context
+                            .claims_by_agent(variable.query.agent_name)
+                            .ok_or_else(|| Error::Term("Claims not found.".to_string()))?,
+                    ))
                 } else {
                     context
                         .find_variable(variable.typ, variable.query)

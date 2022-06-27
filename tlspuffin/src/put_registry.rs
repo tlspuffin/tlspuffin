@@ -1,5 +1,5 @@
 use crate::{
-    agent::AgentName,
+    agent::{AgentDescriptor, AgentName},
     error::Error,
     put::{Put, PutConfig, PutDescriptor, PutName},
 };
@@ -48,7 +48,7 @@ pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
 ]);
 
 pub trait Factory {
-    fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error>;
+    fn create(&self, agent: &AgentDescriptor, config: PutConfig) -> Result<Box<dyn Put>, Error>;
     fn put_name(&self) -> PutName;
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);
