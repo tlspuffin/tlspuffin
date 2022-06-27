@@ -10,7 +10,10 @@ default = ["sancov_libafl", "introspection"]
 # Lastest OpenSSL 1.1.1
 openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls13", "session-resumption", "deterministic", # Supported features by openssl111
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic", # Supported features by openssl111
     "claims",
     "openssl-binding",
     "transcript-extraction"
@@ -18,25 +21,58 @@ openssl111 = [
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "openssl-binding",
+    "tls12-session-resumption"
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "openssl-binding",
+    "tls12-session-resumption"
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
+    "tls12-session-resumption",
     "claims",
     "openssl-binding",
     "transcript-extraction",
+]
+
+wolfssl430 = [
+    "wolfssl-sys/vendored-wolfssl430",
+    "tls13",
+    "wolfssl-binding",
+    "transcript-extraction",
+    # Does not support any kind of resumption right now: https://github.com/trailofbits/tlspuffin/issues/12
+    # FIXME: support "claims", "deterministic"
+]
+
+wolfssl510 = [
+    "wolfssl-sys/vendored-wolfssl510",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    # FIXME: support "claims", "deterministic"
 ]
 
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding",
-    "session-resumption",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    # FIXME: support "claims", "deterministic"
+]
+
+wolfssl530 = [
+    "wolfssl-sys/vendored-wolfssl530",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
     "transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
@@ -55,8 +91,10 @@ openssl-binding = ["openssl", "foreign-types-shared"]
 
 # PUT supports TLS 1.3
 tls13 = []
-# PUT supports session resumption
-session-resumption = []
+# PUT supports session resumption through Tickets and PSK
+tls13-session-resumption = []
+# PUT supports session resumption through RFC5077
+tls12-session-resumption = []
 # PUT is determinisitic
 deterministic = []
 # Require the PUT to implement the claim-interface.h

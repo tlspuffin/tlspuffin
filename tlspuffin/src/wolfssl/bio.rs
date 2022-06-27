@@ -37,6 +37,7 @@ pub unsafe fn BIO_set_retry_write(b: *mut wolf::WOLFSSL_BIO) {
     )
 }
 
+#[cfg(not(feature = "wolfssl430"))]
 pub unsafe fn BIO_clear_retry_flags(b: *mut wolf::WOLFSSL_BIO) {
     wolf::wolfSSL_BIO_clear_flags(
         b,
@@ -46,6 +47,14 @@ pub unsafe fn BIO_clear_retry_flags(b: *mut wolf::WOLFSSL_BIO) {
             .try_into()
             .unwrap(),
     )
+}
+
+#[cfg(feature = "wolfssl430")]
+pub unsafe fn BIO_clear_retry_flags(b: *mut wolf::WOLFSSL_BIO) {
+    let flags = (wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_READ
+        | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_WRITE
+        | wolf::BIO_FLAGS_WOLFSSL_BIO_FLAG_RETRY) as i32;
+    (*b).flags &= flags;
 }
 
 #[allow(clippy::match_like_matches_macro)] // matches macro requires rust 1.42.0
@@ -96,7 +105,7 @@ unsafe extern "C" fn bwrite<S: Write>(
     buf: *const c_char,
     len: c_int,
 ) -> c_int {
-    wolf::wolfSSL_BIO_clear_retry_flags(bio);
+    BIO_clear_retry_flags(bio);
 
     let state = state::<S>(bio);
     let buf = slice::from_raw_parts(buf as *const _, len as usize);

@@ -428,7 +428,9 @@ pub fn seed_successful12(
                     },
                 }),
             },
-            // Ticket, Server -> Client
+            // NewSessionTicket, Server -> Client
+            // wolfSSL 4.4.0 does not support tickets in TLS 1.2
+            #[cfg(feature = "tls12-session-resumption")]
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
@@ -453,9 +455,16 @@ pub fn seed_successful12(
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
+                    #[cfg(feature = "tls12-session-resumption")]
                     recipe: term! {
                         fn_opaque_message(
                             ((server, 6)[None])
+                        )
+                    },
+                    #[cfg(not(feature = "tls12-session-resumption"))]
+                    recipe: term! {
+                        fn_opaque_message(
+                            ((server, 5)[None])
                         )
                     },
                 }),
@@ -523,7 +532,8 @@ pub fn seed_successful_with_tickets(
             },
         }),
     });
-    // Ticket
+    // Ticket (wolfSSL 4.4.0 only sends a single ticket)
+    #[cfg(not(feature = "wolfssl430"))]
     trace.steps.push(Step {
         agent: client,
         action: Action::Input(InputAction {
@@ -1795,21 +1805,21 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
         let ctx = seed_session_resumption_dhe.execute_trace();
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         let ctx = seed_session_resumption_dhe_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "session-resumption"))]
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_session_resumption_ke() {
         let ctx = seed_session_resumption_ke.execute_trace();
@@ -1841,9 +1851,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    // require version which supports TLS 1.3 and session-resumption (else no tickets are sent)
+    // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
-    #[cfg(all(feature = "tls13", feature = "session-resumption"))] // FIXME expression is a hack
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
         let ctx = seed_successful_with_tickets.execute_trace();
