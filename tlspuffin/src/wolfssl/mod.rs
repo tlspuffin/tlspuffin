@@ -2,6 +2,7 @@
 
 use std::{
     cell::RefCell,
+    ffi::{CStr, CString},
     io::{ErrorKind, Read, Write},
     rc::Rc,
 };
@@ -19,7 +20,6 @@ use crate::{
     trace::ClaimList,
     wolfssl::{
         error::{ErrorStack, SslError},
-        pkey::PKey,
         ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
         transcript::claim_transcript,
         version::version,
@@ -31,7 +31,9 @@ mod bio;
 mod callbacks;
 // TODO: remove: mod dummy_callbacks;
 mod error;
+#[cfg(not(feature = "wolfssl430"))]
 mod pkey;
+#[cfg(not(feature = "wolfssl430"))]
 mod rsa;
 mod ssl;
 mod transcript;
@@ -42,8 +44,8 @@ mod x509;
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
     impl Factory for WolfSSLFactory {
-        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
-            Box::new(WolfSSL::new(agent_name, config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(WolfSSL::new(agent_name, config)?))
         }
 
         fn put_name(&self) -> PutName {
@@ -260,9 +262,16 @@ impl WolfSSL {
         let cert = X509::from_pem(CERT.as_bytes())?;
         ctx.set_certificate(cert.as_ref())?;
 
-        let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
-        let pkey = PKey::from_rsa(rsa)?;
-        ctx.set_private_key(pkey.as_ref())?;
+        #[cfg(not(feature = "wolfssl430"))]
+        {
+            let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+            let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+            ctx.set_private_key(pkey.as_ref())?;
+        }
+        #[cfg(feature = "wolfssl430")]
+        {
+            ctx.set_private_key_pem(PRIVATE_KEY.as_bytes())?;
+        }
 
         // Callbacks for experiements
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
@@ -271,6 +280,7 @@ impl WolfSSL {
         //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
 
         // We expect two tickets like in OpenSSL
+        #[cfg(not(feature = "wolfssl430"))]
         ctx.set_num_tickets(2)?;
 
         //// SSL pointer builder

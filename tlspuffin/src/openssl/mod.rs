@@ -32,8 +32,8 @@ mod util;
 pub fn new_openssl_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
-            Box::new(OpenSSL::new(agent_name, config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(OpenSSL::new(agent_name, config)?))
         }
 
         fn put_name(&self) -> PutName {

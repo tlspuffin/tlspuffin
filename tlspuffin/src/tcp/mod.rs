@@ -27,8 +27,8 @@ use crate::{
 pub fn new_tcp_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, agent_name: AgentName, config: PutConfig) -> Box<dyn Put> {
-            Box::new(TcpPut::new(agent_name, config).unwrap())
+        fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(TcpPut::new(agent_name, config)?))
         }
 
         fn put_name(&self) -> PutName {

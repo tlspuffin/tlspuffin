@@ -142,7 +142,7 @@ impl Agent {
             claims,
         };
 
-        let stream = factory.create(descriptor.name, config);
+        let stream = factory.create(descriptor.name, config)?;
         let agent = Agent {
             name: descriptor.name,
             tls_version: descriptor.tls_version,
