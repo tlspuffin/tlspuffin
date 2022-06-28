@@ -68,7 +68,7 @@ pub trait Put: Stream + Drop + 'static {
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
-    fn reset(&mut self) -> Result<(), Error>;
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
     /// Register a new claim for agent_name
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName);

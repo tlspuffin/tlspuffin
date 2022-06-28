@@ -413,7 +413,7 @@ impl TraceContext {
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset()?;
+            agent.reset(agent.name)?;
         }
         Ok(())
     }

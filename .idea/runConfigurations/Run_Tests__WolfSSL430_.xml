@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Tests (WolfSSL)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test -p tlspuffin --lib --features wolfssl520" />
+  <configuration default="false" name="Run Tests (WolfSSL430)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="test -p tlspuffin --lib --features wolfssl430" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="false" />
@@ -10,7 +10,7 @@
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />
     <envs>
-      <env name="RUST_LOG" value="trace" />
+      <env name="RUST_LOG" value="debug" />
     </envs>
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />

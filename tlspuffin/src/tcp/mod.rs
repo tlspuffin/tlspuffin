@@ -162,7 +162,7 @@ impl Put for TcpPut {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())

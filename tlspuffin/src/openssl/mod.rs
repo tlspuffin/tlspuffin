@@ -112,7 +112,7 @@ impl Put for OpenSSL {
         }
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
         self.stream.clear();
         Ok(())
     }

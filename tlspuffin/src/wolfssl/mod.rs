@@ -20,7 +20,7 @@ use crate::{
     trace::ClaimList,
     wolfssl::{
         error::{ErrorStack, SslError},
-        ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
+        ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
         transcript::claim_transcript,
         version::version,
         x509::X509,
@@ -71,6 +71,7 @@ impl From<ErrorStack> for Error {
 }
 
 pub struct WolfSSL {
+    ctx: SslContext,
     stream: SslStream<MemoryStream>,
     config: PutConfig,
 }
@@ -95,13 +96,14 @@ impl Drop for WolfSSL {
     }
 }
 
-impl Put for WolfSSL {
-    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
+impl WolfSSL {
+    fn new_stream(
+        ctx: &SslContextRef,
+        agent_name: AgentName,
+        config: &PutConfig,
+    ) -> Result<SslStream<MemoryStream>, Error> {
         let ssl = if config.server {
-            let mut ssl = Self::create_server(config.tls_version)?;
+            let mut ssl = Self::create_server(ctx)?;
             let claimer = config.claims.clone();
             // FIXME: Improve code here -> deduplicate
             ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
@@ -115,12 +117,28 @@ impl Put for WolfSSL {
 
             ssl
         } else {
-            Self::create_client(config.tls_version)?
+            Self::create_client(ctx)?
         };
 
-        let stream = SslStream::new(ssl, MemoryStream::new())?;
+        Ok(SslStream::new(ssl, MemoryStream::new())?)
+    }
+}
+
+impl Put for WolfSSL {
+    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        let ctx = if config.server {
+            Self::create_server_ctx(config.tls_version)?
+        } else {
+            Self::create_client_ctx(config.tls_version)?
+        };
+
+        let stream = Self::new_stream(&ctx, agent_name, &config)?;
 
         let mut wolfssl = WolfSSL {
+            ctx,
             stream,
             config: config.clone(),
         };
@@ -154,8 +172,9 @@ impl Put for WolfSSL {
         }
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
-        self.stream.clear();
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+        self.stream = Self::new_stream(&self.ctx, agent_name, &self.config)?;
+        //self.stream.clear();
         Ok(())
     }
 
@@ -227,7 +246,7 @@ impl Put for WolfSSL {
 }
 
 impl WolfSSL {
-    pub fn create_client(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
+    pub fn create_client_ctx(tls_version: TLSVersion) -> Result<SslContext, ErrorStack> {
         let mut ctx = match tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
@@ -240,6 +259,10 @@ impl WolfSSL {
         // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
         ctx.set_verify(SslVerifyMode::NONE);
 
+        Ok(ctx)
+    }
+
+    pub fn create_client(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
         let mut ssl: Ssl = Ssl::new(&ctx)?;
         ssl.set_connect_state();
 
@@ -249,7 +272,7 @@ impl WolfSSL {
         Ok(ssl)
     }
 
-    pub fn create_server(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
+    pub fn create_server_ctx(tls_version: TLSVersion) -> Result<SslContext, ErrorStack> {
         let mut ctx = match tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
@@ -284,7 +307,10 @@ impl WolfSSL {
         // We expect two tickets like in OpenSSL
         #[cfg(not(feature = "wolfssl430"))]
         ctx.set_num_tickets(2)?;
+        Ok(ctx)
+    }
 
+    pub fn create_server(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
         //// SSL pointer builder
         let mut ssl: Ssl = Ssl::new(&ctx)?;
 
