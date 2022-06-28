@@ -190,10 +190,10 @@ impl OpenSSL {
         #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
         {
             ctx_builder.set_tmp_ecdh(
-                openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1).as_ref()?,
+                &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
             )?;
 
-            ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref()?)?;
+            ctx_builder.set_tmp_rsa(&openssl::rsa::Rsa::generate(512)?)?;
         }
 
         // Allow EXPORT in server
