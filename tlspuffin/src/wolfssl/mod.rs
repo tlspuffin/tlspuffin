@@ -233,6 +233,8 @@ impl WolfSSL {
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
         };
 
+        ctx.disable_session_cache()?;
+
         // Disallow EXPORT in client
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
         // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
