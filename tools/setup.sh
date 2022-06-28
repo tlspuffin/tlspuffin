@@ -15,6 +15,7 @@ sudo -i -u max
 
 export GH_TOKEN=...
 
+rm -rf tlspuffin-*
 sudo -u max gh run download -p "tlspuffin-*" -R trailofbits/tlspuffin $(gh run list -R trailofbits/tlspuffin -b trailofbits -L 1 --json databaseId --jq ".[0].databaseId")
-
+chmod +x tlspuffin-*/tlspuffin
 
