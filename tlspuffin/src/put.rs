@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     agent::{AgentDescriptor, AgentName, TLSVersion},
+    claims::{ClaimList, GlobalClaimList},
     error::Error,
     io::Stream,
     put_registry::DUMMY_PUT,
-    trace::{ClaimList, GlobalClaimList},
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
@@ -52,7 +52,7 @@ pub struct PutConfig {
 }
 
 impl PutConfig {
-    pub fn claim_closure<C, F>(&self, mut callback: F) -> impl Fn(&mut C)
+    pub fn claim_closure<C, F>(&self, callback: F) -> impl Fn(&mut C)
     where
         F: Fn(&mut C, &mut ClaimList),
     {

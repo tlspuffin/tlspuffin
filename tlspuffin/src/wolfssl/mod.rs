@@ -19,7 +19,6 @@ use crate::{
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520_PUT},
     static_certs::{CERT, PRIVATE_KEY},
-    trace::ClaimList,
     wolfssl::{
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},

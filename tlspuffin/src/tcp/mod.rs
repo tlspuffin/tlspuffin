@@ -21,7 +21,6 @@ use crate::{
     io::{MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, TCP_PUT},
-    trace::ClaimList,
 };
 
 pub fn new_tcp_factory() -> Box<dyn Factory> {

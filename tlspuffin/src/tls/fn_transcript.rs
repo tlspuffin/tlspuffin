@@ -4,11 +4,7 @@
 use rustls::{hash_hs::HandshakeHash, tls13};
 use security_claims::{Claim, ClaimType};
 
-use crate::{
-    agent::AgentName,
-    tls::error::FnError,
-    trace::{ByAgentClaimList, ClaimList},
-};
+use crate::{agent::AgentName, claims::ByAgentClaimList, tls::error::FnError};
 
 fn into_transcript(
     claim: Option<&(AgentName, Claim)>,

@@ -1,7 +1,7 @@
 use foreign_types::ForeignTypeRef;
 use wolfssl_sys as wolf;
 
-use crate::{agent::AgentName, trace::ClaimList, wolfssl::ssl::SslRef};
+use crate::{agent::AgentName, claims::ClaimList, wolfssl::ssl::SslRef};
 
 pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut ClaimList) {
     unsafe {

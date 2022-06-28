@@ -18,7 +18,7 @@ use crate::{
     error::Error,
     put::{Put, PutConfig, PutDescriptor},
     put_registry::PUT_REGISTRY,
-    trace::{ClaimList, GlobalClaimList, TraceContext},
+    trace::TraceContext,
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.

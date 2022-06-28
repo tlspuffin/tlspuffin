@@ -92,6 +92,7 @@ use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, remove_prefix, Term},
+    claims::{ByAgentClaimList, GlobalClaimList},
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     error::Error,
     extraction::extract_knowledge,
@@ -227,95 +228,6 @@ pub struct Knowledge {
     pub data: Box<dyn VariableData>,
 }
 
-#[derive(Clone)]
-pub struct ClaimList {
-    claims: Vec<(AgentName, Claim)>,
-}
-
-impl ClaimList {
-    pub fn iter(&self) -> Iter<'_, (AgentName, Claim)> {
-        self.claims.iter()
-    }
-
-    /// finds the last claim matching `type`
-    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claims.iter().find(|(_name, claim)| claim.typ == typ)
-    }
-
-    pub fn log(&self) {
-        debug!(
-            "New Claims: {}",
-            &self
-                .claims
-                .iter()
-                .map(|(name, claim)| format!("{name}: {}", claim.typ))
-                .join(", ")
-        );
-        for (name, claim) in &self.claims {
-            trace!("{}", claim);
-        }
-    }
-}
-
-impl From<Vec<(AgentName, Claim)>> for ClaimList {
-    fn from(claims: Vec<(AgentName, Claim)>) -> Self {
-        Self { claims }
-    }
-}
-
-/// Claims filters by [`AgentName`]
-pub struct ByAgentClaimList {
-    claims: ClaimList,
-}
-
-impl ByAgentClaimList {
-    pub fn new(claims: &ClaimList, agent_name: AgentName) -> Option<Self> {
-        let filtered = claims
-            .iter()
-            .filter(|(name, _claim)| agent_name == *name)
-            .cloned()
-            .rev()
-            .collect::<Vec<_>>();
-        if filtered.is_empty() {
-            None
-        } else {
-            Some(Self {
-                claims: filtered.into(),
-            })
-        }
-    }
-
-    /// finds the last claim matching `type`
-    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claims.iter().find(|(_name, claim)| claim.typ == typ)
-    }
-}
-
-impl ClaimList {
-    pub fn new() -> Self {
-        Self { claims: vec![] }
-    }
-
-    pub fn claim(&mut self, name: AgentName, claim: Claim) {
-        self.claims.push((name, claim));
-    }
-}
-
-#[derive(Clone)]
-pub struct GlobalClaimList {
-    claims: Rc<RefCell<ClaimList>>,
-}
-
-impl GlobalClaimList {
-    pub fn deref_borrow(&self) -> Ref<'_, ClaimList> {
-        self.claims.deref().borrow()
-    }
-
-    pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList> {
-        self.claims.deref().borrow_mut()
-    }
-}
-
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
 /// of the attacker. [`VariableData`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
@@ -336,9 +248,7 @@ impl TraceContext {
     pub fn new() -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
-        let claims = GlobalClaimList {
-            claims: Rc::new(RefCell::new(ClaimList::new())),
-        };
+        let claims = GlobalClaimList::new();
 
         Self {
             knowledge: vec![],
@@ -352,7 +262,7 @@ impl TraceContext {
     }
 
     pub fn claims_by_agent(&self, agent_name: AgentName) -> Option<ByAgentClaimList> {
-        let claims: &ClaimList = &self.claims.deref_borrow_mut();
+        let claims = &self.claims.deref_borrow_mut();
         ByAgentClaimList::new(claims, agent_name)
     }
 
@@ -542,11 +452,10 @@ impl Trace {
             ctx.claims.deref_borrow().log();
         }
 
-        let claims: &Vec<(AgentName, Claim)> = &ctx.claims.deref_borrow().claims;
-        if let Some(msg) = is_violation(claims) {
+        let claims = ctx.claims.deref_borrow();
+        if let Some(msg) = is_violation(claims.slice()) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            let claims: Vec<_> = claims.clone();
-            return Err(Error::SecurityClaim(msg, claims));
+            return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 
         Ok(())

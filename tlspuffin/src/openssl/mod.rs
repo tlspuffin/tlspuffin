@@ -15,7 +15,6 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111_PUT},
-    trace::ClaimList,
 };
 
 #[cfg(feature = "deterministic")]
