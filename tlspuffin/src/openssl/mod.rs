@@ -134,7 +134,7 @@ impl Put for OpenSSL {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claims).borrow_mut().claim(agent_name, claim)
+                    claims.deref_borrow_mut().claim(agent_name, claim)
                 },
             );
         }
