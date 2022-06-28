@@ -1,6 +1,6 @@
 use std::{
     env,
-    ffi::CStr,
+    ffi::{CStr, CString},
     fs,
     fs::File,
     io::{Read, Write},
@@ -70,13 +70,37 @@ unsafe extern "C" fn iter(
     }
 }
 
+extern "C" {
+    fn __asan_default_options() -> *mut libc::c_char;
+}
+
 fn asan_info() {
     unsafe {
         if libc::dl_iterate_phdr(Some(iter), ptr::null_mut()) > 0 {
-            info!("Running with ASAN support.")
+            info!("Running with ASAN support.",)
         } else {
             info!("Running WITHOUT ASAN support.")
         }
+
+        info!(
+            "ASAN env options: {}",
+            env::var("ASAN_OPTIONS").unwrap_or_default(),
+        );
+
+        info!(
+            "ASAN default options: {}",
+            CStr::from_ptr(__asan_default_options()).to_str().unwrap()
+        );
+
+        info!("Appending default options to env options..");
+        env::set_var(
+            "ASAN_OPTIONS",
+            format!(
+                "{}:{}",
+                env::var("ASAN_OPTIONS").unwrap_or_default(),
+                CStr::from_ptr(__asan_default_options()).to_str().unwrap(),
+            ),
+        );
     }
 }
 
