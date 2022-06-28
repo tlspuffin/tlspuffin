@@ -1,6 +1,6 @@
 use std::{
     env,
-    ffi::CStr,
+    ffi::{CStr, CString},
     fs,
     fs::File,
     io::{Read, Write},
@@ -40,8 +40,8 @@ fn create_app() -> Command<'static> {
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
-                .arg(arg!(-t --title [t] "Title of the experiment"))
-                         .arg(arg!(-d --description [d] "Descritpion of the experiment"))
+                .arg(arg!(-t --title <t> "Title of the experiment"))
+                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./corpus"),
             Command::new("plot")
@@ -70,13 +70,37 @@ unsafe extern "C" fn iter(
     }
 }
 
+extern "C" {
+    fn __asan_default_options() -> *mut libc::c_char;
+}
+
 fn asan_info() {
     unsafe {
         if libc::dl_iterate_phdr(Some(iter), ptr::null_mut()) > 0 {
-            info!("Running with ASAN support.")
+            info!("Running with ASAN support.",)
         } else {
             info!("Running WITHOUT ASAN support.")
         }
+
+        info!(
+            "ASAN env options: {}",
+            env::var("ASAN_OPTIONS").unwrap_or_default(),
+        );
+
+        info!(
+            "ASAN default options: {}",
+            CStr::from_ptr(__asan_default_options()).to_str().unwrap()
+        );
+
+        info!("Appending default options to env options..");
+        env::set_var(
+            "ASAN_OPTIONS",
+            format!(
+                "{}:{}",
+                env::var("ASAN_OPTIONS").unwrap_or_default(),
+                CStr::from_ptr(__asan_default_options()).to_str().unwrap(),
+            ),
+        );
     }
 }
 
@@ -203,6 +227,7 @@ fn main() {
                 objective_dir: experiment_path.join("objective"),
                 broker_port: port,
                 monitor_file: experiment_path.join("stats.json"),
+                log_file: experiment_path.join("log.json"),
                 minimizer,
                 mutation_stage_config: Default::default(),
                 mutation_config: Default::default(),
