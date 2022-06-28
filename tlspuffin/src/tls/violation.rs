@@ -1,16 +1,11 @@
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 use itertools::Itertools;
+use security_claims::{Claim, ClaimCipher, ClaimTLSVersion, ClaimType};
 
-use crate::{ffi, Claim, ClaimCipher, ClaimType};
+use crate::claims::ClaimTuple;
 
-// Will be instantiated with (AgentName,Claim)
-pub type ClaimMessage<AgentName> = (AgentName, Claim);
-
-pub fn is_violation<A>(claims: &[ClaimMessage<A>]) -> Option<&'static str>
-where
-    A: Eq,
-{
+pub fn is_violation(claims: &[ClaimTuple]) -> Option<&'static str> {
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
@@ -20,7 +15,7 @@ where
             let version = claim_a.version;
 
             match version.data {
-                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
+                ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
                     // TLS 1.2 Checks
                     if client.master_secret_12 != server.master_secret_12 {
                         return Some("Mismatching master secrets");
@@ -60,7 +55,7 @@ where
                         return Some("mismatching signature algorithms");
                     }
                 }
-                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
+                ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
                     // TLS 1.3 Checks
                     if client.master_secret != server.master_secret {
                         return Some("Mismatching master secrets");
@@ -119,7 +114,7 @@ where
                         return Some("mismatching signature algorithms");
                     }
                 }
-                ffi::ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
+                ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
                     // no checks available
                 }
             }
@@ -134,13 +129,8 @@ where
     None
 }
 
-pub fn find_two_finished_messages<A>(
-    claims: &[ClaimMessage<A>],
-) -> Option<(&ClaimMessage<A>, &ClaimMessage<A>)>
-where
-    A: Eq,
-{
-    let two_finishes: Option<(&ClaimMessage<A>, &ClaimMessage<A>)> = claims
+pub fn find_two_finished_messages(claims: &[ClaimTuple]) -> Option<(&ClaimTuple, &ClaimTuple)> {
+    let two_finishes: Option<(&ClaimTuple, &ClaimTuple)> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();

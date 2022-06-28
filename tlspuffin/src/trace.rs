@@ -84,7 +84,7 @@ use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
-use security_claims::{violation::is_violation, Claim, ClaimType};
+use security_claims::{Claim, ClaimType};
 use serde::{Deserialize, Serialize, __private::de::Borrowed};
 
 #[allow(unused)] // used in docs
@@ -92,12 +92,12 @@ use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, remove_prefix, Term},
-    claims::{ByAgentClaimList, GlobalClaimList},
+    claims::{ByAgentClaimList, CheckViolation, GlobalClaimList, Policy},
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     error::Error,
     extraction::extract_knowledge,
     io::MessageResult,
-    tls::error::FnError,
+    tls::{error::FnError, violation::is_violation},
     variable_data::VariableData,
 };
 
@@ -453,7 +453,7 @@ impl Trace {
         }
 
         let claims = ctx.claims.deref_borrow();
-        if let Some(msg) = is_violation(claims.slice()) {
+        if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }

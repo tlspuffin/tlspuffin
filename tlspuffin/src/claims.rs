@@ -1,5 +1,7 @@
 use std::{
+    any::Any,
     cell::{Ref, RefCell, RefMut},
+    fmt::{Debug, Display},
     ops::Deref,
     rc::Rc,
     slice::Iter,
@@ -11,13 +13,29 @@ use security_claims::{Claim, ClaimType};
 
 use crate::agent::AgentName;
 
+pub type ClaimTuple = (AgentName, Claim);
+
+pub struct Policy {
+    pub(crate) func: fn(claims: &[ClaimTuple]) -> Option<&'static str>,
+}
+
+pub trait CheckViolation {
+    fn check_violation(&self, policy: Policy) -> Option<&'static str>;
+}
+
 #[derive(Clone, Debug)]
 pub struct ClaimList {
-    claims: Vec<(AgentName, Claim)>,
+    claims: Vec<ClaimTuple>,
+}
+
+impl CheckViolation for ClaimList {
+    fn check_violation(&self, policy: Policy) -> Option<&'static str> {
+        (policy.func)(&self.claims)
+    }
 }
 
 impl ClaimList {
-    pub fn iter(&self) -> Iter<'_, (AgentName, Claim)> {
+    pub fn iter(&self) -> Iter<'_, ClaimTuple> {
         self.claims.iter()
     }
 
@@ -26,10 +44,12 @@ impl ClaimList {
         self.claims.iter().find(|(_name, claim)| claim.typ == typ)
     }
 
-    pub fn slice(&self) -> &[(AgentName, Claim)] {
+    pub fn slice(&self) -> &[ClaimTuple] {
         &self.claims
     }
+}
 
+impl ClaimList {
     pub fn log(&self) {
         debug!(
             "New Claims: {}",
@@ -45,8 +65,8 @@ impl ClaimList {
     }
 }
 
-impl From<Vec<(AgentName, Claim)>> for ClaimList {
-    fn from(claims: Vec<(AgentName, Claim)>) -> Self {
+impl From<Vec<ClaimTuple>> for ClaimList {
+    fn from(claims: Vec<ClaimTuple>) -> Self {
         Self { claims }
     }
 }
@@ -74,7 +94,7 @@ impl ByAgentClaimList {
     }
 
     /// finds the last claim matching `type`
-    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
+    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&ClaimTuple> {
         self.claims.iter().find(|(_name, claim)| claim.typ == typ)
     }
 }

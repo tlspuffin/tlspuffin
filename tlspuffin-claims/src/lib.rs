@@ -8,4 +8,3 @@ pub use register::{deregister_claimer, register_claimer};
 
 mod ffi;
 pub mod register;
-pub mod violation;
