@@ -163,7 +163,7 @@ impl Agent {
         self.stream.rename_agent(claims, new_name);
     }
 
-    pub fn reset(&mut self) -> Result<(), Error> {
-        self.stream.reset()
+    pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+        self.stream.reset(agent_name)
     }
 }

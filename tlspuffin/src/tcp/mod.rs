@@ -162,7 +162,7 @@ impl Put for TcpPut {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -309,7 +309,6 @@ mod tests {
         let put = PutDescriptor {
             name: TCP_PUT,
             options: vec![("port".to_owned(), port.to_string())],
-            ..PutDescriptor::default()
         };
 
         let trace = seed_session_resumption_dhe_full.build_trace_with_put(put);
@@ -324,7 +323,6 @@ mod tests {
         let put = PutDescriptor {
             name: TCP_PUT,
             options: vec![("port".to_owned(), port.to_string())],
-            ..PutDescriptor::default()
         };
 
         let trace = seed_client_attacker_full.build_trace_with_put(put);
