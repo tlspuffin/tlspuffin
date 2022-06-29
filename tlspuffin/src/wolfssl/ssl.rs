@@ -23,7 +23,7 @@ use crate::{
         bio,
         callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
         error::{ErrorCode, ErrorStack, InnerError, SslError},
-        util::{cvt, cvt_p},
+        util::{cvt, cvt_n, cvt_p},
         x509::X509Ref,
     },
 };
@@ -185,14 +185,19 @@ impl SslContextRef {
         registry.set(value);
     }
 
-    pub fn set_msg_callback<F>(&mut self, callback: F)
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
         F: Fn(&mut SslRef) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
             self.set_user_data(callback);
-            wolf::wolfSSL_CTX_set_msg_callback(self.as_ptr(), Some(ctx_msg_callback::<F>));
+            cvt(wolf::wolfSSL_CTX_set_msg_callback(
+                self.as_ptr(),
+                Some(ctx_msg_callback::<F>),
+            ))
+            .map(|_| ())
         }
     }
 
@@ -375,14 +380,18 @@ impl SslRef {
         registry.get_mut::<T>()
     }
 
-    pub fn set_msg_callback<F>(&mut self, callback: F)
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
         F: Fn(&mut SslRef) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
             self.set_user_data(callback);
-            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(ssl_msg_callback::<F>));
+            cvt(wolf::wolfSSL_set_msg_callback(
+                self.as_ptr(),
+                Some(ssl_msg_callback::<F>),
+            ))
+            .map(|_| ())
         }
     }
 

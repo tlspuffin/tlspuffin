@@ -89,7 +89,7 @@ pub trait Put: Stream + Drop + 'static {
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
     /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName);
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;
     /// Checks whether the Put is in a good state

@@ -128,13 +128,22 @@ impl Put for WolfSSL {
         };
 
         let agent_name = agent.name;
+
+        #[cfg(not(feature = "wolfssl430"))]
         ctx.set_msg_callback(
             config.claim_closure(move |context: &mut SslRef, claims| unsafe {
                 claim_transcript(context, agent_name, claims);
             }),
-        );
+        )?;
 
-        let stream = Self::new_stream(&ctx, &config)?;
+        let mut stream = Self::new_stream(&ctx, &config)?;
+
+        #[cfg(feature = "wolfssl430")]
+        stream.ssl_mut().set_msg_callback(config.claim_closure(
+            move |context: &mut SslRef, claims| unsafe {
+                claim_transcript(context, agent_name, claims);
+            },
+        ))?;
 
         let mut wolfssl = WolfSSL {
             ctx,
@@ -195,18 +204,30 @@ impl Put for WolfSSL {
     }
 
     #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) {
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
             self.register_claimer(agent_name);
         }
 
+        #[cfg(not(feature = "wolfssl430"))]
         self.ctx.set_msg_callback(self.config.claim_closure(
             move |context: &mut SslRef, claims| unsafe {
                 claim_transcript(context, agent_name, claims);
             },
-        ));
+        ))?;
+
+        #[cfg(feature = "wolfssl430")]
+        self.stream
+            .ssl_mut()
+            .set_msg_callback(self.config.claim_closure(
+                move |context: &mut SslRef, claims| unsafe {
+                    claim_transcript(context, agent_name, claims);
+                },
+            ))?;
+
+        Ok(())
     }
 
     fn describe_state(&self) -> &'static str {

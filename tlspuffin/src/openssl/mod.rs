@@ -148,12 +148,13 @@ impl Put for OpenSSL {
     }
 
     #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) {
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
             self.register_claimer(agent_name);
         }
+        Ok(())
     }
 
     fn describe_state(&self) -> &'static str {

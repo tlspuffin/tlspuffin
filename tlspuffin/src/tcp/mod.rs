@@ -187,7 +187,9 @@ impl Put for TcpPut {
         panic!("Claims are not supported with TcpPut")
     }
 
-    fn rename_agent(&mut self, _agent_name: AgentName) {}
+    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        Ok(())
+    }
 
     fn describe_state(&self) -> &'static str {
         panic!("Can not describe the state with TcpPut")

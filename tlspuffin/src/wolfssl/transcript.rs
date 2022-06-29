@@ -1,7 +1,14 @@
 use foreign_types::ForeignTypeRef;
 use wolfssl_sys as wolf;
 
-use crate::{agent::AgentName, claims::ClaimList, wolfssl::ssl::SslRef};
+use crate::{
+    agent::{AgentName, AgentType, TLSVersion},
+    claims::{
+        Claim, ClaimList, ClientHelloClientFinished, ClientHelloServerFinished,
+        ClientHelloServerHello, SizedClaim, TlsTranscript,
+    },
+    wolfssl::ssl::SslRef,
+};
 
 pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut ClaimList) {
     unsafe {
@@ -24,32 +31,34 @@ pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut Cl
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
-            wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => Some(security_claims::Claim {
-                typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH,
-                transcript: security_claims::ClaimTranscript {
-                    length: 32,
-                    data: target,
-                },
-                ..security_claims::Claim::default()
-            }),
-            wolf::AcceptStateTls13_TLS13_CERT_VERIFY_SENT => Some(security_claims::Claim {
-                typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN,
-                transcript: security_claims::ClaimTranscript {
-                    length: 32,
-                    data: target,
-                },
-                ..security_claims::Claim::default()
-            }),
-            wolf::AcceptStateTls13_TLS13_TICKET_SENT => Some(security_claims::Claim {
-                typ: security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN,
-                transcript: security_claims::ClaimTranscript {
-                    length: 32,
-                    data: target,
-                },
-                ..security_claims::Claim::default()
-            }),
-            _ => None,
-        }
-        .and_then(|claim| Some(claims.claim(agent_name, claim)));
+            wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => {
+                claims.claim_sized(SizedClaim::ClientHelloServerHello(Claim {
+                    agent: agent_name,
+                    origin: AgentType::Server,
+                    outbound: false,
+                    protocol_version: TLSVersion::V1_3,
+                    data: ClientHelloServerHello(TlsTranscript(target, 32)),
+                }))
+            }
+            wolf::AcceptStateTls13_TLS13_CERT_VERIFY_SENT => {
+                claims.claim_sized(SizedClaim::ClientHelloServerFinished(Claim {
+                    agent: agent_name,
+                    origin: AgentType::Server,
+                    outbound: false,
+                    protocol_version: TLSVersion::V1_3,
+                    data: ClientHelloServerFinished(TlsTranscript(target, 32)),
+                }))
+            }
+            wolf::AcceptStateTls13_TLS13_TICKET_SENT => {
+                claims.claim_sized(SizedClaim::ClientHelloClientFinished(Claim {
+                    agent: agent_name,
+                    origin: AgentType::Server,
+                    outbound: false,
+                    protocol_version: TLSVersion::V1_3,
+                    data: ClientHelloClientFinished(TlsTranscript(target, 32)),
+                }))
+            }
+            _ => {}
+        };
     }
 }
