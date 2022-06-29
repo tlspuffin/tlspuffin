@@ -187,7 +187,7 @@ impl SslContextRef {
 
     pub fn set_msg_callback<F>(&mut self, callback: F)
     where
-        F: Fn(&mut SslContextRef) + 'static,
+        F: Fn(&mut SslRef) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {

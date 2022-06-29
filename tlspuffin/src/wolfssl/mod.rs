@@ -104,18 +104,10 @@ impl Drop for WolfSSL {
 impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
-        agent_name: AgentName,
         config: &PutConfig,
     ) -> Result<SslStream<MemoryStream>, Error> {
         let ssl = if config.server {
-            let mut ssl = Self::create_server(ctx)?;
-            ssl.set_msg_callback(config.claim_closure(
-                move |context: &mut SslRef, claims| unsafe {
-                    claim_transcript(context, agent_name, claims);
-                },
-            ));
-
-            ssl
+            Self::create_server(ctx)?
         } else {
             Self::create_client(ctx)?
         };
@@ -129,13 +121,20 @@ impl Put for WolfSSL {
     where
         Self: Sized,
     {
-        let ctx = if config.server {
+        let mut ctx = if config.server {
             Self::create_server_ctx(config.tls_version)?
         } else {
             Self::create_client_ctx(config.tls_version)?
         };
 
-        let stream = Self::new_stream(&ctx, agent.name, &config)?;
+        let agent_name = agent.name;
+        ctx.set_msg_callback(
+            config.claim_closure(move |context: &mut SslRef, claims| unsafe {
+                claim_transcript(context, agent_name, claims);
+            }),
+        );
+
+        let stream = Self::new_stream(&ctx, &config)?;
 
         let mut wolfssl = WolfSSL {
             ctx,
@@ -167,7 +166,7 @@ impl Put for WolfSSL {
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.stream = Self::new_stream(&self.ctx, agent_name, &self.config)?;
+        self.stream = Self::new_stream(&self.ctx, &self.config)?;
         //self.stream.clear();
         Ok(())
     }
@@ -203,13 +202,11 @@ impl Put for WolfSSL {
             self.register_claimer(agent_name);
         }
 
-        self.stream
-            .ssl_mut()
-            .set_msg_callback(self.config.claim_closure(
-                move |context: &mut SslRef, claims| unsafe {
-                    claim_transcript(context, agent_name, claims);
-                },
-            ));
+        self.ctx.set_msg_callback(self.config.claim_closure(
+            move |context: &mut SslRef, claims| unsafe {
+                claim_transcript(context, agent_name, claims);
+            },
+        ));
     }
 
     fn describe_state(&self) -> &'static str {

@@ -91,7 +91,7 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslContextRef) + 'static,
+    F: Fn(&mut SslRef) + 'static,
 {
     let ctx = SslContextRef::from_ptr_mut(wolf::wolfSSL_get_SSL_CTX(ssl));
 
@@ -103,7 +103,8 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
         callback.deref() as *const F
     };
 
-    (*r_callback)(ctx);
+    let ssl = SslRef::from_ptr_mut(ssl);
+    (*r_callback)(ssl);
 }
 
 pub unsafe extern "C" fn ssl_msg_callback<F>(
