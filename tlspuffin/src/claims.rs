@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct TlsTranscript(pub [u8; 64], pub usize);
+pub struct TlsTranscript(pub [u8; 64], pub i32);
 
 pub trait TlsData: 'static + Send + Sync + Debug + TlsDataClone {
     fn compare_session_id(&self, other: Self) -> bool

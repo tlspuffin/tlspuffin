@@ -1,4 +1,11 @@
-use std::{cell::RefCell, io, io::ErrorKind, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    fmt::{Debug, Formatter},
+    io,
+    io::ErrorKind,
+    rc::Rc,
+};
 
 use openssl::{
     error::ErrorStack,
@@ -9,7 +16,12 @@ use openssl::{
 use rustls::msgs::message::OpaqueMessage;
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    claims::{
+        Claim, ClientHello, ClientHelloClientFinished, ClientHelloClientHello,
+        ClientHelloServerFinished, ClientHelloServerHello, SizedClaim, TlsData, TlsDataClone,
+        TlsTranscript,
+    },
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
@@ -83,6 +95,122 @@ impl Stream for OpenSSL {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct OpenSSLTlsData;
+
+impl TlsData for OpenSSLTlsData {
+    fn compare_session_id(&self, other: Self) -> bool
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn compare_client_random(&self, other: &dyn TlsData) -> bool {
+        todo!()
+    }
+
+    fn compare_server_random(&self, other: &Self) -> bool
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn get_best_cipher(&self, other: Self) -> u32
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        todo!()
+    }
+}
+
+fn to_claim(agent: AgentName, claim: security_claims::Claim) -> Option<SizedClaim> {
+    let origin = AgentType::Server;
+    let outbound = false;
+    let protocol_version = TLSVersion::V1_3;
+    match claim.typ {
+        // Transcripts
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => {
+            Some(SizedClaim::ClientHelloClientHello(Claim {
+                agent,
+                origin,
+                outbound,
+                protocol_version,
+                data: ClientHelloClientHello(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                )),
+            }))
+        }
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_PARTIAL_CH => None,
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH => {
+            Some(SizedClaim::ClientHelloServerHello(Claim {
+                agent,
+                origin,
+                outbound,
+                protocol_version,
+                data: ClientHelloServerHello(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                )),
+            }))
+        }
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN => {
+            Some(SizedClaim::ClientHelloServerFinished(Claim {
+                agent,
+                origin,
+                outbound,
+                protocol_version,
+                data: ClientHelloServerFinished(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                )),
+            }))
+        }
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN => {
+            Some(SizedClaim::ClientHelloClientFinished(Claim {
+                agent,
+                origin,
+                outbound,
+                protocol_version,
+                data: ClientHelloClientFinished(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                )),
+            }))
+        }
+        // Messages
+        security_claims::ClaimType::CLAIM_CLIENT_HELLO => Some(SizedClaim::ClientHello(Claim {
+            agent,
+            origin,
+            outbound,
+            protocol_version,
+            data: ClientHello(Box::new(OpenSSLTlsData)),
+        })),
+        security_claims::ClaimType::CLAIM_CCS => None,
+        security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE => None,
+        security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
+        security_claims::ClaimType::CLAIM_FINISHED => None,
+        security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
+        security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
+        security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_REQUEST => None,
+        security_claims::ClaimType::CLAIM_SERVER_DONE => None,
+        security_claims::ClaimType::CLAIM_SESSION_TICKET => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_STATUS => None,
+        security_claims::ClaimType::CLAIM_EARLY_DATA => None,
+        security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
+        _ => None,
+    }
+}
+
 impl Put for OpenSSL {
     fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = if config.server {
@@ -133,7 +261,9 @@ impl Put for OpenSSL {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    claims.deref_borrow_mut().claim(agent_name, claim)
+                    if let Some(claim) = to_claim(agent_name, claim) {
+                        claims.deref_borrow_mut().claim_sized(claim)
+                    }
                 },
             );
         }

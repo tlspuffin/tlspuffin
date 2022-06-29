@@ -42,7 +42,7 @@ fn into_transcript(
 pub fn fn_server_hello_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
     into_transcript(
         claims.find_last_claim::<Claim<ClientHelloServerHello>>(),
-        "fn_server_finished_transcript",
+        "fn_server_hello_transcript",
     )
 }
 
