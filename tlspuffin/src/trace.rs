@@ -97,7 +97,7 @@ use crate::{
     error::Error,
     extraction::extract_knowledge,
     io::MessageResult,
-    tls::{error::FnError, violation::is_violation},
+    tls::error::FnError,
     variable_data::VariableData,
 };
 
@@ -413,7 +413,7 @@ impl Trace {
                 .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(descriptor.name);
+                reusable.rename(descriptor.name)?;
             } else {
                 // only spawn completely new if not yet existing
                 ctx.new_agent(descriptor)?;
@@ -452,11 +452,11 @@ impl Trace {
             ctx.claims.deref_borrow().log();
         }
 
-        let claims = ctx.claims.deref_borrow();
+        /*FIXME let claims = ctx.claims.deref_borrow();
         if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
-        }
+        }*/
 
         Ok(())
     }

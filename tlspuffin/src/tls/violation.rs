@@ -1,11 +1,10 @@
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 use itertools::Itertools;
-use security_claims::{Claim, ClaimCipher, ClaimTLSVersion, ClaimType};
 
-use crate::claims::ClaimTuple;
+use crate::claims::Claim;
 
-pub fn is_violation(claims: &[ClaimTuple]) -> Option<&'static str> {
+pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
     if let Some(((_agent_a, claim_a), (_agent_b, claim_b))) = find_two_finished_messages(claims) {
         if let Some((client, server)) = get_client_server(claim_a, claim_b) {
             if client.version != server.version {
@@ -129,8 +128,8 @@ pub fn is_violation(claims: &[ClaimTuple]) -> Option<&'static str> {
     None
 }
 
-pub fn find_two_finished_messages(claims: &[ClaimTuple]) -> Option<(&ClaimTuple, &ClaimTuple)> {
-    let two_finishes: Option<(&ClaimTuple, &ClaimTuple)> = claims
+pub fn find_two_finished_messages(claims: &[Claim]) -> Option<(&Claim, &Claim)> {
+    let two_finishes: Option<(&Claim, &Claim)> = claims
         .iter()
         .filter(|(_agent, claim)| claim.typ == ClaimType::CLAIM_FINISHED && claim.write == 0)
         .collect_tuple();

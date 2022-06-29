@@ -11,7 +11,7 @@ mod key_schedule;
 pub mod error;
 
 pub mod seeds;
-pub mod violation;
+//FIXME pub mod violation;
 
 /// This modules contains all the concrete implementations of function symbols.
 #[path = "."]

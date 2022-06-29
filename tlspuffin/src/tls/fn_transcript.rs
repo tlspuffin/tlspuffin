@@ -2,39 +2,60 @@
 #![allow(dead_code)]
 
 use rustls::{hash_hs::HandshakeHash, tls13};
-use security_claims::{Claim, ClaimType};
 
-use crate::{agent::AgentName, claims::ByAgentClaimList, tls::error::FnError};
+use crate::{
+    agent::AgentName,
+    claims::{
+        ByAgentClaimList, Claim, ClientHelloClientFinished, ClientHelloServerFinished,
+        ClientHelloServerHello, SizedClaim,
+    },
+    tls::error::FnError,
+};
 
 fn into_transcript(
-    claim: Option<&(AgentName, Claim)>,
-    typ: ClaimType,
+    claim: Option<&SizedClaim>,
+    name: &'static str,
 ) -> Result<HandshakeHash, FnError> {
-    if let Some((_, claim)) = claim {
+    if let Some(claim) = claim {
         let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
-        let claim_transcript = &claim.transcript.data[..claim.transcript.length as usize];
+
+        let transcript = match claim {
+            SizedClaim::ClientHelloClientHello(claim) => Some(&claim.data.0),
+            SizedClaim::PartialClientHelloPartialClientHello(claim) => Some(&claim.data.0),
+            SizedClaim::ClientHelloServerHello(claim) => Some(&claim.data.0),
+            SizedClaim::ClientHelloServerFinished(claim) => Some(&claim.data.0),
+            SizedClaim::ClientHelloClientFinished(claim) => Some(&claim.data.0),
+            _ => None,
+        }
+        .unwrap();
+        let claim_transcript = &transcript.0[..transcript.1 as usize];
         let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
         return Ok(hash);
     }
 
     Err(FnError::Unknown(format!(
         "Failed to find {:?} transcript",
-        typ
+        name
     )))
 }
 
-fn find_transcript(claims: &ByAgentClaimList, typ: ClaimType) -> Result<HandshakeHash, FnError> {
-    let claim = claims.find_last_claim(typ);
-    into_transcript(claim, typ)
-}
-
 pub fn fn_server_hello_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SH)
+    into_transcript(
+        claims.find_last_claim::<Claim<ClientHelloServerHello>>(),
+        "fn_server_finished_transcript",
+    )
 }
 
 pub fn fn_server_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN)
+    into_transcript(
+        claims.find_last_claim::<Claim<ClientHelloServerFinished>>(),
+        "fn_server_finished_transcript",
+    )
 }
+
 pub fn fn_client_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN)
+    into_transcript(
+        claims.find_last_claim::<Claim<ClientHelloClientFinished>>(),
+        "fn_client_finished_transcript",
+    )
 }

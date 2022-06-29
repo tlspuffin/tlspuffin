@@ -25,6 +25,12 @@ use crate::{
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
 
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum AgentType {
+    Server,
+    Client,
+}
+
 impl AgentName {
     pub fn next(&self) -> AgentName {
         AgentName(self.0 + 1)
@@ -160,9 +166,9 @@ impl Agent {
         self.server == other.server && self.tls_version == other.tls_version
     }
 
-    pub fn rename(&mut self, new_name: AgentName) {
+    pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.name = new_name;
-        self.stream.rename_agent(new_name);
+        self.stream.rename_agent(new_name)
     }
 
     pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
