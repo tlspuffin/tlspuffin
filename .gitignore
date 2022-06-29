@@ -5,6 +5,7 @@
 experiments/
 experiments*/
 tlspuffin-log.json
+log.json
 
 venv
 stats.json

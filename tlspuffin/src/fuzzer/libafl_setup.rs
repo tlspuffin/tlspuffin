@@ -10,8 +10,8 @@ use libafl::{
     },
     corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
-        EventConfig, EventFirer, EventManager, EventRestarter, HasEventManagerId,
-        LlmpRestartingEventManager, ProgressReporter,
+        setup_restarting_mgr_std, EventConfig, EventFirer, EventManager, EventRestarter,
+        HasEventManagerId, LlmpRestartingEventManager, ProgressReporter,
     },
     executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
@@ -96,6 +96,8 @@ pub struct FuzzerConfig {
     pub mutation_stage_config: MutationStageConfig,
     pub mutation_config: MutationConfig,
     pub monitor: bool,
+    pub no_launcher: bool,
+    pub log_file: PathBuf,
 }
 
 #[derive(Clone, Copy)]
@@ -408,11 +410,24 @@ where
         > + ProgressReporter<Trace>,
 {
     fn install_minimizer(self) -> Self {
+        #[cfg(not(test))]
+        let map = unsafe {
+            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
+        #[cfg(test)]
+        let map = unsafe {
+            // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
+            pub const EDGES_MAP_SIZE: usize = 65536;
+            pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
+            pub static mut MAX_EDGES_NUM: usize = 0;
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
         let (feedback, observers) = {
             let time_observer = TimeObserver::new("time");
-            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-                &mut super::sanitizer::EDGES_MAP[0..super::sanitizer::MAX_EDGES_NUM]
-            }));
+            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", map));
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
@@ -431,8 +446,21 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start(config: FuzzerConfig, log_handle: Handle) {
-    info!("Running on {} cores", &config.core_definition);
+pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Error> {
+    let FuzzerConfig {
+        core_definition,
+        corpus_dir,
+        objective_dir,
+        static_seed,
+        log_file,
+        monitor_file,
+        broker_port,
+        monitor,
+        no_launcher,
+        ..
+    } = &config;
+
+    info!("Running on cores: {}", &core_definition);
 
     let mut run_client =
         |state: Option<StdState<_, Trace, _, _>>,
@@ -441,19 +469,17 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) {
          -> Result<(), Error> {
             PUT_REGISTRY.make_deterministic();
 
-            log_handle
-                .clone()
-                .set_config(create_file_config(&PathBuf::from("tlspuffin-log.json")));
-
-            let seed = config
-                .static_seed
-                .unwrap_or(event_manager.mgr_id().id as u64);
+            let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
-            RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
+            let harness_fn = &mut harness::harness;
+
+            let mut builder =
+                RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+            builder = builder
                 .with_rand(StdRand::with_seed(seed))
                 .with_corpus(
                     CachedOnDiskCorpus::new_save_meta(
-                        config.corpus_dir.clone(),
+                        corpus_dir.clone(),
                         Some(OnDiskMetadataFormat::Json),
                         1000,
                     )
@@ -461,60 +487,83 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) {
                 )
                 .with_objective_corpus(
                     OnDiskCorpus::new_save_meta(
-                        config.objective_dir.clone(),
+                        objective_dir.clone(),
                         Some(OnDiskMetadataFormat::JsonPretty),
                     )
                     .unwrap(),
                 )
-                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
-                .install_minimizer()
-                .run_client()
+                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+
+            #[cfg(feature = "sancov_libafl")]
+            {
+                builder = builder.install_minimizer();
+            }
+
+            #[cfg(not(feature = "sancov_libafl"))]
+            {
+                log::error!("Running without minimizer is unsupported");
+                builder = builder
+                    .with_feedback(())
+                    .with_observers(())
+                    .with_scheduler(libafl::schedulers::RandScheduler::new());
+            }
+
+            log_handle.clone().set_config(create_file_config(log_file));
+
+            builder.run_client()
         };
 
-    let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
-    let configuration: EventConfig = "launcher default".into();
-    let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
-
-    let launch_result = match config.monitor {
-        true => libafl::bolts::launcher::Launcher::builder()
-            .shmem_provider(sh_mem_provider)
-            .configuration(configuration)
-            .monitor(TuiMonitor::new("test".to_string(), false))
-            .run_client(&mut run_client)
-            .cores(&cores)
-            .broker_port(config.broker_port)
-            .build()
-            .launch(),
-        false => libafl::bolts::launcher::Launcher::builder()
-            .shmem_provider(sh_mem_provider)
-            .configuration(configuration)
-            .monitor(
-                StatsMonitor::new(
-                    |s| {
-                        info!("{}", s);
-                    },
-                    config.monitor_file.clone(),
-                )
-                .unwrap(),
+    if *no_launcher {
+        let (state, restarting_mgr) = setup_restarting_mgr_std(
+            StatsMonitor::new(
+                |s| {
+                    info!("{}", s);
+                },
+                monitor_file.clone(),
             )
-            .run_client(&mut run_client)
-            .cores(&cores)
-            .broker_port(config.broker_port)
-            // There is no need to disable the stdout of the clients.
-            // tlspuffin never logs or outputs to stdout. It always logs its output
-            // to tlspuffin-log.json.
-            // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
-            .build()
-            .launch(),
-    };
-    if let Err(error) = launch_result {
-        match error {
-            Error::ShuttingDown => {
-                // ignore
-            }
-            _ => {
-                panic!("{}", error)
-            }
+            .unwrap(),
+            *broker_port,
+            EventConfig::AlwaysUnique,
+        )?;
+
+        run_client(state, restarting_mgr, 0)
+    } else {
+        let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
+        let configuration: EventConfig = "launcher default".into();
+        let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+
+        if *monitor {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(sh_mem_provider)
+                .configuration(configuration)
+                .monitor(TuiMonitor::new("test".to_string(), false))
+                .run_client(&mut run_client)
+                .cores(&cores)
+                .broker_port(*broker_port)
+                .build()
+                .launch()
+        } else {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(sh_mem_provider)
+                .configuration(configuration)
+                .monitor(
+                    StatsMonitor::new(
+                        |s| {
+                            info!("{}", s);
+                        },
+                        monitor_file.clone(),
+                    )
+                    .unwrap(),
+                )
+                .run_client(&mut run_client)
+                .cores(&cores)
+                .broker_port(*broker_port)
+                // There is no need to disable the stdout of the clients.
+                // tlspuffin never logs or outputs to stdout. It always logs its output
+                // to tlspuffin-log.json.
+                // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
+                .build()
+                .launch()
         }
     }
 }

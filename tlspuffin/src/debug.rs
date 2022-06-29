@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use log::{debug, trace};
+use log::debug;
 use rustls::msgs::{
     codec::Reader,
     message::{Message, MessagePayload, OpaqueMessage},

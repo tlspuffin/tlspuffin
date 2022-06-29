@@ -185,6 +185,12 @@ ASAN_OPTIONS=abort_on_error=1 \
 It is important to enable `abort_on_error`, 
 else the fuzzer workers fail to restart on crashes.
 
+#### Compiling with ASAN using rustc
+
+```
+RUSTFLAGS=-Zsanitizer=address cargo +nightly build --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --release --features wolfssl530
+```
+
 ### Generate Corpus Seeds
 
 ```bash
