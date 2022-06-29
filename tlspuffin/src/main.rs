@@ -1,24 +1,18 @@
 use std::{
-    env,
-    ffi::{CStr, CString},
-    fs,
+    env, fs,
     fs::File,
     io::{Read, Write},
     path::PathBuf,
-    ptr,
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
-use log::{info, LevelFilter};
-use log4rs::{
-    append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Root},
-    encode::{json::JsonEncoder, pattern::PatternEncoder},
-    Config,
-};
+use log::info;
 use tlspuffin::{
     experiment::*,
-    fuzzer::{start, FuzzerConfig},
+    fuzzer::{
+        sanitizer::asan::{asan_info, setup_asan_env},
+        start, FuzzerConfig,
+    },
     graphviz::write_graphviz,
     log::create_stdout_config,
     put_registry::PUT_REGISTRY,
@@ -37,6 +31,7 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
@@ -57,53 +52,6 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-unsafe extern "C" fn iter(
-    info: *mut libc::dl_phdr_info,
-    _size: libc::size_t,
-    _data: *mut libc::c_void,
-) -> libc::c_int {
-    let library_name = CStr::from_ptr((*info).dlpi_name).to_str().unwrap();
-    if library_name.contains("libasan") {
-        1
-    } else {
-        0
-    }
-}
-
-extern "C" {
-    fn __asan_default_options() -> *mut libc::c_char;
-}
-
-fn asan_info() {
-    unsafe {
-        if libc::dl_iterate_phdr(Some(iter), ptr::null_mut()) > 0 {
-            info!("Running with ASAN support.",)
-        } else {
-            info!("Running WITHOUT ASAN support.")
-        }
-
-        info!(
-            "ASAN env options: {}",
-            env::var("ASAN_OPTIONS").unwrap_or_default(),
-        );
-
-        info!(
-            "ASAN default options: {}",
-            CStr::from_ptr(__asan_default_options()).to_str().unwrap()
-        );
-
-        info!("Appending default options to env options..");
-        env::set_var(
-            "ASAN_OPTIONS",
-            format!(
-                "{}:{}",
-                env::var("ASAN_OPTIONS").unwrap_or_default(),
-                CStr::from_ptr(__asan_default_options()).to_str().unwrap(),
-            ),
-        );
-    }
-}
-
 fn main() {
     let log_handle = log4rs::init_config(create_stdout_config()).unwrap();
 
@@ -115,6 +63,7 @@ fn main() {
     let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
     let minimizer = matches.is_present("minimizer");
     let monitor = matches.is_present("monitor");
+    let no_launcher = matches.is_present("no-launcher");
 
     info!("Version: {}", tlspuffin::GIT_REF);
     info!("Put Versions:");
@@ -123,6 +72,7 @@ fn main() {
     }
 
     asan_info();
+    setup_asan_env();
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         fs::create_dir_all("./seeds").unwrap();
@@ -217,23 +167,32 @@ fn main() {
 
         fs::create_dir_all(&experiment_path).unwrap();
 
-        start(
-            FuzzerConfig {
-                initial_corpus_dir: experiment_path.join("seeds"),
-                static_seed,
-                max_iters,
-                core_definition: core_definition.to_string(),
-                corpus_dir: experiment_path.join("corpus"),
-                objective_dir: experiment_path.join("objective"),
-                broker_port: port,
-                monitor_file: experiment_path.join("stats.json"),
-                log_file: experiment_path.join("log.json"),
-                minimizer,
-                mutation_stage_config: Default::default(),
-                mutation_config: Default::default(),
-                monitor,
-            },
-            log_handle,
-        );
+        let config = FuzzerConfig {
+            initial_corpus_dir: experiment_path.join("seeds"),
+            static_seed,
+            max_iters,
+            core_definition: core_definition.to_string(),
+            corpus_dir: experiment_path.join("corpus"),
+            objective_dir: experiment_path.join("objective"),
+            broker_port: port,
+            monitor_file: experiment_path.join("stats.json"),
+            log_file: experiment_path.join("log.json"),
+            minimizer,
+            mutation_stage_config: Default::default(),
+            mutation_config: Default::default(),
+            monitor,
+            no_launcher,
+        };
+
+        if let Err(err) = start(config, log_handle) {
+            match err {
+                libafl::Error::ShuttingDown => {
+                    // ignore
+                }
+                _ => {
+                    panic!("{}", err)
+                }
+            }
+        }
     }
 }
