@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path, process::Command};
+use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
 
@@ -9,7 +9,7 @@ pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     format!(
         "{date}-{title}-{index}",
         date = date,
-        title = title.map(|title| title).unwrap_or_else(|| GIT_REF),
+        title = title.unwrap_or(GIT_REF),
         index = index.unwrap_or(0)
     )
 }

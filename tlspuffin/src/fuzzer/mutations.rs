@@ -586,7 +586,7 @@ mod tests {
         agent::AgentName,
         algebra::{dynamic_function::DescribableFunction, Term},
         put_registry::current_put,
-        tls::{fn_impl::*, seeds::*, SIGNATURE},
+        tls::{fn_impl::*, seeds::*},
         trace::{Action, Step, Trace},
     };
 

@@ -71,7 +71,7 @@ use core::fmt;
 use std::{any::TypeId, cell::RefCell, convert::TryFrom, ops::Deref, rc::Rc, slice::Iter};
 
 use itertools::Itertools;
-use log::{debug, info, trace};
+use log::{debug, trace};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
@@ -413,7 +413,7 @@ impl TraceContext {
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset()?;
+            agent.reset(agent.name)?;
         }
         Ok(())
     }
@@ -495,7 +495,7 @@ impl Trace {
                     .join(", ")
             );
             for (name, claim) in claims {
-                trace!("{}", claim);
+                trace!("{name}: {claim}");
             }
         }
 
