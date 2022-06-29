@@ -125,7 +125,7 @@ impl WolfSSL {
 }
 
 impl Put for WolfSSL {
-    fn new(agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
+    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -135,7 +135,7 @@ impl Put for WolfSSL {
             Self::create_client_ctx(config.tls_version)?
         };
 
-        let stream = Self::new_stream(&ctx, agent_name, &config)?;
+        let stream = Self::new_stream(&ctx, agent.name, &config)?;
 
         let mut wolfssl = WolfSSL {
             ctx,
