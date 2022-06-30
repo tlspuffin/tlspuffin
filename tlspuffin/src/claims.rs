@@ -14,237 +14,131 @@ use log::{debug, trace};
 
 use crate::{
     agent::{AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
     variable_data::VariableData,
 };
 
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
-pub trait TlsData: 'static + Send + Sync + Debug + TlsDataClone + AsAny {
-    fn compare_session_id(&self, other: &Self) -> bool
-    where
-        Self: Sized;
+#[derive(Debug, Clone)]
+pub struct TlsData {}
 
-    fn compare_client_random(&self, other: &dyn TlsData) -> bool;
+#[derive(Debug, Clone)]
+pub struct TranscriptClientHello(pub TlsTranscript);
+#[derive(Debug, Clone)]
+pub struct TranscriptPartialClientHello(pub TlsTranscript);
+#[derive(Debug, Clone)]
+pub struct TranscriptServerHello(pub TlsTranscript);
+#[derive(Debug, Clone)]
+pub struct TranscriptServerFinished(pub TlsTranscript);
+#[derive(Debug, Clone)]
+pub struct TranscriptClientFinished(pub TlsTranscript);
 
-    fn compare_server_random(&self, other: &Self) -> bool
-    where
-        Self: Sized;
+#[derive(Debug, Clone)]
+pub struct ClientHello(pub TlsData);
+#[derive(Debug, Clone)]
+pub struct ServerHello(pub TlsData);
+#[derive(Debug, Clone)]
+pub struct Certificate(pub TlsData);
+#[derive(Debug, Clone)]
+pub struct CertificateVerify(pub TlsData);
+#[derive(Debug, Clone)]
+pub struct Finished(pub TlsData);
 
-    fn get_best_cipher(&self, other: &Self) -> u32
-    where
-        Self: Sized;
+#[derive(Debug, Clone)]
+pub enum ClaimDataTranscript {
+    ClientHello(TranscriptClientHello),
+    PartialClientHello(TranscriptPartialClientHello),
+    ServerHello(TranscriptServerHello),
+    ServerFinished(TranscriptServerFinished),
+    ClientFinished(TranscriptClientFinished),
+}
+
+#[derive(Debug, Clone)]
+pub enum ClaimDataMessage {
+    ClientHello(ClientHello),
+    ServerHello(ServerHello),
+    Certificate(Certificate),
+    CertificateVerify(CertificateVerify),
+    Finished(Finished),
+}
+
+#[derive(Debug, Clone)]
+pub enum ClaimData {
+    Transcript(ClaimDataTranscript),
+    Message(ClaimDataMessage),
+}
+
+#[derive(Debug, Clone)]
+pub struct Claim {
+    pub agent_name: AgentName,
+    pub origin: AgentType,
+    pub outbound: bool,
+    pub protocol_version: TLSVersion,
+    pub data: ClaimData,
+}
+
+impl Claim {
+    pub fn id(&self) -> TypeShape {
+        type Message = ClaimDataMessage;
+        type Transcript = ClaimDataTranscript;
+        type Type = TypeShape;
+        match &self.data {
+            ClaimData::Message(message) => match message {
+                Message::ClientHello(_) => Type::of::<ClientHello>(),
+                Message::ServerHello(_) => Type::of::<ServerHello>(),
+                Message::Certificate(_) => Type::of::<Certificate>(),
+                Message::CertificateVerify(_) => Type::of::<CertificateVerify>(),
+                Message::Finished(_) => Type::of::<Finished>(),
+            },
+            ClaimData::Transcript(transcript) => match transcript {
+                Transcript::ClientHello(_) => Type::of::<TranscriptClientHello>(),
+                Transcript::PartialClientHello(_) => Type::of::<TranscriptPartialClientHello>(),
+                Transcript::ServerHello(_) => Type::of::<TranscriptServerHello>(),
+                Transcript::ServerFinished(_) => Type::of::<TranscriptServerFinished>(),
+                Transcript::ClientFinished(_) => Type::of::<TranscriptClientFinished>(),
+            },
+        }
+    }
+    pub fn clone_boxed_any(&self) -> Box<dyn Any> {
+        type Message = ClaimDataMessage;
+        type Transcript = ClaimDataTranscript;
+        type Type = TypeShape;
+        match &self.data {
+            ClaimData::Message(message) => match message {
+                Message::ClientHello(claim) => claim.as_any(),
+                Message::ServerHello(claim) => claim.as_any(),
+                Message::Certificate(claim) => claim.as_any(),
+                Message::CertificateVerify(claim) => claim.as_any(),
+                Message::Finished(claim) => claim.as_any(),
+            },
+            ClaimData::Transcript(transcript) => match transcript {
+                Transcript::ClientHello(claim) => claim.as_any(),
+                Transcript::PartialClientHello(claim) => claim.as_any(),
+                Transcript::ServerHello(claim) => claim.as_any(),
+                Transcript::ServerFinished(claim) => claim.as_any(),
+                Transcript::ClientFinished(claim) => claim.as_any(),
+            },
+        }
+    }
 }
 
 pub trait AsAny: Any {
-    fn as_any(&self) -> &dyn any::Any;
-}
-
-pub trait Downcast {
-    fn downcast<U: 'static>(&self) -> &U;
-}
-
-impl Downcast for Box<dyn TlsData> {
-    fn downcast<U: 'static>(&self) -> &U {
-        self.as_any().downcast_ref().unwrap()
-    }
+    fn as_any(&self) -> Box<dyn any::Any>;
 }
 
 impl<T> AsAny for T
 where
-    T: Any + TlsData,
+    T: Any + Clone,
 {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub trait TlsDataClone {
-    fn clone_box(&self) -> Box<dyn TlsData>;
-}
-
-impl<T> TlsDataClone for T
-where
-    T: 'static + TlsData + Clone,
-{
-    fn clone_box(&self) -> Box<dyn TlsData> {
+    fn as_any(&self) -> Box<dyn Any> {
         Box::new(self.clone())
     }
 }
 
-impl Clone for Box<dyn TlsData> {
-    fn clone(&self) -> Box<dyn TlsData> {
-        self.clone_box()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ClientHelloClientHello(pub TlsTranscript);
-#[derive(Debug, Clone)]
-pub struct PartialClientHelloPartialClientHello(pub TlsTranscript);
-#[derive(Debug, Clone)]
-pub struct ClientHelloServerHello(pub TlsTranscript);
-#[derive(Debug, Clone)]
-pub struct ClientHelloServerFinished(pub TlsTranscript);
-#[derive(Debug, Clone)]
-pub struct ClientHelloClientFinished(pub TlsTranscript);
-
-#[derive(Debug, Clone)]
-pub struct ClientHello(pub Box<dyn TlsData>);
-#[derive(Debug, Clone)]
-pub struct ServerHello(pub Box<dyn TlsData>);
-
-#[derive(Debug, Clone)]
-pub enum SizedClaim {
-    ClientHelloClientHello(Claim<ClientHelloClientHello>),
-    PartialClientHelloPartialClientHello(Claim<PartialClientHelloPartialClientHello>),
-    ClientHelloServerHello(Claim<ClientHelloServerHello>),
-    ClientHelloServerFinished(Claim<ClientHelloServerFinished>),
-    ClientHelloClientFinished(Claim<ClientHelloClientFinished>),
-
-    ClientHello(Claim<ClientHello>),
-    ServerHello(Claim<ServerHello>),
-}
-
-impl SizedClaim {
-    pub fn agent_name(&self) -> &AgentName {
-        match self {
-            SizedClaim::ClientHelloClientHello(claim) => &claim.agent,
-            SizedClaim::PartialClientHelloPartialClientHello(claim) => &claim.agent,
-            SizedClaim::ClientHelloServerHello(claim) => &claim.agent,
-            SizedClaim::ClientHelloServerFinished(claim) => &claim.agent,
-            SizedClaim::ClientHelloClientFinished(claim) => &claim.agent,
-            SizedClaim::ClientHello(claim) => &claim.agent,
-            SizedClaim::ServerHello(claim) => &claim.agent,
-        }
-    }
-    pub fn id(&self) -> TypeId {
-        match self {
-            SizedClaim::ClientHelloClientHello(claim) => {
-                TypeId::of::<Claim<ClientHelloClientHello>>()
-            }
-            SizedClaim::PartialClientHelloPartialClientHello(claim) => {
-                TypeId::of::<Claim<PartialClientHelloPartialClientHello>>()
-            }
-            SizedClaim::ClientHelloServerHello(claim) => {
-                TypeId::of::<Claim<ClientHelloServerHello>>()
-            }
-            SizedClaim::ClientHelloServerFinished(claim) => {
-                TypeId::of::<Claim<ClientHelloServerFinished>>()
-            }
-            SizedClaim::ClientHelloClientFinished(claim) => {
-                TypeId::of::<Claim<ClientHelloClientFinished>>()
-            }
-            SizedClaim::ClientHello(claim) => TypeId::of::<Claim<ClientHello>>(),
-            SizedClaim::ServerHello(claim) => TypeId::of::<Claim<ServerHello>>(),
-        }
-    }
-
-    pub fn name(&self) -> &'static str {
-        ""
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Claim<T> {
-    pub agent: AgentName,
-    pub origin: AgentType,
-    pub outbound: bool,
-    pub protocol_version: TLSVersion,
-    pub data: T,
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{
-        any::Any,
-        fmt::{Debug, Formatter},
-        ops::Deref,
-    };
-
-    use crate::claims::{AsAny, Downcast, TlsData};
-
-    struct DummyTlsData(u32);
-
-    impl Debug for DummyTlsData {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
-        }
-    }
-
-    impl Clone for DummyTlsData {
-        fn clone(&self) -> Self {
-            todo!()
-        }
-    }
-
-    impl TlsData for DummyTlsData {
-        fn compare_session_id(&self, other: &Self) -> bool
-        where
-            Self: Sized,
-        {
-            todo!()
-        }
-
-        fn compare_client_random(&self, other: &dyn TlsData) -> bool {
-            other.as_any().downcast_ref::<Self>().unwrap().0 == self.0
-            //other.0 == self.0
-        }
-
-        fn compare_server_random(&self, other: &Self) -> bool
-        where
-            Self: Sized,
-        {
-            other.0 == self.0
-        }
-
-        fn get_best_cipher(&self, other: &Self) -> u32
-        where
-            Self: Sized,
-        {
-            todo!()
-        }
-    }
-
-    /*    #[test]
-        pub fn test() {
-            let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
-            let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
-            assert!(!boxed1.compare_client_random(boxed2.as_ref()));
-        }
-    */
-    pub fn compare_server_random<T: TlsData>(
-        boxed1: Box<dyn TlsData>,
-        boxed2: Box<dyn TlsData>,
-    ) -> bool {
-        let one = boxed1.as_any().downcast_ref::<T>().unwrap();
-        let two = boxed2.downcast::<T>();
-
-        one.compare_server_random(two)
-    }
-
-    #[test]
-    pub fn test1() {
-        let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
-        let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
-
-        let one = boxed1.downcast::<DummyTlsData>();
-        let two = boxed2.downcast::<DummyTlsData>();
-
-        assert!(!one.compare_server_random(two));
-    }
-
-    #[test]
-    pub fn test2() {
-        let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
-        let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
-
-        assert!(!compare_server_random::<DummyTlsData>(boxed1, boxed2));
-    }
-}
-
 pub struct Policy {
-    pub(crate) func: fn(claims: &[SizedClaim]) -> Option<&'static str>,
+    pub(crate) func: fn(claims: &[Claim]) -> Option<&'static str>,
 }
 
 pub trait CheckViolation {
@@ -253,7 +147,7 @@ pub trait CheckViolation {
 
 #[derive(Clone, Debug)]
 pub struct ClaimList {
-    claims: Vec<SizedClaim>,
+    claims: Vec<Claim>,
 }
 
 impl CheckViolation for ClaimList {
@@ -263,18 +157,23 @@ impl CheckViolation for ClaimList {
 }
 
 impl ClaimList {
-    pub fn iter(&self) -> Iter<'_, SizedClaim> {
+    pub fn iter(&self) -> Iter<'_, Claim> {
         self.claims.iter()
     }
 
     /// finds the last claim matching `type`
-    pub fn find_last_claim<T: 'static>(&self) -> Option<&SizedClaim> {
-        self.claims
-            .iter()
-            .find(|claim| claim.id() == TypeId::of::<T>())
+    pub fn find_last_claim_by_type<T: 'static>(&self, agent_name: AgentName) -> Option<&Claim> {
+        self.find_last_claim(agent_name, TypeShape::of::<T>())
     }
 
-    pub fn slice(&self) -> &[SizedClaim] {
+    pub fn find_last_claim(&self, agent_name: AgentName, shape: TypeShape) -> Option<&Claim> {
+        self.claims
+            .iter()
+            .rev()
+            .find(|claim| claim.id() == shape && claim.agent_name == agent_name)
+    }
+
+    pub fn slice(&self) -> &[Claim] {
         &self.claims
     }
 }
@@ -286,7 +185,7 @@ impl ClaimList {
             &self
                 .claims
                 .iter()
-                .map(|claim| format!("{}", claim.name()))
+                .map(|claim| format!("{}", claim.type_name()))
                 .join(", ")
         );
         for claim in &self.claims {
@@ -295,40 +194,9 @@ impl ClaimList {
     }
 }
 
-impl From<Vec<SizedClaim>> for ClaimList {
-    fn from(claims: Vec<SizedClaim>) -> Self {
+impl From<Vec<Claim>> for ClaimList {
+    fn from(claims: Vec<Claim>) -> Self {
         Self { claims }
-    }
-}
-
-/// Claims filters by [`AgentName`]
-#[derive(Clone, Debug)]
-pub struct ByAgentClaimList {
-    claims: ClaimList,
-}
-
-impl ByAgentClaimList {
-    pub fn new(claims: &ClaimList, agent_name: AgentName) -> Option<Self> {
-        let filtered = claims
-            .iter()
-            .filter(|claim| agent_name == *claim.agent_name())
-            .cloned()
-            .rev()
-            .collect::<Vec<_>>();
-        if filtered.is_empty() {
-            None
-        } else {
-            Some(Self {
-                claims: filtered.into(),
-            })
-        }
-    }
-
-    /// finds the last claim matching `type`
-    pub fn find_last_claim<T: 'static>(&self) -> Option<&SizedClaim> {
-        self.claims
-            .iter()
-            .find(|claim| claim.id() == TypeId::of::<T>())
     }
 }
 
@@ -337,7 +205,7 @@ impl ClaimList {
         Self { claims: vec![] }
     }
 
-    pub fn claim_sized(&mut self, claim: SizedClaim) {
+    pub fn claim_sized(&mut self, claim: Claim) {
         self.claims.push(claim);
     }
 }

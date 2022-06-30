@@ -69,7 +69,7 @@
 
 use core::fmt;
 use std::{
-    any::TypeId,
+    any::{Any, TypeId},
     borrow::{Borrow, BorrowMut},
     cell::{Ref, RefCell, RefMut},
     convert::TryFrom,
@@ -84,7 +84,6 @@ use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
-use security_claims::{Claim, ClaimType};
 use serde::{Deserialize, Serialize, __private::de::Borrowed};
 
 #[allow(unused)] // used in docs
@@ -92,7 +91,7 @@ use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, remove_prefix, Term},
-    claims::{ByAgentClaimList, CheckViolation, GlobalClaimList, Policy},
+    claims::{AsAny, CheckViolation, Claim, GlobalClaimList, Policy},
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     error::Error,
     extraction::extract_knowledge,
@@ -261,11 +260,6 @@ impl TraceContext {
         &self.claims
     }
 
-    pub fn claims_by_agent(&self, agent_name: AgentName) -> Option<ByAgentClaimList> {
-        let claims = &self.claims.deref_borrow_mut();
-        ByAgentClaimList::new(claims, agent_name)
-    }
-
     pub fn add_knowledge(&mut self, knowledge: Knowledge) {
         self.knowledge.push(knowledge)
     }
@@ -287,6 +281,17 @@ impl TraceContext {
             })
             .count();
         known_count as u16
+    }
+
+    pub fn find_claim(
+        &self,
+        agent_name: AgentName,
+        query_type_shape: TypeShape,
+    ) -> Option<Box<dyn Any>> {
+        self.claims
+            .deref_borrow()
+            .find_last_claim(agent_name, query_type_shape)
+            .map(|claim| claim.clone_boxed_any())
     }
 
     /// Returns the variable which matches best -> highest specificity

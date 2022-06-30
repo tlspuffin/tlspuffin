@@ -4,8 +4,8 @@ use wolfssl_sys as wolf;
 use crate::{
     agent::{AgentName, AgentType, TLSVersion},
     claims::{
-        Claim, ClaimList, ClientHelloClientFinished, ClientHelloServerFinished,
-        ClientHelloServerHello, SizedClaim, TlsTranscript,
+        Claim, ClaimData, ClaimDataTranscript, ClaimList, TlsTranscript, TranscriptClientFinished,
+        TranscriptServerFinished, TranscriptServerHello,
     },
     wolfssl::ssl::SslRef,
 };
@@ -29,36 +29,36 @@ pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut Cl
 
         let state = unsafe { (*ssl).options.acceptState };
 
+        let origin = AgentType::Server;
+        let outbound = false;
+        let protocol_version = TLSVersion::V1_3;
+
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
-        match state as u32 {
-            wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => {
-                claims.claim_sized(SizedClaim::ClientHelloServerHello(Claim {
-                    agent: agent_name,
-                    origin: AgentType::Server,
-                    outbound: false,
-                    protocol_version: TLSVersion::V1_3,
-                    data: ClientHelloServerHello(TlsTranscript(target, 32)),
-                }))
-            }
+        let claim_data = match state as u32 {
+            wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => Some(ClaimData::Transcript(
+                ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(target, 32))),
+            )),
             wolf::AcceptStateTls13_TLS13_CERT_VERIFY_SENT => {
-                claims.claim_sized(SizedClaim::ClientHelloServerFinished(Claim {
-                    agent: agent_name,
-                    origin: AgentType::Server,
-                    outbound: false,
-                    protocol_version: TLSVersion::V1_3,
-                    data: ClientHelloServerFinished(TlsTranscript(target, 32)),
-                }))
+                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                    TranscriptServerFinished(TlsTranscript(target, 32)),
+                )))
             }
             wolf::AcceptStateTls13_TLS13_TICKET_SENT => {
-                claims.claim_sized(SizedClaim::ClientHelloClientFinished(Claim {
-                    agent: agent_name,
-                    origin: AgentType::Server,
-                    outbound: false,
-                    protocol_version: TLSVersion::V1_3,
-                    data: ClientHelloClientFinished(TlsTranscript(target, 32)),
-                }))
+                Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
+                    TranscriptClientFinished(TlsTranscript(target, 32)),
+                )))
             }
-            _ => {}
+            _ => None,
         };
+
+        claim_data.map(|data| {
+            claims.claim_sized(Claim {
+                agent_name,
+                origin,
+                outbound,
+                protocol_version,
+                data,
+            })
+        });
     }
 }
