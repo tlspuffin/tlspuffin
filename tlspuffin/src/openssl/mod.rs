@@ -99,14 +99,14 @@ impl Stream for OpenSSL {
 pub struct OpenSSLTlsData;
 
 impl TlsData for OpenSSLTlsData {
-    fn compare_session_id(&self, other: Self) -> bool
+    fn compare_session_id(&self, other: &Self) -> bool
     where
         Self: Sized,
     {
         todo!()
     }
 
-    fn compare_client_random(&self, other: &dyn TlsData) -> bool {
+    fn compare_client_random(&self, other: &Self) -> bool {
         todo!()
     }
 
@@ -117,14 +117,10 @@ impl TlsData for OpenSSLTlsData {
         todo!()
     }
 
-    fn get_best_cipher(&self, other: Self) -> u32
+    fn get_best_cipher(&self, other: &Self) -> u32
     where
         Self: Sized,
     {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
         todo!()
     }
 }

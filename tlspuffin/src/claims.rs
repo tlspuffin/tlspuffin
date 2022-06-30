@@ -1,4 +1,5 @@
 use std::{
+    any,
     any::{Any, TypeId},
     cell::{Ref, RefCell, RefMut},
     fmt::{Debug, Display},
@@ -19,8 +20,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
-pub trait TlsData: 'static + Send + Sync + Debug + TlsDataClone {
-    fn compare_session_id(&self, other: Self) -> bool
+pub trait TlsData: 'static + Send + Sync + Debug + TlsDataClone + AsAny {
+    fn compare_session_id(&self, other: &Self) -> bool
     where
         Self: Sized;
 
@@ -30,11 +31,32 @@ pub trait TlsData: 'static + Send + Sync + Debug + TlsDataClone {
     where
         Self: Sized;
 
-    fn get_best_cipher(&self, other: Self) -> u32
+    fn get_best_cipher(&self, other: &Self) -> u32
     where
         Self: Sized;
+}
 
-    fn as_any(&self) -> &dyn Any;
+pub trait AsAny: Any {
+    fn as_any(&self) -> &dyn any::Any;
+}
+
+pub trait Downcast {
+    fn downcast<U: 'static>(&self) -> &U;
+}
+
+impl Downcast for Box<dyn TlsData> {
+    fn downcast<U: 'static>(&self) -> &U {
+        self.as_any().downcast_ref().unwrap()
+    }
+}
+
+impl<T> AsAny for T
+where
+    T: Any + TlsData,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 pub trait TlsDataClone {
@@ -117,6 +139,10 @@ impl SizedClaim {
             SizedClaim::ServerHello(claim) => TypeId::of::<Claim<ServerHello>>(),
         }
     }
+
+    pub fn name(&self) -> &'static str {
+        ""
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -128,22 +154,15 @@ pub struct Claim<T> {
     pub data: T,
 }
 
-impl SizedClaim {
-    pub fn name(&self) -> &'static str {
-        ""
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
+        any::Any,
         fmt::{Debug, Formatter},
         ops::Deref,
     };
 
-    use libafl::events::ManagerKind::Any;
-
-    use crate::claims::TlsData;
+    use crate::claims::{AsAny, Downcast, TlsData};
 
     struct DummyTlsData(u32);
 
@@ -160,7 +179,7 @@ mod tests {
     }
 
     impl TlsData for DummyTlsData {
-        fn compare_session_id(&self, other: Self) -> bool
+        fn compare_session_id(&self, other: &Self) -> bool
         where
             Self: Sized,
         {
@@ -169,6 +188,7 @@ mod tests {
 
         fn compare_client_random(&self, other: &dyn TlsData) -> bool {
             other.as_any().downcast_ref::<Self>().unwrap().0 == self.0
+            //other.0 == self.0
         }
 
         fn compare_server_random(&self, other: &Self) -> bool
@@ -178,28 +198,28 @@ mod tests {
             other.0 == self.0
         }
 
-        fn get_best_cipher(&self, other: Self) -> u32
+        fn get_best_cipher(&self, other: &Self) -> u32
         where
             Self: Sized,
         {
             todo!()
         }
+    }
 
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
+    /*    #[test]
+        pub fn test() {
+            let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
+            let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
+            assert!(!boxed1.compare_client_random(boxed2.as_ref()));
         }
-    }
-
-    #[test]
-    pub fn test() {
-        let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
-        let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
-        assert!(!boxed1.compare_client_random(boxed2.as_ref()));
-    }
-
-    pub fn check<T: TlsData>(boxed1: Box<dyn TlsData>, boxed2: Box<dyn TlsData>) -> bool {
+    */
+    pub fn compare_server_random<T: TlsData>(
+        boxed1: Box<dyn TlsData>,
+        boxed2: Box<dyn TlsData>,
+    ) -> bool {
         let one = boxed1.as_any().downcast_ref::<T>().unwrap();
-        let two = boxed2.as_any().downcast_ref::<T>().unwrap();
+        let two = boxed2.downcast::<T>();
+
         one.compare_server_random(two)
     }
 
@@ -208,8 +228,8 @@ mod tests {
         let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
         let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
 
-        let one = boxed1.as_any().downcast_ref::<DummyTlsData>().unwrap();
-        let two = boxed2.as_any().downcast_ref::<DummyTlsData>().unwrap();
+        let one = boxed1.downcast::<DummyTlsData>();
+        let two = boxed2.downcast::<DummyTlsData>();
 
         assert!(!one.compare_server_random(two));
     }
@@ -219,7 +239,7 @@ mod tests {
         let boxed1 = Box::new(DummyTlsData(0)) as Box<dyn TlsData>;
         let boxed2 = Box::new(DummyTlsData(1)) as Box<dyn TlsData>;
 
-        assert!(!check::<DummyTlsData>(boxed1, boxed2));
+        assert!(!compare_server_random::<DummyTlsData>(boxed1, boxed2));
     }
 }
 
