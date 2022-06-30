@@ -12,7 +12,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["openssl111", "openssl101f_asan", "openssl102u", "libressl", "wolfssl430", "wolfssl510", "wolfssl520", "wolfssl530", "wolfssl530_asan", "no_default_features"]
+        name:
+          - openssl111
+          - openssl101f_asan
+          - openssl102u
+          - libressl
+          - wolfssl430
+          - wolfssl510
+          - wolfssl520
+          - wolfssl520_asan
+          - wolfssl530
+          - wolfssl530_asan
+          - no_default_features
         include:
           - name: openssl111
             features: openssl111
@@ -32,6 +43,8 @@ jobs:
             features: wolfssl510
           - name: wolfssl520
             features: wolfssl520
+          - name: wolfssl520_asan
+            features: wolfssl520,asan
           - name: wolfssl530
             features: wolfssl530
           - name: wolfssl530_asan
