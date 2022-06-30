@@ -96,11 +96,8 @@ impl Stream for OpenSSL {
     }
 }
 
-fn to_claim(agent_name: AgentName, claim: security_claims::Claim) -> Option<Claim> {
-    let origin = AgentType::Server;
-    let outbound = false;
-    let protocol_version = TLSVersion::V1_3;
-    let data = match claim.typ {
+fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) -> Option<ClaimData> {
+    match claim.typ {
         // Transcripts
         security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
             ClaimDataTranscript::ClientHello(TranscriptClientHello(TlsTranscript(
@@ -133,14 +130,9 @@ fn to_claim(agent_name: AgentName, claim: security_claims::Claim) -> Option<Clai
             ))),
         )),
         // Messages
-        security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
-        security_claims::ClaimType::CLAIM_CCS => None,
-        security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
-        security_claims::ClaimType::CLAIM_CERTIFICATE => None,
-        security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
         security_claims::ClaimType::CLAIM_FINISHED => {
             Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                outbound: claim.write > 0,
                 client_random: SmallVec::from(claim.client_random.data),
                 server_random: SmallVec::from(claim.server_random.data),
                 session_id: SmallVec::from_slice(
@@ -160,6 +152,12 @@ fn to_claim(agent_name: AgentName, claim: security_claims::Claim) -> Option<Clai
                 peer_signature_algorithm: claim.peer_signature_algorithm,
             })))
         }
+        security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
+        security_claims::ClaimType::CLAIM_CCS => None,
+        security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE => None,
+        security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
         security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
         security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
         security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
@@ -170,25 +168,19 @@ fn to_claim(agent_name: AgentName, claim: security_claims::Claim) -> Option<Clai
         security_claims::ClaimType::CLAIM_EARLY_DATA => None,
         security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
         _ => None,
-    };
-    data.map(|data| Claim {
-        agent_name,
-        origin,
-        outbound,
-        protocol_version,
-        data,
-    })
+    }
 }
 
 impl Put for OpenSSL {
     fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
-        let ssl = if config.server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            let (cert, pkey) = static_rsa_cert()?;
+        let ssl = match config.typ {
+            AgentType::Server => {
+                //let (cert, pkey) = openssl_binding::generate_cert();
+                let (cert, pkey) = static_rsa_cert()?;
 
-            Self::create_server(&cert, &pkey, config.tls_version)?
-        } else {
-            Self::create_client(config.tls_version)?
+                Self::create_server(&cert, &pkey, config.tls_version)?
+            }
+            AgentType::Client => Self::create_client(config.tls_version)?,
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
@@ -226,12 +218,21 @@ impl Put for OpenSSL {
     fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
             use foreign_types_shared::ForeignTypeRef;
+
             let claims = self.config.claims.clone();
+            let protocol_version = self.config.tls_version;
+            let origin = self.config.typ;
+
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    if let Some(claim) = to_claim(agent_name, claim) {
-                        claims.deref_borrow_mut().claim_sized(claim)
+                    if let Some(data) = to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(Claim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        })
                     }
                 },
             );

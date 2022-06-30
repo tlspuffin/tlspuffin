@@ -14,7 +14,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{ClaimList, GlobalClaimList},
     error::Error,
     io::Stream,
@@ -46,20 +46,20 @@ pub struct PutDescriptor {
 #[derive(Clone)]
 pub struct PutConfig {
     pub descriptor: PutDescriptor,
-    pub server: bool,
+    pub typ: AgentType,
     pub tls_version: TLSVersion,
     pub claims: GlobalClaimList,
 }
 
 impl PutConfig {
-    pub fn claim_closure<C, F>(&self, callback: F) -> impl Fn(&mut C)
+    pub fn msg_claim_closure<C, F>(&self, callback: F) -> impl Fn(&mut C, bool)
     where
-        F: Fn(&mut C, &mut ClaimList),
+        F: Fn(&mut C, bool, &mut ClaimList),
     {
         let claims = self.claims.clone();
 
-        move |context: &mut C| unsafe {
-            callback(context, &mut claims.deref_borrow_mut());
+        move |context: &mut C, outbound: bool| unsafe {
+            callback(context, outbound, &mut claims.deref_borrow_mut());
         }
     }
 

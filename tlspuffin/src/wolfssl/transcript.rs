@@ -10,13 +10,13 @@ use crate::{
     wolfssl::ssl::SslRef,
 };
 
-pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut ClaimList) {
+pub fn extract_current_transcript(ssl: &mut SslRef) -> Option<ClaimData> {
     unsafe {
         let ssl = ssl.as_ptr();
         let hashes = (*ssl).hsHashes;
 
         if hashes.is_null() {
-            return;
+            return None;
         }
 
         let mut sha256 = (*hashes).hashSha256;
@@ -34,7 +34,7 @@ pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut Cl
         let protocol_version = TLSVersion::V1_3;
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
-        let claim_data = match state as u32 {
+        match state as u32 {
             wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => Some(ClaimData::Transcript(
                 ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(target, 32))),
             )),
@@ -49,16 +49,6 @@ pub fn claim_transcript(ssl: &mut SslRef, agent_name: AgentName, claims: &mut Cl
                 )))
             }
             _ => None,
-        };
-
-        claim_data.map(|data| {
-            claims.claim_sized(Claim {
-                agent_name,
-                origin,
-                outbound,
-                protocol_version,
-                data,
-            })
-        });
+        }
     }
 }

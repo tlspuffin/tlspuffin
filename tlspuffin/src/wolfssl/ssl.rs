@@ -188,7 +188,7 @@ impl SslContextRef {
     #[cfg(not(feature = "wolfssl430"))]
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef) + 'static,
+        F: Fn(&mut SslRef, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -382,7 +382,7 @@ impl SslRef {
 
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef) + 'static,
+        F: Fn(&mut SslRef, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {

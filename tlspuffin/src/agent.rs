@@ -60,7 +60,7 @@ pub struct AgentDescriptor {
     pub put_descriptor: PutDescriptor,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
-    pub server: bool,
+    pub typ: AgentType,
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
@@ -75,7 +75,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: true,
             put_descriptor,
         }
@@ -89,7 +89,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Client,
             try_reuse: true,
             put_descriptor,
         }
@@ -103,7 +103,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor,
         }
@@ -117,7 +117,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: false,
+            typ: AgentType::Client,
             try_reuse: false,
             put_descriptor,
         }
@@ -134,7 +134,7 @@ pub enum TLSVersion {
 pub struct Agent {
     pub name: AgentName,
     pub tls_version: TLSVersion,
-    pub server: bool,
+    pub typ: AgentType,
     pub stream: Box<dyn Put>,
 }
 
@@ -145,7 +145,7 @@ impl Agent {
             .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
         let config = PutConfig {
             descriptor: descriptor.put_descriptor.clone(),
-            server: descriptor.server,
+            typ: descriptor.typ,
             tls_version: descriptor.tls_version,
             claims: context.claims().clone(),
         };
@@ -154,7 +154,7 @@ impl Agent {
         let agent = Agent {
             name: descriptor.name,
             tls_version: descriptor.tls_version,
-            server: descriptor.server,
+            typ: descriptor.typ,
             stream,
         };
 
@@ -163,7 +163,7 @@ impl Agent {
 
     /// checks whether a agent is reusable with the descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        self.server == other.server && self.tls_version == other.tls_version
+        self.typ == other.typ && self.tls_version == other.tls_version
     }
 
     pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {

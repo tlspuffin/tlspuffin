@@ -83,7 +83,7 @@ pub struct UserData {
 }
 
 pub unsafe extern "C" fn ctx_msg_callback<F>(
-    _write_p: c_int,
+    write_p: c_int,
     _version: c_int,
     _content_type: c_int,
     _buf: *const c_void,
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef) + 'static,
+    F: Fn(&mut SslRef, bool) + 'static,
 {
     let ctx = SslContextRef::from_ptr_mut(wolf::wolfSSL_get_SSL_CTX(ssl));
 
@@ -104,11 +104,11 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     };
 
     let ssl = SslRef::from_ptr_mut(ssl);
-    (*r_callback)(ssl);
+    (*r_callback)(ssl, write_p == 1);
 }
 
 pub unsafe extern "C" fn ssl_msg_callback<F>(
-    _write_p: c_int,
+    write_p: c_int,
     _version: c_int,
     _content_type: c_int,
     _buf: *const c_void,
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef) + 'static,
+    F: Fn(&mut SslRef, bool) + 'static,
 {
     let ssl = SslRef::from_ptr_mut(ssl);
 
@@ -128,5 +128,5 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
         callback.deref() as *const F
     };
 
-    (*r_callback)(ssl);
+    (*r_callback)(ssl, write_p == 1);
 }

@@ -4,29 +4,19 @@ use itertools::Itertools;
 
 use crate::{
     agent::{AgentType, TLSVersion},
-    claims::{Claim, ClaimData, ClaimDataMessage},
+    claims::{Claim, ClaimData, ClaimDataMessage, Finished},
 };
 
 pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
     if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
-        if let Some((client, server)) = get_client_server(claim_a, claim_b) {
-            if client.protocol_version != server.protocol_version {
+        if let Some(((client_claim, client), (server_claim, server))) =
+            get_client_server(claim_a, claim_b)
+        {
+            if client_claim.protocol_version != server_claim.protocol_version {
                 return Some("Mismatching versions");
             }
 
-            let client = match &client.data {
-                ClaimData::Message(ClaimDataMessage::Finished(claim)) => Some(claim),
-                _ => None,
-            }
-            .unwrap();
-
-            let server = match &server.data {
-                ClaimData::Message(ClaimDataMessage::Finished(claim)) => Some(claim),
-                _ => None,
-            }
-            .unwrap();
-
-            match claim_a.protocol_version {
+            match client_claim.protocol_version {
                 TLSVersion::V1_2 => {
                     // TLS 1.2 Checks
                     if client.master_secret != server.master_secret {
@@ -117,18 +107,28 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
     None
 }
 
-pub fn find_two_finished_messages(claims: &[Claim]) -> Option<(&Claim, &Claim)> {
-    let two_finishes: Option<(&Claim, &Claim)> = claims
+pub fn find_two_finished_messages(
+    claims: &[Claim],
+) -> Option<((&Claim, &Finished), (&Claim, &Finished))> {
+    let two_finishes: Option<((&Claim, &Finished), (&Claim, &Finished))> = claims
         .iter()
-        .filter(|claim| {
-            matches!(
-                claim.data,
-                ClaimData::Message(ClaimDataMessage::Finished(_))
-            ) && !claim.outbound
+        .filter_map(|claim| {
+            let option = match &claim.data {
+                ClaimData::Message(ClaimDataMessage::Finished(claim)) => Some(claim),
+                _ => None,
+            };
+
+            option.map_or(None, |data| {
+                if data.outbound {
+                    None
+                } else {
+                    Some((claim, data))
+                }
+            })
         })
         .collect_tuple();
 
-    if let Some((claim_a, claim_b)) = two_finishes {
+    if let Some(((claim_a, data_a), (claim_b, data_b))) = two_finishes {
         if claim_a.agent_name == claim_b.agent_name {
             // One agent finished twice because of session resumption
             return None;
@@ -138,21 +138,18 @@ pub fn find_two_finished_messages(claims: &[Claim]) -> Option<(&Claim, &Claim)> 
     two_finishes
 }
 
-pub fn get_client_server<'a>(
-    claim_a: &'a Claim,
-    claim_b: &'a Claim,
-) -> Option<(&'a Claim, &'a Claim)> {
-    match claim_a.origin {
-        AgentType::Server => match claim_b.origin {
+pub fn get_client_server<'a, T>(
+    a: (&'a Claim, &'a T),
+    b: (&'a Claim, &'a T),
+) -> Option<((&'a Claim, &'a T), (&'a Claim, &'a T))> {
+    match a.0.origin {
+        AgentType::Server => match b.0.origin {
             AgentType::Server => None,
-            AgentType::Client => Some((claim_b, claim_a)),
-            _ => None,
+            AgentType::Client => Some((b, a)),
         },
-        AgentType::Client => match claim_b.origin {
-            AgentType::Server => Some((claim_a, claim_b)),
+        AgentType::Client => match b.0.origin {
+            AgentType::Server => Some((a, b)),
             AgentType::Client => None,
-            _ => None,
         },
-        _ => None,
     }
 }

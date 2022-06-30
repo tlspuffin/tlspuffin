@@ -878,7 +878,7 @@ mod tests {
 
     mod util {
         use crate::{
-            agent::{AgentDescriptor, AgentName, TLSVersion},
+            agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
             algebra::Term,
             graphviz::write_graphviz,
             put::PutDescriptor,
@@ -932,7 +932,7 @@ mod tests {
                     descriptors: vec![AgentDescriptor {
                         name: server,
                         tls_version: TLSVersion::V1_2,
-                        server: true,
+                        typ: AgentType::Server,
                         try_reuse: false,
                         put_descriptor,
                     }],

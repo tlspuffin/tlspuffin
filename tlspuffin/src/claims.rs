@@ -77,6 +77,7 @@ pub struct Certificate;
 pub struct CertificateVerify;
 #[derive(Debug, Clone)]
 pub struct Finished {
+    pub outbound: bool,
     pub client_random: SmallVec<[u8; 32]>,
     pub server_random: SmallVec<[u8; 32]>,
     pub session_id: SmallVec<[u8; 32]>,
@@ -139,7 +140,6 @@ pub enum ClaimData {
 pub struct Claim {
     pub agent_name: AgentName,
     pub origin: AgentType,
-    pub outbound: bool,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
 }
