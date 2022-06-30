@@ -11,6 +11,7 @@ use std::{
 
 use itertools::Itertools;
 use log::{debug, trace};
+use smallvec::SmallVec;
 
 use crate::{
     agent::{AgentName, AgentType, TLSVersion},
@@ -22,29 +23,93 @@ use crate::{
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
 #[derive(Debug, Clone)]
-pub struct TlsData {}
-
-#[derive(Debug, Clone)]
 pub struct TranscriptClientHello(pub TlsTranscript);
+impl Transcript for TranscriptClientHello {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TranscriptPartialClientHello(pub TlsTranscript);
+impl Transcript for TranscriptPartialClientHello {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TranscriptServerHello(pub TlsTranscript);
+impl Transcript for TranscriptServerHello {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TranscriptServerFinished(pub TlsTranscript);
+impl Transcript for TranscriptServerFinished {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TranscriptClientFinished(pub TlsTranscript);
+impl Transcript for TranscriptClientFinished {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
+
+pub trait Transcript {
+    fn as_slice(&self) -> &[u8];
+}
 
 #[derive(Debug, Clone)]
-pub struct ClientHello(pub TlsData);
+pub struct ClientHello;
 #[derive(Debug, Clone)]
-pub struct ServerHello(pub TlsData);
+pub struct ServerHello;
 #[derive(Debug, Clone)]
-pub struct Certificate(pub TlsData);
+pub struct Certificate;
 #[derive(Debug, Clone)]
-pub struct CertificateVerify(pub TlsData);
+pub struct CertificateVerify;
 #[derive(Debug, Clone)]
-pub struct Finished(pub TlsData);
+pub struct Finished {
+    pub client_random: SmallVec<[u8; 32]>,
+    pub server_random: SmallVec<[u8; 32]>,
+    pub session_id: SmallVec<[u8; 32]>,
+    pub master_secret: SmallVec<[u8; 32]>,
+    pub chosen_cipher: u16,
+    pub available_ciphers: SmallVec<[u16; 20]>,
+    pub signature_algorithm: i32,
+    pub peer_signature_algorithm: i32,
+    /* TODO: tmp_skey_type peer_tmp_skey_type
+                   // TLS 1.2
+                   if let Some(server_kex) = claims.iter().find(|(_agent, claim)| {
+                       claim.write == 1
+                           && claim.server == 1
+                           && claim.typ == ClaimType::CLAIM_SERVER_DONE
+                   }) {
+                       if server_kex.1.tmp_skey_type != client.peer_tmp_skey_type {
+                           return Some("Mismatching ephemeral kex method");
+                       }
+                   } else {
+                       return Some("Server Done not found in server claims");
+                   }
+                   // TLS 1.3
+                   if client.tmp_skey_type != server.tmp_skey_type {
+                       return Some("Mismatching ephemeral kex method");
+                   }
+    */
+    /* TODO: tmp_skey_group_id
+                   // TLS 1.3
+                    if client.tmp_skey_group_id != server.tmp_skey_group_id {
+                        return Some("Mismatching groups");
+                    }
+    */
+}
 
 #[derive(Debug, Clone)]
 pub enum ClaimDataTranscript {
@@ -138,7 +203,7 @@ where
 }
 
 pub struct Policy {
-    pub(crate) func: fn(claims: &[Claim]) -> Option<&'static str>,
+    pub func: fn(claims: &[Claim]) -> Option<&'static str>,
 }
 
 pub trait CheckViolation {

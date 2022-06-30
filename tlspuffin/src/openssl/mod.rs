@@ -14,11 +14,12 @@ use openssl::{
     x509::X509Ref,
 };
 use rustls::msgs::message::OpaqueMessage;
+use smallvec::SmallVec;
 
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{
-        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, TlsData,
+        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
         TlsTranscript, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
@@ -132,15 +133,33 @@ fn to_claim(agent_name: AgentName, claim: security_claims::Claim) -> Option<Clai
             ))),
         )),
         // Messages
-        security_claims::ClaimType::CLAIM_CLIENT_HELLO => Some(ClaimData::Message(
-            ClaimDataMessage::ClientHello(ClientHello(TlsData {})),
-        )),
+        security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
         security_claims::ClaimType::CLAIM_CCS => None,
         security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
         security_claims::ClaimType::CLAIM_CERTIFICATE => None,
         security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
         security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
-        security_claims::ClaimType::CLAIM_FINISHED => None,
+        security_claims::ClaimType::CLAIM_FINISHED => {
+            Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                client_random: SmallVec::from(claim.client_random.data),
+                server_random: SmallVec::from(claim.server_random.data),
+                session_id: SmallVec::from_slice(
+                    &claim.session_id.data[..claim.session_id.length as usize],
+                ),
+                master_secret: match protocol_version {
+                    TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
+                    TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
+                },
+                chosen_cipher: claim.chosen_cipher.data,
+                available_ciphers: SmallVec::from_iter(
+                    claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
+                        .iter()
+                        .map(|cipher| cipher.data),
+                ),
+                signature_algorithm: claim.signature_algorithm,
+                peer_signature_algorithm: claim.peer_signature_algorithm,
+            })))
+        }
         security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
         security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
         security_claims::ClaimType::CLAIM_SERVER_HELLO => None,

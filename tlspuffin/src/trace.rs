@@ -96,7 +96,7 @@ use crate::{
     error::Error,
     extraction::extract_knowledge,
     io::MessageResult,
-    tls::error::FnError,
+    tls::{error::FnError, violation::is_violation},
     variable_data::VariableData,
 };
 
@@ -457,11 +457,11 @@ impl Trace {
             ctx.claims.deref_borrow().log();
         }
 
-        /*FIXME let claims = ctx.claims.deref_borrow();
+        let claims = ctx.claims.deref_borrow();
         if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
             // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             return Err(Error::SecurityClaim(msg, claims.clone()));
-        }*/
+        }
 
         Ok(())
     }
