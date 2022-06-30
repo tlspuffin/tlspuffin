@@ -5,7 +5,12 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+    ops::Deref,
+    rc::Rc,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -13,12 +18,18 @@ use crate::{
     error::Error,
     put::{Put, PutConfig, PutDescriptor},
     put_registry::PUT_REGISTRY,
-    trace::ClaimList,
+    trace::TraceContext,
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum AgentType {
+    Server,
+    Client,
+}
 
 impl AgentName {
     pub fn next(&self) -> AgentName {
@@ -49,7 +60,7 @@ pub struct AgentDescriptor {
     pub put_descriptor: PutDescriptor,
     pub tls_version: TLSVersion,
     /// Whether the agent which holds this descriptor is a server.
-    pub server: bool,
+    pub typ: AgentType,
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
@@ -64,7 +75,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: true,
             put_descriptor,
         }
@@ -78,7 +89,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Client,
             try_reuse: true,
             put_descriptor,
         }
@@ -92,7 +103,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor,
         }
@@ -106,7 +117,7 @@ impl AgentDescriptor {
         Self {
             name,
             tls_version,
-            server: false,
+            typ: AgentType::Client,
             try_reuse: false,
             put_descriptor,
         }
@@ -123,30 +134,27 @@ pub enum TLSVersion {
 pub struct Agent {
     pub name: AgentName,
     pub tls_version: TLSVersion,
-    pub server: bool,
+    pub typ: AgentType,
     pub stream: Box<dyn Put>,
 }
 
 impl Agent {
-    pub fn new(
-        descriptor: &AgentDescriptor,
-        claims: Rc<RefCell<ClaimList>>,
-    ) -> Result<Self, Error> {
+    pub fn new(context: &TraceContext, descriptor: &AgentDescriptor) -> Result<Self, Error> {
         let factory = PUT_REGISTRY
             .find_factory(descriptor.put_descriptor.name)
             .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
         let config = PutConfig {
             descriptor: descriptor.put_descriptor.clone(),
-            server: descriptor.server,
+            typ: descriptor.typ,
             tls_version: descriptor.tls_version,
-            claims,
+            claims: context.claims().clone(),
         };
 
-        let stream = factory.create(descriptor.name, config)?;
+        let mut stream = factory.create(&descriptor, config)?;
         let agent = Agent {
             name: descriptor.name,
             tls_version: descriptor.tls_version,
-            server: descriptor.server,
+            typ: descriptor.typ,
             stream,
         };
 
@@ -155,12 +163,12 @@ impl Agent {
 
     /// checks whether a agent is reusable with the descriptor
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        self.server == other.server && self.tls_version == other.tls_version
+        self.typ == other.typ && self.tls_version == other.tls_version
     }
 
-    pub fn rename(&mut self, claims: Rc<RefCell<ClaimList>>, new_name: AgentName) {
+    pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.name = new_name;
-        self.stream.rename_agent(claims, new_name);
+        self.stream.rename_agent(new_name)
     }
 
     pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {

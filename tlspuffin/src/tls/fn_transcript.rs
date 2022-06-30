@@ -2,39 +2,54 @@
 #![allow(dead_code)]
 
 use rustls::{hash_hs::HandshakeHash, tls13};
-use security_claims::{Claim, ClaimType};
 
-use crate::{agent::AgentName, tls::error::FnError, trace::ByAgentClaimList};
+use crate::{
+    agent::AgentName,
+    claims::{
+        Claim, ClaimData, ClaimDataTranscript, Transcript, TranscriptClientFinished,
+        TranscriptServerFinished, TranscriptServerHello,
+    },
+    tls::error::FnError,
+};
 
-fn into_transcript(
-    claim: Option<&(AgentName, Claim)>,
-    typ: ClaimType,
+pub fn fn_server_hello_transcript(claim: &TranscriptServerHello) -> Result<HandshakeHash, FnError> {
+    let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
+
+    let transcript = &claim.0;
+    let claim_transcript = &transcript.0[..transcript.1 as usize];
+    let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
+    Ok(hash)
+}
+/*
+pub fn fn_server_finished_transcript(
+    claim: &TranscriptServerFinished,
 ) -> Result<HandshakeHash, FnError> {
-    if let Some((_, claim)) = claim {
-        let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
-        let claim_transcript = &claim.transcript.data[..claim.transcript.length as usize];
-        let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
-        return Ok(hash);
-    }
+    let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
 
-    Err(FnError::Unknown(format!(
-        "Failed to find {:?} transcript",
-        typ
-    )))
+    let transcript = &claim.0;
+    let claim_transcript = &transcript.0[..transcript.1 as usize];
+    let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
+    Ok(hash)
+}
+*/
+pub fn fn_client_finished_transcript(
+    claim: &TranscriptClientFinished,
+) -> Result<HandshakeHash, FnError> {
+    let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
+
+    let transcript = &claim.0;
+    let claim_transcript = &transcript.0[..transcript.1 as usize];
+    let hash = HandshakeHash::new_override(Vec::from(claim_transcript), algorithm);
+    Ok(hash)
 }
 
-fn find_transcript(claims: &ByAgentClaimList, typ: ClaimType) -> Result<HandshakeHash, FnError> {
-    let claim = claims.find_last_claim(typ);
-    into_transcript(claim, typ)
-}
+pub const fn_server_finished_transcript: fn(
+    &TranscriptServerFinished,
+) -> Result<HandshakeHash, FnError> = fn_transcript::<TranscriptServerFinished>;
 
-pub fn fn_server_hello_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SH)
-}
+pub fn fn_transcript<T: Transcript>(claim: &T) -> Result<HandshakeHash, FnError> {
+    let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
 
-pub fn fn_server_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN)
-}
-pub fn fn_client_finished_transcript(claims: &ByAgentClaimList) -> Result<HandshakeHash, FnError> {
-    find_transcript(claims, ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN)
+    let hash = HandshakeHash::new_override(Vec::from(claim.as_slice()), algorithm);
+    Ok(hash)
 }

@@ -140,6 +140,7 @@ clap = { version = "3.1.18", features = ["cargo"] }
 hex = "0.4.3"
 rand = "0.8.5"
 itertools = "0.10.3"
+smallvec = "1.8.1"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 postcard = { version = "0.7.3", features = ["alloc"] }
