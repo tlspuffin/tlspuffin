@@ -52,17 +52,6 @@ pub struct PutConfig {
 }
 
 impl PutConfig {
-    pub fn msg_claim_closure<C, F>(&self, callback: F) -> impl Fn(&mut C, bool)
-    where
-        F: Fn(&mut C, bool, &mut ClaimList),
-    {
-        let claims = self.claims.clone();
-
-        move |context: &mut C, outbound: bool| unsafe {
-            callback(context, outbound, &mut claims.deref_borrow_mut());
-        }
-    }
-
     pub fn get_option(&self, key: &str) -> Option<&str> {
         self.descriptor
             .options

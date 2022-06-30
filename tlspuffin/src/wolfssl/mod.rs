@@ -127,12 +127,14 @@ impl Put for WolfSSL {
         };
 
         #[cfg(not(feature = "wolfssl430"))]
-        Self::register_msg_callback(&mut ctx, agent.name, &config)?;
+        ctx.set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
 
         let mut stream = Self::new_stream(&ctx, &config)?;
 
         #[cfg(feature = "wolfssl430")]
-        Self::register_msg_callback(stream.ssl_mut(), agent.name, &config)?;
+        stream
+            .ssl_mut()
+            .set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
 
         let mut wolfssl = WolfSSL {
             ctx,
@@ -205,10 +207,13 @@ impl Put for WolfSSL {
         }
 
         #[cfg(not(feature = "wolfssl430"))]
-        Self::register_msg_callback(&mut self.ctx, agent_name, &self.config)?;
+        self.ctx
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
 
         #[cfg(feature = "wolfssl430")]
-        Self::register_msg_callback(self.stream.ssl_mut(), agent_name, &self.config)?;
+        self.stream
+            .ssl_mut()
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
 
         Ok(())
     }
@@ -308,48 +313,24 @@ impl WolfSSL {
         Ok(ssl)
     }
 
-    #[cfg(not(feature = "wolfssl430"))]
-    pub fn register_msg_callback(
-        ctx: &mut SslContextRef,
+    fn create_msg_callback(
         agent_name: AgentName,
         config: &PutConfig,
-    ) -> Result<(), ErrorStack> {
+    ) -> impl Fn(&mut SslRef, bool) {
         let origin = config.typ;
         let protocol_version = config.tls_version;
-        ctx.set_msg_callback(config.msg_claim_closure(
-            move |context: &mut SslRef, outbound, claims| unsafe {
-                if let Some(data) = extract_current_transcript(context) {
-                    claims.claim_sized(Claim {
-                        agent_name,
-                        origin,
-                        protocol_version,
-                        data,
-                    });
-                }
-            },
-        ))
-    }
+        let claims = config.claims.clone();
 
-    #[cfg(feature = "wolfssl430")]
-    pub fn register_msg_callback(
-        ssl: &mut SslRef,
-        agent_name: AgentName,
-        config: &PutConfig,
-    ) -> Result<(), ErrorStack> {
-        let origin = config.typ;
-        let protocol_version = config.tls_version;
-        ssl.set_msg_callback(config.msg_claim_closure(
-            move |context: &mut SslRef, outbound, claims| unsafe {
-                if let Some(data) = extract_current_transcript(context) {
-                    claims.claim_sized(Claim {
-                        agent_name,
-                        origin,
-                        protocol_version,
-                        data,
-                    });
-                }
-            },
-        ))
+        move |context: &mut SslRef, outbound: bool| unsafe {
+            if let Some(data) = extract_current_transcript(context) {
+                claims.deref_borrow_mut().claim_sized(Claim {
+                    agent_name,
+                    origin,
+                    protocol_version,
+                    data,
+                });
+            }
+        }
     }
 }
 

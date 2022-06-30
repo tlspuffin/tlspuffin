@@ -112,23 +112,19 @@ pub fn find_two_finished_messages(
 ) -> Option<((&Claim, &Finished), (&Claim, &Finished))> {
     let two_finishes: Option<((&Claim, &Finished), (&Claim, &Finished))> = claims
         .iter()
-        .filter_map(|claim| {
-            let option = match &claim.data {
-                ClaimData::Message(ClaimDataMessage::Finished(claim)) => Some(claim),
-                _ => None,
-            };
-
-            option.map_or(None, |data| {
+        .filter_map(|claim| match &claim.data {
+            ClaimData::Message(ClaimDataMessage::Finished(data)) => {
                 if data.outbound {
                     None
                 } else {
                     Some((claim, data))
                 }
-            })
+            }
+            _ => None,
         })
         .collect_tuple();
 
-    if let Some(((claim_a, data_a), (claim_b, data_b))) = two_finishes {
+    if let Some(((claim_a, _), (claim_b, _))) = two_finishes {
         if claim_a.agent_name == claim_b.agent_name {
             // One agent finished twice because of session resumption
             return None;

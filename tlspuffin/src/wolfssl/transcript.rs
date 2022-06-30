@@ -29,10 +29,6 @@ pub fn extract_current_transcript(ssl: &mut SslRef) -> Option<ClaimData> {
 
         let state = unsafe { (*ssl).options.acceptState };
 
-        let origin = AgentType::Server;
-        let outbound = false;
-        let protocol_version = TLSVersion::V1_3;
-
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
             wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => Some(ClaimData::Transcript(
