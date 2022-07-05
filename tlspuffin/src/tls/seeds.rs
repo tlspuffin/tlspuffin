@@ -539,6 +539,48 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
         )
     };
 
+    let encrypted_extensions = term! {
+        fn_decrypt_handshake(
+            ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_0
+        )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_decrypt_handshake(
+            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_seq_1
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_get_context((@certificate_request_message))),
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_cert_bob
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            (fn_get_signature_algorithm((@certificate_request_message))),
+            (fn_rsa_sign(
+                (fn_certificate_transcript(((server, 0))))
+            ))
+        )
+    };
+
     let client_finished = term! {
         fn_finished(
             (fn_verify_data(
@@ -574,11 +616,39 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_encrypt_handshake(
-                            (@client_finished),
+                            (@certificate),
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
                             fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_2  // sequence 2
                         )
                     },
                 }),

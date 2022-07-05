@@ -16,6 +16,7 @@ pub mod violation;
 /// This modules contains all the concrete implementations of function symbols.
 #[path = "."]
 pub mod fn_impl {
+    pub mod fn_cert;
     pub mod fn_constants;
     pub mod fn_extensions;
     pub mod fn_fields;
@@ -23,6 +24,7 @@ pub mod fn_impl {
     pub mod fn_transcript;
     pub mod fn_utils;
 
+    pub use fn_cert::*;
     pub use fn_constants::*;
     pub use fn_extensions::*;
     pub use fn_fields::*;

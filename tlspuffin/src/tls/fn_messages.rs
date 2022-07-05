@@ -352,7 +352,10 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
     })
 }
 /// CertificateVerify => 0x0f,
-pub fn fn_certificate_verify(signature: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_certificate_verify(
+    scheme: &SignatureScheme,
+    signature: &Vec<u8>,
+) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
@@ -360,7 +363,7 @@ pub fn fn_certificate_verify(signature: &Vec<u8>) -> Result<Message, FnError> {
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: SignatureScheme::ED25519,
+                scheme: scheme.clone(),
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),
