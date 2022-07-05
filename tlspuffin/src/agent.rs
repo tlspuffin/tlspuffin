@@ -69,7 +69,20 @@ pub struct AgentDescriptor {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
+    /// If agent is a server:
+    ///   Make client auth. a requirement.
+    /// If agent is a client:
+    ///   Send a static certificate.
+    ///
+    /// Default: false
     pub client_authentication: bool,
+    /// If agent is a server:
+    ///   No effect, servers always send certificates in TLS.
+    /// If agent is a client:
+    ///   Make server auth. a requirement.
+    ///
+    /// Default: false
+    pub server_authentication: bool,
 }
 
 impl Default for AgentDescriptor {
@@ -81,6 +94,7 @@ impl Default for AgentDescriptor {
             typ: AgentType::Server,
             try_reuse: false,
             client_authentication: false,
+            server_authentication: false,
         }
     }
 }

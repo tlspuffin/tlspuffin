@@ -512,6 +512,87 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
+pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -> Trace {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            fn_secp384r1_support_group_extension
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_key_share_deterministic_extension
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            put_descriptor: server_put,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Output(OutputAction {}),
+            },
+        ],
+    };
+
+    trace
+}
+
 pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
@@ -1723,6 +1804,14 @@ pub mod tests {
     #[test]
     fn test_seed_client_attacker() {
         let ctx = seed_client_attacker.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
+    #[test]
+    fn test_seed_client_attacker_auth() {
+        let ctx = seed_client_attacker_auth.execute_trace();
         assert!(ctx.agents_successful());
     }
 

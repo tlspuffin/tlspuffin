@@ -122,8 +122,8 @@ impl Put for WolfSSL {
         Self: Sized,
     {
         let mut ctx = match config.typ {
-            AgentType::Server => Self::create_server_ctx(config.tls_version)?,
-            AgentType::Client => Self::create_client_ctx(config.tls_version)?,
+            AgentType::Server => Self::create_server_ctx(agent)?,
+            AgentType::Client => Self::create_client_ctx(agent)?,
         };
 
         #[cfg(not(feature = "wolfssl430"))]
@@ -241,18 +241,41 @@ impl Put for WolfSSL {
 }
 
 impl WolfSSL {
-    pub fn create_client_ctx(tls_version: TLSVersion) -> Result<SslContext, ErrorStack> {
-        let mut ctx = match tls_version {
+    pub fn create_client_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+        let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
         };
 
         ctx.disable_session_cache()?;
 
+        if descriptor.client_authentication {
+            let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+            ctx.set_certificate(cert.as_ref())?;
+
+            #[cfg(not(feature = "wolfssl430"))]
+            {
+                let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(
+                    crate::static_certs::BOB_PRIVATE_KEY.as_bytes(),
+                )?;
+                let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+                ctx.set_private_key(pkey.as_ref())?;
+            }
+            #[cfg(feature = "wolfssl430")]
+            {
+                panic!("Client auth unsupported with wolfssl430")
+            }
+        }
+
+        if descriptor.server_authentication {
+            ctx.set_verify(SslVerifyMode::PEER);
+        } else {
+            // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
+            ctx.set_verify(SslVerifyMode::NONE);
+        }
+
         // Disallow EXPORT in client
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
-        // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
-        ctx.set_verify(SslVerifyMode::NONE);
 
         Ok(ctx)
     }
@@ -267,8 +290,8 @@ impl WolfSSL {
         Ok(ssl)
     }
 
-    pub fn create_server_ctx(tls_version: TLSVersion) -> Result<SslContext, ErrorStack> {
-        let mut ctx = match tls_version {
+    pub fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+        let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
         };
@@ -291,6 +314,12 @@ impl WolfSSL {
         #[cfg(feature = "wolfssl430")]
         {
             ctx.set_private_key_pem(ALICE_PRIVATE_KEY.as_bytes())?;
+        }
+
+        if descriptor.client_authentication {
+            ctx.set_verify(SslVerifyMode::PEER);
+        } else {
+            ctx.set_verify(SslVerifyMode::NONE);
         }
 
         // Callbacks for experiements
