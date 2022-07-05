@@ -19,7 +19,7 @@ use crate::{
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520_PUT},
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT},
     wolfssl::{
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
@@ -269,7 +269,7 @@ impl WolfSSL {
 
         if descriptor.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            // TODO: Allow ALICE certificate
+            ctx.load_verify_buffer(ALICE_CERT.as_bytes());
         } else {
             // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
             ctx.set_verify(SslVerifyMode::NONE);
@@ -319,7 +319,7 @@ impl WolfSSL {
 
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            // TODO: Allow BOB certificate
+            ctx.load_verify_buffer(BOB_CERT.as_bytes());
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }

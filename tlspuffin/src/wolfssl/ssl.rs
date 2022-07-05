@@ -127,6 +127,24 @@ impl SslContextRef {
         }
     }
 
+    /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL handshake. The peer certificate sent during the handshake is compared by using the SKID when available and the signature. If these two things do not match then any loaded CAs are used. Is the same functionality as wolfSSL_CTX_trust_peer_cert except is from a buffer instead of a file. Feature is enabled by defining the macro WOLFSSL_TRUST_PEER_CERT Please see the examples for proper usage.
+    ///
+    /// This corresponds to [`wolfSSL_CTX_load_verify_buffer`].
+    /// [`wolfSSL_CTX_load_verify_buffer`]: https://www.wolfssl.com/documentation/manuals/wolfssl/group__CertsKeys.html#function-wolfssl_ctx_load_verify_buffer
+    pub fn load_verify_buffer(&self, cert: &[u8]) -> Result<(), ErrorStack> {
+        unsafe {
+            unsafe {
+                cvt(wolf::wolfSSL_CTX_load_verify_buffer(
+                    self.as_ptr(),
+                    cert.as_ptr() as *const u8,
+                    cert.len() as i64,
+                    wolf::WOLFSSL_FILETYPE_PEM,
+                ))
+                .map(|_| ())
+            }
+        }
+    }
+
     /// Returns a reference to the extra data at the specified index.
     ///
     /// This corresponds to [`SSL_CTX_get_ex_data`].
