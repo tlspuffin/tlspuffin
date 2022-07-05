@@ -80,20 +80,8 @@ pub fn seed_successful(
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_3,
-                typ: AgentType::Client,
-                try_reuse: false,
-                put_descriptor: client_put,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_3,
-                typ: AgentType::Server,
-                try_reuse: false,
-                put_descriptor: server_put,
-            },
+            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -198,20 +186,8 @@ pub fn seed_successful_mitm(
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_3,
-                typ: AgentType::Client,
-                try_reuse: false,
-                put_descriptor: client_put,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_3,
-                typ: AgentType::Server,
-                try_reuse: false,
-                put_descriptor: server_put,
-            },
+            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -318,20 +294,8 @@ pub fn seed_successful12(
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Client,
-                try_reuse: false,
-                put_descriptor: client_put,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Server,
-                try_reuse: false,
-                put_descriptor: server_put,
-            },
+            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -588,13 +552,11 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
-            put_descriptor: server_put,
-        }],
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_3,
+            server_put,
+        )],
         steps: vec![
             Step {
                 agent: server,
@@ -724,13 +686,11 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_2,
-            typ: AgentType::Server,
-            try_reuse: false,
-            put_descriptor: server_put,
-        }],
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_2,
+            server_put,
+        )],
         steps: vec![
             Step {
                 agent: server,
@@ -874,20 +834,8 @@ pub fn seed_heartbleed(
     let trace = Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Client,
-                try_reuse: false,
-                put_descriptor: client_put,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Server,
-                try_reuse: false,
-                put_descriptor: server_put,
-            },
+            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
         ],
         steps: vec![
             Step {
@@ -920,20 +868,8 @@ pub fn seed_freak(
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Client,
-                try_reuse: false,
-                put_descriptor: client_put,
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_2,
-                typ: AgentType::Server,
-                try_reuse: false,
-                put_descriptor: server_put,
-            },
+            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
         ],
         steps: vec![
             Step {
@@ -1119,13 +1055,11 @@ pub fn seed_session_resumption_dhe(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
-            put_descriptor: server_put,
-        }],
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_3,
+            server_put,
+        )],
         steps: vec![
             Step {
                 agent: server,
@@ -1247,13 +1181,11 @@ pub fn seed_session_resumption_ke(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
-            put_descriptor: server_put,
-        }],
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_3,
+            server_put,
+        )],
         steps: vec![
             Step {
                 agent: server,
@@ -1418,13 +1350,11 @@ pub fn _seed_client_attacker_full(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_3,
             put_descriptor,
-        }],
+        )],
         steps: vec![
             Step {
                 agent: server,
@@ -1629,13 +1559,11 @@ pub fn seed_session_resumption_dhe_full(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
-            put_descriptor: server_put,
-        }],
+        descriptors: vec![AgentDescriptor::new_server(
+            server,
+            TLSVersion::V1_3,
+            server_put,
+        )],
         steps: vec![
             Step {
                 agent: server,
