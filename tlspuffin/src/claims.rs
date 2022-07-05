@@ -78,12 +78,22 @@ pub struct CertificateVerify;
 #[derive(Debug, Clone)]
 pub struct Finished {
     pub outbound: bool,
+
     pub client_random: SmallVec<[u8; 32]>,
     pub server_random: SmallVec<[u8; 32]>,
     pub session_id: SmallVec<[u8; 32]>,
+
+    pub verify_peer: bool,
+    /// DER encoded certificate. DER works, because:
+    ///     DER is a subset of BER providing for exactly one way to encode an ASN.1 value.
+    ///     (https://en.wikipedia.org/wiki/X.690#DER_encoding)
+    pub peer_certificate: SmallVec<[u8; 32]>,
+
     pub master_secret: SmallVec<[u8; 32]>,
+
     pub chosen_cipher: u16,
     pub available_ciphers: SmallVec<[u16; 20]>,
+
     pub signature_algorithm: i32,
     pub peer_signature_algorithm: i32,
     /* TODO: tmp_skey_type peer_tmp_skey_type

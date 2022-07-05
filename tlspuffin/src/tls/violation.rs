@@ -5,6 +5,7 @@ use itertools::Itertools;
 use crate::{
     agent::{AgentType, TLSVersion},
     claims::{Claim, ClaimData, ClaimDataMessage, Finished},
+    static_certs::{ALICE_CERT_DER, BOB_CERT, BOB_CERT_DER},
 };
 
 pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
@@ -16,54 +17,48 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
                 return Some("Mismatching versions");
             }
 
+            if client.master_secret != server.master_secret {
+                return Some("Mismatching master secrets");
+            }
+
+            if client.server_random != server.server_random {
+                return Some("Mismatching server random");
+            }
+            if client.client_random != server.client_random {
+                return Some("Mismatching client random");
+            }
+
+            if client.chosen_cipher != server.chosen_cipher {
+                return Some("Mismatching ciphers");
+            }
+
+            if client.signature_algorithm != server.peer_signature_algorithm
+                || server.signature_algorithm != client.peer_signature_algorithm
+            {
+                return Some("mismatching signature algorithms");
+            }
+
+            if server.verify_peer && server.peer_certificate.as_slice() != BOB_CERT_DER {
+                return Some("Authentication bypass");
+            }
+
+            if client.verify_peer && client.peer_certificate.as_slice() != ALICE_CERT_DER {
+                return Some("Authentication bypass");
+            }
+
             match client_claim.protocol_version {
                 TLSVersion::V1_2 => {
                     // TLS 1.2 Checks
-                    if client.master_secret != server.master_secret {
-                        return Some("Mismatching master secrets");
-                    }
 
                     // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
                     if !server.session_id.is_empty() && client.session_id != server.session_id {
                         return Some("Mismatching session ids");
                     }
-
-                    if client.server_random != server.server_random {
-                        return Some("Mismatching server random");
-                    }
-                    if client.client_random != server.client_random {
-                        return Some("Mismatching client random");
-                    }
-
-                    if client.chosen_cipher != server.chosen_cipher {
-                        return Some("Mismatching ciphers");
-                    }
-
-                    if client.signature_algorithm != server.peer_signature_algorithm
-                        || server.signature_algorithm != client.peer_signature_algorithm
-                    {
-                        return Some("mismatching signature algorithms");
-                    }
                 }
                 TLSVersion::V1_3 => {
                     // TLS 1.3 Checks
-                    if client.master_secret != server.master_secret {
-                        return Some("Mismatching master secrets");
-                    }
-
                     if client.session_id != server.session_id {
                         return Some("Mismatching session ids");
-                    }
-
-                    if client.server_random != server.server_random {
-                        return Some("Mismatching server random");
-                    }
-                    if client.client_random != server.client_random {
-                        return Some("Mismatching client random");
-                    }
-
-                    if client.chosen_cipher != server.chosen_cipher {
-                        return Some("Mismatching ciphers");
                     }
 
                     if client.available_ciphers.len() > 0 && server.available_ciphers.len() > 0 {
@@ -87,12 +82,6 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
                                 return Some("Not the best cipher choosen");
                             }
                         }
-                    }
-
-                    if client.signature_algorithm != server.peer_signature_algorithm
-                        || server.signature_algorithm != client.peer_signature_algorithm
-                    {
-                        return Some("mismatching signature algorithms");
                     }
                 }
             }

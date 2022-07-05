@@ -11,7 +11,11 @@ use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
     ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
-    x509::X509Ref,
+    stack::Stack,
+    x509::{
+        store::{X509Store, X509StoreBuilder},
+        X509Ref, X509StoreContext, X509,
+    },
 };
 use rustls::msgs::message::OpaqueMessage;
 use smallvec::SmallVec;
@@ -28,6 +32,7 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111_PUT},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY},
 };
 
 #[cfg(feature = "deterministic")]
@@ -138,6 +143,8 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
                 session_id: SmallVec::from_slice(
                     &claim.session_id.data[..claim.session_id.length as usize],
                 ),
+                verify_peer: false,                   // FIXME
+                peer_certificate: Default::default(), // FIXME
                 master_secret: match protocol_version {
                     TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                     TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
@@ -174,8 +181,8 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
 impl Put for OpenSSL {
     fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = match config.typ {
-            AgentType::Server => Self::create_server(config.tls_version)?,
-            AgentType::Client => Self::create_client(config.tls_version)?,
+            AgentType::Server => Self::create_server(agent)?,
+            AgentType::Client => Self::create_client(agent)?,
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
@@ -279,13 +286,26 @@ impl Put for OpenSSL {
 }
 
 impl OpenSSL {
-    fn create_server(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
+    fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
         //let (cert, pkey) = openssl_binding::generate_cert();
-        let (cert, key) = static_rsa_cert()?;
+        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.as_bytes(), ALICE_CERT.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
+
+        if descriptor.client_authentication {
+            let mut store = X509StoreBuilder::new()?;
+            let cert = X509::from_pem(BOB_CERT.as_bytes())?;
+            store.add_cert(cert.clone())?;
+            let store = store.build();
+
+            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify_cert_store(store)?;
+            // TODO: Check if verification is enforced
+        } else {
+            ctx_builder.set_verify(SslVerifyMode::NONE);
+        }
 
         #[cfg(feature = "openssl111")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
@@ -293,7 +313,7 @@ impl OpenSSL {
         #[cfg(feature = "openssl111")]
         ctx_builder.set_options(openssl::ssl::SslOptions::ALLOW_NO_DHE_KEX);
 
-        set_max_protocol_version(&mut ctx_builder, tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
         {
@@ -313,7 +333,7 @@ impl OpenSSL {
         Ok(ssl)
     }
 
-    fn create_client(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
+    fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
@@ -322,12 +342,39 @@ impl OpenSSL {
         #[cfg(feature = "openssl111")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        set_max_protocol_version(&mut ctx_builder, tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
+
+        if descriptor.client_authentication {
+            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.as_bytes(), BOB_CERT.as_bytes())?;
+            ctx_builder.set_certificate(&cert)?;
+            ctx_builder.set_private_key(&key)?;
+        }
+
+        if descriptor.server_authentication {
+            ctx_builder.set_verify(SslVerifyMode::PEER);
+
+            let mut store = X509StoreBuilder::new()?;
+            let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+            store.add_cert(cert.clone())?;
+
+            let store = store.build();
+
+            /*let mut chain = Stack::new().unwrap();
+            let mut context = X509StoreContext::new().unwrap();
+            assert!(context
+                .init(&store, &cert, &chain, |c| c.verify_cert())
+                .unwrap());*/
+
+            ctx_builder.set_verify_cert_store(store)?;
+            // TODO: Check if verification is enforced - Yes it is
+        } else {
+            ctx_builder.set_verify(SslVerifyMode::NONE);
+        }
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
         ssl.set_connect_state();

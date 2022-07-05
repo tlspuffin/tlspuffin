@@ -269,6 +269,7 @@ impl WolfSSL {
 
         if descriptor.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
+            // TODO: Allow ALICE certificate
         } else {
             // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
             ctx.set_verify(SslVerifyMode::NONE);
@@ -318,6 +319,7 @@ impl WolfSSL {
 
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
+            // TODO: Allow BOB certificate
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }

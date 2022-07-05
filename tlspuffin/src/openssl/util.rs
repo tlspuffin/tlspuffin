@@ -62,11 +62,11 @@ pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
     Ok((cert, pkey))
 }
 
-pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
-    let rsa = openssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.as_bytes())?;
+pub fn static_rsa_cert(key: &[u8], cert: &[u8]) -> Result<(X509, PKey<Private>), ErrorStack> {
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(key)?;
     let pkey = PKey::from_rsa(rsa)?;
 
-    let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+    let cert = X509::from_pem(cert)?;
     Ok((cert, pkey))
 }
 

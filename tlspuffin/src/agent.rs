@@ -81,7 +81,7 @@ pub struct AgentDescriptor {
     /// If agent is a client:
     ///   Make server auth. a requirement.
     ///
-    /// Default: false
+    /// Default: true
     pub server_authentication: bool,
 }
 
@@ -94,7 +94,7 @@ impl Default for AgentDescriptor {
             typ: AgentType::Server,
             try_reuse: false,
             client_authentication: false,
-            server_authentication: false,
+            server_authentication: true,
         }
     }
 }
