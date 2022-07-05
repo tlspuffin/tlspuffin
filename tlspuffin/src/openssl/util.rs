@@ -13,7 +13,7 @@ use openssl::{
 
 use crate::{
     agent::TLSVersion,
-    static_certs::{CERT, PRIVATE_KEY},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY},
 };
 
 // FIXME: remove or use
@@ -63,10 +63,10 @@ pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
 }
 
 pub fn static_rsa_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
-    let rsa = openssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.as_bytes())?;
     let pkey = PKey::from_rsa(rsa)?;
 
-    let cert = X509::from_pem(CERT.as_bytes())?;
+    let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
     Ok((cert, pkey))
 }
 

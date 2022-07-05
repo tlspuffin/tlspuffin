@@ -19,7 +19,7 @@ use crate::{
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520_PUT},
-    static_certs::{CERT, PRIVATE_KEY},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY},
     wolfssl::{
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
@@ -279,18 +279,18 @@ impl WolfSSL {
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
-        let cert = X509::from_pem(CERT.as_bytes())?;
+        let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
         ctx.set_certificate(cert.as_ref())?;
 
         #[cfg(not(feature = "wolfssl430"))]
         {
-            let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
+            let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.as_bytes())?;
             let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
             ctx.set_private_key(pkey.as_ref())?;
         }
         #[cfg(feature = "wolfssl430")]
         {
-            ctx.set_private_key_pem(PRIVATE_KEY.as_bytes())?;
+            ctx.set_private_key_pem(ALICE_PRIVATE_KEY.as_bytes())?;
         }
 
         // Callbacks for experiements

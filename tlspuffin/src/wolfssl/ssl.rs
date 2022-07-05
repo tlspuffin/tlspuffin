@@ -18,7 +18,7 @@ use wolfssl_sys as wolf;
 
 use crate::{
     agent::TLSVersion,
-    static_certs::PRIVATE_KEY,
+    static_certs::ALICE_PRIVATE_KEY,
     wolfssl::{
         bio,
         callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
