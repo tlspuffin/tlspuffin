@@ -330,12 +330,12 @@ impl TraceContext {
         message: &OpaqueMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.add_to_inbound(message))
+            .map(|agent| agent.put.add_to_inbound(message))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.progress(&agent_name)
+        agent.put.progress(&agent_name)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -345,7 +345,7 @@ impl TraceContext {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.take_message_from_outbound()
+        agent.put.take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
@@ -389,7 +389,7 @@ impl TraceContext {
 
     pub fn agents_successful(&self) -> bool {
         for agent in &self.agents {
-            if !agent.stream.is_state_successful() {
+            if !agent.put.is_state_successful() {
                 return false;
             }
         }
@@ -415,7 +415,7 @@ impl Trace {
             if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.is_reusable_with(descriptor))
+                .find(|existing| existing.put.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(descriptor.name)?;

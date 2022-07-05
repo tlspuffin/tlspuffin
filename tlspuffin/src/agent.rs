@@ -54,6 +54,11 @@ impl fmt::Display for AgentName {
 
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
+///
+/// The difference between an [`AgentDescriptor`] and a [`PutDescriptor`] is that values of
+/// the [`AgentDescriptor`] are required for seed traces to succeed. They are the same for every
+/// invocation of the seed. Values in the [`PutDescriptor`] are supposed to differ between
+/// invocations.
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct AgentDescriptor {
     pub name: AgentName,
@@ -133,9 +138,8 @@ pub enum TLSVersion {
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent {
     pub name: AgentName,
-    pub tls_version: TLSVersion,
     pub typ: AgentType,
-    pub stream: Box<dyn Put>,
+    pub put: Box<dyn Put>,
 }
 
 impl Agent {
@@ -153,25 +157,19 @@ impl Agent {
         let mut stream = factory.create(&descriptor, config)?;
         let agent = Agent {
             name: descriptor.name,
-            tls_version: descriptor.tls_version,
             typ: descriptor.typ,
-            stream,
+            put: stream,
         };
 
         Ok(agent)
     }
 
-    /// checks whether a agent is reusable with the descriptor
-    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        self.typ == other.typ && self.tls_version == other.tls_version
-    }
-
     pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.name = new_name;
-        self.stream.rename_agent(new_name)
+        self.put.rename_agent(new_name)
     }
 
     pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.stream.reset(agent_name)
+        self.put.reset(agent_name)
     }
 }

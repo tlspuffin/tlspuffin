@@ -91,4 +91,10 @@ pub trait Put: Stream + Drop + 'static {
     fn make_deterministic()
     where
         Self: Sized;
+
+    /// checks whether a agent is reusable with the descriptor
+    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        let config = self.config();
+        config.typ == other.typ && config.tls_version == other.tls_version
+    }
 }
