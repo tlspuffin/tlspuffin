@@ -1,16 +1,13 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use std::{any::Any, fmt, fmt::Formatter};
+use std::{any::Any, env::var, fmt, fmt::Formatter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::{
-    algebra::dynamic_function::TypeShape,
-    error::Error,
-    tls::error::FnError,
-    trace::{ByAgentClaimList, TraceContext},
+    algebra::dynamic_function::TypeShape, error::Error, tls::error::FnError, trace::TraceContext,
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -104,18 +101,11 @@ impl Term {
 
     pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
         match self {
-            Term::Variable(variable) => {
-                if variable.typ == TypeShape::of::<ByAgentClaimList>() {
-                    Ok(Box::new(context.claims_by_agent(variable.query.agent_name)))
-                } else {
-                    context
-                        .find_variable(variable.typ, variable.query)
-                        .map(|data| data.boxed_any())
-                        .ok_or_else(|| {
-                            Error::Term(format!("Unable to find variable {}!", variable))
-                        })
-                }
-            }
+            Term::Variable(variable) => context
+                .find_variable(variable.typ, variable.query)
+                .map(|data| data.boxed_any())
+                .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
+                .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {

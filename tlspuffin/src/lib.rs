@@ -15,6 +15,7 @@ compile_error!("`Only one binding at the same time is currently supported.");
 
 pub mod agent;
 pub mod algebra;
+pub mod claims;
 pub mod debug;
 pub mod error;
 pub mod experiment;

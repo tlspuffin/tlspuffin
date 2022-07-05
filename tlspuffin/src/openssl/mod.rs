@@ -1,4 +1,11 @@
-use std::{cell::RefCell, io, io::ErrorKind, rc::Rc};
+use std::{
+    any::Any,
+    cell::RefCell,
+    fmt::{Debug, Formatter},
+    io,
+    io::ErrorKind,
+    rc::Rc,
+};
 
 use openssl::{
     error::ErrorStack,
@@ -7,15 +14,20 @@ use openssl::{
     x509::X509Ref,
 };
 use rustls::msgs::message::OpaqueMessage;
+use smallvec::SmallVec;
 
 use crate::{
-    agent::{AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    claims::{
+        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
+        TlsTranscript, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111_PUT},
-    trace::ClaimList,
 };
 
 #[cfg(feature = "deterministic")]
@@ -32,8 +44,12 @@ mod util;
 pub fn new_openssl_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error> {
-            Ok(Box::new(OpenSSL::new(agent_name, config)?))
+        fn create(
+            &self,
+            agent: &AgentDescriptor,
+            config: PutConfig,
+        ) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(OpenSSL::new(agent, config)?))
         }
 
         fn put_name(&self) -> PutName {
@@ -60,6 +76,7 @@ impl From<ErrorStack> for Error {
 
 pub struct OpenSSL {
     stream: SslStream<MemoryStream>,
+    config: PutConfig,
 }
 
 impl Drop for OpenSSL {
@@ -79,20 +96,94 @@ impl Stream for OpenSSL {
     }
 }
 
+fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) -> Option<ClaimData> {
+    match claim.typ {
+        // Transcripts
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
+            ClaimDataTranscript::ClientHello(TranscriptClientHello(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_PARTIAL_CH => Some(ClaimData::Transcript(
+            ClaimDataTranscript::PartialClientHello(TranscriptPartialClientHello(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH => Some(ClaimData::Transcript(
+            ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN => Some(ClaimData::Transcript(
+            ClaimDataTranscript::ServerFinished(TranscriptServerFinished(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN => Some(ClaimData::Transcript(
+            ClaimDataTranscript::ClientFinished(TranscriptClientFinished(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
+        // Messages
+        security_claims::ClaimType::CLAIM_FINISHED => {
+            Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                outbound: claim.write > 0,
+                client_random: SmallVec::from(claim.client_random.data),
+                server_random: SmallVec::from(claim.server_random.data),
+                session_id: SmallVec::from_slice(
+                    &claim.session_id.data[..claim.session_id.length as usize],
+                ),
+                master_secret: match protocol_version {
+                    TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
+                    TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
+                },
+                chosen_cipher: claim.chosen_cipher.data,
+                available_ciphers: SmallVec::from_iter(
+                    claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
+                        .iter()
+                        .map(|cipher| cipher.data),
+                ),
+                signature_algorithm: claim.signature_algorithm,
+                peer_signature_algorithm: claim.peer_signature_algorithm,
+            })))
+        }
+        security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
+        security_claims::ClaimType::CLAIM_CCS => None,
+        security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE => None,
+        security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
+        security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
+        security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
+        security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_REQUEST => None,
+        security_claims::ClaimType::CLAIM_SERVER_DONE => None,
+        security_claims::ClaimType::CLAIM_SESSION_TICKET => None,
+        security_claims::ClaimType::CLAIM_CERTIFICATE_STATUS => None,
+        security_claims::ClaimType::CLAIM_EARLY_DATA => None,
+        security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
+        _ => None,
+    }
+}
+
 impl Put for OpenSSL {
-    fn new(agent_name: AgentName, config: PutConfig) -> Result<OpenSSL, Error> {
-        let ssl = if config.server {
-            Self::create_server(config.tls_version)?
-        } else {
-            Self::create_client(config.tls_version)?
+    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
+        let ssl = match config.typ {
+            AgentType::Server => Self::create_server(config.tls_version)?,
+            AgentType::Client => Self::create_client(config.tls_version)?,
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
-        let mut openssl = OpenSSL { stream };
+        let mut openssl = OpenSSL { config, stream };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(config.claims, agent_name);
+        openssl.register_claimer(agent.name);
 
         Ok(openssl)
     }
@@ -114,14 +205,30 @@ impl Put for OpenSSL {
         Ok(())
     }
 
+    fn config(&self) -> &PutConfig {
+        &self.config
+    }
+
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
             use foreign_types_shared::ForeignTypeRef;
+
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.tls_version;
+            let origin = self.config.typ;
+
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claims).borrow_mut().claim(agent_name, claim)
+                    if let Some(data) = to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(Claim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        })
+                    }
                 },
             );
         }
@@ -136,12 +243,13 @@ impl Put for OpenSSL {
     }
 
     #[allow(unused_variables)]
-    fn rename_agent(&mut self, claims: Rc<RefCell<ClaimList>>, agent_name: AgentName) {
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(claims, agent_name)
+            self.register_claimer(agent_name);
         }
+        Ok(())
     }
 
     fn describe_state(&self) -> &'static str {

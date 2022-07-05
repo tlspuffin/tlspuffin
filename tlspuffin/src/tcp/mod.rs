@@ -16,19 +16,22 @@ use rustls::msgs::{
 };
 
 use crate::{
-    agent::AgentName,
+    agent::{AgentDescriptor, AgentName},
     error::Error,
     io::{MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, TCP_PUT},
-    trace::ClaimList,
 };
 
 pub fn new_tcp_factory() -> Box<dyn Factory> {
     struct OpenSSLFactory;
     impl Factory for OpenSSLFactory {
-        fn create(&self, agent_name: AgentName, config: PutConfig) -> Result<Box<dyn Put>, Error> {
-            Ok(Box::new(TcpPut::new(agent_name, config)?))
+        fn create(
+            &self,
+            agent: &AgentDescriptor,
+            config: PutConfig,
+        ) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(TcpPut::new(agent, config)?))
         }
 
         fn put_name(&self) -> PutName {
@@ -62,6 +65,7 @@ impl From<AddrParseError> for Error {
 pub struct TcpPut {
     stream: TcpStream,
     deframer: MessageDeframer,
+    config: PutConfig,
 }
 
 impl TcpPut {
@@ -140,7 +144,7 @@ impl Drop for TcpPut {
 }
 
 impl Put for TcpPut {
-    fn new(_agent_name: AgentName, config: PutConfig) -> Result<Self, Error>
+    fn new(_agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -155,6 +159,7 @@ impl Put for TcpPut {
         Ok(Self {
             stream,
             deframer: Default::default(),
+            config,
         })
     }
 
@@ -168,8 +173,12 @@ impl Put for TcpPut {
         Ok(())
     }
 
+    fn config(&self) -> &PutConfig {
+        &self.config
+    }
+
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _claims: Rc<RefCell<ClaimList>>, _agent_name: AgentName) {
+    fn register_claimer(&mut self, _agent_name: AgentName) {
         panic!("Claims are not supported with TcpPut")
     }
 
@@ -178,7 +187,9 @@ impl Put for TcpPut {
         panic!("Claims are not supported with TcpPut")
     }
 
-    fn rename_agent(&mut self, _claims: Rc<RefCell<ClaimList>>, _agent_name: AgentName) {}
+    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        Ok(())
+    }
 
     fn describe_state(&self) -> &'static str {
         panic!("Can not describe the state with TcpPut")

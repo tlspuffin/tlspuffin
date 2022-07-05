@@ -2,7 +2,7 @@ use std::{fmt, fmt::Formatter, io};
 
 use rustls::msgs::enums::ContentType;
 
-use crate::{agent::AgentName, tls::error::FnError};
+use crate::{agent::AgentName, claims::ClaimList, tls::error::FnError};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -18,7 +18,7 @@ pub enum Error {
     /// Error while operating on a [`Stream`]
     Stream(String),
     Extraction(ContentType),
-    SecurityClaim(&'static str, Vec<(AgentName, security_claims::Claim)>),
+    SecurityClaim(&'static str, ClaimList),
 }
 
 impl std::error::Error for Error {}

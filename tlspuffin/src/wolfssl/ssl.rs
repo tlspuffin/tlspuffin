@@ -1,5 +1,6 @@
 use std::{
     any::TypeId,
+    cell::{Ref, RefMut},
     cmp,
     ffi::{CStr, CString},
     io,
@@ -20,9 +21,9 @@ use crate::{
     static_certs::PRIVATE_KEY,
     wolfssl::{
         bio,
-        callbacks::{msg_callback, ExtraUserDataRegistry, UserData},
+        callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
         error::{ErrorCode, ErrorStack, InnerError, SslError},
-        util::{cvt, cvt_p},
+        util::{cvt, cvt_n, cvt_p},
         x509::X509Ref,
     },
 };
@@ -79,10 +80,16 @@ impl SslMethod {
     }
 }
 
+pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
+    SslContextRef::from_ptr(ctx).drop_ex_data::<ExtraUserDataRegistry>(0);
+
+    wolfssl_sys::wolfSSL_CTX_free(ctx);
+}
+
 foreign_type! {
     pub unsafe type SslContext: Sync + Send {
         type CType = wolfssl_sys::WOLFSSL_CTX;
-        fn drop = wolfssl_sys::wolfSSL_CTX_free;
+        fn drop = drop_ssl_context;
     }
 }
 
@@ -90,9 +97,10 @@ impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
             init(false);
-            let ctx = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
-
-            Ok(Self::from_ptr(ctx))
+            let ptr = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
+            let mut ctx = Self::from_ptr(ptr);
+            ctx.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
+            Ok(ctx)
         }
     }
 }
@@ -114,6 +122,80 @@ impl SslContextRef {
             cvt(wolf::wolfSSL_CTX_set_cipher_list(
                 self.as_ptr(),
                 cipher_list.as_ptr() as *const _,
+            ))
+            .map(|_| ())
+        }
+    }
+
+    /// Returns a reference to the extra data at the specified index.
+    ///
+    /// This corresponds to [`SSL_CTX_get_ex_data`].
+    ///
+    /// [`SSL_CTX_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_CTX_get_ex_data.html
+    pub fn ex_data<T>(&self, index: i32) -> Option<&T> {
+        unsafe {
+            let data = wolf::wolfSSL_CTX_get_ex_data(self.as_ptr(), index);
+            if data.is_null() {
+                None
+            } else {
+                Some(&*(data as *const T))
+            }
+        }
+    }
+
+    /// Sets the extra data at the specified index.
+    ///
+    /// This can be used to provide data to callbacks registered with the context. Use the
+    /// `SslContext::new_ex_index` method to create an `Index`.
+    ///
+    /// This corresponds to [`SSL_CTX_set_ex_data`].
+    ///
+    /// [`SSL_CTX_set_ex_data`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_set_ex_data.html
+    pub fn set_ex_data<T>(&mut self, index: i32, data: T) {
+        unsafe {
+            let data = Box::into_raw(Box::new(data)) as *mut c_void;
+            wolf::wolfSSL_CTX_set_ex_data(self.as_ptr(), index, data);
+        }
+    }
+
+    pub fn drop_ex_data<T>(&self, index: i32) {
+        unsafe {
+            let data = wolf::wolfSSL_CTX_get_ex_data(self.as_ptr(), index);
+            if !data.is_null() {
+                Box::<T>::from_raw(data as *mut T);
+            }
+        }
+    }
+
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get::<T>()
+    }
+
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get_mut()
+    }
+
+    pub fn set_user_data<T: 'static>(&self, value: T) {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.set(value);
+    }
+
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
+    where
+        F: Fn(&mut SslRef, bool) + 'static,
+    {
+        // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
+        unsafe {
+            self.set_user_data(callback);
+            cvt(wolf::wolfSSL_CTX_set_msg_callback(
+                self.as_ptr(),
+                Some(ctx_msg_callback::<F>),
             ))
             .map(|_| ())
         }
@@ -208,10 +290,16 @@ pub fn init(debug: bool) {
     })
 }
 
+pub unsafe fn drop_ssl(ssl: *mut wolf::WOLFSSL) {
+    SslRef::from_ptr(ssl).drop_ex_data::<ExtraUserDataRegistry>(0);
+
+    wolfssl_sys::wolfSSL_free(ssl);
+}
+
 foreign_type! {
     pub unsafe type Ssl: Sync + Send {
         type CType = wolfssl_sys::WOLFSSL;
-        fn drop = wolfssl_sys::wolfSSL_free;
+        fn drop = drop_ssl;
     }
 }
 
@@ -254,13 +342,13 @@ impl SslRef {
     /// This corresponds to [`SSL_get_ex_data`].
     ///
     /// [`SSL_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
-    pub fn ex_data<T>(&self, index: i32) -> Option<&mut T> {
+    pub fn ex_data<T>(&self, index: i32) -> Option<&T> {
         unsafe {
             let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index);
             if data.is_null() {
                 None
             } else {
-                Some(&mut *(data as *mut T))
+                Some(&*(data as *mut T))
             }
         }
     }
@@ -275,33 +363,35 @@ impl SslRef {
     }
 
     pub fn set_user_data<T: 'static>(&self, value: T) {
-        let registry: &mut ExtraUserDataRegistry =
+        let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
-        registry.user_data.insert(
-            TypeId::of::<T>(),
-            UserData {
-                data: Box::new(value),
-            },
-        );
+        registry.set::<T>(value)
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<&T> {
-        let registry: &mut ExtraUserDataRegistry =
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+        let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
-        registry
-            .user_data
-            .get(&TypeId::of::<T>())
-            .and_then(|data| data.data.downcast_ref())
+        registry.get::<T>()
     }
 
-    pub fn set_msg_callback<F>(&mut self, callback: F)
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get_mut::<T>()
+    }
+
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef) + 'static,
+        F: Fn(&mut SslRef, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
             self.set_user_data(callback);
-            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));
+            cvt(wolf::wolfSSL_set_msg_callback(
+                self.as_ptr(),
+                Some(ssl_msg_callback::<F>),
+            ))
+            .map(|_| ())
         }
     }
 
@@ -431,10 +521,8 @@ pub struct SslStream<S> {
 
 impl<S> Drop for SslStream<S> {
     fn drop(&mut self) {
-        // ssl holds a reference to method internally so it has to drop first
         unsafe {
-            self.ssl.drop_ex_data::<ExtraUserDataRegistry>(0);
-
+            // ssl holds a reference to method internally so it has to drop first
             ManuallyDrop::drop(&mut self.ssl);
             ManuallyDrop::drop(&mut self.method);
         }

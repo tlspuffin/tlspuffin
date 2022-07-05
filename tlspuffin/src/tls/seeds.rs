@@ -12,7 +12,7 @@ use rustls::{
 };
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::Term,
     put::PutDescriptor,
     put_registry::{current_put, PUT_REGISTRY},
@@ -83,14 +83,14 @@ pub fn seed_successful(
             AgentDescriptor {
                 name: client,
                 tls_version: TLSVersion::V1_3,
-                server: false,
+                typ: AgentType::Client,
                 try_reuse: false,
                 put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
-                server: true,
+                typ: AgentType::Server,
                 try_reuse: false,
                 put_descriptor: server_put,
             },
@@ -201,14 +201,14 @@ pub fn seed_successful_mitm(
             AgentDescriptor {
                 name: client,
                 tls_version: TLSVersion::V1_3,
-                server: false,
+                typ: AgentType::Client,
                 try_reuse: false,
                 put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_3,
-                server: true,
+                typ: AgentType::Server,
                 try_reuse: false,
                 put_descriptor: server_put,
             },
@@ -321,14 +321,14 @@ pub fn seed_successful12(
             AgentDescriptor {
                 name: client,
                 tls_version: TLSVersion::V1_2,
-                server: false,
+                typ: AgentType::Client,
                 try_reuse: false,
                 put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
-                server: true,
+                typ: AgentType::Server,
                 try_reuse: false,
                 put_descriptor: server_put,
             },
@@ -591,7 +591,7 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_3,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor: server_put,
         }],
@@ -727,7 +727,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_2,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor: server_put,
         }],
@@ -877,14 +877,14 @@ pub fn seed_heartbleed(
             AgentDescriptor {
                 name: client,
                 tls_version: TLSVersion::V1_2,
-                server: false,
+                typ: AgentType::Client,
                 try_reuse: false,
                 put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
-                server: true,
+                typ: AgentType::Server,
                 try_reuse: false,
                 put_descriptor: server_put,
             },
@@ -923,14 +923,14 @@ pub fn seed_freak(
             AgentDescriptor {
                 name: client,
                 tls_version: TLSVersion::V1_2,
-                server: false,
+                typ: AgentType::Client,
                 try_reuse: false,
                 put_descriptor: client_put,
             },
             AgentDescriptor {
                 name: server,
                 tls_version: TLSVersion::V1_2,
-                server: true,
+                typ: AgentType::Server,
                 try_reuse: false,
                 put_descriptor: server_put,
             },
@@ -1122,7 +1122,7 @@ pub fn seed_session_resumption_dhe(
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_3,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor: server_put,
         }],
@@ -1250,7 +1250,7 @@ pub fn seed_session_resumption_ke(
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_3,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor: server_put,
         }],
@@ -1421,7 +1421,7 @@ pub fn _seed_client_attacker_full(
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_3,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor,
         }],
@@ -1632,7 +1632,7 @@ pub fn seed_session_resumption_dhe_full(
         descriptors: vec![AgentDescriptor {
             name: server,
             tls_version: TLSVersion::V1_3,
-            server: true,
+            typ: AgentType::Server,
             try_reuse: false,
             put_descriptor: server_put,
         }],
