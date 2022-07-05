@@ -69,6 +69,20 @@ pub struct AgentDescriptor {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
+    pub client_authentication: bool,
+}
+
+impl Default for AgentDescriptor {
+    fn default() -> Self {
+        Self {
+            name: AgentName::first(),
+            put_descriptor: PutDescriptor::default(),
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            try_reuse: false,
+            client_authentication: false,
+        }
+    }
 }
 
 impl AgentDescriptor {
@@ -83,6 +97,7 @@ impl AgentDescriptor {
             typ: AgentType::Server,
             try_reuse: true,
             put_descriptor,
+            ..AgentDescriptor::default()
         }
     }
 
@@ -97,6 +112,7 @@ impl AgentDescriptor {
             typ: AgentType::Client,
             try_reuse: true,
             put_descriptor,
+            ..AgentDescriptor::default()
         }
     }
 
@@ -109,8 +125,8 @@ impl AgentDescriptor {
             name,
             tls_version,
             typ: AgentType::Server,
-            try_reuse: false,
             put_descriptor,
+            ..AgentDescriptor::default()
         }
     }
 
@@ -123,8 +139,8 @@ impl AgentDescriptor {
             name,
             tls_version,
             typ: AgentType::Client,
-            try_reuse: false,
             put_descriptor,
+            ..AgentDescriptor::default()
         }
     }
 }
