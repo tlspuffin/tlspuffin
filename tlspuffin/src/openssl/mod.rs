@@ -329,7 +329,7 @@ impl OpenSSL {
                 .unwrap());
 
             ctx_builder.set_verify(SslVerifyMode::PEER);
-            ctx_builder.set_verify_cert_store(store)?;
+            ctx_builder.set_cert_store(store);
             // TODO: Check if verification is enforced
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
@@ -398,7 +398,7 @@ impl OpenSSL {
                 .init(&store, &cert, &chain, |c| c.verify_cert())
                 .unwrap());*/
 
-            ctx_builder.set_verify_cert_store(store)?;
+            ctx_builder.set_cert_store(store);
             // TODO: Check if verification is enforced - Yes it is
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
