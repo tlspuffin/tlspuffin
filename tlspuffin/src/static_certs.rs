@@ -1,3 +1,13 @@
+//!
+//! ```bash
+//! openssl req -x509 -newkey rsa:2048 -keyout bob-key.pem -out bob.pem -days 365 -nodes
+//! openssl req -x509 -newkey rsa:2048 -keyout alice-key.pem -out alice.pem -days 365 -nodes
+//! openssl x509 -outform der -in bob.pem -out bob.der
+//! openssl x509 -outform der -in alice.pem -out alice.der
+//! openssl rsa -outform der -in bob-key.pem -out bob-key.der
+//! openssl rsa -outform der -in alice-key.pem -out alice-key.der
+//! ```
+
 pub const ALICE_PRIVATE_KEY: &str = include_str!("../assets/alice-key.pem");
 
 pub const ALICE_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/alice-key.der");
