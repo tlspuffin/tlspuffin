@@ -217,4 +217,13 @@ define_signature!(
     fn_client_finished_transcript
     fn_server_finished_transcript
     fn_server_hello_transcript
+    fn_certificate_transcript
+    // certificate functions
+    fn_cert_bob
+    fn_certificate_entry
+    fn_empty_certificate_chain
+    fn_append_certificate_entry
+    fn_get_context
+    fn_rsa_sign
+    fn_get_signature_algorithm
 );
