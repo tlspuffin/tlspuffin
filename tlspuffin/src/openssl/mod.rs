@@ -24,7 +24,7 @@ use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{
         Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
-        TlsTranscript, TranscriptClientFinished, TranscriptClientHello,
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
     error::Error,
@@ -134,7 +134,15 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
                 claim.transcript.length,
             ))),
         )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CERT => Some(ClaimData::Transcript(
+            ClaimDataTranscript::Certificate(TranscriptCertificate(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
         // Messages
+        // Transcripts in these messages are not up-to-date. They get updated after the Message has
+        // been processed
         security_claims::ClaimType::CLAIM_FINISHED => {
             Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                 outbound: claim.write > 0,
@@ -164,7 +172,19 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
         security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
         security_claims::ClaimType::CLAIM_CERTIFICATE => None,
         security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
+        // FIXME it is weird that this returns the correct transcript
+        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
+            if claim.write == 0 {
+                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                    TranscriptServerFinished(TlsTranscript(
+                        claim.transcript.data,
+                        claim.transcript.length,
+                    )),
+                )))
+            } else {
+                None
+            }
+        }
         security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
         security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
         security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
@@ -196,7 +216,7 @@ impl Put for OpenSSL {
     }
 
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
-        if self.is_state_successful() {
+        let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
             let maybe_error: MaybeError = self.stream.ssl_read(&mut vec).into();
@@ -204,7 +224,9 @@ impl Put for OpenSSL {
         } else {
             let maybe_error: MaybeError = self.stream.do_handshake().into();
             maybe_error.into()
-        }
+        };
+
+        result
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -299,6 +321,12 @@ impl OpenSSL {
             let cert = X509::from_pem(BOB_CERT.as_bytes())?;
             store.add_cert(cert.clone())?;
             let store = store.build();
+
+            let mut chain = Stack::new().unwrap();
+            let mut context = X509StoreContext::new().unwrap();
+            assert!(context
+                .init(&store, &cert, &chain, |c| c.verify_cert())
+                .unwrap());
 
             ctx_builder.set_verify(SslVerifyMode::PEER);
             ctx_builder.set_verify_cert_store(store)?;
