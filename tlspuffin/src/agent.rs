@@ -182,6 +182,7 @@ impl Agent {
             typ: descriptor.typ,
             tls_version: descriptor.tls_version,
             claims: context.claims().clone(),
+            extract_deferred: Rc::new(RefCell::new(None)),
         };
 
         let mut stream = factory.create(&descriptor, config)?;
