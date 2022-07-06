@@ -186,6 +186,7 @@ impl Claim {
             },
         }
     }
+
     pub fn clone_boxed_any(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
