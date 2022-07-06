@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use std::{
-    borrow::Borrow,
+    borrow::{Borrow, BorrowMut},
     cell::RefCell,
     ffi::{CStr, CString},
     io::{ErrorKind, Read, Write},
@@ -10,11 +10,15 @@ use std::{
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
-use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
 
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    claims::Claim,
+    algebra::dynamic_function::TypeShape,
+    claims::{
+        Claim, ClaimData, ClaimDataTranscript, TranscriptCertificate, TranscriptClientFinished,
+        TranscriptClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
@@ -148,17 +152,7 @@ impl Put for WolfSSL {
     }
 
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
-        // Extraction is also needed when progressing
-        if let Some(data) = extract_current_transcript(self.stream.ssl_mut().as_mut()) {
-            self.config.claims.deref_borrow_mut().claim_sized(Claim {
-                agent_name: *agent_name,
-                origin: self.config.typ,
-                protocol_version: self.config.tls_version,
-                data,
-            });
-        }
-
-        if self.is_state_successful() {
+        let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
             let maybe_error: MaybeError = self.stream.ssl_read(&mut vec).into();
@@ -166,7 +160,11 @@ impl Put for WolfSSL {
         } else {
             let maybe_error: MaybeError = self.stream.do_handshake().into();
             maybe_error.into()
-        }
+        };
+
+        self.deferred_transcript_extraction(agent_name);
+
+        result
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -250,7 +248,7 @@ impl WolfSSL {
         ctx.disable_session_cache()?;
 
         if descriptor.client_authentication {
-            let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+            let cert = X509::from_pem(BOB_CERT.as_bytes())?;
             ctx.set_certificate(cert.as_ref())?;
 
             #[cfg(not(feature = "wolfssl430"))]
@@ -269,7 +267,7 @@ impl WolfSSL {
 
         if descriptor.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            ctx.load_verify_buffer(ALICE_CERT.as_bytes());
+            ctx.load_verify_buffer(ALICE_CERT.as_bytes())?;
         } else {
             // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
             ctx.set_verify(SslVerifyMode::NONE);
@@ -319,7 +317,7 @@ impl WolfSSL {
 
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            ctx.load_verify_buffer(BOB_CERT.as_bytes());
+            ctx.load_verify_buffer(BOB_CERT.as_bytes())?;
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }
@@ -344,22 +342,100 @@ impl WolfSSL {
         Ok(ssl)
     }
 
+    fn deferred_transcript_extraction(&self, agent_name: &AgentName) {
+        let config = self.config();
+        if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
+            if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
+                let CERT_SHAPE: TypeShape = TypeShape::of::<TranscriptCertificate>();
+                let FINISHED_SHAPE: TypeShape = TypeShape::of::<TranscriptServerFinished>();
+                let CLIENT_SHAPE: TypeShape = TypeShape::of::<TranscriptClientFinished>();
+
+                let data = if type_shape == CERT_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::Certificate(
+                        TranscriptCertificate(transcript),
+                    )))
+                } else if type_shape == FINISHED_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                        TranscriptServerFinished(transcript),
+                    )))
+                } else if type_shape == CLIENT_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
+                        TranscriptClientFinished(transcript),
+                    )))
+                } else {
+                    None
+                };
+
+                if let Some(data) = data {
+                    config.claims.deref_borrow_mut().claim_sized(Claim {
+                        agent_name: *agent_name,
+                        origin: config.typ,
+                        protocol_version: config.tls_version,
+                        data,
+                    });
+                }
+            }
+        }
+    }
+
     fn create_msg_callback(
         agent_name: AgentName,
         config: &PutConfig,
-    ) -> impl Fn(&mut SslRef, bool) {
+    ) -> impl Fn(&mut SslRef, HandshakeType, bool) {
         let origin = config.typ;
         let protocol_version = config.tls_version;
         let claims = config.claims.clone();
+        let extract_transcript = config.extract_deferred.clone();
 
-        move |context: &mut SslRef, outbound: bool| unsafe {
-            if let Some(data) = extract_current_transcript(context) {
-                claims.deref_borrow_mut().claim_sized(Claim {
-                    agent_name,
-                    origin,
-                    protocol_version,
-                    data,
-                });
+        move |context: &mut SslRef, typ: HandshakeType, outbound: bool| unsafe {
+            if !outbound {
+                match typ {
+                    HandshakeType::Certificate => {
+                        // Extract ClientHello..ServerFinished..Certificate transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptCertificate>());
+                    }
+                    HandshakeType::CertificateVerify => {
+                        // Extract ClientHello..ServerFinished..CertificateVerify transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptServerFinished>());
+                    }
+                    HandshakeType::Finished => {
+                        // Extract ClientHello..ClientFinished transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptClientFinished>());
+                    }
+                    _ => {}
+                }
+            }
+
+            // type only work correctly for inbound messages
+            if let Some(transcript) = extract_current_transcript(context) {
+                let claim = match context.server_state() {
+                    wolfssl_sys::states_SERVER_HELLO_COMPLETE => {
+                        // Extract ClientHello..ServerFinished transcript at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptServerFinished>());
+
+                        // Extract ClientHello..ServerHello transcript in-flight
+                        Some(ClaimData::Transcript(ClaimDataTranscript::ServerHello(
+                            TranscriptServerHello(transcript),
+                        )))
+                    }
+                    _ => None,
+                };
+
+                if let Some(data) = claim {
+                    claims.deref_borrow_mut().claim_sized(Claim {
+                        agent_name,
+                        origin,
+                        protocol_version,
+                        data,
+                    });
+                }
             }
         }
     }

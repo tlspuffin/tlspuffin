@@ -14,6 +14,7 @@ use std::{
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
+use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
 use crate::{
@@ -27,6 +28,9 @@ use crate::{
         x509::X509Ref,
     },
 };
+
+pub const TLS13_ACCEPT_SECOND_REPLY_DONE: u32 =
+    wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE as u32;
 
 bitflags! {
     /// Options controlling the behavior of certificate verification.
@@ -78,6 +82,10 @@ impl SslMethod {
     pub fn as_ptr(&self) -> *mut wolf::WOLFSSL_METHOD {
         self.0
     }
+}
+
+enum AcceptState {
+    TLS13_ACCEPT_SECOND_REPLY_DONE = 1,
 }
 
 pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
@@ -206,7 +214,7 @@ impl SslContextRef {
     #[cfg(not(feature = "wolfssl430"))]
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, bool) + 'static,
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -400,7 +408,7 @@ impl SslRef {
 
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, bool) + 'static,
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -437,8 +445,12 @@ impl SslRef {
         }
     }
 
-    pub fn handshake_state(&self) -> &'static str {
-        let state = unsafe { (*self.as_ptr()).options.handShakeState };
+    pub fn server_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.serverState as u32 }
+    }
+
+    pub fn server_state_str(&self) -> &'static str {
+        let state = unsafe { (*self.as_ptr()).options.serverState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
@@ -468,7 +480,11 @@ impl SslRef {
         }
     }
 
-    pub fn accept_state(&self, tls_version: TLSVersion) -> &'static str {
+    pub fn get_accept_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.acceptState as u32 }
+    }
+
+    pub fn accept_state_str(&self, tls_version: TLSVersion) -> &'static str {
         let state = unsafe { (*self.as_ptr()).options.acceptState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
