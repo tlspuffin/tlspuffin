@@ -219,7 +219,7 @@ define_signature!(
     fn_server_hello_transcript
     fn_certificate_transcript
     // certificate functions
-    fn_cert_bob
+    fn_eve_cert
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry

@@ -5,29 +5,35 @@ use std::{
     cell::RefCell,
     ffi::{CStr, CString},
     io::{ErrorKind, Read, Write},
+    mem::MaybeUninit,
     ops::Deref,
+    os::raw::c_uchar,
     rc::Rc,
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
+use smallvec::SmallVec;
 
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     claims::{
-        Claim, ClaimData, ClaimDataTranscript, TranscriptCertificate, TranscriptClientFinished,
-        TranscriptClientHello, TranscriptServerFinished, TranscriptServerHello,
+        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TranscriptCertificate,
+        TranscriptClientFinished, TranscriptClientHello, TranscriptServerFinished,
+        TranscriptServerHello,
     },
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520_PUT},
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, EVE_CERT},
     wolfssl::{
+        bio::{MemBio, MemBioSlice},
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
         transcript::extract_current_transcript,
+        util::{cvt_n, cvt_p},
         version::version,
         x509::X509,
     },
@@ -318,6 +324,7 @@ impl WolfSSL {
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
             ctx.load_verify_buffer(BOB_CERT.as_bytes())?;
+            ctx.load_verify_buffer(EVE_CERT.as_bytes())?; // FIXME: do we need this? difference between authentication bypass and impersonation (we are doing impersonation here)
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }
@@ -386,6 +393,7 @@ impl WolfSSL {
         let protocol_version = config.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
+        let authenticate_peer = config.authenticate_peer;
 
         move |context: &mut SslRef, typ: HandshakeType, outbound: bool| unsafe {
             if !outbound {
@@ -403,6 +411,42 @@ impl WolfSSL {
                             Some(TypeShape::of::<TranscriptServerFinished>());
                     }
                     HandshakeType::Finished => {
+                        claims.deref_borrow_mut().claim_sized(Claim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                                outbound,
+                                client_random: Default::default(), // TODO
+                                server_random: Default::default(), // TODO
+                                session_id: Default::default(),    // TODO
+                                authenticate_peer,                 // TODO
+                                peer_certificate: {
+                                    let cert =
+                                        wolfssl_sys::wolfSSL_get_peer_certificate(context.as_ptr());
+
+                                    if !cert.is_null() {
+                                        let bio = MemBio::new().unwrap();
+                                        /*cvt_n(wolfssl_sys::wolfSSL_i2d_X509_bio(bio.as_ptr(), cert))
+                                        .unwrap();
+                                        let slice = bio.get_buf().to_owned();*/
+
+                                        let mut s: *mut c_uchar = std::ptr::null_mut();
+                                        let length = wolfssl_sys::wolfSSL_i2d_X509(cert, &mut s);
+                                        let slice1 = std::slice::from_raw_parts(s, length as usize);
+                                        SmallVec::from_slice(slice1)
+                                    } else {
+                                        SmallVec::new()
+                                    }
+                                }, // TODO
+                                master_secret: Default::default(), // TODO
+                                chosen_cipher: 0,                  // TODO
+                                available_ciphers: Default::default(), // TODO
+                                signature_algorithm: 0,            // TODO
+                                peer_signature_algorithm: 0,       // TODO
+                            })),
+                        });
+
                         // Extract ClientHello..ClientFinished transcript
                         // at the end of the message flight
                         *extract_transcript.deref().borrow_mut() =

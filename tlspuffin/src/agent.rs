@@ -182,6 +182,9 @@ impl Agent {
             typ: descriptor.typ,
             tls_version: descriptor.tls_version,
             claims: context.claims().clone(),
+            authenticate_peer: descriptor.typ == AgentType::Client
+                && descriptor.server_authentication
+                || descriptor.typ == AgentType::Server && descriptor.client_authentication,
             extract_deferred: Rc::new(RefCell::new(None)),
         };
 

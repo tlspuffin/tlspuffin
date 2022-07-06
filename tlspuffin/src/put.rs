@@ -51,6 +51,7 @@ pub struct PutConfig {
     pub typ: AgentType,
     pub tls_version: TLSVersion,
     pub claims: GlobalClaimList,
+    pub authenticate_peer: bool,
     pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
 }
 

@@ -38,11 +38,11 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
                 return Some("mismatching signature algorithms");
             }
 
-            if server.verify_peer && server.peer_certificate.as_slice() != BOB_CERT_DER {
+            if server.authenticate_peer && server.peer_certificate.as_slice() != BOB_CERT_DER {
                 return Some("Authentication bypass");
             }
 
-            if client.verify_peer && client.peer_certificate.as_slice() != ALICE_CERT_DER {
+            if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT_DER {
                 return Some("Authentication bypass");
             }
 
@@ -91,6 +91,31 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
         }
     } else {
         // this is the case for seed_client_attacker12 which records only the server claims
+
+        let found = claims.iter().find_map(|claim| match &claim.data {
+            ClaimData::Message(ClaimDataMessage::Finished(data)) => {
+                if data.outbound {
+                    None
+                } else {
+                    Some((claim, data))
+                }
+            }
+            _ => None,
+        });
+        if let Some((claim, finished)) = found {
+            let bob = BOB_CERT_DER;
+            let test = finished.peer_certificate.as_slice();
+
+            let violation = finished.authenticate_peer
+                && match claim.origin {
+                    AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT_DER,
+                    AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT_DER,
+                };
+
+            if violation {
+                return Some("Authentication bypass");
+            }
+        }
     }
 
     None

@@ -91,7 +91,7 @@ pub struct Finished {
     pub server_random: SmallVec<[u8; 32]>,
     pub session_id: SmallVec<[u8; 32]>,
 
-    pub verify_peer: bool,
+    pub authenticate_peer: bool,
     /// DER encoded certificate. DER works, because:
     ///     DER is a subset of BER providing for exactly one way to encode an ASN.1 value.
     ///     (https://en.wikipedia.org/wiki/X.690#DER_encoding)

@@ -17,13 +17,16 @@ use rustls::{
 };
 
 use crate::{
-    static_certs::{BOB_CERT_DER, BOB_PRIVATE_KEY_DER},
+    static_certs::{BOB_CERT_DER, BOB_PRIVATE_KEY_DER, EVE_CERT_DER, EVE_PRIVATE_KEY_DER},
     tls::error::FnError,
 };
 
-// FIXME: remove
-pub fn fn_cert_bob() -> Result<Vec<u8>, FnError> {
+pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {
     Ok(BOB_CERT_DER.into())
+}
+
+pub fn fn_eve_cert() -> Result<Vec<u8>, FnError> {
+    Ok(EVE_CERT_DER.into())
 }
 
 pub fn fn_certificate_entry(cert: &Vec<u8>) -> Result<CertificateEntry, FnError> {
@@ -58,7 +61,7 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
 }
 
 pub fn fn_rsa_sign(transcript: &HandshakeHash) -> Result<Vec<u8>, FnError> {
-    let key = RsaKeyPair::from_der(BOB_PRIVATE_KEY_DER).unwrap();
+    let key = RsaKeyPair::from_der(BOB_PRIVATE_KEY_DER).unwrap(); // FIXME: Attacker should not have access to bobs private key
     let signer = RsaSigner::new(Arc::new(key), SignatureScheme::RSA_PSS_SHA256);
     let message = construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw());
     //let message = construct_tls13_server_verify_message(&transcript.get_current_hash());
