@@ -151,7 +151,7 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
                 session_id: SmallVec::from_slice(
                     &claim.session_id.data[..claim.session_id.length as usize],
                 ),
-                verify_peer: false,                   // FIXME
+                authenticate_peer: false,             // FIXME
                 peer_certificate: Default::default(), // FIXME
                 master_secret: match protocol_version {
                     TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
