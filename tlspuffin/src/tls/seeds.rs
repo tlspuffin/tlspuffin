@@ -818,6 +818,7 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
     trace
 }
 
+/// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
 pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
@@ -958,6 +959,7 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
     trace
 }
 
+// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
 pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
