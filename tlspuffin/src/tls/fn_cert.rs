@@ -17,7 +17,9 @@ use rustls::{
 };
 
 use crate::{
-    static_certs::{BOB_CERT_DER, BOB_PRIVATE_KEY_DER, EVE_CERT_DER, EVE_PRIVATE_KEY_DER},
+    static_certs::{
+        ALICE_CERT_DER, BOB_CERT_DER, BOB_PRIVATE_KEY_DER, EVE_CERT_DER, EVE_PRIVATE_KEY_DER,
+    },
     tls::error::FnError,
 };
 
