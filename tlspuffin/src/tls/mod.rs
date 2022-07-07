@@ -220,10 +220,13 @@ define_signature!(
     fn_certificate_transcript
     // certificate functions
     fn_eve_cert
+    fn_bob_cert
+    fn_alice_cert
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry
     fn_get_context
-    fn_rsa_sign
+    fn_rsa_sign_client
+    fn_rsa_sign_server
     fn_get_signature_algorithm
 );

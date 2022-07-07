@@ -25,6 +25,10 @@ pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {
     Ok(BOB_CERT_DER.into())
 }
 
+pub fn fn_alice_cert() -> Result<Vec<u8>, FnError> {
+    Ok(ALICE_CERT_DER.into())
+}
+
 pub fn fn_eve_cert() -> Result<Vec<u8>, FnError> {
     Ok(EVE_CERT_DER.into())
 }
@@ -60,13 +64,24 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
     .ok_or_else(|| FnError::Unknown("Could not find context in message".to_owned()))
 }
 
-pub fn fn_rsa_sign(transcript: &HandshakeHash) -> Result<Vec<u8>, FnError> {
-    let key = RsaKeyPair::from_der(BOB_PRIVATE_KEY_DER).unwrap(); // FIXME: Attacker should not have access to bobs private key
+pub fn fn_rsa_sign_client(
+    transcript: &HandshakeHash,
+    private_key: &&'static [u8],
+) -> Result<Vec<u8>, FnError> {
+    let key = RsaKeyPair::from_der(private_key).unwrap();
     let signer = RsaSigner::new(Arc::new(key), SignatureScheme::RSA_PSS_SHA256);
     let message = construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw());
-    //let message = construct_tls13_server_verify_message(&transcript.get_current_hash());
-    let result = signer.sign(&message);
-    Ok(result?)
+    Ok(signer.sign(&message)?)
+}
+
+pub fn fn_rsa_sign_server(
+    transcript: &HandshakeHash,
+    private_key: &&'static [u8],
+) -> Result<Vec<u8>, FnError> {
+    let key = RsaKeyPair::from_der(private_key).unwrap();
+    let signer = RsaSigner::new(Arc::new(key), SignatureScheme::RSA_PSS_SHA256);
+    let message = construct_tls13_server_verify_message(&transcript.get_current_hash());
+    Ok(signer.sign(&message)?)
 }
 
 pub fn fn_get_signature_algorithm(
