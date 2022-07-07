@@ -27,7 +27,7 @@ use crate::{
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, WOLFSSL520_PUT},
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, EVE_CERT},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
         bio::{MemBio, MemBioSlice},
         error::{ErrorStack, SslError},
@@ -267,7 +267,7 @@ impl WolfSSL {
             }
             #[cfg(feature = "wolfssl430")]
             {
-                panic!("Client auth unsupported with wolfssl430")
+                ctx.set_private_key_pem(BOB_PRIVATE_KEY.as_bytes())?;
             }
         }
 
