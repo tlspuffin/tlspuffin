@@ -323,7 +323,8 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, _) in create_corpus() {
+                for (seed, name) in create_corpus() {
+                    info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
                         .expect("Failed to add input");
