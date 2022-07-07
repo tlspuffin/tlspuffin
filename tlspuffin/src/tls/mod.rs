@@ -220,7 +220,9 @@ define_signature!(
     fn_certificate_transcript
     // certificate functions
     fn_bob_cert
+    fn_bob_key
     fn_alice_cert
+    fn_alice_key
     fn_eve_cert
     fn_random_ec_cert
     fn_certificate_entry

@@ -2534,6 +2534,28 @@ pub mod tests {
 
             assert_eq!(serialized1, serialized2);
         }
+
+        #[test]
+        fn test_serialisation_seed_client_attacker_auth_json() {
+            let trace = seed_client_attacker_auth.build_trace();
+            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let serialized2 = serde_json::to_string_pretty(
+                &serde_json::from_str::<Trace>(serialized1.as_str()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(serialized1, serialized2);
+        }
+
+        #[test]
+        fn test_serialisation_seed_client_attacker_auth_postcard() {
+            let trace = seed_client_attacker_auth.build_trace();
+            let serialized1 = postcard::to_allocvec(&trace).unwrap();
+            let serialized2 = postcard::to_allocvec(
+                &postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(serialized1, serialized2);
+        }
     }
 
     pub mod rustls {
