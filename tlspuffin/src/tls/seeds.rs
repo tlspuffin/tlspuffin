@@ -23,11 +23,13 @@ use crate::{
         Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
         TraceContext,
     },
+    variable_data::VariableData,
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
     fn build_trace_with_put(self, put: PutDescriptor) -> Trace;
     fn build_trace(self) -> Trace;
+    fn fn_name(&self) -> &'static str;
 }
 
 pub trait SeedExecutor<A> {
@@ -55,6 +57,10 @@ where
     fn build_trace(self) -> Trace {
         self.build_trace_with_put(current_put())
     }
+
+    fn fn_name(&self) -> &'static str {
+        std::any::type_name::<F>()
+    }
 }
 
 impl<F> SeedHelper<AgentName> for F
@@ -69,6 +75,10 @@ where
 
     fn build_trace(self) -> Trace {
         self.build_trace_with_put(current_put())
+    }
+
+    fn fn_name(&self) -> &'static str {
+        std::any::type_name::<F>()
     }
 }
 
@@ -2170,32 +2180,36 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
-pub fn create_corpus() -> [(Trace, &'static str); 8] {
-    [
-        (seed_successful.build_trace(), "seed_successful"),
-        (
-            seed_successful_with_ccs.build_trace(),
-            "seed_successful_with_ccs",
-        ),
-        (
-            seed_successful_with_tickets.build_trace(),
-            "seed_successful_with_tickets",
-        ),
-        (seed_successful12.build_trace(), "seed_successful12"),
-        (seed_client_attacker.build_trace(), "seed_client_attacker"),
-        (
-            seed_client_attacker12.build_trace(),
-            "seed_client_attacker12",
-        ),
-        (
-            seed_session_resumption_dhe.build_trace(),
-            "seed_session_resumption_dhe",
-        ),
-        (
-            seed_session_resumption_ke.build_trace(),
-            "seed_session_resumption_ke",
-        ),
-    ]
+macro_rules! corpus {
+    ( $( $func:ident $(: $meta:meta)* ),* ) => {
+        {
+            let mut corpus = Vec::new();
+
+            $(
+                $( #[$meta] )*
+                corpus.push(($func.build_trace(), $func.fn_name()));
+            )*
+
+            corpus
+        }
+    };
+}
+
+pub fn create_corpus() -> Vec<(Trace, &'static str)> {
+    corpus!(
+        // Full Handshakes
+        seed_successful: cfg(feature = "tls13"),
+        seed_successful_with_ccs: cfg(feature = "tls13"),
+        seed_successful_with_tickets,
+        seed_successful12: cfg(feature = "tls12"),
+        // Client Attackers
+        seed_client_attacker: cfg(feature = "tls13"),
+        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
+        seed_client_attacker12: cfg(feature = "tls13"),
+        // Session resumption
+        seed_session_resumption_dhe: cfg(feature = "tls13"),
+        seed_session_resumption_ke: cfg(feature = "tls13")
+    )
 }
 
 #[cfg(test)]
