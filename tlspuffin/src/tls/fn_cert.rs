@@ -16,6 +16,7 @@ use rustls::{
 };
 
 use crate::{
+    error::Error,
     static_certs::{
         ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
     },
@@ -100,11 +101,11 @@ pub fn fn_rsa_sign_client(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    let key = RsaKeyPair::from_der(private_key).unwrap();
-    let signer = RsaSigner::new(Arc::new(key), *scheme);
-    let message = construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw());
-    let signed = signer.sign(&message)?;
-    Ok(signed)
+    _fn_rsa_sign(
+        &construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw()),
+        private_key,
+        scheme,
+    )
 }
 
 pub fn fn_rsa_sign_server(
@@ -112,9 +113,21 @@ pub fn fn_rsa_sign_server(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    let key = RsaKeyPair::from_der(private_key).unwrap();
+    _fn_rsa_sign(
+        &construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw()),
+        private_key,
+        scheme,
+    )
+}
+
+pub fn _fn_rsa_sign(
+    message: &[u8],
+    private_key: &Vec<u8>,
+    scheme: &SignatureScheme,
+) -> Result<Vec<u8>, FnError> {
+    let key = RsaKeyPair::from_der(private_key)
+        .map_err(|_| FnError::Rustls("Failed to parse rsa key.".to_string()))?;
     let signer = RsaSigner::new(Arc::new(key), *scheme);
-    let message = construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw());
     Ok(signer.sign(&message)?)
 }
 
@@ -122,37 +135,30 @@ pub fn fn_ecdsa_sign_client(
     transcript: &HandshakeHash,
     private_key: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
-    let key = EcdsaSigningKey::new(
-        &PrivateKey(private_key.to_vec()),
-        SignatureScheme::ECDSA_NISTP256_SHA256,
-        &ECDSA_P256_SHA256_ASN1_SIGNING,
-    )
-    .unwrap();
-
-    let signer = key
-        .choose_scheme(&[SignatureScheme::ECDSA_NISTP256_SHA256])
-        .unwrap();
-
     let message = construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw());
-    Ok(signer.sign(&message)?)
+    _fn_ecdsa_sign(&message, private_key)
 }
 
 pub fn fn_ecdsa_sign_server(
     transcript: &HandshakeHash,
     private_key: &Vec<u8>,
 ) -> Result<Vec<u8>, FnError> {
+    let message = construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw());
+    _fn_ecdsa_sign(&message, private_key)
+}
+
+pub fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let key = EcdsaSigningKey::new(
         &PrivateKey(private_key.to_vec()),
         SignatureScheme::ECDSA_NISTP256_SHA256,
         &ECDSA_P256_SHA256_ASN1_SIGNING,
     )
-    .unwrap();
+    .map_err(|_| FnError::Rustls("Failed to parse ecdsa key.".to_string()))?;
 
     let signer = key
         .choose_scheme(&[SignatureScheme::ECDSA_NISTP256_SHA256])
-        .unwrap();
+        .ok_or_else(|| FnError::Rustls("Failed to find signature scheme.".to_string()))?;
 
-    let message = construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw());
     Ok(signer.sign(&message)?)
 }
 
