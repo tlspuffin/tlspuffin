@@ -219,14 +219,21 @@ define_signature!(
     fn_server_hello_transcript
     fn_certificate_transcript
     // certificate functions
-    fn_eve_cert
     fn_bob_cert
     fn_alice_cert
+    fn_eve_cert
+    fn_random_ec_cert
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry
     fn_get_context
+    fn_eve_pkcs1_signature
     fn_rsa_sign_client
     fn_rsa_sign_server
-    fn_get_signature_algorithm
+    fn_ecdsa_sign_client
+    fn_ecdsa_sign_server
+    fn_rsa_pss_signature_algorithm
+    fn_rsa_pkcs1_signature_algorithm
+    fn_invalid_signature_algorithm
+    fn_ecdsa_signature_algorithm
 );

@@ -6,6 +6,10 @@
 //! openssl x509 -outform der -in alice.pem -out alice.der
 //! openssl rsa -outform der -in bob-key.pem -out bob-key.der
 //! openssl rsa -outform der -in alice-key.pem -out alice-key.der
+//!
+//! openssl ecparam -genkey -name prime256v1 -noout -out random-key.pem
+//! openssl req -new -key random_ec_key.pem -x509 -nodes -days 365 -out random.pem
+//! openssl pkcs8 -topk8 -in random-key.pem -out random-key.pkcs8 -nocrypt
 //! ```
 
 pub const ALICE_PRIVATE_KEY: &str = include_str!("../assets/alice-key.pem");
@@ -20,8 +24,15 @@ pub const BOB_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/bob-key.der");
 pub const BOB_CERT: &str = include_str!("../assets/bob.pem");
 pub const BOB_CERT_DER: &[u8] = include_bytes!("../assets/bob.der");
 
-pub const EVE_PRIVATE_KEY: &str = include_str!("../assets/eve-key.pem");
-pub const EVE_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/eve-key.der");
+//pub const EVE_PRIVATE_KEY: &str = include_str!("../assets/eve-key.pem");
+//pub const EVE_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/eve-key.der");
 
 pub const EVE_CERT: &str = include_str!("../assets/eve.pem");
 pub const EVE_CERT_DER: &[u8] = include_bytes!("../assets/eve.der");
+
+pub const RANDOM_EC_CERT: &str = include_str!("../assets/random-ec.pem");
+pub const RANDOM_EC_CERT_DER: &[u8] = include_bytes!("../assets/random-ec.der");
+
+pub const RANDOM_EC_PRIVATE_KEY: &str = include_str!("../assets/random-ec-key.pem");
+pub const RANDOM_EC_PRIVATE_KEY_PKCS8_DER: &[u8] =
+    include_bytes!("../assets/random-ec-key.pkcs8.der");
