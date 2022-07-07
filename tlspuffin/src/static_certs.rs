@@ -12,27 +12,53 @@
 //! openssl pkcs8 -topk8 -in random-key.pem -out random-key.pkcs8 -nocrypt
 //! ```
 
-pub const ALICE_PRIVATE_KEY: &str = include_str!("../assets/alice-key.pem");
-pub const ALICE_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/alice-key.der");
+pub type PEMDER = (&'static str, &'static [u8]);
 
-pub const ALICE_CERT: &str = include_str!("../assets/alice.pem");
-pub const ALICE_CERT_DER: &[u8] = include_bytes!("../assets/alice.der");
+/// Private key usually used for the server
+pub const ALICE_PRIVATE_KEY: PEMDER = (
+    include_str!("../assets/alice-key.pem"),
+    include_bytes!("../assets/alice-key.der"),
+);
 
-pub const BOB_PRIVATE_KEY: &str = include_str!("../assets/bob-key.pem");
-pub const BOB_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/bob-key.der");
+/// Certificate for [`ALICE_PRIVATE_KEY`]
+pub const ALICE_CERT: PEMDER = (
+    include_str!("../assets/alice.pem"),
+    include_bytes!("../assets/alice.der"),
+);
 
-pub const BOB_CERT: &str = include_str!("../assets/bob.pem");
-pub const BOB_CERT_DER: &[u8] = include_bytes!("../assets/bob.der");
+/// Private key usually used for the client
+pub const BOB_PRIVATE_KEY: PEMDER = (
+    include_str!("../assets/bob-key.pem"),
+    include_bytes!("../assets/bob-key.der"),
+);
 
-//pub const EVE_PRIVATE_KEY: &str = include_str!("../assets/eve-key.pem");
-//pub const EVE_PRIVATE_KEY_DER: &[u8] = include_bytes!("../assets/eve-key.der");
+/// Certificate for [`BOB_PRIVATE_KEY`]
+pub const BOB_CERT: PEMDER = (
+    include_str!("../assets/bob.pem"),
+    include_bytes!("../assets/bob.der"),
+);
 
-pub const EVE_CERT: &str = include_str!("../assets/eve.pem");
-pub const EVE_CERT_DER: &[u8] = include_bytes!("../assets/eve.der");
+/// Private key usually which identifies the attacker. This should not be accessible by the attacker
+/// though! Else the security violation gives false-positives!
+pub const EVE_PRIVATE_KEY: PEMDER = (
+    include_str!("../assets/eve-key.pem"),
+    include_bytes!("../assets/eve-key.der"),
+);
 
-pub const RANDOM_EC_CERT: &str = include_str!("../assets/random-ec.pem");
-pub const RANDOM_EC_CERT_DER: &[u8] = include_bytes!("../assets/random-ec.der");
+/// Certificate for [`EVE_PRIVATE_KEY`]
+pub const EVE_CERT: PEMDER = (
+    include_str!("../assets/eve.pem"),
+    include_bytes!("../assets/eve.der"),
+);
 
-pub const RANDOM_EC_PRIVATE_KEY: &str = include_str!("../assets/random-ec-key.pem");
-pub const RANDOM_EC_PRIVATE_KEY_PKCS8_DER: &[u8] =
-    include_bytes!("../assets/random-ec-key.pkcs8.der");
+/// Random EC (prime256v1) key with no specific use. Encoded using PKCS8.
+pub const RANDOM_EC_PRIVATE_KEY_PKCS8: PEMDER = (
+    include_str!("../assets/random-ec-key.pem"),
+    include_bytes!("../assets/random-ec-key.pkcs8.der"),
+);
+
+/// Certificate for [`RANDOM_EC_PRIVATE_KEY_PKCS8`]
+pub const RANDOM_EC_CERT: PEMDER = (
+    include_str!("../assets/random-ec.pem"),
+    include_bytes!("../assets/random-ec.der"),
+);

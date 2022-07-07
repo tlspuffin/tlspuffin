@@ -312,13 +312,13 @@ impl OpenSSL {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
         //let (cert, pkey) = openssl_binding::generate_cert();
-        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.as_bytes(), ALICE_CERT.as_bytes())?;
+        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
         if descriptor.client_authentication {
             let mut store = X509StoreBuilder::new()?;
-            let cert = X509::from_pem(BOB_CERT.as_bytes())?;
+            let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
             store.add_cert(cert.clone())?;
             let store = store.build();
 
@@ -378,7 +378,7 @@ impl OpenSSL {
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
         if descriptor.client_authentication {
-            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.as_bytes(), BOB_CERT.as_bytes())?;
+            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
             ctx_builder.set_certificate(&cert)?;
             ctx_builder.set_private_key(&key)?;
         }
@@ -387,7 +387,7 @@ impl OpenSSL {
             ctx_builder.set_verify(SslVerifyMode::PEER);
 
             let mut store = X509StoreBuilder::new()?;
-            let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+            let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
             store.add_cert(cert.clone())?;
 
             let store = store.build();

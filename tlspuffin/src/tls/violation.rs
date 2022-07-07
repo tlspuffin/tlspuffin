@@ -5,7 +5,7 @@ use itertools::Itertools;
 use crate::{
     agent::{AgentType, TLSVersion},
     claims::{Claim, ClaimData, ClaimDataMessage, Finished},
-    static_certs::{ALICE_CERT_DER, BOB_CERT, BOB_CERT_DER},
+    static_certs::{ALICE_CERT, BOB_CERT},
 };
 
 pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
@@ -38,11 +38,11 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
                 return Some("mismatching signature algorithms");
             }
 
-            if server.authenticate_peer && server.peer_certificate.as_slice() != BOB_CERT_DER {
+            if server.authenticate_peer && server.peer_certificate.as_slice() != BOB_CERT.1 {
                 return Some("Authentication bypass");
             }
 
-            if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT_DER {
+            if client.authenticate_peer && client.peer_certificate.as_slice() != ALICE_CERT.1 {
                 return Some("Authentication bypass");
             }
 
@@ -103,13 +103,10 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
             _ => None,
         });
         if let Some((claim, finished)) = found {
-            let bob = BOB_CERT_DER;
-            let test = finished.peer_certificate.as_slice();
-
             let violation = finished.authenticate_peer
                 && match claim.origin {
-                    AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT_DER,
-                    AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT_DER,
+                    AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,
+                    AgentType::Client => finished.peer_certificate.as_slice() != ALICE_CERT.1,
                 };
 
             if violation {

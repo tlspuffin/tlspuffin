@@ -17,26 +17,33 @@ use rustls::{
 
 use crate::{
     static_certs::{
-        ALICE_CERT_DER, BOB_CERT_DER, BOB_PRIVATE_KEY_DER, EVE_CERT_DER, RANDOM_EC_CERT_DER,
-        RANDOM_EC_PRIVATE_KEY_PKCS8_DER,
+        ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
     },
     tls::error::FnError,
 };
 
 pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {
-    Ok(BOB_CERT_DER.into())
+    Ok(BOB_CERT.1.into())
+}
+
+pub fn fn_bob_key() -> Result<Vec<u8>, FnError> {
+    Ok(BOB_PRIVATE_KEY.1.into())
 }
 
 pub fn fn_alice_cert() -> Result<Vec<u8>, FnError> {
-    Ok(ALICE_CERT_DER.into())
+    Ok(ALICE_CERT.1.into())
+}
+
+pub fn fn_alice_key() -> Result<Vec<u8>, FnError> {
+    Ok(ALICE_PRIVATE_KEY.1.into())
 }
 
 pub fn fn_eve_cert() -> Result<Vec<u8>, FnError> {
-    Ok(EVE_CERT_DER.into())
+    Ok(EVE_CERT.1.into())
 }
 
 pub fn fn_random_ec_cert() -> Result<Vec<u8>, FnError> {
-    Ok(RANDOM_EC_CERT_DER.into())
+    Ok(RANDOM_EC_CERT.1.into())
 }
 
 pub fn fn_certificate_entry(cert: &Vec<u8>) -> Result<CertificateEntry, FnError> {

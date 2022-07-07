@@ -254,13 +254,13 @@ impl WolfSSL {
         ctx.disable_session_cache()?;
 
         if descriptor.client_authentication {
-            let cert = X509::from_pem(BOB_CERT.as_bytes())?;
+            let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
             ctx.set_certificate(cert.as_ref())?;
 
             #[cfg(not(feature = "wolfssl430"))]
             {
                 let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(
-                    crate::static_certs::BOB_PRIVATE_KEY.as_bytes(),
+                    crate::static_certs::BOB_PRIVATE_KEY.0.as_bytes(),
                 )?;
                 let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
                 ctx.set_private_key(pkey.as_ref())?;
@@ -273,7 +273,7 @@ impl WolfSSL {
 
         if descriptor.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            ctx.load_verify_buffer(ALICE_CERT.as_bytes())?;
+            ctx.load_verify_buffer(ALICE_CERT.0.as_bytes())?;
         } else {
             // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
             ctx.set_verify(SslVerifyMode::NONE);
@@ -307,24 +307,25 @@ impl WolfSSL {
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
-        let cert = X509::from_pem(ALICE_CERT.as_bytes())?;
+        let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
         ctx.set_certificate(cert.as_ref())?;
 
         #[cfg(not(feature = "wolfssl430"))]
         {
-            let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.as_bytes())?;
+            let rsa =
+                crate::wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
             let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
             ctx.set_private_key(pkey.as_ref())?;
         }
         #[cfg(feature = "wolfssl430")]
         {
-            ctx.set_private_key_pem(ALICE_PRIVATE_KEY.as_bytes())?;
+            ctx.set_private_key_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
         }
 
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
-            ctx.load_verify_buffer(BOB_CERT.as_bytes())?;
-            ctx.load_verify_buffer(EVE_CERT.as_bytes())?; // FIXME: do we need this? difference between authentication bypass and impersonation (we are doing impersonation here)
+            ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
+            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?; // FIXME: do we need this? difference between authentication bypass and impersonation (we are doing impersonation here)
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }

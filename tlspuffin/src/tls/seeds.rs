@@ -16,7 +16,7 @@ use crate::{
     algebra::Term,
     put::PutDescriptor,
     put_registry::{current_put, PUT_REGISTRY},
-    static_certs::{ALICE_PRIVATE_KEY_DER, BOB_PRIVATE_KEY_DER},
+    static_certs::BOB_PRIVATE_KEY,
     term,
     tls::{error::FnError, fn_impl::*},
     trace::{
@@ -676,10 +676,6 @@ pub fn seed_successful_with_tickets(
 }
 
 pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -> Trace {
-    pub fn fn_bob_private_key() -> Result<Vec<u8>, FnError> {
-        Ok(BOB_PRIVATE_KEY_DER.into())
-    }
-
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -744,7 +740,7 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
             fn_rsa_pss_signature_algorithm,
             (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
-                fn_bob_private_key,
+                fn_bob_key,
                 fn_rsa_pss_signature_algorithm
             ))
         )
@@ -2200,15 +2196,15 @@ pub fn create_corpus() -> Vec<(Trace, &'static str)> {
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
-        seed_successful_with_tickets,
-        seed_successful12: cfg(feature = "tls12"),
+        seed_successful_with_tickets: cfg(feature = "tls13"),
+        seed_successful12,
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
         seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
         seed_client_attacker12: cfg(feature = "tls13"),
         // Session resumption
-        seed_session_resumption_dhe: cfg(feature = "tls13"),
-        seed_session_resumption_ke: cfg(feature = "tls13")
+        seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption"))
     )
 }
 
