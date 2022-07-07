@@ -125,15 +125,16 @@ pub fn _fn_rsa_sign(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    if match scheme {
-        SignatureScheme::RSA_PKCS1_SHA256 => true,
-        SignatureScheme::RSA_PKCS1_SHA384 => true,
-        SignatureScheme::RSA_PKCS1_SHA512 => true,
-        SignatureScheme::RSA_PSS_SHA256 => true,
-        SignatureScheme::RSA_PSS_SHA384 => true,
-        SignatureScheme::RSA_PSS_SHA512 => true,
-        _ => false,
-    } {
+    let invalid_scheme = match scheme {
+        SignatureScheme::RSA_PKCS1_SHA256
+        | SignatureScheme::RSA_PKCS1_SHA384
+        | SignatureScheme::RSA_PKCS1_SHA512
+        | SignatureScheme::RSA_PSS_SHA256
+        | SignatureScheme::RSA_PSS_SHA384
+        | SignatureScheme::RSA_PSS_SHA512 => false,
+        _ => true,
+    };
+    if invalid_scheme {
         return Err(FnError::Rustls("Unknown signature scheme".to_string()));
     }
 
