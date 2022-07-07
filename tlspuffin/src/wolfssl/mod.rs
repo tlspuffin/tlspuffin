@@ -267,7 +267,7 @@ impl WolfSSL {
             }
             #[cfg(feature = "wolfssl430")]
             {
-                ctx.set_private_key_pem(BOB_PRIVATE_KEY.as_bytes())?;
+                ctx.set_private_key_pem(BOB_PRIVATE_KEY.0.as_bytes())?;
             }
         }
 
