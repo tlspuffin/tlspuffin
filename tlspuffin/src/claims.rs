@@ -62,6 +62,14 @@ impl Transcript for TranscriptClientFinished {
         &transcript.0[..transcript.1 as usize]
     }
 }
+#[derive(Debug, Clone)]
+pub struct TranscriptCertificate(pub TlsTranscript);
+impl Transcript for TranscriptCertificate {
+    fn as_slice(&self) -> &[u8] {
+        let transcript = &self.0;
+        &transcript.0[..transcript.1 as usize]
+    }
+}
 
 pub trait Transcript {
     fn as_slice(&self) -> &[u8];
@@ -78,12 +86,22 @@ pub struct CertificateVerify;
 #[derive(Debug, Clone)]
 pub struct Finished {
     pub outbound: bool,
+
     pub client_random: SmallVec<[u8; 32]>,
     pub server_random: SmallVec<[u8; 32]>,
     pub session_id: SmallVec<[u8; 32]>,
+
+    pub authenticate_peer: bool,
+    /// DER encoded certificate. DER works, because:
+    ///     DER is a subset of BER providing for exactly one way to encode an ASN.1 value.
+    ///     (https://en.wikipedia.org/wiki/X.690#DER_encoding)
+    pub peer_certificate: SmallVec<[u8; 32]>,
+
     pub master_secret: SmallVec<[u8; 32]>,
+
     pub chosen_cipher: u16,
     pub available_ciphers: SmallVec<[u16; 20]>,
+
     pub signature_algorithm: i32,
     pub peer_signature_algorithm: i32,
     /* TODO: tmp_skey_type peer_tmp_skey_type
@@ -117,6 +135,7 @@ pub enum ClaimDataTranscript {
     ClientHello(TranscriptClientHello),
     PartialClientHello(TranscriptPartialClientHello),
     ServerHello(TranscriptServerHello),
+    Certificate(TranscriptCertificate),
     ServerFinished(TranscriptServerFinished),
     ClientFinished(TranscriptClientFinished),
 }
@@ -163,9 +182,11 @@ impl Claim {
                 Transcript::ServerHello(_) => Type::of::<TranscriptServerHello>(),
                 Transcript::ServerFinished(_) => Type::of::<TranscriptServerFinished>(),
                 Transcript::ClientFinished(_) => Type::of::<TranscriptClientFinished>(),
+                Transcript::Certificate(_) => Type::of::<TranscriptCertificate>(),
             },
         }
     }
+
     pub fn clone_boxed_any(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
@@ -184,6 +205,7 @@ impl Claim {
                 Transcript::ServerHello(claim) => claim.as_any(),
                 Transcript::ServerFinished(claim) => claim.as_any(),
                 Transcript::ClientFinished(claim) => claim.as_any(),
+                Transcript::Certificate(claim) => claim.as_any(),
             },
         }
     }

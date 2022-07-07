@@ -4,6 +4,7 @@
 //!
 //! And specific implementations of PUT for the different PUTs.
 use std::{
+    any::TypeId,
     cell::RefCell,
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
     claims::{ClaimList, GlobalClaimList},
     error::Error,
     io::Stream,
@@ -49,6 +51,8 @@ pub struct PutConfig {
     pub typ: AgentType,
     pub tls_version: TLSVersion,
     pub claims: GlobalClaimList,
+    pub authenticate_peer: bool,
+    pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
 }
 
 impl PutConfig {
@@ -91,4 +95,10 @@ pub trait Put: Stream + Drop + 'static {
     fn make_deterministic()
     where
         Self: Sized;
+
+    /// checks whether a agent is reusable with the descriptor
+    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        let config = self.config();
+        config.typ == other.typ && config.tls_version == other.tls_version
+    }
 }

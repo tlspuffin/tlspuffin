@@ -10,8 +10,12 @@ use std::{
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslStream},
-    x509::X509Ref,
+    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+    stack::Stack,
+    x509::{
+        store::{X509Store, X509StoreBuilder},
+        X509Ref, X509StoreContext, X509,
+    },
 };
 use rustls::msgs::message::OpaqueMessage;
 use smallvec::SmallVec;
@@ -20,7 +24,7 @@ use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{
         Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
-        TlsTranscript, TranscriptClientFinished, TranscriptClientHello,
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
     error::Error,
@@ -28,6 +32,7 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111_PUT},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY},
 };
 
 #[cfg(feature = "deterministic")]
@@ -129,7 +134,15 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
                 claim.transcript.length,
             ))),
         )),
+        security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CERT => Some(ClaimData::Transcript(
+            ClaimDataTranscript::Certificate(TranscriptCertificate(TlsTranscript(
+                claim.transcript.data,
+                claim.transcript.length,
+            ))),
+        )),
         // Messages
+        // Transcripts in these messages are not up-to-date. They get updated after the Message has
+        // been processed
         security_claims::ClaimType::CLAIM_FINISHED => {
             Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                 outbound: claim.write > 0,
@@ -138,6 +151,8 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
                 session_id: SmallVec::from_slice(
                     &claim.session_id.data[..claim.session_id.length as usize],
                 ),
+                authenticate_peer: false,             // FIXME
+                peer_certificate: Default::default(), // FIXME
                 master_secret: match protocol_version {
                     TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                     TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
@@ -157,7 +172,19 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
         security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
         security_claims::ClaimType::CLAIM_CERTIFICATE => None,
         security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => None,
+        // FIXME it is weird that this returns the correct transcript
+        security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
+            if claim.write == 0 {
+                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                    TranscriptServerFinished(TlsTranscript(
+                        claim.transcript.data,
+                        claim.transcript.length,
+                    )),
+                )))
+            } else {
+                None
+            }
+        }
         security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
         security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
         security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
@@ -174,13 +201,8 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
 impl Put for OpenSSL {
     fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
         let ssl = match config.typ {
-            AgentType::Server => {
-                //let (cert, pkey) = openssl_binding::generate_cert();
-                let (cert, pkey) = static_rsa_cert()?;
-
-                Self::create_server(&cert, &pkey, config.tls_version)?
-            }
-            AgentType::Client => Self::create_client(config.tls_version)?,
+            AgentType::Server => Self::create_server(agent)?,
+            AgentType::Client => Self::create_client(agent)?,
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
@@ -194,7 +216,7 @@ impl Put for OpenSSL {
     }
 
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
-        if self.is_state_successful() {
+        let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
             let maybe_error: MaybeError = self.stream.ssl_read(&mut vec).into();
@@ -202,7 +224,9 @@ impl Put for OpenSSL {
         } else {
             let maybe_error: MaybeError = self.stream.do_handshake().into();
             maybe_error.into()
-        }
+        };
+
+        result
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -284,14 +308,32 @@ impl Put for OpenSSL {
 }
 
 impl OpenSSL {
-    fn create_server(
-        cert: &X509Ref,
-        key: &PKeyRef<Private>,
-        tls_version: TLSVersion,
-    ) -> Result<Ssl, ErrorStack> {
+    fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        ctx_builder.set_certificate(cert)?;
-        ctx_builder.set_private_key(key)?;
+
+        //let (cert, pkey) = openssl_binding::generate_cert();
+        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
+        ctx_builder.set_certificate(&cert)?;
+        ctx_builder.set_private_key(&key)?;
+
+        if descriptor.client_authentication {
+            let mut store = X509StoreBuilder::new()?;
+            let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
+            store.add_cert(cert.clone())?;
+            let store = store.build();
+
+            let mut chain = Stack::new().unwrap();
+            let mut context = X509StoreContext::new().unwrap();
+            assert!(context
+                .init(&store, &cert, &chain, |c| c.verify_cert())
+                .unwrap());
+
+            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_cert_store(store);
+            // TODO: Check if verification is enforced
+        } else {
+            ctx_builder.set_verify(SslVerifyMode::NONE);
+        }
 
         #[cfg(feature = "openssl111")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
@@ -299,20 +341,15 @@ impl OpenSSL {
         #[cfg(feature = "openssl111")]
         ctx_builder.set_options(openssl::ssl::SslOptions::ALLOW_NO_DHE_KEX);
 
-        set_max_protocol_version(&mut ctx_builder, tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
         {
             ctx_builder.set_tmp_ecdh(
-                openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)
-                    .as_ref()
-                    .unwrap(),
+                &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
             )?;
-        }
 
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
-        {
-            ctx_builder.set_tmp_rsa(openssl::rsa::Rsa::generate(512).as_ref().unwrap())?;
+            ctx_builder.set_tmp_rsa(&openssl::rsa::Rsa::generate(512)?)?;
         }
 
         // Allow EXPORT in server
@@ -324,7 +361,7 @@ impl OpenSSL {
         Ok(ssl)
     }
 
-    fn create_client(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
+    fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
@@ -333,10 +370,39 @@ impl OpenSSL {
         #[cfg(feature = "openssl111")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        set_max_protocol_version(&mut ctx_builder, tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+
+        ctx_builder.set_verify(SslVerifyMode::NONE);
+
+        if descriptor.client_authentication {
+            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
+            ctx_builder.set_certificate(&cert)?;
+            ctx_builder.set_private_key(&key)?;
+        }
+
+        if descriptor.server_authentication {
+            ctx_builder.set_verify(SslVerifyMode::PEER);
+
+            let mut store = X509StoreBuilder::new()?;
+            let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
+            store.add_cert(cert.clone())?;
+
+            let store = store.build();
+
+            /*let mut chain = Stack::new().unwrap();
+            let mut context = X509StoreContext::new().unwrap();
+            assert!(context
+                .init(&store, &cert, &chain, |c| c.verify_cert())
+                .unwrap());*/
+
+            ctx_builder.set_cert_store(store);
+            // TODO: Check if verification is enforced - Yes it is
+        } else {
+            ctx_builder.set_verify(SslVerifyMode::NONE);
+        }
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
         ssl.set_connect_state();

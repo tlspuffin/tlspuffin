@@ -929,13 +929,11 @@ mod tests {
                 client_hello,
                 Trace {
                     prior_traces: vec![],
-                    descriptors: vec![AgentDescriptor {
-                        name: server,
-                        tls_version: TLSVersion::V1_2,
-                        typ: AgentType::Server,
-                        try_reuse: false,
+                    descriptors: vec![AgentDescriptor::new_server(
+                        server,
+                        TLSVersion::V1_2,
                         put_descriptor,
-                    }],
+                    )],
                     steps: vec![Step {
                         agent: server,
                         action: Action::Input(InputAction { recipe: cloned }),

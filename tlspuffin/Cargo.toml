@@ -16,7 +16,8 @@ openssl111 = [
     "deterministic", # Supported features by openssl111
     "claims",
     "openssl-binding",
-    "transcript-extraction"
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
@@ -54,6 +55,7 @@ wolfssl510 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
+    "client-authentication-transcript-extraction"
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -64,6 +66,7 @@ wolfssl520 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
+    "client-authentication-transcript-extraction"
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -74,6 +77,7 @@ wolfssl530 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
+    "client-authentication-transcript-extraction"
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -101,6 +105,8 @@ deterministic = []
 claims = []
 # Whether transcript extraction is supported. This is needed for simplified traces.
 transcript-extraction = []
+# PUT exposes the required transcripts which are required for client authentication
+client-authentication-transcript-extraction = []
 
 introspection = ["libafl/introspection"]
 

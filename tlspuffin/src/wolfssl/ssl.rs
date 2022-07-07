@@ -14,11 +14,12 @@ use std::{
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
+use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
 use crate::{
     agent::TLSVersion,
-    static_certs::PRIVATE_KEY,
+    static_certs::ALICE_PRIVATE_KEY,
     wolfssl::{
         bio,
         callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
@@ -27,6 +28,9 @@ use crate::{
         x509::X509Ref,
     },
 };
+
+pub const TLS13_ACCEPT_SECOND_REPLY_DONE: u32 =
+    wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE as u32;
 
 bitflags! {
     /// Options controlling the behavior of certificate verification.
@@ -80,6 +84,10 @@ impl SslMethod {
     }
 }
 
+enum AcceptState {
+    TLS13_ACCEPT_SECOND_REPLY_DONE = 1,
+}
+
 pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
     SslContextRef::from_ptr(ctx).drop_ex_data::<ExtraUserDataRegistry>(0);
 
@@ -124,6 +132,24 @@ impl SslContextRef {
                 cipher_list.as_ptr() as *const _,
             ))
             .map(|_| ())
+        }
+    }
+
+    /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL handshake. The peer certificate sent during the handshake is compared by using the SKID when available and the signature. If these two things do not match then any loaded CAs are used. Is the same functionality as wolfSSL_CTX_trust_peer_cert except is from a buffer instead of a file. Feature is enabled by defining the macro WOLFSSL_TRUST_PEER_CERT Please see the examples for proper usage.
+    ///
+    /// This corresponds to [`wolfSSL_CTX_load_verify_buffer`].
+    /// [`wolfSSL_CTX_load_verify_buffer`]: https://www.wolfssl.com/documentation/manuals/wolfssl/group__CertsKeys.html#function-wolfssl_ctx_load_verify_buffer
+    pub fn load_verify_buffer(&self, cert: &[u8]) -> Result<(), ErrorStack> {
+        unsafe {
+            unsafe {
+                cvt(wolf::wolfSSL_CTX_load_verify_buffer(
+                    self.as_ptr(),
+                    cert.as_ptr() as *const u8,
+                    cert.len() as i64,
+                    wolf::WOLFSSL_FILETYPE_PEM,
+                ))
+                .map(|_| ())
+            }
         }
     }
 
@@ -188,7 +214,7 @@ impl SslContextRef {
     #[cfg(not(feature = "wolfssl430"))]
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, bool) + 'static,
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -382,7 +408,7 @@ impl SslRef {
 
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, bool) + 'static,
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -419,8 +445,12 @@ impl SslRef {
         }
     }
 
-    pub fn handshake_state(&self) -> &'static str {
-        let state = unsafe { (*self.as_ptr()).options.handShakeState };
+    pub fn server_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.serverState as u32 }
+    }
+
+    pub fn server_state_str(&self) -> &'static str {
+        let state = unsafe { (*self.as_ptr()).options.serverState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
@@ -450,7 +480,11 @@ impl SslRef {
         }
     }
 
-    pub fn accept_state(&self, tls_version: TLSVersion) -> &'static str {
+    pub fn get_accept_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.acceptState as u32 }
+    }
+
+    pub fn accept_state_str(&self, tls_version: TLSVersion) -> &'static str {
         let state = unsafe { (*self.as_ptr()).options.acceptState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.

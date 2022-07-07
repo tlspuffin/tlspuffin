@@ -8,6 +8,7 @@ use std::{
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
+use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
 use crate::wolfssl::ssl::{SslContextRef, SslRef};
@@ -86,16 +87,16 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     write_p: c_int,
     _version: c_int,
     _content_type: c_int,
-    _buf: *const c_void,
+    buf: *const c_void,
     _len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef, bool) + 'static,
+    F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
 {
     let ctx = SslContextRef::from_ptr_mut(wolf::wolfSSL_get_SSL_CTX(ssl));
 
-    let r_callback = {
+    let callback = {
         let mut callback = ctx
             .get_user_data::<F>()
             .expect("BUG: missing ssl_msg_callback");
@@ -104,23 +105,25 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     };
 
     let ssl = SslRef::from_ptr_mut(ssl);
-    (*r_callback)(ssl, write_p == 1);
+
+    let typ = HandshakeType::from(*(buf as *mut u8));
+    (*callback)(ssl, typ, write_p == 1);
 }
 
 pub unsafe extern "C" fn ssl_msg_callback<F>(
     write_p: c_int,
     _version: c_int,
     _content_type: c_int,
-    _buf: *const c_void,
+    buf: *const c_void,
     _len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef, bool) + 'static,
+    F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
 {
     let ssl = SslRef::from_ptr_mut(ssl);
 
-    let r_callback = {
+    let callback = {
         let mut callback = ssl
             .get_user_data::<F>()
             .expect("BUG: missing ssl_msg_callback");
@@ -128,5 +131,6 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
         callback.deref() as *const F
     };
 
-    (*r_callback)(ssl, write_p == 1);
+    let typ = HandshakeType::from(*(buf as *mut u8));
+    (*callback)(ssl, typ, write_p == 1);
 }

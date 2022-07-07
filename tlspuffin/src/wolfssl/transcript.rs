@@ -4,13 +4,13 @@ use wolfssl_sys as wolf;
 use crate::{
     agent::{AgentName, AgentType, TLSVersion},
     claims::{
-        Claim, ClaimData, ClaimDataTranscript, ClaimList, TlsTranscript, TranscriptClientFinished,
-        TranscriptServerFinished, TranscriptServerHello,
+        Claim, ClaimData, ClaimDataTranscript, ClaimList, TlsTranscript, TranscriptCertificate,
+        TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
     },
     wolfssl::ssl::SslRef,
 };
 
-pub fn extract_current_transcript(ssl: &mut SslRef) -> Option<ClaimData> {
+pub fn extract_current_transcript(ssl: &SslRef) -> Option<TlsTranscript> {
     unsafe {
         let ssl = ssl.as_ptr();
         let hashes = (*ssl).hsHashes;
@@ -27,24 +27,6 @@ pub fn extract_current_transcript(ssl: &mut SslRef) -> Option<ClaimData> {
         let mut target: [u8; 64] = [0; 64];
         target[..32].clone_from_slice(&hash);
 
-        let state = unsafe { (*ssl).options.acceptState };
-
-        // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
-        match state as u32 {
-            wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE => Some(ClaimData::Transcript(
-                ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(target, 32))),
-            )),
-            wolf::AcceptStateTls13_TLS13_CERT_VERIFY_SENT => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                    TranscriptServerFinished(TlsTranscript(target, 32)),
-                )))
-            }
-            wolf::AcceptStateTls13_TLS13_TICKET_SENT => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
-                    TranscriptClientFinished(TlsTranscript(target, 32)),
-                )))
-            }
-            _ => None,
-        }
+        Some(TlsTranscript(target, 32))
     }
 }

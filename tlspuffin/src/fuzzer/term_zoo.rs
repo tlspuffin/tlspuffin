@@ -105,8 +105,9 @@ mod tests {
         fuzzer::term_zoo::TermZoo,
         tls::{
             fn_impl::{
-                fn_client_finished_transcript, fn_decrypt_application,
-                fn_server_finished_transcript, fn_server_hello_transcript,
+                fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
+                fn_rsa_sign_client, fn_rsa_sign_server, fn_server_finished_transcript,
+                fn_server_hello_transcript,
             },
             SIGNATURE,
         },
@@ -114,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_term_generation() {
-        let mut rand = StdRand::with_seed(100);
+        let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::generate(&SIGNATURE, &mut rand);
 
         let subgraphs = zoo
@@ -141,11 +142,14 @@ mod tests {
             .collect::<HashSet<String>>();
 
         let ignored_functions = [
+            fn_decrypt_application.name(), // FIXME: why ignore this?
+            fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
+            fn_rsa_sign_server.name(),
             // transcript functions -> ClaimList is usually available as Variable
-            fn_decrypt_application.name(),
             fn_server_finished_transcript.name(),
             fn_client_finished_transcript.name(),
             fn_server_hello_transcript.name(),
+            fn_certificate_transcript.name(),
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -154,7 +158,7 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        //println!("{:?}", &difference);
+        println!("{:?}", &difference);
         assert_eq!(difference.count(), 0);
         //println!("{}", graph);
     }
