@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_term_generation() {
-        let mut rand = StdRand::with_seed(100);
+        let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::generate(&SIGNATURE, &mut rand);
 
         let subgraphs = zoo
