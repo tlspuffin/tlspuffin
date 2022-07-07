@@ -16,8 +16,9 @@ use crate::{
     algebra::Term,
     put::PutDescriptor,
     put_registry::{current_put, PUT_REGISTRY},
+    static_certs::BOB_PRIVATE_KEY_DER,
     term,
-    tls::fn_impl::*,
+    tls::{error::FnError, fn_impl::*},
     trace::{
         Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
         TraceContext,
@@ -665,6 +666,10 @@ pub fn seed_successful_with_tickets(
 }
 
 pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -> Trace {
+    pub fn fn_bob_private_key() -> Result<&'static [u8], FnError> {
+        Ok(BOB_PRIVATE_KEY_DER.into())
+    }
+
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -727,8 +732,9 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
     let certificate_verify = term! {
         fn_certificate_verify(
             (fn_get_signature_algorithm((@certificate_request_message))),
-            (fn_rsa_sign(
-                (fn_certificate_transcript(((server, 0))))
+            (fn_rsa_sign_client(
+                (fn_certificate_transcript(((server, 0)))),
+                fn_bob_private_key
             ))
         )
     };
@@ -2150,6 +2156,11 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
     #[test]
+    #[cfg_attr(
+        feature = "wolfssl510",
+        should_panic(expected = "Authentication bypass")
+    )]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
