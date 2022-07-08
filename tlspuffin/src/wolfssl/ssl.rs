@@ -728,7 +728,8 @@ impl<S: Read + Write> SslStream<S> {
             ErrorCode::WANT_READ | ErrorCode::WANT_WRITE => {
                 self.get_bio_error().map(InnerError::Io)
             }
-            _ => None,
+            // Other errors are not ignored but regarded as SSL related errors
+            _ => Some(InnerError::Ssl(ErrorStack::get())),
         };
 
         SslError { code, cause }
