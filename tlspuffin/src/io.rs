@@ -28,6 +28,7 @@ use rustls::msgs::{
     deframer::MessageDeframer,
     message::{Message, OpaqueMessage},
 };
+use smallvec::SmallVec;
 
 use crate::error::Error;
 
@@ -70,9 +71,9 @@ impl MemoryStream {
 
 impl Stream for MemoryStream {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        let mut out: Vec<u8> = Vec::new();
-        out.append(&mut opaque_message.clone().encode());
-        self.inbound.get_mut().extend_from_slice(&out);
+        self.inbound
+            .get_mut()
+            .extend_from_slice(&opaque_message.clone().encode());
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
@@ -81,13 +82,13 @@ impl Stream for MemoryStream {
             .read(&mut self.outbound.get_ref().as_slice())
             .is_ok()
         {
-            let mut rest_buffer: Vec<u8> = Vec::new();
+            let mut rest_buffer: SmallVec<[u8; 1024]> = SmallVec::new();
             let mut frames = deframer.frames;
 
             let first_message = frames.pop_front();
 
             for message in frames {
-                rest_buffer.append(&mut message.encode());
+                rest_buffer.extend(message.encode());
             }
 
             self.outbound.set_position(0);

@@ -4,10 +4,14 @@ use std::{any::Any, env::var, fmt, fmt::Formatter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 
 use super::atoms::{Function, Variable};
 use crate::{
-    algebra::dynamic_function::TypeShape, error::Error, tls::error::FnError, trace::TraceContext,
+    algebra::{dynamic_function::TypeShape, USUAL_ARGUMENT_COUNT},
+    error::Error,
+    tls::error::FnError,
+    trace::TraceContext,
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -107,7 +111,8 @@ impl Term {
                 .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
             Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+                let mut dynamic_args: SmallVec<[Box<dyn Any>; USUAL_ARGUMENT_COUNT]> =
+                    SmallVec::new();
                 for term in args {
                     match term.evaluate(context) {
                         Ok(data) => {

@@ -26,7 +26,7 @@
 //! use tlspuffin::tls::error::FnError;
 //! use std::any::Any;
 //!
-//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
+//! pub trait DynamicFunction: Fn(&[Box<dyn Any>]) -> Result<Box<dyn Any>, FnError> {
 //! }
 //! ```
 //!
@@ -59,14 +59,18 @@ use std::{
 
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::SmallVec;
 
-use crate::tls::{error::FnError, SIGNATURE};
+use crate::{
+    algebra::USUAL_ARGUMENT_COUNT,
+    tls::{error::FnError, SIGNATURE},
+};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DynamicFunctionShape {
     pub name: &'static str,
-    pub argument_types: Vec<TypeShape>,
+    pub argument_types: SmallVec<[TypeShape; USUAL_ARGUMENT_COUNT]>,
     pub return_type: TypeShape,
 }
 
@@ -129,7 +133,7 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 }
 
 /// Cloneable type for dynamic functions. This trait is automatically implemented for arbitrary
-/// closures and functions of the form: `Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any>`
+/// closures and functions of the form: `Fn(&[Box<dyn Any>]) -> Box<dyn Any>`
 ///
 /// [`Clone`] is implemented for `Box<dyn DynamicFunction>` using this trick:
 /// https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
@@ -137,14 +141,14 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
 pub trait DynamicFunction:
-    Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Send + Sync
+    Fn(&[Box<dyn Any>]) -> Result<Box<dyn Any>, FnError> + Send + Sync
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction>;
 }
 
 impl<F> DynamicFunction for F
 where
-    F: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
+    F: 'static + Fn(&[Box<dyn Any>]) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction> {
         Box::new(self.clone())
@@ -192,7 +196,7 @@ macro_rules! dynamic_fn {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
                 name: std::any::type_name::<F>(),
-                argument_types: vec![$(TypeShape::of::<$arg>()),*],
+                argument_types: smallvec::smallvec![$(TypeShape::of::<$arg>()),*],
                 return_type: TypeShape::of::<$res>(),
             }
         }
@@ -203,7 +207,7 @@ macro_rules! dynamic_fn {
 
         fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {
             #[allow(unused_variables)]
-            Box::new(move |args: &Vec<Box<dyn Any>>| {
+            Box::new(move |args: &[Box<dyn Any>]| {
                 #[allow(unused_mut)]
                 let mut index = 0;
 

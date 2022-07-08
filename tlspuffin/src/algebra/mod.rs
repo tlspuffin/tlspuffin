@@ -36,6 +36,8 @@ pub mod macros;
 pub mod signature;
 mod term;
 
+pub const USUAL_ARGUMENT_COUNT: usize = 4;
+
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -167,7 +169,7 @@ mod tests {
 
         let func = Signature::new_function(&example_op_c);
         let dynamic_fn = func.dynamic_fn();
-        let _string = dynamic_fn(&vec![Box::new(1u8)])
+        let _string = dynamic_fn(&[Box::new(1u8)])
             .unwrap()
             .downcast_ref::<u16>()
             .unwrap();

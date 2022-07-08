@@ -85,6 +85,7 @@ use rustls::msgs::{
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
 use serde::{Deserialize, Serialize, __private::de::Borrowed};
+use smallvec::SmallVec;
 
 #[allow(unused)] // used in docs
 use crate::io::Channel;
@@ -303,7 +304,7 @@ impl TraceContext {
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<&Knowledge> = Vec::new();
+        let mut possibilities: SmallVec<[&Knowledge; 32]> = SmallVec::new();
 
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();

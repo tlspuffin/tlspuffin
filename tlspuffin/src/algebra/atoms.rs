@@ -165,9 +165,13 @@ mod fn_container {
         ser::SerializeStruct,
         Deserialize, Deserializer, Serialize, Serializer,
     };
+    use smallvec::SmallVec;
 
     use crate::{
-        algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        algebra::{
+            dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+            USUAL_ARGUMENT_COUNT,
+        },
         tls::SIGNATURE,
     };
 
@@ -225,9 +229,9 @@ mod fn_container {
             let name: &str = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-            let argument_types: Vec<TypeShape> = seq
-                .next_element()?
-                .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+            let argument_types: SmallVec<[TypeShape; USUAL_ARGUMENT_COUNT]> =
+                seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
             let return_type: TypeShape = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
@@ -258,7 +262,7 @@ mod fn_container {
             V: MapAccess<'de>,
         {
             let mut name: Option<&'de str> = None;
-            let mut arguments: Option<Vec<TypeShape>> = None;
+            let mut arguments: Option<SmallVec<[TypeShape; USUAL_ARGUMENT_COUNT]>> = None;
             let mut ret: Option<TypeShape> = None;
             while let Some(key) = map.next_key()? {
                 match key {

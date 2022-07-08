@@ -327,6 +327,7 @@ mutator! {
 
 pub mod util {
     use libafl::bolts::rands::Rand;
+    use smallvec::{smallvec, SmallVec};
 
     use crate::{
         algebra::Term,
@@ -405,7 +406,7 @@ pub mod util {
     }
 
     pub type StepIndex = usize;
-    pub type TermPath = Vec<usize>;
+    pub type TermPath = SmallVec<[usize; 4]>;
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
@@ -428,7 +429,8 @@ pub mod util {
                         continue;
                     }
 
-                    let mut stack: Vec<(&Term, TracePath)> = vec![(term, (step_index, Vec::new()))];
+                    let mut stack: SmallVec<[(&Term, TracePath); 8]> =
+                        smallvec![(term, (step_index, SmallVec::new()))];
 
                     while let Some((term, path)) = stack.pop() {
                         // push next terms onto stack
