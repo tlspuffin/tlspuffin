@@ -130,6 +130,8 @@ fn main() {
         input_file.read_to_end(&mut buffer).unwrap();
         let trace = postcard::from_bytes::<Trace>(&buffer).unwrap();
 
+        info!("Agents: {:?}", &trace.descriptors);
+
         let mut ctx = TraceContext::new();
         trace.execute(&mut ctx).unwrap();
     } else {

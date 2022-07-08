@@ -282,7 +282,7 @@ mutator! {
 }
 
 mutator! {
-    /// GENERATE: Generates a previously-unseen term using a
+    /// GENERATE: Generates a previously-unseen term using a term zoo
     GenerateMutator,
     Trace,
     fn mutate(

@@ -32,7 +32,7 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
     put_registry::{Factory, OPENSSL111_PUT},
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
 };
 
 #[cfg(feature = "deterministic")]
@@ -311,26 +311,24 @@ impl OpenSSL {
     fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
-        //let (cert, pkey) = openssl_binding::generate_cert();
         let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
         if descriptor.client_authentication {
             let mut store = X509StoreBuilder::new()?;
-            let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
-            store.add_cert(cert.clone())?;
+            store.add_cert(X509::from_pem(BOB_CERT.0.as_bytes())?)?;
+            store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
 
-            let mut chain = Stack::new().unwrap();
+            /*let mut chain = Stack::new().unwrap();
             let mut context = X509StoreContext::new().unwrap();
             assert!(context
                 .init(&store, &cert, &chain, |c| c.verify_cert())
-                .unwrap());
+                .unwrap());*/
 
             ctx_builder.set_verify(SslVerifyMode::PEER);
             ctx_builder.set_cert_store(store);
-            // TODO: Check if verification is enforced
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
@@ -387,9 +385,8 @@ impl OpenSSL {
             ctx_builder.set_verify(SslVerifyMode::PEER);
 
             let mut store = X509StoreBuilder::new()?;
-            let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
-            store.add_cert(cert.clone())?;
-
+            store.add_cert(X509::from_pem(ALICE_CERT.0.as_bytes())?)?;
+            store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
 
             /*let mut chain = Stack::new().unwrap();
@@ -399,7 +396,6 @@ impl OpenSSL {
                 .unwrap());*/
 
             ctx_builder.set_cert_store(store);
-            // TODO: Check if verification is enforced - Yes it is
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }

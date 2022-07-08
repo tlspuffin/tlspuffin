@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run doc tests" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test --doc --features openssl111" />
+  <configuration default="false" name="Run Tests (WolfSSL520)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="test -p tlspuffin --lib --features wolfssl520" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

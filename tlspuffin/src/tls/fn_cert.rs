@@ -125,8 +125,22 @@ pub fn _fn_rsa_sign(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
+    let invalid_scheme = match scheme {
+        SignatureScheme::RSA_PKCS1_SHA256
+        | SignatureScheme::RSA_PKCS1_SHA384
+        | SignatureScheme::RSA_PKCS1_SHA512
+        | SignatureScheme::RSA_PSS_SHA256
+        | SignatureScheme::RSA_PSS_SHA384
+        | SignatureScheme::RSA_PSS_SHA512 => false,
+        _ => true,
+    };
+    if invalid_scheme {
+        return Err(FnError::Rustls("Unknown signature scheme".to_string()));
+    }
+
     let key = RsaKeyPair::from_der(private_key)
         .map_err(|_| FnError::Rustls("Failed to parse rsa key.".to_string()))?;
+
     let signer = RsaSigner::new(Arc::new(key), *scheme);
     Ok(signer.sign(&message)?)
 }
@@ -177,24 +191,3 @@ pub fn fn_invalid_signature_algorithm() -> Result<SignatureScheme, FnError> {
 pub fn fn_ecdsa_signature_algorithm() -> Result<SignatureScheme, FnError> {
     Ok(SignatureScheme::ECDSA_NISTP256_SHA256)
 }
-
-/* TODO remove
-pub fn fn_get_signature_algorithm(
-    certificate_request: &Message,
-) -> Result<SignatureScheme, FnError> {
-    match &certificate_request.payload {
-        MessagePayload::Handshake(payload) => match &payload.payload {
-            HandshakePayload::CertificateRequestTLS13(payload) => payload
-                .extensions
-                .iter()
-                .find_map(|extension: &CertReqExtension| match &extension {
-                    CertReqExtension::SignatureAlgorithms(algs) => algs.first().cloned(),
-                    CertReqExtension::AuthorityNames(_) => None,
-                    CertReqExtension::Unknown(_) => None,
-                }),
-            _ => None,
-        },
-        _ => None,
-    }
-    .ok_or_else(|| FnError::Unknown("Could not find signature algorithm in message".to_owned()))
-}*/

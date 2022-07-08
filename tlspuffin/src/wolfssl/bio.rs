@@ -163,7 +163,6 @@ unsafe extern "C" fn ctrl<S: Write>(
 ) -> c_long {
     let state = state::<S>(bio);
 
-    // FIXME: Cast is weird
     if cmd == wolfssl_sys::BIO_CTRL_FLUSH as c_int {
         match catch_unwind(AssertUnwindSafe(|| state.stream.flush())) {
             Ok(Ok(())) => 1,
@@ -176,7 +175,6 @@ unsafe extern "C" fn ctrl<S: Write>(
                 0
             }
         }
-        // FIXME cast is weird
     } else if cmd == wolfssl_sys::BIO_CTRL_DGRAM_QUERY_MTU as c_int {
         state.dtls_mtu_size
     } else {
@@ -192,7 +190,6 @@ unsafe extern "C" fn create(bio: *mut wolf::WOLFSSL_BIO) -> c_int {
     1
 }
 
-// FIXME: This is not called right now
 unsafe extern "C" fn destroy<S>(bio: *mut wolf::WOLFSSL_BIO) -> c_int {
     if bio.is_null() {
         return 0;
@@ -299,7 +296,7 @@ impl BIO_METHOD {
     fn new<S: Read + Write>() -> Result<BIO_METHOD, ErrorStack> {
         unsafe {
             let ptr = cvt_p(wolf::wolfSSL_BIO_meth_new(
-                0, // FIXME undefined in 520 wolf::BIO_TYPE_WOLFSSL_BIO_UNDEF,
+                0, // TODO undefined in 520 wolf::BIO_TYPE_WOLFSSL_BIO_UNDEF,
                 b"rust\0".as_ptr() as *const _,
             ))?;
             let method = BIO_METHOD(ptr);

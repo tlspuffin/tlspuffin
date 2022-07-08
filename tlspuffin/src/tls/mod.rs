@@ -214,9 +214,9 @@ define_signature!(
     fn_no_psk
     fn_psk
     // transcript functions
+    fn_server_hello_transcript
     fn_client_finished_transcript
     fn_server_finished_transcript
-    fn_server_hello_transcript
     fn_certificate_transcript
     // certificate functions
     fn_bob_cert

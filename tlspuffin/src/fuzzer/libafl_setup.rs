@@ -43,13 +43,14 @@ use crate::{
     trace::Trace,
 };
 
-// TODO: Use feedback_or_fast
 pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
     edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
 ) -> impl Feedback<Trace, S> + 'b
 where
     S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
 {
+    // We are not using feedback_or_fast here because we are fine with executing further feedbacks
+    // even after the first positive result
     feedback_or!(MaxMapFeedback::new_tracking(edges_observer, false, false))
 }
 
@@ -133,7 +134,7 @@ impl Default for MutationConfig {
         Self {
             fresh_zoo_after: 100000,
             max_trace_length: 15,
-            min_trace_length: 5,
+            min_trace_length: 2,
             term_constraints: TermConstraints {
                 min_term_size: 0,
                 max_term_size: 300,

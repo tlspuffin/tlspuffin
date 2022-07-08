@@ -7,7 +7,7 @@ use std::{
     io::{ErrorKind, Read, Write},
     mem::MaybeUninit,
     ops::Deref,
-    os::raw::c_uchar,
+    os::raw::{c_uchar, c_void},
     rc::Rc,
 };
 
@@ -33,7 +33,7 @@ use crate::{
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
         transcript::extract_current_transcript,
-        util::{cvt_n, cvt_p},
+        util::{cvt, cvt_n, cvt_p},
         version::version,
         x509::X509,
     },
@@ -41,7 +41,6 @@ use crate::{
 
 mod bio;
 mod callbacks;
-// TODO: remove: mod dummy_callbacks;
 mod error;
 #[cfg(not(feature = "wolfssl430"))]
 mod pkey;
@@ -274,8 +273,9 @@ impl WolfSSL {
         if descriptor.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
             ctx.load_verify_buffer(ALICE_CERT.0.as_bytes())?;
+            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
         } else {
-            // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
+            // Disable certificate verify
             ctx.set_verify(SslVerifyMode::NONE);
         }
 
@@ -289,7 +289,7 @@ impl WolfSSL {
         let mut ssl: Ssl = Ssl::new(&ctx)?;
         ssl.set_connect_state();
 
-        // Force requesting session ticket because `seed_successfull12` expects it. FIXME: add new tests for this
+        // Force requesting session ticket because `seed_successfull12` expects it.
         ssl.use_session_ticket();
 
         Ok(ssl)
@@ -325,7 +325,7 @@ impl WolfSSL {
         if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER);
             ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
-            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?; // FIXME: do we need this? difference between authentication bypass and impersonation (we are doing impersonation here)
+            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
         }
@@ -421,25 +421,10 @@ impl WolfSSL {
                                 client_random: Default::default(), // TODO
                                 server_random: Default::default(), // TODO
                                 session_id: Default::default(),    // TODO
-                                authenticate_peer,                 // TODO
-                                peer_certificate: {
-                                    let cert =
-                                        wolfssl_sys::wolfSSL_get_peer_certificate(context.as_ptr());
-
-                                    if !cert.is_null() {
-                                        let bio = MemBio::new().unwrap();
-                                        /*cvt_n(wolfssl_sys::wolfSSL_i2d_X509_bio(bio.as_ptr(), cert))
-                                        .unwrap();
-                                        let slice = bio.get_buf().to_owned();*/
-
-                                        let mut s: *mut c_uchar = std::ptr::null_mut();
-                                        let length = wolfssl_sys::wolfSSL_i2d_X509(cert, &mut s);
-                                        let slice1 = std::slice::from_raw_parts(s, length as usize);
-                                        SmallVec::from_slice(slice1)
-                                    } else {
-                                        SmallVec::new()
-                                    }
-                                }, // TODO
+                                authenticate_peer,
+                                peer_certificate: context
+                                    .get_peer_certificate()
+                                    .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
                                 chosen_cipher: 0,                  // TODO
                                 available_ciphers: Default::default(), // TODO

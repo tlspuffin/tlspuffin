@@ -11,7 +11,7 @@ TARGET_DIR="$WORK_DIR"
 # Disable features such that __sanitizer_cov_trace_pc_guard* is not implemented. It gets implemented by the address
 # sanitizer.
 # Adapted from https://github.com/rust-fuzz/libfuzzer
-cargo +nightly rustc --example seed_successful \
+cargo +nightly rustc --bin tlspuffin \
     --target-dir "$TARGET_DIR" \
     --no-default-features \
     -- \
@@ -22,7 +22,7 @@ cargo +nightly rustc --example seed_successful \
 
 export ASAN_OPTIONS="coverage=1:coverage_dir=$WORK_DIR"
 
-BIN="$TARGET_DIR/x86_64-unknown-linux-gnu/debug/examples/seed_successful"
+BIN="$TARGET_DIR/debug/tlspuffin"
 
 
 rm "$WORK_DIR/"*.sancov
