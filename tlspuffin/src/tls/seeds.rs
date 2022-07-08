@@ -702,7 +702,7 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
         )
     };
 
-    let encrypted_extensions = term! {
+    /*let encrypted_extensions = term! {
         fn_decrypt_handshake(
             ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((server, 0)))),
@@ -710,7 +710,7 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
             fn_no_psk,
             fn_seq_0
         )
-    };
+    };*/
 
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
@@ -996,7 +996,7 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((server, 1)[Some(TlsMessageType::ApplicationData)]),
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
