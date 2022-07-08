@@ -7,7 +7,7 @@ use std::{
     io::{ErrorKind, Read, Write},
     mem::MaybeUninit,
     ops::Deref,
-    os::raw::c_uchar,
+    os::raw::{c_uchar, c_void},
     rc::Rc,
 };
 
@@ -33,7 +33,7 @@ use crate::{
         error::{ErrorStack, SslError},
         ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
         transcript::extract_current_transcript,
-        util::{cvt_n, cvt_p},
+        util::{cvt, cvt_n, cvt_p},
         version::version,
         x509::X509,
     },
@@ -427,15 +427,25 @@ impl WolfSSL {
                                         wolfssl_sys::wolfSSL_get_peer_certificate(context.as_ptr());
 
                                     if !cert.is_null() {
-                                        let bio = MemBio::new().unwrap();
-                                        /*cvt_n(wolfssl_sys::wolfSSL_i2d_X509_bio(bio.as_ptr(), cert))
-                                        .unwrap();
-                                        let slice = bio.get_buf().to_owned();*/
+                                        let mut buffer: *mut c_uchar = std::ptr::null_mut();
 
-                                        let mut s: *mut c_uchar = std::ptr::null_mut();
-                                        let length = wolfssl_sys::wolfSSL_i2d_X509(cert, &mut s);
-                                        let slice1 = std::slice::from_raw_parts(s, length as usize);
-                                        SmallVec::from_slice(slice1)
+                                        let cert_buffer = if let Ok(length) =
+                                            cvt(wolfssl_sys::wolfSSL_i2d_X509(cert, &mut buffer))
+                                        {
+                                            let vec = SmallVec::from_slice(
+                                                std::slice::from_raw_parts(buffer, length as usize),
+                                            );
+                                            if !buffer.is_null() {
+                                                wolfssl_sys::wolfSSL_Free(buffer as *mut c_void);
+                                            }
+                                            vec
+                                        } else {
+                                            SmallVec::new()
+                                        };
+
+                                        wolfssl_sys::wolfSSL_X509_free(cert);
+
+                                        cert_buffer
                                     } else {
                                         SmallVec::new()
                                     }
