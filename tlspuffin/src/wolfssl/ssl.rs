@@ -14,6 +14,7 @@ use std::{
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_void};
+use log::LevelFilter;
 use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
@@ -104,7 +105,7 @@ foreign_type! {
 impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
-            init(false);
+            init(log::max_level() >= LevelFilter::Trace);
             let ptr = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
             let mut ctx = Self::from_ptr(ptr);
             ctx.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
