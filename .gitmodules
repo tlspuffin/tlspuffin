@@ -16,7 +16,7 @@
 [submodule "rust-rustls"]
 	path = deps/rust-rustls
 	url = git@github.com:tlspuffin/rustls.git
-	branch = update-rustls
+	branch = fuzz
 	update = rebase
 [submodule "wolfssl-sys"]
 	path = deps/wolfssl-sys
