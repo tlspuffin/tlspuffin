@@ -2374,7 +2374,6 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
     #[test]
     fn test_seed_successful_client_auth() {
         let ctx = seed_successful_client_auth.execute_trace();

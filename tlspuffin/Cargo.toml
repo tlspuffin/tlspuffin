@@ -168,7 +168,3 @@ harness = false
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
-
-# FIXME Used in tools/coverage.sh to generate coverage
-#[[example]]
-#name = "seed_successful"

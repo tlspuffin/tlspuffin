@@ -13,9 +13,10 @@ use std::{
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
-use libc::{c_int, c_void};
+use libc::{c_int, c_uchar, c_void};
 use log::LevelFilter;
 use rustls::msgs::enums::HandshakeType;
+use smallvec::SmallVec;
 use wolfssl_sys as wolf;
 
 use crate::{
@@ -30,8 +31,7 @@ use crate::{
     },
 };
 
-pub const TLS13_ACCEPT_SECOND_REPLY_DONE: u32 =
-    wolf::AcceptStateTls13_TLS13_ACCEPT_SECOND_REPLY_DONE as u32;
+const EXTRA_USER_DATA_REGISTRY_INDEX: i32 = 0;
 
 bitflags! {
     /// Options controlling the behavior of certificate verification.
@@ -90,7 +90,8 @@ enum AcceptState {
 }
 
 pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
-    SslContextRef::from_ptr(ctx).drop_ex_data::<ExtraUserDataRegistry>(0);
+    SslContextRef::from_ptr(ctx)
+        .drop_ex_data::<ExtraUserDataRegistry>(EXTRA_USER_DATA_REGISTRY_INDEX);
 
     wolfssl_sys::wolfSSL_CTX_free(ctx);
 }
@@ -108,7 +109,7 @@ impl SslContext {
             init(log::max_level() >= LevelFilter::Trace);
             let ptr = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
             let mut ctx = Self::from_ptr(ptr);
-            ctx.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
+            ctx.set_ex_data(EXTRA_USER_DATA_REGISTRY_INDEX, ExtraUserDataRegistry::new());
             Ok(ctx)
         }
     }
@@ -318,7 +319,7 @@ pub fn init(debug: bool) {
 }
 
 pub unsafe fn drop_ssl(ssl: *mut wolf::WOLFSSL) {
-    SslRef::from_ptr(ssl).drop_ex_data::<ExtraUserDataRegistry>(0);
+    SslRef::from_ptr(ssl).drop_ex_data::<ExtraUserDataRegistry>(EXTRA_USER_DATA_REGISTRY_INDEX);
 
     wolfssl_sys::wolfSSL_free(ssl);
 }
@@ -336,7 +337,7 @@ impl Ssl {
             let ptr = cvt_p(wolf::wolfSSL_new(ctx.as_ptr()))?;
             let mut ssl = Ssl::from_ptr(ptr);
 
-            ssl.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
+            ssl.set_ex_data(EXTRA_USER_DATA_REGISTRY_INDEX, ExtraUserDataRegistry::new());
 
             Ok(ssl)
         }
@@ -481,6 +482,34 @@ impl SslRef {
         }
     }
 
+    pub fn get_peer_certificate(&self) -> Option<SmallVec<[u8; 32]>> {
+        unsafe {
+            let cert = wolf::wolfSSL_get_peer_certificate(self.as_ptr());
+
+            if !cert.is_null() {
+                let mut buffer: *mut c_uchar = ptr::null_mut();
+
+                let cert_buffer = if let Ok(length) = cvt(wolf::wolfSSL_i2d_X509(cert, &mut buffer))
+                {
+                    let vec =
+                        SmallVec::from_slice(std::slice::from_raw_parts(buffer, length as usize));
+                    if !buffer.is_null() {
+                        wolfssl_sys::wolfSSL_Free(buffer as *mut c_void);
+                    }
+                    Some(vec)
+                } else {
+                    None
+                };
+
+                wolfssl_sys::wolfSSL_X509_free(cert);
+
+                cert_buffer
+            } else {
+                None
+            }
+        }
+    }
+
     pub fn get_accept_state(&self) -> u32 {
         unsafe { (*self.as_ptr()).options.acceptState as u32 }
     }
@@ -602,11 +631,11 @@ impl<S: Read + Write> SslStream<S> {
     }
 
     /// Returns a longer string describing the state of the session.
+    /// Currently unsupported with TLS 1.3.
     ///
     /// This corresponds to [`SSL_state_string_long`].
     ///
     /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
-    /// FIXME: This function of wolfSSL currently does not work with TLS 1.3
     pub fn state_string_long(&self) -> &'static str {
         let state = unsafe {
             let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
@@ -699,7 +728,7 @@ impl<S: Read + Write> SslStream<S> {
             ErrorCode::WANT_READ | ErrorCode::WANT_WRITE => {
                 self.get_bio_error().map(InnerError::Io)
             }
-            _ => Some(InnerError::Ssl(ErrorStack::get())), // FIXME
+            _ => None,
         };
 
         SslError { code, cause }

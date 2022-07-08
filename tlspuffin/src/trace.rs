@@ -459,7 +459,8 @@ impl Trace {
 
         let claims = ctx.claims.deref_borrow();
         if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
-            // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the end
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 

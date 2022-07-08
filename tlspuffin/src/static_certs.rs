@@ -40,9 +40,9 @@ pub const BOB_CERT: PEMDER = (
 
 /// Private key usually which identifies the attacker. This should not be accessible by the attacker
 /// though! Else the security violation gives false-positives!
-pub const EVE_PRIVATE_KEY: PEMDER = (
+pub const EVE_PRIVATE_KEY: (&'static str, Option<&'static [u8]>) = (
     include_str!("../assets/eve-key.pem"),
-    include_bytes!("../assets/eve-key.der"),
+    Some(include_bytes!("../assets/eve-key.der")),
 );
 
 /// Certificate for [`EVE_PRIVATE_KEY`]
