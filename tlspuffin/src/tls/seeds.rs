@@ -1872,7 +1872,7 @@ pub fn seed_client_attacker_full(server: AgentName, put_descriptor: PutDescripto
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
-pub fn _seed_client_attacker_full(
+fn _seed_client_attacker_full(
     server: AgentName,
     put_descriptor: PutDescriptor,
 ) -> (Trace, Term, Term, Term) {
