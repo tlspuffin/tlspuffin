@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, path::PathBuf};
+use std::{fmt, fmt::Debug, path::PathBuf};
 
 use libafl::{
     bolts::{
@@ -7,6 +7,7 @@ use libafl::{
         rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
+        AsRefIterator,
     },
     corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
@@ -20,14 +21,15 @@ use libafl::{
         MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
-    monitors::tui::TuiMonitor,
-    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
+    monitors::{tui::TuiMonitor, MultiMonitor},
+    observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
     state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState},
     Error, Evaluator,
 };
 use log::{info, warn};
 use log4rs::Handle;
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::harness;
 use crate::{
@@ -43,40 +45,8 @@ use crate::{
     trace::Trace,
 };
 
-pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
-    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
-) -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-    // We are not using feedback_or_fast here because we are fine with executing further feedbacks
-    // even after the first positive result
-    feedback_or!(MaxMapFeedback::new_tracking(edges_observer, false, false))
-}
-
-pub fn no_feedback<'harness, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-}
-
-pub fn minimizer_feedback<'harness, 'b, S: 'b>(
-    time_observer: &'harness TimeObserver,
-    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
-) -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-    let feedback = feedback_or!(
-        // New maximization map feedback linked to the edges observer and the feedback state
-        // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-        MaxMapFeedback::new_tracking(edges_observer, true, false),
-        // Time feedback, this one does not need a feedback state
-        // needed for IndexesLenTimeMinimizerCorpusScheduler
-        TimeFeedback::new_with_observer(time_observer)
-    );
-    feedback
-}
+pub const MAP_FEEDBACK_NAME: &str = "edges";
+const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
 type ConcreteExecutor<'harness, H, OT, S> =
     TimeoutExecutor<InProcessExecutor<'harness, H, Trace, OT, S>>;
@@ -427,13 +397,21 @@ where
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
         };
 
+        let map_feedback = MaxMapFeedback::with_names_tracking(
+            MAP_FEEDBACK_NAME,
+            EDGES_OBSERVER_NAME,
+            true,
+            false,
+        );
+
         let (feedback, observers) = {
             let time_observer = TimeObserver::new("time");
-            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", map));
+            let edges_observer =
+                HitcountsMapObserver::new(StdMapObserver::new(EDGES_OBSERVER_NAME, map));
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-                MaxMapFeedback::new_tracking(&edges_observer, true, false),
+                map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::new_with_observer(&time_observer)
