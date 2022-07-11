@@ -16,7 +16,10 @@ use libafl::{
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
-use crate::fuzzer::stats_stage::{RuntimeStats, STATS};
+use crate::fuzzer::{
+    libafl_setup::MAP_FEEDBACK_NAME,
+    stats_stage::{RuntimeStats, STATS},
+};
 
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
 pub struct StatsMonitor<F>
@@ -117,7 +120,7 @@ where
         );
 
         // log edges
-        let coverage = if let Some(edges) = client.user_monitor.get("edges") {
+        let coverage = if let Some(edges) = client.user_monitor.get(MAP_FEEDBACK_NAME) {
             fmt += &format!(", {}: {}", "edges", edges);
 
             if let UserStats::Ratio(a, b) = edges {

@@ -120,7 +120,7 @@ pub fn fn_rsa_sign_server(
     )
 }
 
-pub fn _fn_rsa_sign(
+fn _fn_rsa_sign(
     message: &[u8],
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
@@ -161,7 +161,7 @@ pub fn fn_ecdsa_sign_server(
     _fn_ecdsa_sign(&message, private_key)
 }
 
-pub fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let key = EcdsaSigningKey::new(
         &PrivateKey(private_key.to_vec()),
         SignatureScheme::ECDSA_NISTP256_SHA256,
