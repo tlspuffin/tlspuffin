@@ -15,7 +15,7 @@ use rustls::{
             CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
             Random, ServerECDHParams,
         },
-        message::{Message, MessagePayload, PlainMessage},
+        message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
     },
     tls13::key_schedule::KeyScheduleEarly,
     Certificate,
@@ -111,7 +111,7 @@ pub fn fn_encrypt_handshake(
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
-) -> Result<Message, FnError> {
+) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) =
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
     let encrypter = suite
@@ -120,7 +120,7 @@ pub fn fn_encrypt_handshake(
         .derive_encrypter(&key);
     let application_data =
         encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(application_data.into_plain_message())?)
+    Ok(application_data)
 }
 
 pub fn fn_encrypt_application(
@@ -130,7 +130,7 @@ pub fn fn_encrypt_application(
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     sequence: &u64,
-) -> Result<Message, FnError> {
+) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
         server_hello_transcript,
         server_finished_transcript,
@@ -144,7 +144,7 @@ pub fn fn_encrypt_application(
         .derive_encrypter(&key);
     let application_data =
         encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(application_data.into_plain_message())?)
+    Ok(application_data)
 }
 
 pub fn fn_derive_psk(
@@ -282,12 +282,12 @@ pub fn fn_encrypt12(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
     sequence: &u64,
-) -> Result<Message, FnError> {
+) -> Result<OpaqueMessage, FnError> {
     let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
 
     let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client);
     let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(encrypted.into_plain_message())?)
+    Ok(encrypted)
 }
 
 pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
