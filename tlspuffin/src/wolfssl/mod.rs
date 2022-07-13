@@ -51,6 +51,8 @@ mod transcript;
 mod util;
 mod version;
 mod x509;
+#[cfg(feature = "deterministic")]
+mod deterministic;
 
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
@@ -72,6 +74,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
         }
 
         fn make_deterministic(&self) {
+            #[cfg(all(feature = "deterministic", feature = "wolfssl520"))]
             WolfSSL::make_deterministic()
         }
     }
@@ -239,7 +242,8 @@ impl Put for WolfSSL {
     }
 
     fn make_deterministic() {
-        // TODO
+        #[cfg(all(feature = "deterministic", feature = "wolfssl520"))]
+        deterministic::set_wolfssl_deterministic();
     }
 }
 
