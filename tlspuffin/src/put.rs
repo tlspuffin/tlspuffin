@@ -39,9 +39,35 @@ impl Display for PutName {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+pub struct PutOptions {
+    options: Vec<(String, String)>,
+}
+
+impl PutOptions {
+    pub fn new(options: Vec<(&str, &str)>) -> Self {
+        Self {
+            options: Vec::from_iter(
+                options
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value.to_string())),
+            ),
+        }
+    }
+}
+
+impl PutOptions {
+    pub fn get_option(&self, key: &str) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|(found_key, _value)| -> bool { found_key == key })
+            .map(|(_key, value)| value.as_str())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
 pub struct PutDescriptor {
     pub name: PutName,
-    pub options: Vec<(String, String)>,
+    pub options: PutOptions,
 }
 
 /// Static configuration for creating a new agent state for the PUT
@@ -53,16 +79,6 @@ pub struct PutConfig {
     pub claims: GlobalClaimList,
     pub authenticate_peer: bool,
     pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
-}
-
-impl PutConfig {
-    pub fn get_option(&self, key: &str) -> Option<&str> {
-        self.descriptor
-            .options
-            .iter()
-            .find(|(found_key, _value)| -> bool { found_key == key })
-            .map(|(_key, value)| value.as_str())
-    }
 }
 
 pub trait Put: Stream + Drop + 'static {

@@ -27,7 +27,7 @@ use crate::{
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
-    fn build_trace_with_put(self, put: PutDescriptor) -> Trace;
+    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace;
     fn build_trace(self) -> Trace;
     fn fn_name(&self) -> &'static str;
 }
@@ -47,15 +47,15 @@ impl<F> SeedHelper<(AgentName, AgentName)> for F
 where
     F: Fn(AgentName, AgentName, PutDescriptor, PutDescriptor) -> Trace,
 {
-    fn build_trace_with_put(self, descriptor: PutDescriptor) -> Trace {
+    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace {
         let agent_a = AgentName::first();
         let agent_b = agent_a.next();
 
-        (self)(agent_a, agent_b, descriptor.clone(), descriptor)
+        (self)(agent_a, agent_b, puts[0].clone(), puts[1].clone())
     }
 
     fn build_trace(self) -> Trace {
-        self.build_trace_with_put(current_put())
+        self.build_trace_with_puts(&[current_put(), current_put()])
     }
 
     fn fn_name(&self) -> &'static str {
@@ -67,14 +67,14 @@ impl<F> SeedHelper<AgentName> for F
 where
     F: Fn(AgentName, PutDescriptor) -> Trace,
 {
-    fn build_trace_with_put(self, descriptor: PutDescriptor) -> Trace {
+    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace {
         let agent_a = AgentName::first();
 
-        (self)(agent_a, descriptor)
+        (self)(agent_a, puts[0].clone())
     }
 
     fn build_trace(self) -> Trace {
-        self.build_trace_with_put(current_put())
+        self.build_trace_with_puts(&[current_put()])
     }
 
     fn fn_name(&self) -> &'static str {
