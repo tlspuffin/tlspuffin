@@ -100,7 +100,7 @@ pub trait Put: Stream + Drop + 'static {
     /// Propagate agent changes to the PUT
     fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &'static str;
+    fn describe_state(&self) -> &str;
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
     /// Returns a textual representation of the version of the PUT used by self
@@ -117,4 +117,6 @@ pub trait Put: Stream + Drop + 'static {
         let config = self.config();
         config.typ == other.typ && config.tls_version == other.tls_version
     }
+
+    fn shutdown(&mut self) -> String;
 }

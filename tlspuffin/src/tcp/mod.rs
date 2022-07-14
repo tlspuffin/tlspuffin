@@ -10,7 +10,7 @@ use std::{
     process::{Child, Command, Stdio},
     rc::Rc,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{mpsc, mpsc::channel, Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -22,7 +22,7 @@ use rustls::msgs::{
 };
 
 use crate::{
-    agent::{AgentDescriptor, AgentName},
+    agent::{AgentDescriptor, AgentName, TLSVersion},
     error::Error,
     io::{MessageResult, Stream},
     put::{Put, PutConfig, PutName},
@@ -49,10 +49,10 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory> {
                 .map(|cwd| Some(cwd))
                 .unwrap_or_default();
 
-            let process = Box::new(TLSProcess::new(&prog, &args, cwd));
+            let process = TLSProcess::new(&prog, &args, cwd);
 
             let mut client = TcpClientPut::new(agent, config)?;
-            client.drop_together(process);
+            client.set_process(process);
             Ok(Box::new(client))
         }
 
@@ -95,13 +95,7 @@ pub fn new_tcp_server_factory() -> Box<dyn Factory> {
                 .unwrap_or_default();
             let mut server = TcpServerPut::new(agent, config)?;
 
-            // wait until TcpServerPut is running
-            thread::sleep(Duration::from_millis(1000));
-
-            server.drop_together(Box::new(TLSProcess::new(&prog, &args, cwd.as_ref())));
-
-            // wait until a TLS client connected
-            thread::sleep(Duration::from_millis(10000));
+            server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
 
             Ok(Box::new(server))
         }
@@ -142,6 +136,8 @@ pub trait TcpPut {
         Self: Sized;
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error>;
+
+    fn shutdown(&mut self) -> String;
 }
 
 /// A PUT which is backed by a TCP stream to a server.
@@ -154,7 +150,7 @@ pub struct TcpClientPut {
     stream: TcpStream,
     deframer: MessageDeframer,
     config: PutConfig,
-    drops: Vec<Box<dyn Any>>,
+    process: Option<TLSProcess>,
 }
 
 impl TcpPut for TcpClientPut {
@@ -182,7 +178,7 @@ impl TcpPut for TcpClientPut {
             stream,
             deframer: Default::default(),
             config,
-            drops: vec![],
+            process: None,
         })
     }
 
@@ -191,6 +187,10 @@ impl TcpPut for TcpClientPut {
         self.stream = Self::new_stream(address)?;
         Ok(())
     }
+
+    fn shutdown(&mut self) -> String {
+        self.process.as_mut().unwrap().shutdown().unwrap()
+    }
 }
 
 impl TcpClientPut {
@@ -198,7 +198,7 @@ impl TcpClientPut {
         let mut tries = 3;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
-                // We are waiting 1 second for a response of the PUT behind the TCP socket.
+                // We are waiting 500ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
                 stream.set_read_timeout(Some(Duration::from_millis(500)))?;
@@ -220,24 +220,35 @@ impl TcpClientPut {
             "TcpClientPut failed to connect",
         ))
     }
-}
 
-pub struct TcpServerPut {
-    stream: Arc<Mutex<Option<(TcpStream, TcpListener)>>>,
-    deframer: MessageDeframer,
-    config: PutConfig,
-    drops: Vec<Box<dyn Any>>,
-}
-
-impl TcpServerPut {
-    pub fn drop_together(&mut self, drop: Box<dyn Any>) {
-        self.drops.push(drop);
+    pub fn set_process(&mut self, process: TLSProcess) {
+        self.process = Some(process)
     }
 }
 
-impl TcpClientPut {
-    pub fn drop_together(&mut self, drop: Box<dyn Any>) {
-        self.drops.push(drop);
+pub struct TcpServerPut {
+    stream: Option<(TcpStream, TcpListener)>,
+    stream_receiver: mpsc::Receiver<(TcpStream, TcpListener)>,
+    deframer: MessageDeframer,
+    config: PutConfig,
+    process: Option<TLSProcess>,
+}
+
+impl TcpServerPut {
+    pub fn set_process(&mut self, process: TLSProcess) {
+        self.process = Some(process)
+    }
+
+    pub fn receive_stream(&mut self) {
+        if self.stream.is_some() {
+            return;
+        }
+
+        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
+            self.stream = Some(tuple);
+        } else {
+            panic!("Unstable to get stream to client!")
+        }
     }
 }
 
@@ -247,21 +258,17 @@ impl TcpPut for TcpServerPut {
     }
 
     fn write_to_stream(&mut self, mut buf: &[u8]) -> io::Result<()> {
-        if let Ok(mut stream) = self.stream.lock() {
-            stream.as_mut().unwrap().0.write_all(buf)?;
-            stream.as_mut().unwrap().0.flush()?;
-            Ok(())
-        } else {
-            unreachable!();
-        }
+        self.receive_stream();
+        let stream = &mut self.stream.as_mut().unwrap().0;
+        stream.write_all(buf)?;
+        stream.flush()?;
+        Ok(())
     }
 
     fn read_to_deframer(&mut self) -> io::Result<usize> {
-        if let Ok(mut stream) = self.stream.lock() {
-            self.deframer.read(&mut stream.as_mut().unwrap().0)
-        } else {
-            unreachable!();
-        }
+        self.receive_stream();
+        let stream = &mut self.stream.as_mut().unwrap().0;
+        self.deframer.read(stream)
     }
 
     fn config(&self) -> &PutConfig {
@@ -269,8 +276,7 @@ impl TcpPut for TcpServerPut {
     }
 
     fn new_from_config(config: PutConfig) -> Result<Self, Error> {
-        let stream = Arc::new(Mutex::new(None));
-        let stream2 = stream.clone();
+        let (sender, stream_receiver) = channel();
         let addr = addr_from_config(&config)?;
 
         thread::spawn(move || {
@@ -278,34 +284,33 @@ impl TcpPut for TcpServerPut {
 
             for mut new_stream in listener.incoming() {
                 let stream = new_stream.unwrap();
-                // We are waiting 1 second for a response of the PUT behind the TCP socket.
+                // We are waiting 500ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
                 stream
                     .set_read_timeout(Some(Duration::from_millis(500)))
                     .unwrap();
                 stream.set_nodelay(true).unwrap();
-                println!("Connection established!");
-
-                if let Ok(mut stream2) = stream2.lock() {
-                    *stream2.deref_mut() = Some((stream, listener));
-                    return;
-                }
+                sender.send((stream, listener)).unwrap();
+                break;
             }
-
-            println!("donw");
         });
 
         Ok(Self {
-            stream,
+            stream: None,
+            stream_receiver,
             deframer: Default::default(),
             config,
-            drops: vec![],
+            process: None,
         })
     }
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        unreachable!()
+        panic!("Not supported")
+    }
+
+    fn shutdown(&mut self) -> String {
+        self.process.as_mut().unwrap().shutdown().unwrap()
     }
 }
 
@@ -415,8 +420,8 @@ where
         Ok(())
     }
 
-    fn describe_state(&self) -> &'static str {
-        panic!("Can not describe the state with TcpPut")
+    fn describe_state(&self) -> &str {
+        panic!("Not supported")
     }
 
     fn is_state_successful(&self) -> bool {
@@ -435,40 +440,53 @@ where
         Self: Sized,
     {
     }
+
+    fn shutdown(&mut self) -> String {
+        self.shutdown()
+    }
 }
 
-struct TLSProcess {
+pub struct TLSProcess {
     child: Option<Child>,
+    output: Option<String>,
 }
 
 impl TLSProcess {
     pub fn new<P: AsRef<Path>>(prog: &str, args: &str, cwd: Option<P>) -> Self {
         Self {
             child: Some(execute_command(prog, args.split(" "), cwd)),
+            output: None,
+        }
+    }
+
+    pub fn shutdown(&mut self) -> Option<String> {
+        if let Some(mut child) = self.child.take() {
+            child.kill().expect("failed to stop process");
+
+            Some(collect_output(child))
+        } else {
+            None
         }
     }
 }
 
 impl Drop for TLSProcess {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            child.kill().expect("failed to stop server");
-
-            wait_and_print(child)
-        }
+        self.shutdown();
     }
 }
 
-fn wait_and_print(child: Child) {
+fn collect_output(child: Child) -> String {
     let output = child.wait_with_output().expect("failed to wait on child");
-    info!("--- stderr");
-    let err = std::str::from_utf8(&output.stderr).unwrap();
-    info!("{}", err);
-    info!("--- stderr");
-    info!("--- stdout");
-    let out = std::str::from_utf8(&output.stdout).unwrap();
-    info!("{}", out);
-    info!("--- stdout");
+    let mut complete = "--- start stderr\n".to_string();
+
+    complete.push_str(std::str::from_utf8(&output.stderr).unwrap());
+    complete.push_str("\n--- end stderr\n");
+    complete.push_str("--- start stdout\n");
+    complete.push_str(std::str::from_utf8(&output.stdout).unwrap());
+    complete.push_str("\n--- end stdout\n");
+
+    complete
 }
 
 fn execute_command<I, S, P: AsRef<Path>>(prog: &str, args: I, cwd: Option<P>) -> Child
@@ -503,10 +521,10 @@ mod tests {
     use test_log::test;
 
     use crate::{
-        agent::TLSVersion,
+        agent::{AgentName, TLSVersion},
         put::{PutDescriptor, PutOptions},
         put_registry::{TCP_CLIENT_PUT, TCP_SERVER_PUT},
-        tcp::{execute_command, wait_and_print},
+        tcp::{collect_output, execute_command, TLSProcess},
         tls::seeds::{
             seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12,
             SeedHelper,
@@ -560,11 +578,14 @@ mod tests {
             "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...",
         ];
 
-        wait_and_print(execute_command::<_, _, &str>(
-            OPENSSL_PROG,
-            openssl_gen_cert_args,
-            None,
-        ));
+        info!(
+            "{}",
+            collect_output(execute_command::<_, _, &str>(
+                OPENSSL_PROG,
+                openssl_gen_cert_args,
+                None,
+            ))
+        );
 
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
@@ -636,7 +657,6 @@ mod tests {
             }
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
-                args.push("-no_tls1_3");
             }
         }
 
@@ -659,7 +679,6 @@ mod tests {
             }
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
-                args.push("-no_tls1_3");
             }
         }
 
@@ -681,8 +700,15 @@ mod tests {
             options: guard.build_options(),
         };
 
-        let trace = seed_session_resumption_dhe_full.build_trace_with_puts(&[put]);
+        let trace = seed_session_resumption_dhe_full.build_trace_with_puts(&[put.clone(), put]);
         trace.execute_default();
+
+        let mut context = trace.execute_default();
+
+        let server = AgentName::first().next();
+        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        info!("{}", shutdown);
+        assert!(shutdown.contains("Reused session-id"));
     }
 
     #[test]
@@ -696,7 +722,13 @@ mod tests {
         };
 
         let trace = seed_client_attacker_full.build_trace_with_puts(&[put]);
-        trace.execute_default();
+        let mut context = trace.execute_default();
+
+        let server = AgentName::first();
+        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        info!("{}", shutdown);
+        assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
+        assert!(!shutdown.contains("Reused session-id"));
     }
 
     #[test]
@@ -718,6 +750,11 @@ mod tests {
         };
 
         let trace = seed_successful12.build_trace_with_puts(&[client.clone(), server.clone()]);
-        let context = trace.execute_default();
+        let mut context = trace.execute_default();
+
+        let client = AgentName::first();
+        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        info!("{}", shutdown);
+        assert!(shutdown.contains("Session Ticket Error"));
     }
 }

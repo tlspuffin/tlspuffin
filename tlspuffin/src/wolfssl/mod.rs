@@ -241,6 +241,10 @@ impl Put for WolfSSL {
     fn make_deterministic() {
         // TODO
     }
+
+    fn shutdown(&mut self) -> String {
+        panic!("Unsupported with OpenSSL PUT")
+    }
 }
 
 impl WolfSSL {
