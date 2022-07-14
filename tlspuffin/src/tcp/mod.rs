@@ -502,7 +502,7 @@ where
 
     cmd.args(args)
         .stdin(Stdio::piped()) // This line is super important! Else the OpenSSL server immediately stops
-        .stdout(Stdio::piped())
+        .stdout(Stdio::piped()) // HINT: piping causes problems if the PUT outputs a lot of data. It might hang if buffers fill up.
         .stderr(Stdio::piped())
         .spawn()
         .expect("failed to execute process")
@@ -526,8 +526,8 @@ mod tests {
         put_registry::{TCP_CLIENT_PUT, TCP_SERVER_PUT},
         tcp::{collect_output, execute_command, TLSProcess},
         tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12,
-            SeedHelper,
+            seed_12_finding_8, seed_client_attacker_full, seed_session_resumption_dhe_full,
+            seed_successful12, SeedHelper,
         },
     };
 
@@ -590,13 +590,18 @@ mod tests {
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
 
-    fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
+    fn wolfssl_client(port: u16, version: TLSVersion, warmup: bool) -> ParametersGuard {
         let (key, cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
         let prog = "./examples/client/client";
         let cwd = "/home/max/projects/wolfssl";
+
+        if warmup {
+            args.push("-b");
+            args.push("40");
+        }
 
         match version {
             TLSVersion::V1_3 => {
@@ -741,9 +746,9 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let port = 55333;
+        let port = 44333;
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2);
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, false);
         let client = PutDescriptor {
             name: TCP_SERVER_PUT,
             options: client_guard.build_options(),
@@ -755,6 +760,33 @@ mod tests {
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
         info!("{}", shutdown);
-        assert!(shutdown.contains("Session Ticket Error"));
+        assert!(shutdown.contains("Session Ticket Error")); // Assert that this trace is currently not working as session tickets are expected
+    }
+
+    #[test]
+    fn test_wolfssl_openssl_seed_12_finding_8() {
+        let port = 44334;
+
+        let server_guard = openssl_server(port, TLSVersion::V1_2);
+        let server = PutDescriptor {
+            name: TCP_CLIENT_PUT,
+            options: server_guard.build_options(),
+        };
+
+        let port = 44335;
+
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, true);
+        let client = PutDescriptor {
+            name: TCP_SERVER_PUT,
+            options: client_guard.build_options(),
+        };
+
+        let trace = seed_12_finding_8.build_trace_with_puts(&[client.clone(), server.clone()]);
+        let mut context = trace.execute_default();
+
+        let client = AgentName::first();
+        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        info!("{}", shutdown);
+        assert!(shutdown.contains("free(): invalid pointer"));
     }
 }

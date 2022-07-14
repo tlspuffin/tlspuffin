@@ -600,6 +600,129 @@ pub fn seed_successful12(
     }
 }
 
+pub fn seed_12_finding_8(
+    client: AgentName,
+    server: AgentName,
+    client_put: PutDescriptor,
+    server_put: PutDescriptor,
+) -> Trace {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0))
+                    )
+                },
+            ),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((client, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_certificate(
+                            ((server, 0))
+                        )
+                    },
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_key_exchange(
+                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello_done
+                    },
+                }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_key_exchange(
+                            ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_opaque_message(
+                            ((client, 3)[None])
+                        )
+                    },
+                }),
+            },
+            // NewSessionTicket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_new_session_ticket(
+                            ((server, 0)/u64),
+                            fn_large_bytes_vec
+                        )
+                    },
+                }),
+            },
+        ],
+    }
+}
+
 pub fn seed_successful_with_ccs(
     client: AgentName,
     server: AgentName,
