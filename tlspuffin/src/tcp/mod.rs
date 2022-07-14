@@ -590,7 +590,7 @@ mod tests {
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
 
-    fn wolfssl_client(port: u16, version: TLSVersion, warmup: bool) -> ParametersGuard {
+    fn wolfssl_client(port: u16, version: TLSVersion, warmups: Option<usize>) -> ParametersGuard {
         let (key, cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
@@ -598,9 +598,11 @@ mod tests {
         let prog = "./examples/client/client";
         let cwd = "/home/max/projects/wolfssl";
 
-        if warmup {
+        let warmups = warmups.map(|warmups| warmups.to_string());
+
+        if let Some(warmups) = &warmups {
             args.push("-b");
-            args.push("40");
+            args.push(warmups);
         }
 
         match version {
@@ -748,7 +750,7 @@ mod tests {
 
         let port = 44333;
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2, false);
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {
             name: TCP_SERVER_PUT,
             options: client_guard.build_options(),
@@ -764,6 +766,9 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    // Not enabled in CI, requires a separate SSL server running `openssl s_server -key key.pem -cert cert.pem -accept 12345`.
+    // Also needs a patched version of wolfssl client which does N connections to port 12345.
     fn test_wolfssl_openssl_seed_12_finding_8() {
         let port = 44334;
 
@@ -775,7 +780,7 @@ mod tests {
 
         let port = 44335;
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2, true);
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
         let client = PutDescriptor {
             name: TCP_SERVER_PUT,
             options: client_guard.build_options(),
