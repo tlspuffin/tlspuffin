@@ -96,7 +96,7 @@ use crate::{
     error::Error,
     extraction::extract_knowledge,
     io::MessageResult,
-    tls::{error::FnError, violation::is_violation},
+    tls::{error::FnError, violation::bug_oracle},
     variable_data::VariableData,
 };
 
@@ -458,7 +458,7 @@ impl Trace {
         }
 
         let claims = ctx.claims.deref_borrow();
-        if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
+        if let Some(msg) = claims.check_violation(Policy { func: bug_oracle }) {
             // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             // Max: We only check for Finished claims right now, so its fine to check only at the end
             return Err(Error::SecurityClaim(msg, claims.clone()));
@@ -469,7 +469,7 @@ impl Trace {
 
     pub fn execute_default(&self) -> TraceContext {
         let mut ctx = TraceContext::new();
-        self.execute(&mut ctx).unwrap();
+        self.execute(&mut ctx).unwrap(); // This unwrap will panick for any possible errors, fine as only used for testing seeds and not the fuzzer (see [`harness.rs`])
         ctx
     }
 }

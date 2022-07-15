@@ -8,8 +8,10 @@ use crate::{
     static_certs::{ALICE_CERT, BOB_CERT},
 };
 
-pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
+/// Scans a list of claims for a security violation [`Ok("<property_violation">)`] if any and [`None`] otherwise
+pub fn bug_oracle(claims: &[Claim]) -> Option<&'static str> {
     if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
+        // Policies that are specific to traces with an honest client and server (MitM)
         if let Some(((client_claim, client), (server_claim, server))) =
             get_client_server(claim_a, claim_b)
         {
@@ -21,9 +23,10 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
                 return Some("Mismatching master secrets");
             }
 
-            if client.server_random != server.server_random {
+            if client.server_random != server.server_random { // TODO: could this happen as we only had one `fn_new_random` symbol ?
                 return Some("Mismatching server random");
             }
+
             if client.client_random != server.client_random {
                 return Some("Mismatching client random");
             }

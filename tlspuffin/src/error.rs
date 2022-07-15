@@ -6,19 +6,22 @@ use crate::{agent::AgentName, claims::ClaimList, tls::error::FnError};
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
+    /// When the bug oracle has found a security policy violation
+    SecurityClaim(&'static str, ClaimList),
+    /// Returned when a concrete function from the module [`tls`] fails or term evaluation fails
     Fn(FnError),
+    /// Returned when a term is ill-formed (should never happen)
     Term(String),
-    /// OpenSSL reported an error
+    /// OpenSSL (or other PUT) reported an error
     OpenSSL(String),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
     /// Some error which was caused because of agents or their names. Like an agent which was not found.
     Agent(String),
-    /// Error while operating on a [`Stream`]
+    /// Error while operating on a [`Stream`], should not happen
     Stream(String),
+    /// Returned when unable to extract knowledge or interpret an opaque message, should never happen (?)
     Extraction(ContentType),
-    SecurityClaim(&'static str, ClaimList),
 }
 
 impl std::error::Error for Error {}

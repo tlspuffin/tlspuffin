@@ -1,7 +1,7 @@
 //! Generic [`PUT`] trait defining an interface with a TLS library with which we can:
 //! - [`new`] create a client (or server) new initial state + bind buffers
 //! - [`progress`] makes a state progress (interacting with the buffers)
-//!
+//! - etc. (see [`Put`] trait).
 //! And specific implementations of PUT for the different PUTs.
 use std::{
     any::TypeId,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-pub struct PutName(pub [char; 10]);
+pub struct PutName(pub [char; 7]);
 
 impl Default for PutName {
     fn default() -> Self {
@@ -74,8 +74,9 @@ pub trait Put: Stream + Drop + 'static {
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    /// Access the PUT config
     fn config(&self) -> &PutConfig;
-    /// Register a new claim for agent_name
+    /// Register a new claim for agent_name accessing the PUT-specific claim extraction
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName);
     /// Remove all claims in self

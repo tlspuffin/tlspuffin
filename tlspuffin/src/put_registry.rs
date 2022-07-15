@@ -34,17 +34,17 @@ impl PutRegistry {
     }
 }
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
-pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
-pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
-pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', 'T', 'C', 'P', 'T', 'C', 'P', 'T']);
+pub const DUMMY_PUT: PutName = PutName([' ', ' ', 'D', 'U', 'M', 'Y', 'Y']);
+pub const OPENSSL_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L']);
+pub const WOLFSSL_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L']);
+pub const TCP_PUT: PutName = PutName([' ', ' ', ' ', ' ', 'T', 'C', 'P']);
 
 pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
-    crate::tcp::new_tcp_factory,
     #[cfg(feature = "openssl-binding")]
     crate::openssl::new_openssl_factory,
     #[cfg(feature = "wolfssl-binding")]
     crate::wolfssl::new_wolfssl_factory,
+    crate::tcp::new_tcp_factory,
 ]);
 
 pub trait Factory {
@@ -57,9 +57,9 @@ pub trait Factory {
 pub const CURRENT_PUT_NAME: PutName = {
     cfg_if::cfg_if! {
         if #[cfg(feature = "openssl-binding")] {
-            OPENSSL111_PUT
+            OPENSSL_PUT
         } else if #[cfg(feature = "wolfssl-binding")] {
-            WOLFSSL520_PUT
+            WOLFSSL_PUT
         } else {
             DUMMY_PUT
         }

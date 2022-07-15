@@ -32,7 +32,7 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction(_) => EXTRACTION.increment(),
             Error::SecurityClaim(msg, claims) => {
-                warn!("{} claims: {:?}", msg, claims);
+                warn!("[SECURITY VIOLATION] {} claims: {:?}", msg, claims);
                 std::process::abort()
             }
         }
