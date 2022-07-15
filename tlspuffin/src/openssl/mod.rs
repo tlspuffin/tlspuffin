@@ -327,7 +327,7 @@ impl OpenSSL {
                 .init(&store, &cert, &chain, |c| c.verify_cert())
                 .unwrap());*/
 
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx_builder.set_cert_store(store);
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
@@ -382,7 +382,7 @@ impl OpenSSL {
         }
 
         if descriptor.server_authentication {
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(ALICE_CERT.0.as_bytes())?)?;
