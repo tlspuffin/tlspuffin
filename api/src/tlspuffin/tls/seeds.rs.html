@@ -3762,24 +3762,24 @@
     <span class="kw">let</span> <span class="ident">certificate_rsa</span> <span class="op">=</span> <span class="macro">term!</span> {
         <span class="ident">fn_certificate13</span>(
             (<span class="ident">fn_get_context</span>((@<span class="ident">certificate_request_message</span>))),
-            <span class="ident">fn_empty_certificate_chain</span>
+            <span class="comment">//fn_empty_certificate_chain</span>
             <span class="comment">// Or append eve cert</span>
-            <span class="comment">/*(fn_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_eve_cert
+            (<span class="ident">fn_append_certificate_entry</span>(
+                (<span class="ident">fn_certificate_entry</span>(
+                    <span class="ident">fn_eve_cert</span>
                 )),
-              fn_empty_certificate_chain
-            ))*/</span>
+              <span class="ident">fn_empty_certificate_chain</span>
+            ))
         )
     };
 
     <span class="kw">let</span> <span class="ident">certificate_verify_rsa</span> <span class="op">=</span> <span class="macro">term!</span> {
         <span class="ident">fn_certificate_verify</span>(
             (<span class="ident">fn_invalid_signature_algorithm</span>),
-            <span class="comment">// Option 1 (something random, only possible because of fn_empty_certificate_chain):</span>
-            <span class="ident">fn_eve_cert</span> <span class="comment">// or fn_new_pubkey12, fn_empty_bytes_vec</span>
+            <span class="comment">// Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):</span>
+            <span class="comment">//fn_eve_cert // or fn_new_pubkey12, fn_empty_bytes_vec</span>
             <span class="comment">// Option 2 (impersonating eve, you have to send eve cert):</span>
-            <span class="comment">// fn_eve_pkcs1_signature</span>
+            <span class="ident">fn_eve_pkcs1_signature</span>
             <span class="comment">// Option 3 (for testing):</span>
             <span class="comment">/* (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
