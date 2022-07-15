@@ -1,17 +1,18 @@
 use core::time::Duration;
-use std::{fmt, path::PathBuf};
+use std::{fmt, fmt::Debug, path::PathBuf};
 
 use libafl::{
     bolts::{
         core_affinity::Cores,
-        rands::{Rand, RomuDuoJrRand, StdRand},
+        rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
+        AsRefIterator,
     },
-    corpus::{CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus},
+    corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
-        EventConfig, EventFirer, EventManager, EventRestarter, HasEventManagerId,
-        LlmpRestartingEventManager, ProgressReporter,
+        setup_restarting_mgr_std, EventConfig, EventFirer, EventManager, EventRestarter,
+        HasEventManagerId, LlmpRestartingEventManager, ProgressReporter,
     },
     executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
@@ -20,63 +21,32 @@ use libafl::{
         MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
-    monitors::tui::TuiMonitor,
-    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
+    monitors::{tui::TuiMonitor, MultiMonitor},
+    observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
     state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState},
-    Error,
+    Error, Evaluator,
 };
-use log::info;
+use log::{info, warn};
+use log4rs::Handle;
+use serde::{de::DeserializeOwned, Serialize};
 
 use super::harness;
 use crate::{
     fuzzer::{
-        monitor::PuffinMonitor,
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
-        stats_observer::StatsStage,
+        stats_monitor::StatsMonitor,
+        stats_stage::StatsStage,
     },
+    log::create_file_config,
     put_registry::PUT_REGISTRY,
+    tls::seeds::create_corpus,
     trace::Trace,
 };
 
-// TODO: Use feedback_or_fast
-pub fn no_minimizer_feedback<'harness, 'b, S: 'b>(
-    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
-) -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-    feedback_or!(MaxMapFeedback::new_tracking(
-        edges_observer,
-        false, // [TODO] [LH] Why are track_index and track_novelties are false?
-        false
-    ))
-}
-
-pub fn no_feedback<'harness, 'b, S: 'b>() -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-}
-
-pub fn minimizer_feedback<'harness, 'b, S: 'b>(
-    time_observer: &'harness TimeObserver,
-    edges_observer: &'harness HitcountsMapObserver<StdMapObserver<'b, u8>>,
-) -> impl Feedback<Trace, S> + 'b
-where
-    S: HasExecutions + HasClientPerfMonitor + fmt::Debug + HasNamedMetadata,
-{
-    let feedback = feedback_or!(
-        // New maximization map feedback linked to the edges observer and the feedback state
-        // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-        MaxMapFeedback::new_tracking(edges_observer, true, false),
-        // Time feedback, this one does not need a feedback state
-        // needed for IndexesLenTimeMinimizerCorpusScheduler
-        TimeFeedback::new_with_observer(time_observer)
-    );
-    feedback
-}
+pub const MAP_FEEDBACK_NAME: &str = "edges";
+const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
 type ConcreteExecutor<'harness, H, OT, S> =
     TimeoutExecutor<InProcessExecutor<'harness, H, Trace, OT, S>>;
@@ -97,6 +67,8 @@ pub struct FuzzerConfig {
     pub mutation_stage_config: MutationStageConfig,
     pub mutation_config: MutationConfig,
     pub monitor: bool,
+    pub no_launcher: bool,
+    pub log_file: PathBuf,
 }
 
 #[derive(Clone, Copy)]
@@ -132,7 +104,7 @@ impl Default for MutationConfig {
         Self {
             fresh_zoo_after: 100000,
             max_trace_length: 15,
-            min_trace_length: 5,
+            min_trace_length: 2,
             term_constraints: TermConstraints {
                 min_term_size: 0,
                 max_term_size: 300,
@@ -258,13 +230,7 @@ where
 
         let FuzzerConfig {
             initial_corpus_dir,
-            static_seed,
             max_iters,
-            core_definition,
-            monitor_file,
-            objective_dir,
-            broker_port,
-            minimizer, // FIXME: Unused
             mutation_stage_config:
                 MutationStageConfig {
                     max_iterations_per_stage,
@@ -305,25 +271,36 @@ where
                 &mut state,
                 &mut self.event_manager,
             )?,
-            Duration::new(2, 0),
+            Duration::new(5, 0),
         );
 
         // In case the corpus is empty (on first run), reset
-        if state.corpus().count() < 1 {
-            state
-                .load_initial_inputs(
-                    &mut fuzzer,
-                    &mut executor,
-                    &mut self.event_manager,
-                    &[initial_corpus_dir.clone()],
-                )
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Failed to load initial corpus at {:?}: {}",
-                        &initial_corpus_dir, err
+        if state.corpus().is_empty() {
+            if initial_corpus_dir.exists() {
+                state
+                    .load_initial_inputs(
+                        &mut fuzzer,
+                        &mut executor,
+                        &mut self.event_manager,
+                        &[initial_corpus_dir.clone()],
                     )
-                });
-            info!("We imported {} inputs from disk.", state.corpus().count());
+                    .unwrap_or_else(|err| {
+                        panic!(
+                            "Failed to load initial corpus at {:?}: {}",
+                            &initial_corpus_dir, err
+                        )
+                    });
+                info!("Imported {} inputs from disk.", state.corpus().count());
+            } else {
+                warn!("Initial seed corpus not found. Using embedded seeds.");
+
+                for (seed, name) in create_corpus() {
+                    info!("Using seed {}", name);
+                    fuzzer
+                        .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
+                        .expect("Failed to add input");
+                }
+            }
         }
 
         if let Some(max_iters) = max_iters {
@@ -405,15 +382,36 @@ where
         > + ProgressReporter<Trace>,
 {
     fn install_minimizer(self) -> Self {
+        #[cfg(not(test))]
+        let map = unsafe {
+            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
+        #[cfg(test)]
+        let map = unsafe {
+            // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
+            pub const EDGES_MAP_SIZE: usize = 65536;
+            pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
+            pub static mut MAX_EDGES_NUM: usize = 0;
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
+        let map_feedback = MaxMapFeedback::with_names_tracking(
+            MAP_FEEDBACK_NAME,
+            EDGES_OBSERVER_NAME,
+            true,
+            false,
+        );
+
         let (feedback, observers) = {
             let time_observer = TimeObserver::new("time");
-            let edges_observer = HitcountsMapObserver::new(StdMapObserver::new("edges", unsafe {
-                &mut super::EDGES_MAP[0..super::MAX_EDGES_NUM]
-            }));
+            let edges_observer =
+                HitcountsMapObserver::new(StdMapObserver::new(EDGES_OBSERVER_NAME, map));
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-                MaxMapFeedback::new_tracking(&edges_observer, true, false),
+                map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::new_with_observer(&time_observer)
@@ -428,8 +426,21 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start(config: FuzzerConfig) {
-    info!("Running on {} cores", &config.core_definition);
+pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Error> {
+    let FuzzerConfig {
+        core_definition,
+        corpus_dir,
+        objective_dir,
+        static_seed,
+        log_file,
+        monitor_file,
+        broker_port,
+        monitor,
+        no_launcher,
+        ..
+    } = &config;
+
+    info!("Running on cores: {}", &core_definition);
 
     let mut run_client =
         |state: Option<StdState<_, Trace, _, _>>,
@@ -437,63 +448,102 @@ pub fn start(config: FuzzerConfig) {
          _unknown: usize|
          -> Result<(), Error> {
             PUT_REGISTRY.make_deterministic();
-            let seed = config
-                .static_seed
-                .unwrap_or(event_manager.mgr_id().id as u64);
+
+            let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
-            RunClientBuilder::new(config.clone(), &mut harness::harness, state, event_manager)
+            let harness_fn = &mut harness::harness;
+
+            let mut builder =
+                RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+            builder = builder
                 .with_rand(StdRand::with_seed(seed))
-                .with_corpus(CachedOnDiskCorpus::new(config.corpus_dir.clone(), 1000).unwrap())
-                .with_objective_corpus(OnDiskCorpus::new(config.objective_dir.clone()).unwrap())
-                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()))
-                .install_minimizer()
-                .run_client()
+                .with_corpus(
+                    CachedOnDiskCorpus::new_save_meta(
+                        corpus_dir.clone(),
+                        Some(OnDiskMetadataFormat::Json),
+                        1000,
+                    )
+                    .unwrap(),
+                )
+                .with_objective_corpus(
+                    OnDiskCorpus::new_save_meta(
+                        objective_dir.clone(),
+                        Some(OnDiskMetadataFormat::JsonPretty),
+                    )
+                    .unwrap(),
+                )
+                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+
+            #[cfg(feature = "sancov_libafl")]
+            {
+                builder = builder.install_minimizer();
+            }
+
+            #[cfg(not(feature = "sancov_libafl"))]
+            {
+                log::error!("Running without minimizer is unsupported");
+                builder = builder
+                    .with_feedback(())
+                    .with_observers(())
+                    .with_scheduler(libafl::schedulers::RandScheduler::new());
+            }
+
+            log_handle.clone().set_config(create_file_config(log_file));
+
+            builder.run_client()
         };
 
-    let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
-    let configuration: EventConfig = "launcher default".into();
-    let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
-
-    let launch_result = match config.monitor {
-        true => libafl::bolts::launcher::Launcher::builder()
-            .shmem_provider(sh_mem_provider)
-            .configuration(configuration)
-            .monitor(TuiMonitor::new("test".to_string(), false))
-            .run_client(&mut run_client)
-            .cores(&cores)
-            .broker_port(config.broker_port)
-            //todo where should we log the output of the harness?
-            /*.stdout_file(Some("/dev/null"))*/
-            .build()
-            .launch(),
-        false => libafl::bolts::launcher::Launcher::builder()
-            .shmem_provider(sh_mem_provider)
-            .configuration(configuration)
-            .monitor(
-                PuffinMonitor::new(
-                    |s| {
-                        info!("{}", s);
-                    },
-                    config.monitor_file.clone(),
-                )
-                .unwrap(),
+    if *no_launcher {
+        let (state, restarting_mgr) = setup_restarting_mgr_std(
+            StatsMonitor::new(
+                |s| {
+                    info!("{}", s);
+                },
+                monitor_file.clone(),
             )
-            .run_client(&mut run_client)
-            .cores(&cores)
-            .broker_port(config.broker_port)
-            //todo where should we log the output of the harness?
-            /*.stdout_file(Some("/dev/null"))*/
-            .build()
-            .launch(),
-    };
-    if let Err(error) = launch_result {
-        match error {
-            Error::ShuttingDown => {
-                // ignore
-            }
-            _ => {
-                panic!("{}", error)
-            }
+            .unwrap(),
+            *broker_port,
+            EventConfig::AlwaysUnique,
+        )?;
+
+        run_client(state, restarting_mgr, 0)
+    } else {
+        let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
+        let configuration: EventConfig = "launcher default".into();
+        let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
+
+        if *monitor {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(sh_mem_provider)
+                .configuration(configuration)
+                .monitor(TuiMonitor::new("test".to_string(), false))
+                .run_client(&mut run_client)
+                .cores(&cores)
+                .broker_port(*broker_port)
+                .build()
+                .launch()
+        } else {
+            libafl::bolts::launcher::Launcher::builder()
+                .shmem_provider(sh_mem_provider)
+                .configuration(configuration)
+                .monitor(
+                    StatsMonitor::new(
+                        |s| {
+                            info!("{}", s);
+                        },
+                        monitor_file.clone(),
+                    )
+                    .unwrap(),
+                )
+                .run_client(&mut run_client)
+                .cores(&cores)
+                .broker_port(*broker_port)
+                // There is no need to disable the stdout of the clients.
+                // tlspuffin never logs or outputs to stdout. It always logs its output
+                // to tlspuffin-log.json.
+                // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
+                .build()
+                .launch()
         }
     }
 }

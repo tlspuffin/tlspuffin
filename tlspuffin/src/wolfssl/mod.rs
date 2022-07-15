@@ -1,31 +1,39 @@
 #![allow(non_snake_case)]
 
 use std::{
+    borrow::{Borrow, BorrowMut},
     cell::RefCell,
-    ffi::CString,
+    ffi::{CStr, CString},
     io::{ErrorKind, Read, Write},
-    ptr,
+    mem::MaybeUninit,
+    ops::Deref,
+    os::raw::{c_uchar, c_void},
     rc::Rc,
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
-use rustls::msgs::message::OpaqueMessage;
-use security_claims::register::Claimer;
+use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
+use smallvec::SmallVec;
 
 use crate::{
-    agent::{AgentName, PutName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
+    claims::{
+        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TranscriptCertificate,
+        TranscriptClientFinished, TranscriptClientHello, TranscriptServerFinished,
+        TranscriptServerHello,
+    },
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    put::{Config, Put},
-    put_registry::{Factory, WOLFSSL520},
-    static_certs::{CERT, PRIVATE_KEY},
-    trace::VecClaimer,
-    wolfssl,
+    put::{Put, PutConfig, PutName},
+    put_registry::{Factory, WOLFSSL520_PUT},
+    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
+        bio::{MemBio, MemBioSlice},
         error::{ErrorStack, SslError},
-        pkey::PKey,
-        ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
-        transcript::claim_transcript,
+        ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
+        transcript::extract_current_transcript,
+        util::{cvt, cvt_n, cvt_p},
         version::version,
         x509::X509,
     },
@@ -33,9 +41,10 @@ use crate::{
 
 mod bio;
 mod callbacks;
-mod dummy_callbacks;
 mod error;
+#[cfg(not(feature = "wolfssl430"))]
 mod pkey;
+#[cfg(not(feature = "wolfssl430"))]
 mod rsa;
 mod ssl;
 mod transcript;
@@ -46,12 +55,16 @@ mod x509;
 pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     struct WolfSSLFactory;
     impl Factory for WolfSSLFactory {
-        fn create(&self, config: Config) -> Box<dyn Put> {
-            Box::new(WolfSSL::new(config).unwrap())
+        fn create(
+            &self,
+            agent: &AgentDescriptor,
+            config: PutConfig,
+        ) -> Result<Box<dyn Put>, Error> {
+            Ok(Box::new(WolfSSL::new(agent, config)?))
         }
 
         fn put_name(&self) -> PutName {
-            WOLFSSL520
+            WOLFSSL520_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -73,8 +86,9 @@ impl From<ErrorStack> for Error {
 }
 
 pub struct WolfSSL {
+    ctx: SslContext,
     stream: SslStream<MemoryStream>,
-    config: Config,
+    config: PutConfig,
 }
 
 impl Stream for WolfSSL {
@@ -88,22 +102,6 @@ impl Stream for WolfSSL {
     }
 }
 
-impl Read for WolfSSL {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.stream.get_mut().read(buf)
-    }
-}
-
-impl Write for WolfSSL {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.stream.get_mut().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.stream.get_mut().flush()
-    }
-}
-
 impl Drop for WolfSSL {
     fn drop(&mut self) {
         #[cfg(feature = "claims")]
@@ -113,66 +111,53 @@ impl Drop for WolfSSL {
     }
 }
 
+impl WolfSSL {
+    fn new_stream(
+        ctx: &SslContextRef,
+        config: &PutConfig,
+    ) -> Result<SslStream<MemoryStream>, Error> {
+        let ssl = match config.typ {
+            AgentType::Server => Self::create_server(ctx)?,
+            AgentType::Client => Self::create_client(ctx)?,
+        };
+
+        Ok(SslStream::new(ssl, MemoryStream::new())?)
+    }
+}
+
 impl Put for WolfSSL {
-    fn new(config: Config) -> Result<Self, Error>
+    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized,
     {
-        let ssl = if config.server {
-            //let (cert, pkey) = openssl_binding::generate_cert();
-            // FIXME: let (cert, pkey) = static_rsa_cert()?;
-
-            let mut ssl = Self::create_server(config.tls_version)?;
-            let claimer = config.claimer.clone();
-            // FIXME: Improve code here -> deduplicate
-            ssl.set_msg_callback(move |ssl: &mut SslRef| unsafe {
-                let claimer = claimer.clone();
-                let mut fn_claimer = move |claim: security_claims::Claim| {
-                    let mut claimer = (*claimer).borrow_mut();
-                    claimer.claim(config.agent_name, claim);
-                };
-                claim_transcript(ssl.as_ptr(), &mut fn_claimer);
-            });
-
-            ssl
-        } else {
-            Self::create_client(config.tls_version)?
+        let mut ctx = match config.typ {
+            AgentType::Server => Self::create_server_ctx(agent)?,
+            AgentType::Client => Self::create_client_ctx(agent)?,
         };
 
-        let stream = SslStream::new(ssl, MemoryStream::new())?;
+        #[cfg(not(feature = "wolfssl430"))]
+        ctx.set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
 
-        #[cfg(not(feature = "claims"))]
-        let wolfssl = WolfSSL {
+        let mut stream = Self::new_stream(&ctx, &config)?;
+
+        #[cfg(feature = "wolfssl430")]
+        stream
+            .ssl_mut()
+            .set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
+
+        let mut wolfssl = WolfSSL {
+            ctx,
             stream,
             config: config.clone(),
         };
 
         #[cfg(feature = "claims")]
-        let wolfssl = {
-            let mut stream = WolfSSL {
-                stream,
-                config: config.clone(),
-            };
-            stream.register_claimer(config.claimer, config.agent_name);
-            stream
-        };
+        stream.register_claimer(config.claims, config.agent_name);
         Ok(wolfssl)
     }
 
-    fn progress(&mut self) -> Result<(), Error> {
-        unsafe {
-            // FIXME: Improve code here -> deduplicate
-            let claimer = self.config.claimer.clone();
-            let name = self.config.agent_name;
-            claim_transcript(
-                self.stream.ssl().as_ptr(),
-                &mut move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(name, claim);
-                },
-            )
-        }
-
-        if self.is_state_successful() {
+    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
+        let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
             let maybe_error: MaybeError = self.stream.ssl_read(&mut vec).into();
@@ -180,21 +165,30 @@ impl Put for WolfSSL {
         } else {
             let maybe_error: MaybeError = self.stream.do_handshake().into();
             maybe_error.into()
-        }
+        };
+
+        self.deferred_transcript_extraction(agent_name);
+
+        result
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
-        self.stream.clear();
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+        self.stream = Self::new_stream(&self.ctx, &self.config)?;
+        //self.stream.clear();
         Ok(())
     }
 
+    fn config(&self) -> &PutConfig {
+        &self.config
+    }
+
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claimer).borrow_mut().claim(agent_name, claim)
+                    (*claims).borrow_mut().claim(agent_name, claim)
                 },
             );
         }
@@ -208,30 +202,23 @@ impl Put for WolfSSL {
     }
 
     #[allow(unused_variables)]
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName) {
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(claimer.clone(), agent_name);
+            self.register_claimer(agent_name);
         }
 
-        unsafe {
-            // FIXME
-            self.config.claimer = claimer.clone();
-            self.config.agent_name = agent_name;
-            // FIXME: Improve code here -> deduplicate
-            let claimer = claimer.clone();
-            self.stream
-                .ssl_mut()
-                .set_msg_callback(move |ssl: &mut SslRef| unsafe {
-                    let claimer = claimer.clone();
-                    let mut fn_claimer = move |claim: security_claims::Claim| {
-                        let mut claimer = (*claimer).borrow_mut();
-                        claimer.claim(agent_name, claim);
-                    };
-                    claim_transcript(ssl.as_ptr(), &mut fn_claimer);
-                });
-        }
+        #[cfg(not(feature = "wolfssl430"))]
+        self.ctx
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
+
+        #[cfg(feature = "wolfssl430")]
+        self.stream
+            .ssl_mut()
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
+
+        Ok(())
     }
 
     fn describe_state(&self) -> &'static str {
@@ -243,6 +230,10 @@ impl Put for WolfSSL {
         self.stream.state_string_long()
     }
 
+    fn is_state_successful(&self) -> bool {
+        self.stream.is_handshake_done()
+    }
+
     fn version() -> &'static str {
         unsafe { version() }
     }
@@ -250,68 +241,233 @@ impl Put for WolfSSL {
     fn make_deterministic() {
         // TODO
     }
-
-    fn is_state_successful(&self) -> bool {
-        self.stream.is_handshake_done()
-    }
 }
 
 impl WolfSSL {
-    pub fn create_client(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
-        let mut ctx = match tls_version {
+    pub fn create_client_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+        let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
-            TLSVersion::Unknown => panic!("Unknown tls version"),
         };
+
+        ctx.disable_session_cache()?;
+
+        if descriptor.client_authentication {
+            let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
+            ctx.set_certificate(cert.as_ref())?;
+
+            #[cfg(not(feature = "wolfssl430"))]
+            {
+                let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(
+                    crate::static_certs::BOB_PRIVATE_KEY.0.as_bytes(),
+                )?;
+                let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+                ctx.set_private_key(pkey.as_ref())?;
+            }
+            #[cfg(feature = "wolfssl430")]
+            {
+                ctx.set_private_key_pem(BOB_PRIVATE_KEY.0.as_bytes())?;
+            }
+        }
+
+        if descriptor.server_authentication {
+            ctx.set_verify(SslVerifyMode::PEER);
+            ctx.load_verify_buffer(ALICE_CERT.0.as_bytes())?;
+            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
+        } else {
+            // Disable certificate verify
+            ctx.set_verify(SslVerifyMode::NONE);
+        }
 
         // Disallow EXPORT in client
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
-        // Disable certificate verify FIXME: Why is this not needed in OpenSSL?
-        ctx.set_verify(SslVerifyMode::NONE);
 
+        Ok(ctx)
+    }
+
+    pub fn create_client(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
         let mut ssl: Ssl = Ssl::new(&ctx)?;
         ssl.set_connect_state();
 
-        // Force requesting session ticket because `seed_successfull12` expects it. FIXME: add new tests for this
+        // Force requesting session ticket because `seed_successfull12` expects it.
         ssl.use_session_ticket();
 
         Ok(ssl)
     }
 
-    pub fn create_server(tls_version: TLSVersion) -> Result<Ssl, ErrorStack> {
-        let mut ctx = match tls_version {
+    pub fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+        let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
-            TLSVersion::Unknown => panic!("Unknown tls version"),
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
-        ctx.disable_session_cache();
+        ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
-        let cert = X509::from_pem(CERT.as_bytes())?;
+        let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
         ctx.set_certificate(cert.as_ref())?;
 
-        let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(PRIVATE_KEY.as_bytes())?;
-        let pkey = PKey::from_rsa(rsa)?;
-        ctx.set_private_key(pkey.as_ref())?;
+        #[cfg(not(feature = "wolfssl430"))]
+        {
+            let rsa =
+                crate::wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
+            let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+            ctx.set_private_key(pkey.as_ref())?;
+        }
+        #[cfg(feature = "wolfssl430")]
+        {
+            ctx.set_private_key_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
+        }
 
-        // TODO: Callbacks for experiements
+        if descriptor.client_authentication {
+            ctx.set_verify(SslVerifyMode::PEER);
+            ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
+            ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
+        } else {
+            ctx.set_verify(SslVerifyMode::NONE);
+        }
+
+        // Callbacks for experiements
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
         //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
         //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
         //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
 
         // We expect two tickets like in OpenSSL
+        #[cfg(not(feature = "wolfssl430"))]
         ctx.set_num_tickets(2)?;
+        Ok(ctx)
+    }
 
+    pub fn create_server(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
         //// SSL pointer builder
         let mut ssl: Ssl = Ssl::new(&ctx)?;
 
         ssl.set_accept_state();
         Ok(ssl)
+    }
+
+    fn deferred_transcript_extraction(&self, agent_name: &AgentName) {
+        let config = self.config();
+        if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
+            if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
+                let CERT_SHAPE: TypeShape = TypeShape::of::<TranscriptCertificate>();
+                let FINISHED_SHAPE: TypeShape = TypeShape::of::<TranscriptServerFinished>();
+                let CLIENT_SHAPE: TypeShape = TypeShape::of::<TranscriptClientFinished>();
+
+                let data = if type_shape == CERT_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::Certificate(
+                        TranscriptCertificate(transcript),
+                    )))
+                } else if type_shape == FINISHED_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                        TranscriptServerFinished(transcript),
+                    )))
+                } else if type_shape == CLIENT_SHAPE {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
+                        TranscriptClientFinished(transcript),
+                    )))
+                } else {
+                    None
+                };
+
+                if let Some(data) = data {
+                    config.claims.deref_borrow_mut().claim_sized(Claim {
+                        agent_name: *agent_name,
+                        origin: config.typ,
+                        protocol_version: config.tls_version,
+                        data,
+                    });
+                }
+            }
+        }
+    }
+
+    fn create_msg_callback(
+        agent_name: AgentName,
+        config: &PutConfig,
+    ) -> impl Fn(&mut SslRef, HandshakeType, bool) {
+        let origin = config.typ;
+        let protocol_version = config.tls_version;
+        let claims = config.claims.clone();
+        let extract_transcript = config.extract_deferred.clone();
+        let authenticate_peer = config.authenticate_peer;
+
+        move |context: &mut SslRef, typ: HandshakeType, outbound: bool| unsafe {
+            if !outbound {
+                match typ {
+                    HandshakeType::Certificate => {
+                        // Extract ClientHello..ServerFinished..Certificate transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptCertificate>());
+                    }
+                    HandshakeType::CertificateVerify => {
+                        // Extract ClientHello..ServerFinished..CertificateVerify transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptServerFinished>());
+                    }
+                    HandshakeType::Finished => {
+                        claims.deref_borrow_mut().claim_sized(Claim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                                outbound,
+                                client_random: Default::default(), // TODO
+                                server_random: Default::default(), // TODO
+                                session_id: Default::default(),    // TODO
+                                authenticate_peer,
+                                peer_certificate: context
+                                    .get_peer_certificate()
+                                    .unwrap_or_else(|| SmallVec::new()),
+                                master_secret: Default::default(), // TODO
+                                chosen_cipher: 0,                  // TODO
+                                available_ciphers: Default::default(), // TODO
+                                signature_algorithm: 0,            // TODO
+                                peer_signature_algorithm: 0,       // TODO
+                            })),
+                        });
+
+                        // Extract ClientHello..ClientFinished transcript
+                        // at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptClientFinished>());
+                    }
+                    _ => {}
+                }
+            }
+
+            // type only work correctly for inbound messages
+            if let Some(transcript) = extract_current_transcript(context) {
+                let claim = match context.server_state() {
+                    wolfssl_sys::states_SERVER_HELLO_COMPLETE => {
+                        // Extract ClientHello..ServerFinished transcript at the end of the message flight
+                        *extract_transcript.deref().borrow_mut() =
+                            Some(TypeShape::of::<TranscriptServerFinished>());
+
+                        // Extract ClientHello..ServerHello transcript in-flight
+                        Some(ClaimData::Transcript(ClaimDataTranscript::ServerHello(
+                            TranscriptServerHello(transcript),
+                        )))
+                    }
+                    _ => None,
+                };
+
+                if let Some(data) = claim {
+                    claims.deref_borrow_mut().claim_sized(Claim {
+                        agent_name,
+                        origin,
+                        protocol_version,
+                        data,
+                    });
+                }
+            }
+        }
     }
 }
 
@@ -327,7 +483,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // trace!("Would have blocked but the underlying stream is non-blocking!");
+                        // debug!("Would have blocked but the underlying stream is non-blocking!");
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

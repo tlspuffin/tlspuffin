@@ -1,34 +1,37 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
+    cell::{Ref, RefMut},
     cmp,
-    collections::HashMap,
     ffi::{CStr, CString},
     io,
     io::{Read, Write},
     marker::PhantomData,
     mem::ManuallyDrop,
     panic, ptr,
-    ptr::NonNull,
-    sync::{Arc, Mutex, Once},
+    sync::Once,
 };
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
-use libc::{c_int, c_long, c_void};
+use libc::{c_int, c_uchar, c_void};
+use log::LevelFilter;
+use rustls::msgs::enums::HandshakeType;
+use smallvec::SmallVec;
 use wolfssl_sys as wolf;
 
 use crate::{
     agent::TLSVersion,
+    static_certs::ALICE_PRIVATE_KEY,
     wolfssl::{
         bio,
-        callbacks::{msg_callback, ExtraUserDataRegistry, UserData},
-        dummy_callbacks::{SSL_connect_ex, SSL_connect_timeout_ex},
-        error::{Error, ErrorCode, ErrorStack, InnerError, SslError},
-        pkey::{HasPrivate, PKeyRef},
+        callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
+        error::{ErrorCode, ErrorStack, InnerError, SslError},
         util::{cvt, cvt_n, cvt_p},
         x509::X509Ref,
     },
 };
+
+const EXTRA_USER_DATA_REGISTRY_INDEX: i32 = 0;
 
 bitflags! {
     /// Options controlling the behavior of certificate verification.
@@ -82,20 +85,32 @@ impl SslMethod {
     }
 }
 
+enum AcceptState {
+    TLS13_ACCEPT_SECOND_REPLY_DONE = 1,
+}
+
+pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
+    SslContextRef::from_ptr(ctx)
+        .drop_ex_data::<ExtraUserDataRegistry>(EXTRA_USER_DATA_REGISTRY_INDEX);
+
+    wolfssl_sys::wolfSSL_CTX_free(ctx);
+}
+
 foreign_type! {
     pub unsafe type SslContext: Sync + Send {
         type CType = wolfssl_sys::WOLFSSL_CTX;
-        fn drop = wolfssl_sys::wolfSSL_CTX_free;
+        fn drop = drop_ssl_context;
     }
 }
 
 impl SslContext {
     pub fn new(method: SslMethod) -> Result<Self, ErrorStack> {
         unsafe {
-            init(false);
-            let ctx = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
-
-            Ok(Self::from_ptr(ctx))
+            init(log::max_level() >= LevelFilter::Trace);
+            let ptr = cvt_p(wolf::wolfSSL_CTX_new(method.as_ptr()))?;
+            let mut ctx = Self::from_ptr(ptr);
+            ctx.set_ex_data(EXTRA_USER_DATA_REGISTRY_INDEX, ExtraUserDataRegistry::new());
+            Ok(ctx)
         }
     }
 }
@@ -117,6 +132,98 @@ impl SslContextRef {
             cvt(wolf::wolfSSL_CTX_set_cipher_list(
                 self.as_ptr(),
                 cipher_list.as_ptr() as *const _,
+            ))
+            .map(|_| ())
+        }
+    }
+
+    /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL handshake. The peer certificate sent during the handshake is compared by using the SKID when available and the signature. If these two things do not match then any loaded CAs are used. Is the same functionality as wolfSSL_CTX_trust_peer_cert except is from a buffer instead of a file. Feature is enabled by defining the macro WOLFSSL_TRUST_PEER_CERT Please see the examples for proper usage.
+    ///
+    /// This corresponds to [`wolfSSL_CTX_load_verify_buffer`].
+    /// [`wolfSSL_CTX_load_verify_buffer`]: https://www.wolfssl.com/documentation/manuals/wolfssl/group__CertsKeys.html#function-wolfssl_ctx_load_verify_buffer
+    pub fn load_verify_buffer(&self, cert: &[u8]) -> Result<(), ErrorStack> {
+        unsafe {
+            unsafe {
+                cvt(wolf::wolfSSL_CTX_load_verify_buffer(
+                    self.as_ptr(),
+                    cert.as_ptr() as *const u8,
+                    cert.len() as i64,
+                    wolf::WOLFSSL_FILETYPE_PEM,
+                ))
+                .map(|_| ())
+            }
+        }
+    }
+
+    /// Returns a reference to the extra data at the specified index.
+    ///
+    /// This corresponds to [`SSL_CTX_get_ex_data`].
+    ///
+    /// [`SSL_CTX_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_CTX_get_ex_data.html
+    pub fn ex_data<T>(&self, index: i32) -> Option<&T> {
+        unsafe {
+            let data = wolf::wolfSSL_CTX_get_ex_data(self.as_ptr(), index);
+            if data.is_null() {
+                None
+            } else {
+                Some(&*(data as *const T))
+            }
+        }
+    }
+
+    /// Sets the extra data at the specified index.
+    ///
+    /// This can be used to provide data to callbacks registered with the context. Use the
+    /// `SslContext::new_ex_index` method to create an `Index`.
+    ///
+    /// This corresponds to [`SSL_CTX_set_ex_data`].
+    ///
+    /// [`SSL_CTX_set_ex_data`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_set_ex_data.html
+    pub fn set_ex_data<T>(&mut self, index: i32, data: T) {
+        unsafe {
+            let data = Box::into_raw(Box::new(data)) as *mut c_void;
+            wolf::wolfSSL_CTX_set_ex_data(self.as_ptr(), index, data);
+        }
+    }
+
+    pub fn drop_ex_data<T>(&self, index: i32) {
+        unsafe {
+            let data = wolf::wolfSSL_CTX_get_ex_data(self.as_ptr(), index);
+            if !data.is_null() {
+                Box::<T>::from_raw(data as *mut T);
+            }
+        }
+    }
+
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get::<T>()
+    }
+
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get_mut()
+    }
+
+    pub fn set_user_data<T: 'static>(&self, value: T) {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.set(value);
+    }
+
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
+    where
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
+    {
+        // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
+        unsafe {
+            self.set_user_data(callback);
+            cvt(wolf::wolfSSL_CTX_set_msg_callback(
+                self.as_ptr(),
+                Some(ctx_msg_callback::<F>),
             ))
             .map(|_| ())
         }
@@ -151,14 +258,31 @@ impl SslContextRef {
     /// This corresponds to [`SSL_CTX_use_PrivateKey`].
     ///
     /// [`SSL_CTX_use_PrivateKey`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_use_PrivateKey_file.html
-    pub fn set_private_key<T>(&mut self, key: &PKeyRef<T>) -> Result<(), ErrorStack>
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_private_key<T>(
+        &mut self,
+        key: &crate::wolfssl::pkey::PKeyRef<T>,
+    ) -> Result<(), ErrorStack>
     where
-        T: HasPrivate,
+        T: crate::wolfssl::pkey::HasPrivate,
     {
         unsafe {
             cvt(wolf::wolfSSL_CTX_use_PrivateKey(
                 self.as_ptr(),
                 key.as_ptr(),
+            ))
+            .map(|_| ())
+        }
+    }
+
+    #[cfg(feature = "wolfssl430")]
+    pub fn set_private_key_pem(&mut self, key: &[u8]) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt(wolf::wolfSSL_CTX_use_PrivateKey_buffer(
+                self.as_ptr(),
+                key.as_ptr() as *const u8,
+                key.len() as i64,
+                wolf::WOLFSSL_FILETYPE_PEM,
             ))
             .map(|_| ())
         }
@@ -175,6 +299,7 @@ impl SslContextRef {
         }
     }
 
+    #[cfg(not(feature = "wolfssl430"))]
     pub fn set_num_tickets(&mut self, n: u64) -> Result<(), ErrorStack> {
         unsafe { cvt(wolf::wolfSSL_CTX_set_num_tickets(self.as_ptr(), n)).map(|_| ()) }
     }
@@ -184,20 +309,25 @@ impl SslContextRef {
 pub fn init(debug: bool) {
     // explicitly initialize to work around https://github.com/openssl/openssl/issues/3505
     static INIT: Once = Once::new();
-    let init_options = wolf::OPENSSL_INIT_LOAD_SSL_STRINGS;
 
     INIT.call_once(|| unsafe {
         if debug {
             wolf::wolfSSL_Debugging_ON();
         }
-        wolf::wolfSSL_OPENSSL_init_ssl(init_options as u64, ptr::null_mut());
+        wolf::wolfSSL_Init();
     })
+}
+
+pub unsafe fn drop_ssl(ssl: *mut wolf::WOLFSSL) {
+    SslRef::from_ptr(ssl).drop_ex_data::<ExtraUserDataRegistry>(EXTRA_USER_DATA_REGISTRY_INDEX);
+
+    wolfssl_sys::wolfSSL_free(ssl);
 }
 
 foreign_type! {
     pub unsafe type Ssl: Sync + Send {
         type CType = wolfssl_sys::WOLFSSL;
-        fn drop = wolfssl_sys::wolfSSL_free;
+        fn drop = drop_ssl;
     }
 }
 
@@ -207,7 +337,7 @@ impl Ssl {
             let ptr = cvt_p(wolf::wolfSSL_new(ctx.as_ptr()))?;
             let mut ssl = Ssl::from_ptr(ptr);
 
-            ssl.set_ex_data(0, ExtraUserDataRegistry::new()); // FIXME: make sure 0 is not reused
+            ssl.set_ex_data(EXTRA_USER_DATA_REGISTRY_INDEX, ExtraUserDataRegistry::new());
 
             Ok(ssl)
         }
@@ -240,13 +370,13 @@ impl SslRef {
     /// This corresponds to [`SSL_get_ex_data`].
     ///
     /// [`SSL_get_ex_data`]: https://www.openssl.org/docs/manmaster/man3/SSL_set_ex_data.html
-    pub fn ex_data<T>(&self, index: i32) -> Option<&mut T> {
+    pub fn ex_data<T>(&self, index: i32) -> Option<&T> {
         unsafe {
             let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index);
             if data.is_null() {
                 None
             } else {
-                Some(&mut *(data as *mut T))
+                Some(&*(data as *mut T))
             }
         }
     }
@@ -261,33 +391,35 @@ impl SslRef {
     }
 
     pub fn set_user_data<T: 'static>(&self, value: T) {
-        let registry: &mut ExtraUserDataRegistry =
+        let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
-        registry.user_data.insert(
-            TypeId::of::<T>(),
-            UserData {
-                data: Box::new(value),
-            },
-        );
+        registry.set::<T>(value)
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<&T> {
-        let registry: &mut ExtraUserDataRegistry =
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+        let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
-        registry
-            .user_data
-            .get(&TypeId::of::<T>())
-            .and_then(|data| data.data.downcast_ref())
+        registry.get::<T>()
     }
 
-    pub fn set_msg_callback<F>(&mut self, callback: F)
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+        let registry: &ExtraUserDataRegistry =
+            self.ex_data(0).expect("unable to find user data registry");
+        registry.get_mut::<T>()
+    }
+
+    pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef) + 'static,
+        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
             self.set_user_data(callback);
-            wolf::wolfSSL_set_msg_callback(self.as_ptr(), Some(msg_callback::<F>));
+            cvt(wolf::wolfSSL_set_msg_callback(
+                self.as_ptr(),
+                Some(ssl_msg_callback::<F>),
+            ))
+            .map(|_| ())
         }
     }
 
@@ -315,8 +447,12 @@ impl SslRef {
         }
     }
 
-    pub fn handshake_state(&self) -> &'static str {
-        let state = unsafe { (*self.as_ptr()).options.handShakeState };
+    pub fn server_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.serverState as u32 }
+    }
+
+    pub fn server_state_str(&self) -> &'static str {
+        let state = unsafe { (*self.as_ptr()).options.serverState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
         match state as u32 {
@@ -330,6 +466,7 @@ impl SslRef {
                 "SERVER_ENCRYPTED_EXTENSIONS_COMPLETE"
             }
             wolf::states_SERVER_CERT_COMPLETE => "SERVER_CERT_COMPLETE",
+            #[cfg(not(feature = "wolfssl430"))]
             wolf::states_SERVER_CERT_VERIFY_COMPLETE => "SERVER_CERT_VERIFY_COMPLETE",
             wolf::states_SERVER_KEYEXCHANGE_COMPLETE => "SERVER_KEYEXCHANGE_COMPLETE",
             wolf::states_SERVER_HELLODONE_COMPLETE => "SERVER_HELLODONE_COMPLETE",
@@ -345,7 +482,39 @@ impl SslRef {
         }
     }
 
-    pub fn accept_state(&self, tls_version: TLSVersion) -> &'static str {
+    pub fn get_peer_certificate(&self) -> Option<SmallVec<[u8; 32]>> {
+        unsafe {
+            let cert = wolf::wolfSSL_get_peer_certificate(self.as_ptr());
+
+            if !cert.is_null() {
+                let mut buffer: *mut c_uchar = ptr::null_mut();
+
+                let cert_buffer = if let Ok(length) = cvt(wolf::wolfSSL_i2d_X509(cert, &mut buffer))
+                {
+                    let vec =
+                        SmallVec::from_slice(std::slice::from_raw_parts(buffer, length as usize));
+                    if !buffer.is_null() {
+                        wolfssl_sys::wolfSSL_Free(buffer as *mut c_void);
+                    }
+                    Some(vec)
+                } else {
+                    None
+                };
+
+                wolfssl_sys::wolfSSL_X509_free(cert);
+
+                cert_buffer
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn get_accept_state(&self) -> u32 {
+        unsafe { (*self.as_ptr()).options.acceptState as u32 }
+    }
+
+    pub fn accept_state_str(&self, tls_version: TLSVersion) -> &'static str {
         let state = unsafe { (*self.as_ptr()).options.acceptState };
 
         // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
@@ -381,7 +550,7 @@ impl SslRef {
                 wolf::AcceptStateTls13_TLS13_TICKET_SENT => "TLS13_TICKET_SENT",
                 _ => "Unknown",
             },
-            TLSVersion::Unknown | TLSVersion::V1_2 => match state as u32 {
+            TLSVersion::V1_2 => match state as u32 {
                 wolf::AcceptState_ACCEPT_BEGIN => "ACCEPT_BEGIN",
                 wolf::AcceptState_ACCEPT_BEGIN_RENEG => "ACCEPT_BEGIN_RENEG",
                 wolf::AcceptState_ACCEPT_CLIENT_HELLO_DONE => "ACCEPT_CLIENT_HELLO_DONE",
@@ -416,10 +585,8 @@ pub struct SslStream<S> {
 
 impl<S> Drop for SslStream<S> {
     fn drop(&mut self) {
-        // ssl holds a reference to method internally so it has to drop first
         unsafe {
-            self.ssl.drop_ex_data::<ExtraUserDataRegistry>(0);
-
+            // ssl holds a reference to method internally so it has to drop first
             ManuallyDrop::drop(&mut self.ssl);
             ManuallyDrop::drop(&mut self.method);
         }
@@ -464,11 +631,11 @@ impl<S: Read + Write> SslStream<S> {
     }
 
     /// Returns a longer string describing the state of the session.
+    /// Currently unsupported with TLS 1.3.
     ///
     /// This corresponds to [`SSL_state_string_long`].
     ///
     /// [`SSL_state_string_long`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_state_string_long.html
-    /// FIXME: This function of wolfSSL currently does not work with TLS 1.3
     pub fn state_string_long(&self) -> &'static str {
         let state = unsafe {
             let state_ptr = wolf::wolfSSL_state_string_long(self.ssl.as_ptr());
@@ -561,7 +728,8 @@ impl<S: Read + Write> SslStream<S> {
             ErrorCode::WANT_READ | ErrorCode::WANT_WRITE => {
                 self.get_bio_error().map(InnerError::Io)
             }
-            _ => Some(InnerError::Ssl(ErrorStack::get())), // FIXME
+            // Other errors are not ignored but regarded as SSL related errors
+            _ => Some(InnerError::Ssl(ErrorStack::get())),
         };
 
         SslError { code, cause }
@@ -575,13 +743,27 @@ impl<S: Read + Write> SslStream<S> {
     ///
     /// [`SSL_do_handshake`]: https://www.openssl.org/docs/manmaster/man3/SSL_do_handshake.html
     pub fn do_handshake(&mut self) -> Result<(), SslError> {
+        pub unsafe extern "C" fn SSL_connect_timeout_ex(_info: *mut wolf::TimeoutInfo) -> i32 {
+            0
+        }
+
+        pub unsafe extern "C" fn SSL_connect_ex(_info: *mut wolf::HandShakeInfo) -> i32 {
+            0
+        }
+
+        #[cfg(feature = "wolfssl430")]
+        type WolfTimeval = wolf::Timeval;
+
+        #[cfg(not(feature = "wolfssl430"))]
+        type WolfTimeval = wolf::WOLFSSL_TIMEVAL;
+
         let ret = unsafe {
             //wolf::wolfSSL_SSL_do_handshake(self.ssl.as_ptr())
             wolf::wolfSSL_accept_ex(
                 self.ssl.as_ptr(),
                 Some(SSL_connect_ex),
                 Some(SSL_connect_timeout_ex),
-                wolf::WOLFSSL_TIMEVAL {
+                WolfTimeval {
                     tv_sec: 5,
                     tv_usec: 0,
                 },

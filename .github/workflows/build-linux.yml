@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 env:
-  RUST_LOG: trace
+  RUST_LOG: info
 
 jobs:
   build-linux:
@@ -12,12 +12,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["openssl111", "openssl101f", "openssl102u", "libressl", "wolfssl520", "no_default_features"]
+        name:
+          - openssl111
+          - openssl101f_asan
+          - openssl102u
+          - libressl
+          - wolfssl430
+          - wolfssl510
+          - wolfssl520
+          - wolfssl520_asan
+          - wolfssl530
+          - wolfssl530_asan
+          - no_default_features
         include:
           - name: openssl111
             features: openssl111
             clean-crates: openssl-sys
-          - name: openssl101f
+          - name: openssl101f_asan
             features: openssl101f,asan
             apt-dependencies: xutils-dev
             clean-crates: openssl-sys
@@ -26,8 +37,18 @@ jobs:
             clean-crates: openssl-sys
           - name: libressl
             features: libressl
+          - name: wolfssl430
+            features: wolfssl430
+          - name: wolfssl510
+            features: wolfssl510
           - name: wolfssl520
             features: wolfssl520
+          - name: wolfssl520_asan
+            features: wolfssl520,asan
+          - name: wolfssl530
+            features: wolfssl530
+          - name: wolfssl530_asan
+            features: wolfssl530,asan
           - name: no_default_features
             features: ""
             cargo-flags: "--no-default-features"
@@ -59,6 +80,11 @@ jobs:
         with:
           name: cargo-timings-${{ matrix.name }}
           path: target/cargo-timings/cargo-timing.html
+      - name: Upload Build
+        uses: actions/upload-artifact@v2
+        with:
+          name: tlspuffin-${{ matrix.name }}
+          path: target/x86_64-unknown-linux-gnu/release/tlspuffin
       - name: Check
         shell: bash
         run: just check tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
@@ -66,7 +92,3 @@ jobs:
         if: "!matrix.skip-tests"
         shell: bash
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
-      - uses: actions/upload-artifact@v2
-        with:
-          name: tlspuffin-${{ matrix.name }}
-          path: target/x86_64-unknown-linux-gnu/release/tlspuffin

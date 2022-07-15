@@ -88,6 +88,7 @@ coverage, expressiveness of executable protocol traces and stable and extensible
 
 * build-essential (make, gcc)
 * clang
+* graphviz
 
 OpenSSL 1.0:
 * makedepend from `xutils-dev package
@@ -95,6 +96,10 @@ OpenSSL 1.0:
 WolfSSL:
 * autoconf
 * libtool
+
+For the python `tlspuffin-analyzer`:
+* libyajl-dev
+* `wheel` from Python pip
 
 ## Building
 
@@ -179,6 +184,12 @@ ASAN_OPTIONS=abort_on_error=1 \
 
 It is important to enable `abort_on_error`, 
 else the fuzzer workers fail to restart on crashes.
+
+#### Compiling with ASAN using rustc
+
+```
+RUSTFLAGS=-Zsanitizer=address cargo +nightly build --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --release --features wolfssl530
+```
 
 ### Generate Corpus Seeds
 

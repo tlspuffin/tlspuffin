@@ -3,44 +3,86 @@
 //! - [`progress`] makes a state progress (interacting with the buffers)
 //!
 //! And specific implementations of PUT for the different PUTs.
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    any::TypeId,
+    cell::RefCell,
+    fmt::{Debug, Display, Formatter, Write},
+    hash::Hash,
+    ops::DerefMut,
+    rc::Rc,
+};
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    agent::{AgentName, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
+    claims::{ClaimList, GlobalClaimList},
     error::Error,
     io::Stream,
-    trace::VecClaimer,
+    put_registry::DUMMY_PUT,
 };
+
+#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
+pub struct PutName(pub [char; 10]);
+
+impl Default for PutName {
+    fn default() -> Self {
+        DUMMY_PUT
+    }
+}
+
+impl Display for PutName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from_iter(self.0))
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+pub struct PutDescriptor {
+    pub name: PutName,
+    pub options: Vec<(String, String)>,
+}
 
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone)]
-pub struct Config {
+pub struct PutConfig {
+    pub descriptor: PutDescriptor,
+    pub typ: AgentType,
     pub tls_version: TLSVersion,
-    /// Whether the agent which holds this descriptor is a server.
-    pub server: bool,
-    ///
-    pub agent_name: AgentName,
-    ///
-    pub claimer: Rc<RefCell<VecClaimer>>,
+    pub claims: GlobalClaimList,
+    pub authenticate_peer: bool,
+    pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
+}
+
+impl PutConfig {
+    pub fn get_option(&self, key: &str) -> Option<&str> {
+        self.descriptor
+            .options
+            .iter()
+            .find(|(found_key, _value)| -> bool { found_key == key })
+            .map(|(_key, value)| value.as_str())
+    }
 }
 
 pub trait Put: Stream + Drop + 'static {
     /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(c: Config) -> Result<Self, Error>
+    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
     where
         Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer
-    fn progress(&mut self) -> Result<(), Error>;
+    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
-    fn reset(&mut self) -> Result<(), Error>;
+    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    fn config(&self) -> &PutConfig;
     /// Register a new claim for agent_name
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
+    fn register_claimer(&mut self, agent_name: AgentName);
     /// Remove all claims in self
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
-    /// Change the agent name and the claimer of self
-    fn change_agent_name(&mut self, claimer: Rc<RefCell<VecClaimer>>, agent_name: AgentName);
+    /// Propagate agent changes to the PUT
+    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &'static str;
     /// Checks whether the Put is in a good state
@@ -53,4 +95,10 @@ pub trait Put: Stream + Drop + 'static {
     fn make_deterministic()
     where
         Self: Sized;
+
+    /// checks whether a agent is reusable with the descriptor
+    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        let config = self.config();
+        config.typ == other.typ && config.tls_version == other.tls_version
+    }
 }

@@ -10,34 +10,74 @@ default = ["sancov_libafl", "introspection"]
 # Lastest OpenSSL 1.1.1
 openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls13", "session-resumption", "deterministic", # Supported features by openssl111
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic", # Supported features by openssl111
     "claims",
     "openssl-binding",
-    "transcript-extraction"
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "openssl-binding",
+    "tls12-session-resumption"
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
     "openssl-binding",
+    "tls12-session-resumption"
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
     "tls13", # Supported features by openssl111
+    "tls12-session-resumption",
     "claims",
     "openssl-binding",
     "transcript-extraction",
+]
+
+wolfssl430 = [
+    "wolfssl-sys/vendored-wolfssl430",
+    "tls13",
+    "wolfssl-binding",
+    "transcript-extraction",
+    # Does not support any kind of resumption right now: https://github.com/trailofbits/tlspuffin/issues/12
+    # FIXME: support "claims", "deterministic"
+]
+
+wolfssl510 = [
+    "wolfssl-sys/vendored-wolfssl510",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
+    # FIXME: support "claims", "deterministic"
 ]
 
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
     "tls13",
     "wolfssl-binding",
-    "session-resumption",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
     "transcript-extraction",
+    "client-authentication-transcript-extraction"
+    # FIXME: support "claims", "deterministic"
+]
+
+wolfssl530 = [
+    "wolfssl-sys/vendored-wolfssl530",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -49,20 +89,24 @@ sancov_libafl = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = ["openssl/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
-wolfssl-binding = ["wolfssl-sys", "libc", "foreign-types-shared", "foreign-types", "bitflags"]
+wolfssl-binding = ["wolfssl-sys", "foreign-types-shared", "foreign-types", "bitflags"]
 # OpenSSL bindings are used
 openssl-binding = ["openssl", "foreign-types-shared"]
 
 # PUT supports TLS 1.3
 tls13 = []
-# PUT supports session resumption
-session-resumption = []
+# PUT supports session resumption through Tickets and PSK
+tls13-session-resumption = []
+# PUT supports session resumption through RFC5077
+tls12-session-resumption = []
 # PUT is determinisitic
 deterministic = []
 # Require the PUT to implement the claim-interface.h
 claims = []
 # Whether transcript extraction is supported. This is needed for simplified traces.
 transcript-extraction = []
+# PUT exposes the required transcripts which are required for client authentication
+client-authentication-transcript-extraction = []
 
 introspection = ["libafl/introspection"]
 
@@ -86,7 +130,6 @@ security-claims = { path = "../tlspuffin-claims", optional = false }
 wolfssl-sys = { path = "../deps/wolfssl-sys", features = ["sancov"], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
 bitflags = { version = "1.3.2", optional = true }
-libc = { version = "0.2.126", optional = true }
 
 # LibAFL
 libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "2e746bf439629e4fe8fa47cf9f39acd1395c828f" }
@@ -98,10 +141,12 @@ log = "0.4.17"
 log4rs = "1.1.1"
 
 # Other Dependencies
+libc = { version = "0.2.126" }
 clap = { version = "3.1.18", features = ["cargo"] }
 hex = "0.4.3"
 rand = "0.8.5"
 itertools = "0.10.3"
+smallvec = "1.8.1"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 postcard = { version = "0.7.3", features = ["alloc"] }
@@ -123,7 +168,3 @@ harness = false
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
-
-# FIXME Used in tools/coverage.sh to generate coverage
-#[[example]]
-#name = "seed_successful"

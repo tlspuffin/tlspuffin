@@ -11,10 +11,12 @@ mod key_schedule;
 pub mod error;
 
 pub mod seeds;
+pub mod violation;
 
 /// This modules contains all the concrete implementations of function symbols.
 #[path = "."]
 pub mod fn_impl {
+    pub mod fn_cert;
     pub mod fn_constants;
     pub mod fn_extensions;
     pub mod fn_fields;
@@ -22,6 +24,7 @@ pub mod fn_impl {
     pub mod fn_transcript;
     pub mod fn_utils;
 
+    pub use fn_cert::*;
     pub use fn_constants::*;
     pub use fn_extensions::*;
     pub use fn_fields::*;
@@ -192,7 +195,6 @@ define_signature!(
     fn_sign_transcript
     fn_verify_data
     fn_weak_export_cipher_suite
-    fn_weak_export_cipher_suites_remove_me
     // utils
     fn_append_certificate
     fn_append_certificate_entry
@@ -212,7 +214,28 @@ define_signature!(
     fn_no_psk
     fn_psk
     // transcript functions
+    fn_server_hello_transcript
     fn_client_finished_transcript
     fn_server_finished_transcript
-    fn_server_hello_transcript
+    fn_certificate_transcript
+    // certificate functions
+    fn_bob_cert
+    fn_bob_key
+    fn_alice_cert
+    fn_alice_key
+    fn_eve_cert
+    fn_random_ec_cert
+    fn_certificate_entry
+    fn_empty_certificate_chain
+    fn_append_certificate_entry
+    fn_get_context
+    fn_eve_pkcs1_signature
+    fn_rsa_sign_client
+    fn_rsa_sign_server
+    fn_ecdsa_sign_client
+    fn_ecdsa_sign_server
+    fn_rsa_pss_signature_algorithm
+    fn_rsa_pkcs1_signature_algorithm
+    fn_invalid_signature_algorithm
+    fn_ecdsa_signature_algorithm
 );

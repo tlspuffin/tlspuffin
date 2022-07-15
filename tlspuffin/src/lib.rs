@@ -1,4 +1,4 @@
-//! TODO: Write intro: https://gitlab.inria.fr/mammann/tlspuffin/-/issues/64
+//! TODO: Write intro: https://github.com/tlspuffin/tlspuffin/issues/94
 //!
 //! ### Used protocol and cryptographic libraries
 //!
@@ -15,12 +15,15 @@ compile_error!("`Only one binding at the same time is currently supported.");
 
 pub mod agent;
 pub mod algebra;
+pub mod claims;
 pub mod debug;
 pub mod error;
 pub mod experiment;
+pub mod extraction;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
+pub mod log;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
 pub mod put;
@@ -33,3 +36,13 @@ pub mod trace;
 pub mod variable_data;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
+
+pub const GIT_REF: &str = match option_env!("GIT_REF") {
+    Some(env) => env,
+    None => "undefined",
+};
+
+pub const GIT_MSG: &str = match option_env!("GIT_MSG") {
+    Some(env) => env,
+    None => "undefined",
+};

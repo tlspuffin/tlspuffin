@@ -4,7 +4,7 @@ use rand::Rng;
 
 use crate::{
     error::Error,
-    fuzzer::stats_observer::*,
+    fuzzer::stats_stage::*,
     trace::{Action, Trace, TraceContext},
 };
 

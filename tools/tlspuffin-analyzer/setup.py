@@ -14,7 +14,7 @@ setup(
         'jsonslicer',
         'matplotlib',
         'numpy',
-        'paramiko',
+        'dateparser',
         'dict-to-dataclass==0.0.8'
     ],
 )

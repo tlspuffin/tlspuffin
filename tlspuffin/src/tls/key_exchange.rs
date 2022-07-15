@@ -45,7 +45,7 @@ pub fn tls13_key_exchange(
 
 pub fn tls12_key_exchange(//  server_ecdh_params: &ServerECDHParams,
 ) -> Result<KeyExchange, FnError> {
-    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
     let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
         .ok_or_else(|| "Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
@@ -57,7 +57,7 @@ pub fn tls12_new_secrets(
     server_random: &Random,
     server_ecdh_params: &ServerECDHParams,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
     let mut server_random_bytes = vec![0; 32];
 
@@ -67,7 +67,7 @@ pub fn tls12_new_secrets(
         .try_into()
         .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
-        client: [1; 32], // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+        client: [1; 32], // todo https://github.com/tlspuffin/tlspuffin/issues/129
         server: server_random,
     };
     let kx = tls12_key_exchange()?;

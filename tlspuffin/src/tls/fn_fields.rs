@@ -65,10 +65,10 @@ pub fn fn_verify_data(
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
 ) -> Result<Vec<u8>, FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
-    let group = NamedGroup::secp384r1; // todo https://gitlab.inria.fr/mammann/tlspuffin/-/issues/45
+    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
@@ -114,7 +114,7 @@ pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
 }
 
 // todo implement functions for all supported cipher suites as constants
-//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65
+//      https://github.com/tlspuffin/tlspuffin/issues/155
 pub fn fn_append_cipher_suite(
     suites: &Vec<CipherSuite>,
     suite: &CipherSuite,
@@ -148,11 +148,6 @@ pub fn fn_cipher_suite13_aes_128_ccm_sha256() -> Result<CipherSuite, FnError> {
 
 pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
-}
-
-// todo should be removed because it returns the ready vec instead of a single one
-pub fn fn_weak_export_cipher_suites_remove_me() -> Result<Vec<CipherSuite>, FnError> {
-    Ok(vec![CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA])
 }
 
 pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {

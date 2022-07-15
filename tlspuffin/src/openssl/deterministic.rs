@@ -18,3 +18,16 @@ pub fn set_openssl_deterministic() {
         RAND_seed(buf, 4);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use openssl::rand::rand_bytes;
+
+    #[test]
+    fn test_openssl_no_randomness() {
+        crate::put_registry::PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
+        let mut buf1 = [0; 2];
+        rand_bytes(&mut buf1).unwrap();
+        assert_eq!(buf1, [70, 100]);
+    }
+}

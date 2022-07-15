@@ -3,20 +3,20 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::PathBuf,
+    process::ExitCode,
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
-use log::{info, LevelFilter};
-use log4rs::{
-    append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Root},
-    encode::{json::JsonEncoder, pattern::PatternEncoder},
-    Config,
-};
+use log::{error, info, SetLoggerError};
+use log4rs::Handle;
 use tlspuffin::{
     experiment::*,
-    fuzzer::{start, FuzzerConfig},
+    fuzzer::{
+        sanitizer::asan::{asan_info, setup_asan_env},
+        start, FuzzerConfig,
+    },
     graphviz::write_graphviz,
+    log::create_stdout_config,
     put_registry::PUT_REGISTRY,
     tls::seeds::create_corpus,
     trace::{Trace, TraceContext},
@@ -33,11 +33,12 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
-                .arg(arg!(-t --title [t] "Title of the experiment"))
-                         .arg(arg!(-d --description [d] "Descritpion of the experiment"))
+                .arg(arg!(-t --title <t> "Title of the experiment"))
+                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./corpus"),
             Command::new("plot")
@@ -53,31 +54,14 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-fn create_config(log_path: &PathBuf) -> Config {
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new(
-            "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
-        )))
-        .build();
-    let file_appender = FileAppender::builder()
-        .encoder(Box::new(JsonEncoder::new()))
-        .encoder(Box::new(JsonEncoder::new()))
-        .build(&log_path)
-        .unwrap();
-
-    Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .appender(Appender::builder().build("file", Box::new(file_appender)))
-        .build(
-            Root::builder()
-                .appenders(vec!["stdout", "file"])
-                .build(LevelFilter::Info),
-        )
-        .unwrap()
-}
-
-fn main() {
-    let handle = log4rs::init_config(create_config(&PathBuf::from("tlspuffin-log.json"))).unwrap();
+fn main() -> ExitCode {
+    let handle = match log4rs::init_config(create_stdout_config()) {
+        Ok(handle) => handle,
+        Err(err) => {
+            error!("Failed to init logging: {:?}", err);
+            return ExitCode::FAILURE;
+        }
+    };
 
     let matches = create_app().get_matches();
 
@@ -87,67 +71,42 @@ fn main() {
     let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
     let minimizer = matches.is_present("minimizer");
     let monitor = matches.is_present("monitor");
+    let no_launcher = matches.is_present("no-launcher");
 
-    info!("{}", PUT_REGISTRY.versions());
+    info!("Version: {}", tlspuffin::GIT_REF);
+    info!("Put Versions:");
+    for version in PUT_REGISTRY.version_strings() {
+        info!("{}", version);
+    }
+
+    asan_info();
+    setup_asan_env();
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        fs::create_dir_all("./seeds").unwrap();
-        for (trace, name) in create_corpus() {
-            let mut file = File::create(format!("./seeds/{}.trace", name)).unwrap();
-            let buffer = postcard::to_allocvec(&trace).unwrap();
-            file.write_all(&buffer).unwrap();
-            info!("Generated seed traces into the directory ./corpus")
+        if let Err(err) = seed() {
+            error!("Failed to create seeds on disk: {:?}", err);
+            return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
-        let output_prefix = matches.value_of("output_prefix").unwrap();
+        let output_prefix: &str = matches.value_of("output_prefix").unwrap();
         let input = matches.value_of("input").unwrap();
         let format = matches.value_of("format").unwrap();
         let is_multiple = matches.is_present("multiple");
         let is_tree = matches.is_present("tree");
 
-        let mut input_file = File::open(input).unwrap();
-
-        // Read trace file
-        let mut buffer = Vec::new();
-        input_file.read_to_end(&mut buffer).unwrap();
-        let trace = postcard::from_bytes::<Trace>(&buffer).unwrap();
-
-        // All-in-one tree
-        write_graphviz(
-            format!("{}_{}.{}", output_prefix, "all", format).as_str(),
-            format,
-            trace.dot_graph(is_tree).as_str(),
-        )
-        .expect("Failed to generate graph.");
-
-        if is_multiple {
-            for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
-                let wrapped_subgraph =
-                    format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
-                write_graphviz(
-                    format!("{}_{}.{}", output_prefix, i, format).as_str(),
-                    format,
-                    wrapped_subgraph.as_str(),
-                )
-                .expect("Failed to generate graph.");
-            }
+        if let Err(err) = plot(input, format, output_prefix, is_multiple, is_tree) {
+            error!("Failed to plot trace: {:?}", err);
+            return ExitCode::FAILURE;
         }
-
-        info!("Created plots")
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         // Parse arguments
         let input = matches.value_of("input").unwrap();
 
-        let mut input_file = File::open(input).unwrap();
-
-        // Read trace file
-        let mut buffer = Vec::new();
-        input_file.read_to_end(&mut buffer).unwrap();
-        let trace = postcard::from_bytes::<Trace>(&buffer).unwrap();
-
-        let mut ctx = TraceContext::new();
-        trace.execute(&mut ctx).unwrap();
+        if let Err(err) = execute(input) {
+            error!("Failed to execute trace: {:?}", err);
+            return ExitCode::FAILURE;
+        }
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let title = matches.value_of("title").unwrap();
@@ -158,7 +117,11 @@ fn main() {
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
 
-            write_experiment_markdown(&experiment_path, title, description).unwrap();
+            if let Err(err) = write_experiment_markdown(&experiment_path, title, description) {
+                error!("Failed to write readme: {:?}", err);
+                return ExitCode::FAILURE;
+            }
+
             experiment_path
         } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
             let description = "No Description, because this is a quick experiment.";
@@ -175,16 +138,21 @@ fn main() {
                 i += 1;
             }
 
-            write_experiment_markdown(&experiment_path, title, description).unwrap();
+            if let Err(err) = write_experiment_markdown(&experiment_path, title, description) {
+                error!("Failed to write readme: {:?}", err);
+                return ExitCode::FAILURE;
+            }
             experiment_path
         } else {
             PathBuf::from(".")
         };
 
-        fs::create_dir_all(&experiment_path).unwrap();
-        handle.set_config(create_config(&experiment_path.join("tlspuffin-log.json")));
+        if let Err(err) = fs::create_dir_all(&experiment_path) {
+            error!("Failed to create directories: {:?}", err);
+            return ExitCode::FAILURE;
+        }
 
-        start(FuzzerConfig {
+        let config = FuzzerConfig {
             initial_corpus_dir: experiment_path.join("seeds"),
             static_seed,
             max_iters,
@@ -193,10 +161,89 @@ fn main() {
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
             monitor_file: experiment_path.join("stats.json"),
+            log_file: experiment_path.join("log.json"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
             monitor,
-        });
+            no_launcher,
+        };
+
+        if let Err(err) = start(config, handle) {
+            match err {
+                libafl::Error::ShuttingDown => {
+                    // ignore
+                }
+                _ => {
+                    panic!("{}", err)
+                }
+            }
+        }
     }
+
+    ExitCode::SUCCESS
+}
+
+fn plot(
+    input: &str,
+    format: &str,
+    output_prefix: &str,
+    is_multiple: bool,
+    is_tree: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut input_file = File::open(input)?;
+
+    // Read trace file
+    let mut buffer = Vec::new();
+    input_file.read_to_end(&mut buffer)?;
+    let trace = postcard::from_bytes::<Trace>(&buffer)?;
+
+    // All-in-one tree
+    write_graphviz(
+        format!("{}_{}.{}", output_prefix, "all", format).as_str(),
+        format,
+        trace.dot_graph(is_tree).as_str(),
+    )
+    .expect("Failed to generate graph.");
+
+    if is_multiple {
+        for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
+            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
+            write_graphviz(
+                format!("{}_{}.{}", output_prefix, i, format).as_str(),
+                format,
+                wrapped_subgraph.as_str(),
+            )
+            .expect("Failed to generate graph.");
+        }
+    }
+
+    info!("Created plots");
+    Ok(())
+}
+
+fn seed() -> Result<(), Box<dyn std::error::Error>> {
+    fs::create_dir_all("./seeds")?;
+    for (trace, name) in create_corpus() {
+        let mut file = File::create(format!("./seeds/{}.trace", name))?;
+        let buffer = postcard::to_allocvec(&trace)?;
+        file.write_all(&buffer)?;
+        info!("Generated seed traces into the directory ./corpus")
+    }
+    Ok(())
+}
+
+fn execute(input: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut input_file = File::open(input)?;
+
+    // Read trace file
+    let mut buffer = Vec::new();
+    input_file.read_to_end(&mut buffer)?;
+    let trace = postcard::from_bytes::<Trace>(&buffer)?;
+
+    info!("Agents: {:?}", &trace.descriptors);
+
+    let mut ctx = TraceContext::new();
+    trace.execute(&mut ctx)?;
+    Ok(())
 }

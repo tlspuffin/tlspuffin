@@ -31,7 +31,7 @@ use rustls::msgs::{
 
 use crate::error::Error;
 
-pub trait Stream: Read + Write {
+pub trait Stream {
     fn add_to_inbound(&mut self, result: &OpaqueMessage);
 
     /// Takes a single TLS message from the outbound channel

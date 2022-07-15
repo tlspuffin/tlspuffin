@@ -56,14 +56,14 @@ def plot_single(ax, times, data: List[dict],
     print("Max value in plotted data: " + str(np.max(y)))
 
     if smooth:
-        #ax.plot(times[:len(y)], y, label=name, color=color + "32")
+        # ax.plot(times[:len(y)], y, label=name, color=color + "32")
         kernel_size = int(len(y) / 50)
         y = np.convolve(y, np.ones(kernel_size) / kernel_size, mode='valid')
 
     ax.plot(times[:len(y)], y, label=name, color=color)
     ax.set_ylabel(name, color=color)
 
-    #plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+    # plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
 def plot_with_other(ax, times, data: List[dict],
@@ -73,7 +73,6 @@ def plot_with_other(ax, times, data: List[dict],
                     name_b: str = 'Total Execs',
                     smooth=False,
                     log=False):
-
     if not is_available(data[0], selector_a) or not is_available(data[0], selector_b):
         ax.set_ylabel("Data not available")
         return
@@ -100,14 +99,14 @@ def plot_with_other(ax, times, data: List[dict],
     y = [selector_a(row) for row in data]
 
     if smooth and int(len(y)) > 50:
-        #other_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")
+        # other_ax.plot(times[:len(y)], y, label=name_a, color="#ca002032")
         kernel_size = int(len(y) / 50)
         y = np.convolve([int(item) for item in y], np.ones(kernel_size) / kernel_size, mode='valid')
 
     other_ax.plot(times[:len(y)], y, label=name_a, color=RED)
     other_ax.set_ylabel(name_a, color=RED)
 
-    #plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+    # plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
 def spread_xy(start_date, client_data, trunc_minutes=None, log=False):
@@ -115,7 +114,7 @@ def spread_xy(start_date, client_data, trunc_minutes=None, log=False):
     data = []
 
     for client_datum in client_data:
-        if not(log):
+        if not (log):
             time = datetime.fromtimestamp(client_datum["time"]["secs_since_epoch"])
         else:
             time = client_datum["time"]
@@ -140,9 +139,9 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
     # print(times)
     # print(data)
 
-    if not(fewer):
+    if not fewer:
         fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12), (ax13, ax14),
-              (ax15, ax16), (ax17, ax18)) = plt.subplots(9, 2, sharex="all",  figsize=(10,15))
+              (ax15, ax16), (ax17, ax18)) = plt.subplots(9, 2, sharex="all", figsize=(10, 15))
 
         # Corpi
         plot_with_other(ax1, times, data, lambda stats: stats["objective_size"], "Objectives")
@@ -162,8 +161,10 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         plot_with_other(ax7, times, data, lambda stats: stats["trace"]["max_trace_length"], "Max Trace Length")
         plot_with_other(ax8, times, data, lambda stats: stats["trace"]["max_term_size"], "Max Term Size")
 
-        plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length", smooth=True)
-        plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size", smooth=True)
+        plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length",
+                        smooth=True)
+        plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size",
+                        smooth=True)
 
         plot_with_other(ax11, times, data, lambda stats: stats["trace"]["min_trace_length"], "Min Trace Length")
         plot_with_other(ax12, times, data, lambda stats: stats["trace"]["min_term_size"], "Min Tern Size")
@@ -171,21 +172,25 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         plot_with_other(ax13, times, data, lambda stats: stats["intro"]["scheduler"], "Scheduler Perf Share")
         plot_with_other(ax14, times, data, lambda stats: stats["intro"]["elapsed_cycles"], "Elapsed Cycles")
 
-        plot_with_other(ax15, times, data, lambda stats: stats["intro"]["introspect_features"]["mutate"], "Mutation Perf Share")
-        plot_with_other(ax16, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"], "PUT Perf Share")
+        plot_with_other(ax15, times, data, lambda stats: stats["intro"]["introspect_features"]["mutate"],
+                        "Mutation Perf Share")
+        plot_with_other(ax16, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"],
+                        "PUT Perf Share")
 
         # Global Performance
-        plot_with_other(ax17, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", log=True, smooth=True)
+        plot_with_other(ax17, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", log=True,
+                        smooth=True)
         plot_with_other(ax18, times_log, data_log,
                         lambda log: log["exec_per_sec"], "Global Execs/s",
                         lambda log: log["obj"], "Global Objective",
                         smooth=True, log=True)
 
     else:
-        fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10,20))
+        fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10, 20))
 
         # Global Performance
-        plot_with_other(ax1, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", smooth=True, log=True)
+        plot_with_other(ax1, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", smooth=True,
+                        log=True)
         plot_with_other(ax2, times_log, data_log,
                         lambda log: log["exec_per_sec"], "Global Execs/s",
                         lambda log: log["obj"], "Global Objective",
@@ -196,7 +201,8 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
         plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "Global coverage")
         # Performance
         plot_with_other(ax5, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
-        plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"], "PUT Perf Share")
-        axes =  (ax1, ax2, ax3, ax4, ax5, ax6)
+        plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"],
+                        "PUT Perf Share")
+        axes = (ax1, ax2, ax3, ax4, ax5, ax6)
 
     return fig

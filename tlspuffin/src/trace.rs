@@ -7,16 +7,16 @@
 //! # Example
 //!
 //! ```rust
-//! use tlspuffin::agent::{PutName, AgentName, AgentDescriptor, TLSVersion::*};
+//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
 //! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
 //! use tlspuffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};
 //! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use rustls::msgs::enums::{Compression, HandshakeType};
-//! # use tlspuffin::put_registry::current_put;
 //!
-//! # const PUT: PutName = current_put();
+//! # let client_put = tlspuffin::put_registry::current_put();
+//! # let server_put = tlspuffin::put_registry::current_put();
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -29,8 +29,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, PUT),
-//!         AgentDescriptor::new_server(server, V1_3, PUT),
+//!         AgentDescriptor::new_client(client, V1_3, client_put),
+//!         AgentDescriptor::new_server(server, V1_3, server_put),
 //!     ],
 //!     steps: vec![
 //!             Step { agent: client, action: Action::Output(OutputAction { }) },
@@ -69,29 +69,35 @@
 
 use core::fmt;
 use std::{
-    any::TypeId, cell::RefCell, collections::HashMap, convert::TryFrom, fmt::Formatter, ops::Deref,
+    any::{Any, TypeId},
+    borrow::{Borrow, BorrowMut},
+    cell::{Ref, RefCell, RefMut},
+    convert::TryFrom,
+    ops::{Deref, DerefMut},
     rc::Rc,
+    slice::Iter,
 };
 
 use itertools::Itertools;
-use log::trace;
+use log::{debug, trace};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
 };
-use security_claims::{violation::is_violation, Claim, ClaimType};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, __private::de::Borrowed};
 
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, remove_prefix, Term},
+    claims::{AsAny, CheckViolation, Claim, GlobalClaimList, Policy},
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     error::Error,
+    extraction::extract_knowledge,
     io::MessageResult,
-    tls::error::FnError,
-    variable_data::{extract_knowledge, VariableData},
+    tls::{error::FnError, violation::is_violation},
+    variable_data::VariableData,
 };
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
@@ -129,7 +135,7 @@ impl QueryMatcher for TlsMessageType {
 }
 
 impl TryFrom<&MessageResult> for TlsMessageType {
-    type Error = crate::error::Error;
+    type Error = Error;
 
     fn try_from(message_result: &MessageResult) -> Result<Self, Self::Error> {
         let tls_opaque_type = message_result.1.typ;
@@ -197,13 +203,13 @@ where
 }
 
 impl fmt::Display for Knowledge {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.agent_name, self.tls_message_type)
     }
 }
 
 impl fmt::Display for Query {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "({}, {})[{:?}]",
@@ -221,42 +227,6 @@ pub struct Knowledge {
     pub data: Box<dyn VariableData>,
 }
 
-#[derive(Clone)]
-pub struct VecClaimer {
-    claims: Vec<(AgentName, Claim)>,
-}
-
-/// Claimer which gets claims from a VecClaimer but filters by [`AgentName`]
-pub struct AgentClaimer {
-    claimer: VecClaimer,
-    agent: AgentName,
-}
-
-impl AgentClaimer {
-    pub fn new(claimer: VecClaimer, agent: AgentName) -> Self {
-        Self { claimer, agent }
-    }
-
-    /// finds the last claim matching `type`
-    pub fn find_last_claim(&self, typ: ClaimType) -> Option<&(AgentName, Claim)> {
-        self.claimer
-            .claims
-            .iter()
-            .rev()
-            .find(|(name, claim)| claim.typ == typ && self.agent == *name)
-    }
-}
-
-impl VecClaimer {
-    pub fn new() -> Self {
-        Self { claims: vec![] }
-    }
-
-    pub fn claim(&mut self, name: AgentName, claim: Claim) {
-        self.claims.push((name, claim));
-    }
-}
-
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
 /// of the attacker. [`VariableData`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
@@ -266,7 +236,7 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    pub claimer: Rc<RefCell<VecClaimer>>,
+    claims: GlobalClaimList,
 }
 
 pub trait QueryMatcher {
@@ -275,13 +245,19 @@ pub trait QueryMatcher {
 
 impl TraceContext {
     pub fn new() -> Self {
-        let claimer = Rc::new(RefCell::new(VecClaimer::new()));
+        // We keep a global list of all claims throughout the execution. Each claim is identified
+        // by the AgentName. A rename of an Agent does not interfere with this.
+        let claims = GlobalClaimList::new();
 
         Self {
             knowledge: vec![],
             agents: vec![],
-            claimer,
+            claims,
         }
+    }
+
+    pub fn claims(&self) -> &GlobalClaimList {
+        &self.claims
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge) {
@@ -305,6 +281,17 @@ impl TraceContext {
             })
             .count();
         known_count as u16
+    }
+
+    pub fn find_claim(
+        &self,
+        agent_name: AgentName,
+        query_type_shape: TypeShape,
+    ) -> Option<Box<dyn Any>> {
+        self.claims
+            .deref_borrow()
+            .find_last_claim(agent_name, query_type_shape)
+            .map(|claim| claim.clone_boxed_any())
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -343,12 +330,12 @@ impl TraceContext {
         message: &OpaqueMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.stream.add_to_inbound(message))
+            .map(|agent| agent.put.add_to_inbound(message))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.progress()
+        agent.put.progress(&agent_name)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -358,52 +345,60 @@ impl TraceContext {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.stream.take_message_from_outbound()
+        agent.put.take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent) -> AgentName {
-        let name = agent.descriptor.name;
+        let name = agent.name;
         self.agents.push(agent);
         name
     }
 
     pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(descriptor, self.claimer.clone())?);
+        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
         Ok(agent_name)
     }
 
     fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.descriptor.name == name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "Could not find agent {}. Did you forget to call spawn_agents?",
-                    name
-                ))
-            })
+        iter.find(|agent| agent.name == name).ok_or_else(|| {
+            Error::Agent(format!(
+                "Could not find agent {}. Did you forget to call spawn_agents?",
+                name
+            ))
+        })
     }
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset()?;
+            agent.reset(agent.name)?;
         }
         Ok(())
     }
+
+    pub fn agents_successful(&self) -> bool {
+        for agent in &self.agents {
+            if !agent.put.is_state_successful() {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Hash)]
 pub struct Trace {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step>,
@@ -412,7 +407,7 @@ pub struct Trace {
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
-/// *AgentDescritptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
+/// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl Trace {
     fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
@@ -420,10 +415,10 @@ impl Trace {
             if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.descriptor.is_reusable_with(descriptor))
+                .find(|existing| existing.put.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(ctx.claimer.clone(), descriptor.name);
+                reusable.rename(descriptor.name)?;
             } else {
                 // only spawn completely new if not yet existing
                 ctx.new_agent(descriptor)?;
@@ -442,7 +437,7 @@ impl Trace {
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
-            trace!("Executing step #{}", i);
+            debug!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -459,29 +454,28 @@ impl Trace {
                 Action::Output(_) => {}
             }
 
-            let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
-
-            trace!(
-                "New Claims:\n{}",
-                &claims
-                    .iter()
-                    .map(|(name, claim)| format!("{}: {}", name, claim))
-                    .join("\n")
-            );
+            ctx.claims.deref_borrow().log();
         }
 
-        let claims: &Vec<(AgentName, Claim)> = &ctx.claimer.deref().borrow().claims;
-        if let Some(msg) = is_violation(claims) {
-            // [TODO] versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+        let claims = ctx.claims.deref_borrow();
+        if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the end
             return Err(Error::SecurityClaim(msg, claims.clone()));
         }
 
         Ok(())
     }
+
+    pub fn execute_default(&self) -> TraceContext {
+        let mut ctx = TraceContext::new();
+        self.execute(&mut ctx).unwrap();
+        ctx
+    }
 }
 
 impl fmt::Debug for Trace {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Trace with {} steps", self.steps.len())
     }
 }
@@ -496,7 +490,7 @@ impl fmt::Display for Trace {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct Step {
     pub agent: AgentName,
     pub action: Action,
@@ -511,7 +505,7 @@ pub struct Step {
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub enum Action {
     Input(InputAction),
     Output(OutputAction),
@@ -527,7 +521,7 @@ impl Action {
 }
 
 impl fmt::Display for Action {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
             Action::Output(output) => write!(f, "{}", output),
@@ -538,7 +532,7 @@ impl fmt::Display for Action {
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct OutputAction {}
 
 impl OutputAction {
@@ -563,7 +557,7 @@ impl OutputAction {
                 Some(message) => {
                     let knowledge = extract_knowledge(message)?;
 
-                    trace!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+                    debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
@@ -575,13 +569,13 @@ impl OutputAction {
                             tls_message_type,
                             data: variable,
                         };
-                        trace!(
-                            "New knowledge {}: {} - {:?}  (counter: {})",
+                        debug!(
+                            "New knowledge {}: {}  (counter: {})",
                             &knowledge,
                             remove_prefix(knowledge.data.type_name()),
-                            knowledge.data,
                             counter
                         );
+                        trace!("Knowledge data: {:?}", knowledge.data);
                         ctx.add_knowledge(knowledge)
                     }
                 }
@@ -596,7 +590,7 @@ impl OutputAction {
             };
 
             let counter = ctx.number_matching_message(step.agent, type_id, None);
-            trace!(
+            debug!(
                 "New knowledge {}: {} (counter: {})",
                 &knowledge,
                 remove_prefix(knowledge.data.type_name()),
@@ -609,7 +603,7 @@ impl OutputAction {
 }
 
 impl fmt::Display for OutputAction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OutputAction")
     }
 }
@@ -617,7 +611,7 @@ impl fmt::Display for OutputAction {
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct InputAction {
     pub recipe: Term,
 }
@@ -659,7 +653,7 @@ impl InputAction {
 }
 
 impl fmt::Display for InputAction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
 }
