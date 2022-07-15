@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["DUMMY_PUT",""],["OPENSSL111",""],["PUT_REGISTRY",""],["TCP",""],["WOLFSSL520",""]],"fn":[["current_put",""]],"struct":[["PutRegistry",""]],"trait":[["Factory",""]]});
+initSidebarItems({"constant":[["CURRENT_PUT_NAME",""],["DUMMY_PUT",""],["OPENSSL111_PUT",""],["PUT_REGISTRY",""],["TCP_PUT",""],["WOLFSSL520_PUT",""]],"fn":[["current_put",""]],"struct":[["PutRegistry",""]],"trait":[["Factory",""]]});

@@ -183,7 +183,7 @@
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::error::Error</span>;
 
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Stream</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Write</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Stream</span> {
     <span class="kw">fn</span> <span class="ident">add_to_inbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">result</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>);
 
     <span class="doccomment">/// Takes a single TLS message from the outbound channel</span>

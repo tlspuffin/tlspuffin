@@ -213,6 +213,14 @@
 <span id="208">208</span>
 <span id="209">209</span>
 <span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in</span>
 <span class="doccomment">//! this module can be passed to the command line utility `dot` which is part of graphviz.</span>
 
@@ -252,7 +260,16 @@ const SHOW_LABELS: bool = false */</span>
         .<span class="ident">args</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;-o&quot;</span>, <span class="ident">output</span>, <span class="string">&quot;-T&quot;</span>, <span class="ident">format</span>])
         .<span class="ident">stdin</span>(<span class="ident">Stdio::piped</span>())
         .<span class="ident">spawn</span>()
-        .<span class="ident">expect</span>(<span class="string">&quot;failed to spawn dot&quot;</span>);
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ErrorKind::NotFound</span> <span class="op">=</span> <span class="ident">err</span>.<span class="ident">kind</span>() {
+                <span class="ident">io::Error::new</span>(
+                    <span class="ident">ErrorKind::NotFound</span>,
+                    <span class="string">&quot;Unable to find dot in PATH. Install graphviz.&quot;</span>,
+                )
+            } <span class="kw">else</span> {
+                <span class="ident">err</span>
+            }
+        })<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dot_stdin</span> <span class="op">=</span> <span class="ident">child</span>
         .<span class="ident">stdin</span>
@@ -260,7 +277,7 @@ const SHOW_LABELS: bool = false */</span>
         .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">io::Error::new</span>(<span class="ident">ErrorKind::Other</span>, <span class="string">&quot;Failed to open stdin&quot;</span>))<span class="question-mark">?</span>;
     <span class="ident">dot_stdin</span>.<span class="ident">write_all</span>(<span class="ident">dot_script</span>.<span class="ident">as_bytes</span>().<span class="ident">as_ref</span>())<span class="question-mark">?</span>;
     <span class="ident">drop</span>(<span class="ident">dot_stdin</span>);
-    <span class="ident">child</span>.<span class="ident">wait</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to execute dot&quot;</span>);
+    <span class="ident">child</span>.<span class="ident">wait</span>()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -413,12 +430,11 @@ const SHOW_LABELS: bool = false */</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">agent::AgentName</span>, <span class="ident">put_registry::OPENSSL111</span>, <span class="ident">tls::seeds</span>::<span class="kw-2">*</span>};
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::seeds</span>::<span class="kw-2">*</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_dot_graph</span>() {
-        <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>(<span class="ident">server</span>, <span class="ident">OPENSSL111</span>);
+        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker12</span>.<span class="ident">build_trace</span>();
         <span class="kw">let</span> <span class="ident">_string</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">dot_graph</span>(<span class="bool-val">true</span>);
         <span class="comment">//println!(&quot;{}&quot;, string);</span>
     }

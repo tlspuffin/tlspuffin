@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["MAX_DEPTH",""],["MAX_TRIES",""]],"fn":[["generate_term",""],["generate_term_zoo",""]],"type":[["Zoo",""]]});
+initSidebarItems({"constant":[["MAX_DEPTH",""],["MAX_TRIES",""]],"struct":[["TermZoo",""]]});

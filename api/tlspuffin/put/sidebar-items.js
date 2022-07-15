@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Config","Static configuration for creating a new agent state for the PUT"]],"trait":[["Put",""]]});
+initSidebarItems({"struct":[["PutConfig","Static configuration for creating a new agent state for the PUT"],["PutDescriptor",""],["PutName",""]],"trait":[["Put",""]]});

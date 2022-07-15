@@ -174,6 +174,44 @@
 <span id="169">169</span>
 <span id="170">170</span>
 <span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually</span>
 <span class="doccomment">//! not represented by these [`Agent`]s.</span>
 <span class="doccomment">//! Attackers are represented through a recipe term (see [`InputAction`]).</span>
@@ -181,20 +219,31 @@
 <span class="doccomment">//! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])</span>
 
 <span class="kw">use</span> <span class="ident">core::fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">cell::RefCell</span>, <span class="ident">rc::Rc</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{
+    <span class="ident">borrow::Borrow</span>,
+    <span class="ident">cell</span>::{<span class="ident">Ref</span>, <span class="ident">RefCell</span>},
+    <span class="ident">ops::Deref</span>,
+    <span class="ident">rc::Rc</span>,
+};
 
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">error::Error</span>,
-    <span class="ident">put</span>::{<span class="ident">Config</span>, <span class="ident">Put</span>},
+    <span class="ident">put</span>::{<span class="ident">Put</span>, <span class="ident">PutConfig</span>, <span class="ident">PutDescriptor</span>},
     <span class="ident">put_registry::PUT_REGISTRY</span>,
-    <span class="ident">trace::VecClaimer</span>,
+    <span class="ident">trace::TraceContext</span>,
 };
 
 <span class="doccomment">/// Copyable reference to an [`Agent`]. It identifies exactly one agent.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AgentName</span>(<span class="ident">u8</span>);
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">AgentType</span> {
+    <span class="ident">Server</span>,
+    <span class="ident">Client</span>,
+}
 
 <span class="kw">impl</span> <span class="ident">AgentName</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">AgentName</span> {
@@ -217,132 +266,159 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PutName</span>(<span class="kw">pub</span> [<span class="ident">char</span>; <span class="number">10</span>]);
-
 <span class="doccomment">/// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or</span>
 <span class="doccomment">/// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The difference between an [`AgentDescriptor`] and a [`PutDescriptor`] is that values of</span>
+<span class="doccomment">/// the [`AgentDescriptor`] are required for seed traces to succeed. They are the same for every</span>
+<span class="doccomment">/// invocation of the seed. Values in the [`PutDescriptor`] are supposed to differ between</span>
+<span class="doccomment">/// invocations.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AgentDescriptor</span> {
     <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">AgentName</span>,
-    <span class="kw">pub</span> <span class="ident">put_name</span>: <span class="ident">PutName</span>,
+    <span class="kw">pub</span> <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>,
     <span class="kw">pub</span> <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
     <span class="doccomment">/// Whether the agent which holds this descriptor is a server.</span>
-    <span class="kw">pub</span> <span class="ident">server</span>: <span class="ident">bool</span>,
+    <span class="kw">pub</span> <span class="ident">typ</span>: <span class="ident">AgentType</span>,
     <span class="doccomment">/// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption</span>
     <span class="doccomment">/// as openssl agents rotate ticket keys if they are recreated.</span>
     <span class="kw">pub</span> <span class="ident">try_reuse</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// If agent is a server:</span>
+    <span class="doccomment">///   Make client auth. a requirement.</span>
+    <span class="doccomment">/// If agent is a client:</span>
+    <span class="doccomment">///   Send a static certificate.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Default: false</span>
+    <span class="kw">pub</span> <span class="ident">client_authentication</span>: <span class="ident">bool</span>,
+    <span class="doccomment">/// If agent is a server:</span>
+    <span class="doccomment">///   No effect, servers always send certificates in TLS.</span>
+    <span class="doccomment">/// If agent is a client:</span>
+    <span class="doccomment">///   Make server auth. a requirement.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Default: true</span>
+    <span class="kw">pub</span> <span class="ident">server_authentication</span>: <span class="ident">bool</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">AgentDescriptor</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">name</span>: <span class="ident">AgentName::first</span>(),
+            <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor::default</span>(),
+            <span class="ident">tls_version</span>: <span class="ident">TLSVersion::V1_3</span>,
+            <span class="ident">typ</span>: <span class="ident">AgentType::Server</span>,
+            <span class="ident">try_reuse</span>: <span class="bool-val">false</span>,
+            <span class="ident">client_authentication</span>: <span class="bool-val">false</span>,
+            <span class="ident">server_authentication</span>: <span class="bool-val">true</span>,
+        }
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">AgentDescriptor</span> {
-    <span class="doccomment">/// checks whether a agent with this descriptor is reusable with the other descriptor</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_reusable_with</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>) -&gt; <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">server</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">server</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">tls_version</span> <span class="op">==</span> <span class="ident">other</span>.<span class="ident">tls_version</span>
-    }
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_server</span>(
         <span class="ident">name</span>: <span class="ident">AgentName</span>,
         <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
-        <span class="ident">put_name</span>: <span class="ident">PutName</span>,
+        <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>,
     ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,
-            <span class="ident">server</span>: <span class="bool-val">true</span>,
+            <span class="ident">typ</span>: <span class="ident">AgentType::Server</span>,
             <span class="ident">try_reuse</span>: <span class="bool-val">true</span>,
-            <span class="ident">put_name</span>,
+            <span class="ident">put_descriptor</span>,
+            ..<span class="ident">AgentDescriptor::default</span>()
         }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_reusable_client</span>(
         <span class="ident">name</span>: <span class="ident">AgentName</span>,
         <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
-        <span class="ident">put_name</span>: <span class="ident">PutName</span>,
+        <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>,
     ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,
-            <span class="ident">server</span>: <span class="bool-val">true</span>,
+            <span class="ident">typ</span>: <span class="ident">AgentType::Client</span>,
             <span class="ident">try_reuse</span>: <span class="bool-val">true</span>,
-            <span class="ident">put_name</span>,
+            <span class="ident">put_descriptor</span>,
+            ..<span class="ident">AgentDescriptor::default</span>()
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_server</span>(<span class="ident">name</span>: <span class="ident">AgentName</span>, <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>, <span class="ident">put_name</span>: <span class="ident">PutName</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_server</span>(
+        <span class="ident">name</span>: <span class="ident">AgentName</span>,
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
+        <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>,
+    ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,
-            <span class="ident">server</span>: <span class="bool-val">true</span>,
-            <span class="ident">try_reuse</span>: <span class="bool-val">false</span>,
-            <span class="ident">put_name</span>,
+            <span class="ident">typ</span>: <span class="ident">AgentType::Server</span>,
+            <span class="ident">put_descriptor</span>,
+            ..<span class="ident">AgentDescriptor::default</span>()
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_client</span>(<span class="ident">name</span>: <span class="ident">AgentName</span>, <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>, <span class="ident">put_name</span>: <span class="ident">PutName</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_client</span>(
+        <span class="ident">name</span>: <span class="ident">AgentName</span>,
+        <span class="ident">tls_version</span>: <span class="ident">TLSVersion</span>,
+        <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>,
+    ) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">name</span>,
             <span class="ident">tls_version</span>,
-            <span class="ident">server</span>: <span class="bool-val">false</span>,
-            <span class="ident">try_reuse</span>: <span class="bool-val">false</span>,
-            <span class="ident">put_name</span>,
+            <span class="ident">typ</span>: <span class="ident">AgentType::Client</span>,
+            <span class="ident">put_descriptor</span>,
+            ..<span class="ident">AgentDescriptor::default</span>()
         }
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">TLSVersion</span> {
     <span class="ident">V1_3</span>,
     <span class="ident">V1_2</span>,
-    <span class="ident">Unknown</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TLSVersion</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">i32</span>) -&gt; <span class="self">Self</span> {
-        <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="number">0x303</span> =&gt; <span class="ident">TLSVersion::V1_2</span>,
-            <span class="number">0x304</span> =&gt; <span class="ident">TLSVersion::V1_3</span>,
-            <span class="kw">_</span> =&gt; <span class="ident">TLSVersion::Unknown</span>,
-        }
-    }
 }
 
 <span class="doccomment">/// An [`Agent`] holds a non-cloneable reference to a Stream.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Agent</span> {
-    <span class="kw">pub</span> <span class="ident">descriptor</span>: <span class="ident">AgentDescriptor</span>,
-    <span class="kw">pub</span> <span class="ident">stream</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Put</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">name</span>: <span class="ident">AgentName</span>,
+    <span class="kw">pub</span> <span class="ident">typ</span>: <span class="ident">AgentType</span>,
+    <span class="kw">pub</span> <span class="ident">put</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Put</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Agent</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">descriptor</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>,
-        <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">Config</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">context</span>: <span class="kw-2">&amp;</span><span class="ident">TraceContext</span>, <span class="ident">descriptor</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> <span class="ident">PUT_REGISTRY</span>
+            .<span class="ident">find_factory</span>(<span class="ident">descriptor</span>.<span class="ident">put_descriptor</span>.<span class="ident">name</span>)
+            .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::Agent</span>(<span class="string">&quot;unable to find PUT factory in binary&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">PutConfig</span> {
+            <span class="ident">descriptor</span>: <span class="ident">descriptor</span>.<span class="ident">put_descriptor</span>.<span class="ident">clone</span>(),
+            <span class="ident">typ</span>: <span class="ident">descriptor</span>.<span class="ident">typ</span>,
             <span class="ident">tls_version</span>: <span class="ident">descriptor</span>.<span class="ident">tls_version</span>,
-            <span class="ident">server</span>: <span class="ident">descriptor</span>.<span class="ident">server</span>,
-            <span class="ident">agent_name</span>: <span class="ident">descriptor</span>.<span class="ident">name</span>,
-            <span class="ident">claimer</span>,
+            <span class="ident">claims</span>: <span class="ident">context</span>.<span class="ident">claims</span>().<span class="ident">clone</span>(),
+            <span class="ident">authenticate_peer</span>: <span class="ident">descriptor</span>.<span class="ident">typ</span> <span class="op">==</span> <span class="ident">AgentType::Client</span>
+                <span class="op">&amp;&amp;</span> <span class="ident">descriptor</span>.<span class="ident">server_authentication</span>
+                <span class="op">|</span><span class="op">|</span> <span class="ident">descriptor</span>.<span class="ident">typ</span> <span class="op">==</span> <span class="ident">AgentType::Server</span> <span class="op">&amp;&amp;</span> <span class="ident">descriptor</span>.<span class="ident">client_authentication</span>,
+            <span class="ident">extract_deferred</span>: <span class="ident">Rc::new</span>(<span class="ident">RefCell::new</span>(<span class="prelude-val">None</span>)),
         };
 
-        <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> <span class="ident">PUT_REGISTRY</span>
-            .<span class="ident">find_factory</span>(<span class="ident">descriptor</span>.<span class="ident">put_name</span>)
-            .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::Agent</span>(<span class="string">&quot;unable to find PUT in binary&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">factory</span>.<span class="ident">create</span>(<span class="ident">config</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">factory</span>.<span class="ident">create</span>(<span class="kw-2">&amp;</span><span class="ident">descriptor</span>, <span class="ident">config</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">agent</span> <span class="op">=</span> <span class="ident">Agent</span> {
-            <span class="ident">descriptor</span>: <span class="kw-2">*</span><span class="ident">descriptor</span>,
-            <span class="ident">stream</span>,
+            <span class="ident">name</span>: <span class="ident">descriptor</span>.<span class="ident">name</span>,
+            <span class="ident">typ</span>: <span class="ident">descriptor</span>.<span class="ident">typ</span>,
+            <span class="ident">put</span>: <span class="ident">stream</span>,
         };
 
         <span class="prelude-val">Ok</span>(<span class="ident">agent</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rename</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">new_name</span>: <span class="ident">AgentName</span>) {
-        <span class="self">self</span>.<span class="ident">descriptor</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">new_name</span>;
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">change_agent_name</span>(<span class="ident">claimer</span>, <span class="ident">new_name</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rename</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">new_name</span>: <span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">name</span> <span class="op">=</span> <span class="ident">new_name</span>;
+        <span class="self">self</span>.<span class="ident">put</span>.<span class="ident">rename_agent</span>(<span class="ident">new_name</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">reset</span>()
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">put</span>.<span class="ident">reset</span>(<span class="ident">agent_name</span>)
     }
 }
 </code></pre></div>

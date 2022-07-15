@@ -502,20 +502,71 @@
 <span id="497">497</span>
 <span id="498">498</span>
 <span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">core::time::Duration</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">path::PathBuf</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">fmt</span>, <span class="ident">fmt::Debug</span>, <span class="ident">path::PathBuf</span>};
 
 <span class="kw">use</span> <span class="ident">libafl</span>::{
     <span class="ident">bolts</span>::{
         <span class="ident">core_affinity::Cores</span>,
-        <span class="ident">rands</span>::{<span class="ident">Rand</span>, <span class="ident">RomuDuoJrRand</span>, <span class="ident">StdRand</span>},
+        <span class="ident">rands</span>::{<span class="ident">Rand</span>, <span class="ident">StdRand</span>},
         <span class="ident">shmem</span>::{<span class="ident">ShMemProvider</span>, <span class="ident">StdShMemProvider</span>},
         <span class="ident">tuples::tuple_list</span>,
+        <span class="ident">AsRefIterator</span>,
     },
-    <span class="ident">corpus</span>::{<span class="ident">CachedOnDiskCorpus</span>, <span class="ident">Corpus</span>, <span class="ident">InMemoryCorpus</span>, <span class="ident">OnDiskCorpus</span>},
+    <span class="ident">corpus</span>::{<span class="ident">ondisk::OnDiskMetadataFormat</span>, <span class="ident">CachedOnDiskCorpus</span>, <span class="ident">Corpus</span>, <span class="ident">OnDiskCorpus</span>},
     <span class="ident">events</span>::{
-        <span class="ident">EventConfig</span>, <span class="ident">EventFirer</span>, <span class="ident">EventManager</span>, <span class="ident">EventRestarter</span>, <span class="ident">HasEventManagerId</span>,
-        <span class="ident">LlmpRestartingEventManager</span>, <span class="ident">ProgressReporter</span>,
+        <span class="ident">setup_restarting_mgr_std</span>, <span class="ident">EventConfig</span>, <span class="ident">EventFirer</span>, <span class="ident">EventManager</span>, <span class="ident">EventRestarter</span>,
+        <span class="ident">HasEventManagerId</span>, <span class="ident">LlmpRestartingEventManager</span>, <span class="ident">ProgressReporter</span>,
     },
     <span class="ident">executors</span>::{<span class="ident">inprocess::InProcessExecutor</span>, <span class="ident">ExitKind</span>, <span class="ident">TimeoutExecutor</span>},
     <span class="ident">feedback_or</span>,
@@ -524,63 +575,32 @@
         <span class="ident">MaxMapFeedback</span>, <span class="ident">MaxReducer</span>, <span class="ident">TimeFeedback</span>, <span class="ident">TimeoutFeedback</span>,
     },
     <span class="ident">fuzzer</span>::{<span class="ident">Fuzzer</span>, <span class="ident">StdFuzzer</span>},
-    <span class="ident">monitors::tui::TuiMonitor</span>,
-    <span class="ident">observers</span>::{<span class="ident">HitcountsMapObserver</span>, <span class="ident">ObserversTuple</span>, <span class="ident">StdMapObserver</span>, <span class="ident">TimeObserver</span>},
+    <span class="ident">monitors</span>::{<span class="ident">tui::TuiMonitor</span>, <span class="ident">MultiMonitor</span>},
+    <span class="ident">observers</span>::{<span class="ident">HitcountsMapObserver</span>, <span class="ident">MapObserver</span>, <span class="ident">ObserversTuple</span>, <span class="ident">StdMapObserver</span>, <span class="ident">TimeObserver</span>},
     <span class="ident">schedulers</span>::{<span class="ident">IndexesLenTimeMinimizerScheduler</span>, <span class="ident">QueueScheduler</span>, <span class="ident">Scheduler</span>},
     <span class="ident">state</span>::{<span class="ident">HasClientPerfMonitor</span>, <span class="ident">HasCorpus</span>, <span class="ident">HasExecutions</span>, <span class="ident">HasNamedMetadata</span>, <span class="ident">StdState</span>},
-    <span class="ident">Error</span>,
+    <span class="ident">Error</span>, <span class="ident">Evaluator</span>,
 };
-<span class="kw">use</span> <span class="ident">log::info</span>;
+<span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">info</span>, <span class="ident">warn</span>};
+<span class="kw">use</span> <span class="ident">log4rs::Handle</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::harness</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">fuzzer</span>::{
-        <span class="ident">monitor::PuffinMonitor</span>,
         <span class="ident">mutations</span>::{<span class="ident">trace_mutations</span>, <span class="ident">util::TermConstraints</span>},
         <span class="ident">stages</span>::{<span class="ident">PuffinMutationalStage</span>, <span class="ident">PuffinScheduledMutator</span>},
-        <span class="ident">stats_observer::StatsStage</span>,
+        <span class="ident">stats_monitor::StatsMonitor</span>,
+        <span class="ident">stats_stage::StatsStage</span>,
     },
+    <span class="ident">log::create_file_config</span>,
     <span class="ident">put_registry::PUT_REGISTRY</span>,
+    <span class="ident">tls::seeds::create_corpus</span>,
     <span class="ident">trace::Trace</span>,
 };
 
-<span class="comment">// TODO: Use feedback_or_fast</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_minimizer_feedback</span><span class="op">&lt;</span><span class="lifetime">&#39;harness</span>, <span class="lifetime">&#39;b</span>, <span class="ident">S</span>: <span class="lifetime">&#39;b</span><span class="op">&gt;</span>(
-    <span class="ident">edges_observer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;harness</span> <span class="ident">HitcountsMapObserver</span><span class="op">&lt;</span><span class="ident">StdMapObserver</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span>, <span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-) -&gt; <span class="kw">impl</span> <span class="ident">Feedback</span><span class="op">&lt;</span><span class="ident">Trace</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;b</span>
-<span class="kw">where</span>
-    <span class="ident">S</span>: <span class="ident">HasExecutions</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">fmt::Debug</span> <span class="op">+</span> <span class="ident">HasNamedMetadata</span>,
-{
-    <span class="macro">feedback_or!</span>(<span class="ident">MaxMapFeedback::new_tracking</span>(
-        <span class="ident">edges_observer</span>,
-        <span class="bool-val">false</span>, <span class="comment">// [TODO] [LH] Why are track_index and track_novelties are false?</span>
-        <span class="bool-val">false</span>
-    ))
-}
-
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">no_feedback</span><span class="op">&lt;</span><span class="lifetime">&#39;harness</span>, <span class="lifetime">&#39;b</span>, <span class="ident">S</span>: <span class="lifetime">&#39;b</span><span class="op">&gt;</span>() -&gt; <span class="kw">impl</span> <span class="ident">Feedback</span><span class="op">&lt;</span><span class="ident">Trace</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;b</span>
-<span class="kw">where</span>
-    <span class="ident">S</span>: <span class="ident">HasExecutions</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">fmt::Debug</span> <span class="op">+</span> <span class="ident">HasNamedMetadata</span>,
-{
-}
-
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">minimizer_feedback</span><span class="op">&lt;</span><span class="lifetime">&#39;harness</span>, <span class="lifetime">&#39;b</span>, <span class="ident">S</span>: <span class="lifetime">&#39;b</span><span class="op">&gt;</span>(
-    <span class="ident">time_observer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;harness</span> <span class="ident">TimeObserver</span>,
-    <span class="ident">edges_observer</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;harness</span> <span class="ident">HitcountsMapObserver</span><span class="op">&lt;</span><span class="ident">StdMapObserver</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span>, <span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-) -&gt; <span class="kw">impl</span> <span class="ident">Feedback</span><span class="op">&lt;</span><span class="ident">Trace</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="op">+</span> <span class="lifetime">&#39;b</span>
-<span class="kw">where</span>
-    <span class="ident">S</span>: <span class="ident">HasExecutions</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span> <span class="op">+</span> <span class="ident">fmt::Debug</span> <span class="op">+</span> <span class="ident">HasNamedMetadata</span>,
-{
-    <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(
-        <span class="comment">// New maximization map feedback linked to the edges observer and the feedback state</span>
-        <span class="comment">// `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler</span>
-        <span class="ident">MaxMapFeedback::new_tracking</span>(<span class="ident">edges_observer</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>),
-        <span class="comment">// Time feedback, this one does not need a feedback state</span>
-        <span class="comment">// needed for IndexesLenTimeMinimizerCorpusScheduler</span>
-        <span class="ident">TimeFeedback::new_with_observer</span>(<span class="ident">time_observer</span>)
-    );
-    <span class="ident">feedback</span>
-}
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MAP_FEEDBACK_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;edges&quot;</span>;
+<span class="kw">const</span> <span class="ident">EDGES_OBSERVER_NAME</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;edges_observer&quot;</span>;
 
 <span class="kw">type</span> <span class="ident">ConcreteExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;harness</span>, <span class="ident">H</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="op">=</span>
     <span class="ident">TimeoutExecutor</span><span class="op">&lt;</span><span class="ident">InProcessExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;harness</span>, <span class="ident">H</span>, <span class="ident">Trace</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span><span class="op">&gt;</span>;
@@ -601,6 +621,8 @@
     <span class="kw">pub</span> <span class="ident">mutation_stage_config</span>: <span class="ident">MutationStageConfig</span>,
     <span class="kw">pub</span> <span class="ident">mutation_config</span>: <span class="ident">MutationConfig</span>,
     <span class="kw">pub</span> <span class="ident">monitor</span>: <span class="ident">bool</span>,
+    <span class="kw">pub</span> <span class="ident">no_launcher</span>: <span class="ident">bool</span>,
+    <span class="kw">pub</span> <span class="ident">log_file</span>: <span class="ident">PathBuf</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
@@ -636,7 +658,7 @@
         <span class="self">Self</span> {
             <span class="ident">fresh_zoo_after</span>: <span class="number">100000</span>,
             <span class="ident">max_trace_length</span>: <span class="number">15</span>,
-            <span class="ident">min_trace_length</span>: <span class="number">5</span>,
+            <span class="ident">min_trace_length</span>: <span class="number">2</span>,
             <span class="ident">term_constraints</span>: <span class="ident">TermConstraints</span> {
                 <span class="ident">min_term_size</span>: <span class="number">0</span>,
                 <span class="ident">max_term_size</span>: <span class="number">300</span>,
@@ -762,13 +784,7 @@
 
         <span class="kw">let</span> <span class="ident">FuzzerConfig</span> {
             <span class="ident">initial_corpus_dir</span>,
-            <span class="ident">static_seed</span>,
             <span class="ident">max_iters</span>,
-            <span class="ident">core_definition</span>,
-            <span class="ident">monitor_file</span>,
-            <span class="ident">objective_dir</span>,
-            <span class="ident">broker_port</span>,
-            <span class="ident">minimizer</span>, <span class="comment">// FIXME: Unused</span>
             <span class="ident">mutation_stage_config</span>:
                 <span class="ident">MutationStageConfig</span> {
                     <span class="ident">max_iterations_per_stage</span>,
@@ -809,25 +825,36 @@
                 <span class="kw-2">&amp;mut</span> <span class="ident">state</span>,
                 <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">event_manager</span>,
             )<span class="question-mark">?</span>,
-            <span class="ident">Duration::new</span>(<span class="number">2</span>, <span class="number">0</span>),
+            <span class="ident">Duration::new</span>(<span class="number">5</span>, <span class="number">0</span>),
         );
 
         <span class="comment">// In case the corpus is empty (on first run), reset</span>
-        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>() <span class="op">&lt;</span> <span class="number">1</span> {
-            <span class="ident">state</span>
-                .<span class="ident">load_initial_inputs</span>(
-                    <span class="kw-2">&amp;mut</span> <span class="ident">fuzzer</span>,
-                    <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>,
-                    <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">event_manager</span>,
-                    <span class="kw-2">&amp;</span>[<span class="ident">initial_corpus_dir</span>.<span class="ident">clone</span>()],
-                )
-                .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
-                    <span class="macro">panic!</span>(
-                        <span class="string">&quot;Failed to load initial corpus at {:?}: {}&quot;</span>,
-                        <span class="kw-2">&amp;</span><span class="ident">initial_corpus_dir</span>, <span class="ident">err</span>
+        <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">is_empty</span>() {
+            <span class="kw">if</span> <span class="ident">initial_corpus_dir</span>.<span class="ident">exists</span>() {
+                <span class="ident">state</span>
+                    .<span class="ident">load_initial_inputs</span>(
+                        <span class="kw-2">&amp;mut</span> <span class="ident">fuzzer</span>,
+                        <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>,
+                        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">event_manager</span>,
+                        <span class="kw-2">&amp;</span>[<span class="ident">initial_corpus_dir</span>.<span class="ident">clone</span>()],
                     )
-                });
-            <span class="macro">info!</span>(<span class="string">&quot;We imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
+                    .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+                        <span class="macro">panic!</span>(
+                            <span class="string">&quot;Failed to load initial corpus at {:?}: {}&quot;</span>,
+                            <span class="kw-2">&amp;</span><span class="ident">initial_corpus_dir</span>, <span class="ident">err</span>
+                        )
+                    });
+                <span class="macro">info!</span>(<span class="string">&quot;Imported {} inputs from disk.&quot;</span>, <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>());
+            } <span class="kw">else</span> {
+                <span class="macro">warn!</span>(<span class="string">&quot;Initial seed corpus not found. Using embedded seeds.&quot;</span>);
+
+                <span class="kw">for</span> (<span class="ident">seed</span>, <span class="ident">name</span>) <span class="kw">in</span> <span class="ident">create_corpus</span>() {
+                    <span class="macro">info!</span>(<span class="string">&quot;Using seed {}&quot;</span>, <span class="ident">name</span>);
+                    <span class="ident">fuzzer</span>
+                        .<span class="ident">add_input</span>(<span class="kw-2">&amp;mut</span> <span class="ident">state</span>, <span class="kw-2">&amp;mut</span> <span class="ident">executor</span>, <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">event_manager</span>, <span class="ident">seed</span>)
+                        .<span class="ident">expect</span>(<span class="string">&quot;Failed to add input&quot;</span>);
+                }
+            }
         }
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">max_iters</span>) <span class="op">=</span> <span class="ident">max_iters</span> {
@@ -909,15 +936,36 @@
         <span class="op">&gt;</span> <span class="op">+</span> <span class="ident">ProgressReporter</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&gt;</span>,
 {
     <span class="kw">fn</span> <span class="ident">install_minimizer</span>(<span class="self">self</span>) -&gt; <span class="self">Self</span> {
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">test</span>))]</span>
+        <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">libafl_targets</span>::{<span class="ident">EDGES_MAP</span>, <span class="ident">MAX_EDGES_NUM</span>};
+            <span class="kw-2">&amp;mut</span> <span class="ident">EDGES_MAP</span>[<span class="number">0</span>..<span class="ident">MAX_EDGES_NUM</span>]
+        };
+
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+        <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="comment">// When testing we should not import libafl_targets, else it conflicts with sancov_dummy</span>
+            <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">EDGES_MAP_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">65536</span>;
+            <span class="kw">pub</span> <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">EDGES_MAP</span>: [<span class="ident">u8</span>; <span class="ident">EDGES_MAP_SIZE</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="ident">EDGES_MAP_SIZE</span>];
+            <span class="kw">pub</span> <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">MAX_EDGES_NUM</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="kw-2">&amp;mut</span> <span class="ident">EDGES_MAP</span>[<span class="number">0</span>..<span class="ident">MAX_EDGES_NUM</span>]
+        };
+
+        <span class="kw">let</span> <span class="ident">map_feedback</span> <span class="op">=</span> <span class="ident">MaxMapFeedback::with_names_tracking</span>(
+            <span class="ident">MAP_FEEDBACK_NAME</span>,
+            <span class="ident">EDGES_OBSERVER_NAME</span>,
+            <span class="bool-val">true</span>,
+            <span class="bool-val">false</span>,
+        );
+
         <span class="kw">let</span> (<span class="ident">feedback</span>, <span class="ident">observers</span>) <span class="op">=</span> {
             <span class="kw">let</span> <span class="ident">time_observer</span> <span class="op">=</span> <span class="ident">TimeObserver::new</span>(<span class="string">&quot;time&quot;</span>);
-            <span class="kw">let</span> <span class="ident">edges_observer</span> <span class="op">=</span> <span class="ident">HitcountsMapObserver::new</span>(<span class="ident">StdMapObserver::new</span>(<span class="string">&quot;edges&quot;</span>, <span class="kw">unsafe</span> {
-                <span class="kw-2">&amp;mut</span> <span class="ident"><span class="kw">super</span>::EDGES_MAP</span>[<span class="number">0</span>..<span class="ident"><span class="kw">super</span>::MAX_EDGES_NUM</span>]
-            }));
+            <span class="kw">let</span> <span class="ident">edges_observer</span> <span class="op">=</span>
+                <span class="ident">HitcountsMapObserver::new</span>(<span class="ident">StdMapObserver::new</span>(<span class="ident">EDGES_OBSERVER_NAME</span>, <span class="ident">map</span>));
             <span class="kw">let</span> <span class="ident">feedback</span> <span class="op">=</span> <span class="macro">feedback_or!</span>(
                 <span class="comment">// New maximization map feedback linked to the edges observer and the feedback state</span>
                 <span class="comment">// `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler</span>
-                <span class="ident">MaxMapFeedback::new_tracking</span>(<span class="kw-2">&amp;</span><span class="ident">edges_observer</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>),
+                <span class="ident">map_feedback</span>,
                 <span class="comment">// Time feedback, this one does not need a feedback state</span>
                 <span class="comment">// needed for IndexesLenTimeMinimizerCorpusScheduler</span>
                 <span class="ident">TimeFeedback::new_with_observer</span>(<span class="kw-2">&amp;</span><span class="ident">time_observer</span>)
@@ -932,8 +980,21 @@
 }
 
 <span class="doccomment">/// Starts the fuzzing loop</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">FuzzerConfig</span>) {
-    <span class="macro">info!</span>(<span class="string">&quot;Running on {} cores&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">config</span>.<span class="ident">core_definition</span>);
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start</span>(<span class="ident">config</span>: <span class="ident">FuzzerConfig</span>, <span class="ident">log_handle</span>: <span class="ident">Handle</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">libafl::Error</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">FuzzerConfig</span> {
+        <span class="ident">core_definition</span>,
+        <span class="ident">corpus_dir</span>,
+        <span class="ident">objective_dir</span>,
+        <span class="ident">static_seed</span>,
+        <span class="ident">log_file</span>,
+        <span class="ident">monitor_file</span>,
+        <span class="ident">broker_port</span>,
+        <span class="ident">monitor</span>,
+        <span class="ident">no_launcher</span>,
+        ..
+    } <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">config</span>;
+
+    <span class="macro">info!</span>(<span class="string">&quot;Running on cores: {}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">core_definition</span>);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">run_client</span> <span class="op">=</span>
         <span class="op">|</span><span class="ident">state</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">StdState</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">Trace</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>,
@@ -941,63 +1002,102 @@
          <span class="ident">_unknown</span>: <span class="ident">usize</span><span class="op">|</span>
          -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
             <span class="ident">PUT_REGISTRY</span>.<span class="ident">make_deterministic</span>();
-            <span class="kw">let</span> <span class="ident">seed</span> <span class="op">=</span> <span class="ident">config</span>
-                .<span class="ident">static_seed</span>
-                .<span class="ident">unwrap_or</span>(<span class="ident">event_manager</span>.<span class="ident">mgr_id</span>().<span class="ident">id</span> <span class="kw">as</span> <span class="ident">u64</span>);
+
+            <span class="kw">let</span> <span class="ident">seed</span> <span class="op">=</span> <span class="ident">static_seed</span>.<span class="ident">unwrap_or</span>(<span class="ident">event_manager</span>.<span class="ident">mgr_id</span>().<span class="ident">id</span> <span class="kw">as</span> <span class="ident">u64</span>);
             <span class="macro">info!</span>(<span class="string">&quot;Seed is {}&quot;</span>, <span class="ident">seed</span>);
-            <span class="ident">RunClientBuilder::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">harness::harness</span>, <span class="ident">state</span>, <span class="ident">event_manager</span>)
+            <span class="kw">let</span> <span class="ident">harness_fn</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">harness::harness</span>;
+
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span>
+                <span class="ident">RunClientBuilder::new</span>(<span class="ident">config</span>.<span class="ident">clone</span>(), <span class="ident">harness_fn</span>, <span class="ident">state</span>, <span class="ident">event_manager</span>);
+            <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
                 .<span class="ident">with_rand</span>(<span class="ident">StdRand::with_seed</span>(<span class="ident">seed</span>))
-                .<span class="ident">with_corpus</span>(<span class="ident">CachedOnDiskCorpus::new</span>(<span class="ident">config</span>.<span class="ident">corpus_dir</span>.<span class="ident">clone</span>(), <span class="number">1000</span>).<span class="ident">unwrap</span>())
-                .<span class="ident">with_objective_corpus</span>(<span class="ident">OnDiskCorpus::new</span>(<span class="ident">config</span>.<span class="ident">objective_dir</span>.<span class="ident">clone</span>()).<span class="ident">unwrap</span>())
-                .<span class="ident">with_objective</span>(<span class="macro">feedback_or!</span>(<span class="ident">CrashFeedback::new</span>(), <span class="ident">TimeoutFeedback::new</span>()))
-                .<span class="ident">install_minimizer</span>()
-                .<span class="ident">run_client</span>()
+                .<span class="ident">with_corpus</span>(
+                    <span class="ident">CachedOnDiskCorpus::new_save_meta</span>(
+                        <span class="ident">corpus_dir</span>.<span class="ident">clone</span>(),
+                        <span class="prelude-val">Some</span>(<span class="ident">OnDiskMetadataFormat::Json</span>),
+                        <span class="number">1000</span>,
+                    )
+                    .<span class="ident">unwrap</span>(),
+                )
+                .<span class="ident">with_objective_corpus</span>(
+                    <span class="ident">OnDiskCorpus::new_save_meta</span>(
+                        <span class="ident">objective_dir</span>.<span class="ident">clone</span>(),
+                        <span class="prelude-val">Some</span>(<span class="ident">OnDiskMetadataFormat::JsonPretty</span>),
+                    )
+                    .<span class="ident">unwrap</span>(),
+                )
+                .<span class="ident">with_objective</span>(<span class="macro">feedback_or!</span>(<span class="ident">CrashFeedback::new</span>(), <span class="ident">TimeoutFeedback::new</span>()));
+
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;sancov_libafl&quot;</span>)]</span>
+            {
+                <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>.<span class="ident">install_minimizer</span>();
+            }
+
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;sancov_libafl&quot;</span>))]</span>
+            {
+                <span class="macro">log::error!</span>(<span class="string">&quot;Running without minimizer is unsupported&quot;</span>);
+                <span class="ident">builder</span> <span class="op">=</span> <span class="ident">builder</span>
+                    .<span class="ident">with_feedback</span>(())
+                    .<span class="ident">with_observers</span>(())
+                    .<span class="ident">with_scheduler</span>(<span class="ident">libafl::schedulers::RandScheduler::new</span>());
+            }
+
+            <span class="ident">log_handle</span>.<span class="ident">clone</span>().<span class="ident">set_config</span>(<span class="ident">create_file_config</span>(<span class="ident">log_file</span>));
+
+            <span class="ident">builder</span>.<span class="ident">run_client</span>()
         };
 
-    <span class="kw">let</span> <span class="ident">cores</span> <span class="op">=</span> <span class="ident">Cores::from_cmdline</span>(<span class="ident">config</span>.<span class="ident">core_definition</span>.<span class="ident">as_str</span>()).<span class="ident">unwrap</span>();
-    <span class="kw">let</span> <span class="ident">configuration</span>: <span class="ident">EventConfig</span> <span class="op">=</span> <span class="string">&quot;launcher default&quot;</span>.<span class="ident">into</span>();
-    <span class="kw">let</span> <span class="ident">sh_mem_provider</span> <span class="op">=</span> <span class="ident">StdShMemProvider::new</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to init shared memory&quot;</span>);
-
-    <span class="kw">let</span> <span class="ident">launch_result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">config</span>.<span class="ident">monitor</span> {
-        <span class="bool-val">true</span> =&gt; <span class="ident">libafl::bolts::launcher::Launcher::builder</span>()
-            .<span class="ident">shmem_provider</span>(<span class="ident">sh_mem_provider</span>)
-            .<span class="ident">configuration</span>(<span class="ident">configuration</span>)
-            .<span class="ident">monitor</span>(<span class="ident">TuiMonitor::new</span>(<span class="string">&quot;test&quot;</span>.<span class="ident">to_string</span>(), <span class="bool-val">false</span>))
-            .<span class="ident">run_client</span>(<span class="kw-2">&amp;mut</span> <span class="ident">run_client</span>)
-            .<span class="ident">cores</span>(<span class="kw-2">&amp;</span><span class="ident">cores</span>)
-            .<span class="ident">broker_port</span>(<span class="ident">config</span>.<span class="ident">broker_port</span>)
-            <span class="comment">//todo where should we log the output of the harness?</span>
-            <span class="comment">/*.stdout_file(Some(&quot;/dev/null&quot;))*/</span>
-            .<span class="ident">build</span>()
-            .<span class="ident">launch</span>(),
-        <span class="bool-val">false</span> =&gt; <span class="ident">libafl::bolts::launcher::Launcher::builder</span>()
-            .<span class="ident">shmem_provider</span>(<span class="ident">sh_mem_provider</span>)
-            .<span class="ident">configuration</span>(<span class="ident">configuration</span>)
-            .<span class="ident">monitor</span>(
-                <span class="ident">PuffinMonitor::new</span>(
-                    <span class="op">|</span><span class="ident">s</span><span class="op">|</span> {
-                        <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>);
-                    },
-                    <span class="ident">config</span>.<span class="ident">monitor_file</span>.<span class="ident">clone</span>(),
-                )
-                .<span class="ident">unwrap</span>(),
+    <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">no_launcher</span> {
+        <span class="kw">let</span> (<span class="ident">state</span>, <span class="ident">restarting_mgr</span>) <span class="op">=</span> <span class="ident">setup_restarting_mgr_std</span>(
+            <span class="ident">StatsMonitor::new</span>(
+                <span class="op">|</span><span class="ident">s</span><span class="op">|</span> {
+                    <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>);
+                },
+                <span class="ident">monitor_file</span>.<span class="ident">clone</span>(),
             )
-            .<span class="ident">run_client</span>(<span class="kw-2">&amp;mut</span> <span class="ident">run_client</span>)
-            .<span class="ident">cores</span>(<span class="kw-2">&amp;</span><span class="ident">cores</span>)
-            .<span class="ident">broker_port</span>(<span class="ident">config</span>.<span class="ident">broker_port</span>)
-            <span class="comment">//todo where should we log the output of the harness?</span>
-            <span class="comment">/*.stdout_file(Some(&quot;/dev/null&quot;))*/</span>
-            .<span class="ident">build</span>()
-            .<span class="ident">launch</span>(),
-    };
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">error</span>) <span class="op">=</span> <span class="ident">launch_result</span> {
-        <span class="kw">match</span> <span class="ident">error</span> {
-            <span class="ident">Error::ShuttingDown</span> =&gt; {
-                <span class="comment">// ignore</span>
-            }
-            <span class="kw">_</span> =&gt; {
-                <span class="macro">panic!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">error</span>)
-            }
+            .<span class="ident">unwrap</span>(),
+            <span class="kw-2">*</span><span class="ident">broker_port</span>,
+            <span class="ident">EventConfig::AlwaysUnique</span>,
+        )<span class="question-mark">?</span>;
+
+        <span class="ident">run_client</span>(<span class="ident">state</span>, <span class="ident">restarting_mgr</span>, <span class="number">0</span>)
+    } <span class="kw">else</span> {
+        <span class="kw">let</span> <span class="ident">cores</span> <span class="op">=</span> <span class="ident">Cores::from_cmdline</span>(<span class="ident">config</span>.<span class="ident">core_definition</span>.<span class="ident">as_str</span>()).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">configuration</span>: <span class="ident">EventConfig</span> <span class="op">=</span> <span class="string">&quot;launcher default&quot;</span>.<span class="ident">into</span>();
+        <span class="kw">let</span> <span class="ident">sh_mem_provider</span> <span class="op">=</span> <span class="ident">StdShMemProvider::new</span>().<span class="ident">expect</span>(<span class="string">&quot;Failed to init shared memory&quot;</span>);
+
+        <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">monitor</span> {
+            <span class="ident">libafl::bolts::launcher::Launcher::builder</span>()
+                .<span class="ident">shmem_provider</span>(<span class="ident">sh_mem_provider</span>)
+                .<span class="ident">configuration</span>(<span class="ident">configuration</span>)
+                .<span class="ident">monitor</span>(<span class="ident">TuiMonitor::new</span>(<span class="string">&quot;test&quot;</span>.<span class="ident">to_string</span>(), <span class="bool-val">false</span>))
+                .<span class="ident">run_client</span>(<span class="kw-2">&amp;mut</span> <span class="ident">run_client</span>)
+                .<span class="ident">cores</span>(<span class="kw-2">&amp;</span><span class="ident">cores</span>)
+                .<span class="ident">broker_port</span>(<span class="kw-2">*</span><span class="ident">broker_port</span>)
+                .<span class="ident">build</span>()
+                .<span class="ident">launch</span>()
+        } <span class="kw">else</span> {
+            <span class="ident">libafl::bolts::launcher::Launcher::builder</span>()
+                .<span class="ident">shmem_provider</span>(<span class="ident">sh_mem_provider</span>)
+                .<span class="ident">configuration</span>(<span class="ident">configuration</span>)
+                .<span class="ident">monitor</span>(
+                    <span class="ident">StatsMonitor::new</span>(
+                        <span class="op">|</span><span class="ident">s</span><span class="op">|</span> {
+                            <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>);
+                        },
+                        <span class="ident">monitor_file</span>.<span class="ident">clone</span>(),
+                    )
+                    .<span class="ident">unwrap</span>(),
+                )
+                .<span class="ident">run_client</span>(<span class="kw-2">&amp;mut</span> <span class="ident">run_client</span>)
+                .<span class="ident">cores</span>(<span class="kw-2">&amp;</span><span class="ident">cores</span>)
+                .<span class="ident">broker_port</span>(<span class="kw-2">*</span><span class="ident">broker_port</span>)
+                <span class="comment">// There is no need to disable the stdout of the clients.</span>
+                <span class="comment">// tlspuffin never logs or outputs to stdout. It always logs its output</span>
+                <span class="comment">// to tlspuffin-log.json.</span>
+                <span class="comment">// Therefore, this the following has no effect: .stdout_file(Some(&quot;/dev/null&quot;))</span>
+                .<span class="ident">build</span>()
+                .<span class="ident">launch</span>()
         }
     }
 }

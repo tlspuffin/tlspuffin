@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["get_number",""]],"struct":[["ClientStatistics",""],["CoverageStatistics",""],["ErrorStatistics",""],["IntrospectFeatures",""],["IntrospectStatistics",""],["StatsMonitor","Tracking stats during fuzzing and display both per-client and cumulative info."],["TraceStatistics",""]]});

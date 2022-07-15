@@ -761,7 +761,7 @@
     <span class="ident">extensions</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::CertificateStatusRequest</span>(
         <span class="ident">CertificateStatusRequest::OCSP</span>(<span class="ident">OCSPCertificateStatusRequest</span> {
             <span class="ident">responder_ids</span>: <span class="ident">responder_ids</span>
@@ -780,7 +780,7 @@
     <span class="ident">ocsp_response</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CertificateExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">CertificateExtension::CertificateStatus</span>(<span class="ident">CertificateStatus</span> {
         <span class="ident">ocsp_response</span>: <span class="ident">PayloadU24::new</span>(<span class="ident">ocsp_response</span>.<span class="ident">clone</span>()),
     }))
@@ -834,7 +834,7 @@
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_append_vec</span>(<span class="ident">vec_of_vec</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">vec_of_vec</span>.<span class="ident">clone</span>();
     <span class="ident">new</span>.<span class="ident">push</span>(<span class="ident">data</span>.<span class="ident">clone</span>());
     <span class="prelude-val">Ok</span>(<span class="ident">new</span>)
@@ -867,7 +867,7 @@
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signed_certificate_timestamp_server_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where what to put here</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::SignedCertificateTimestamp</span>(<span class="macro">vec!</span>[
         <span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>])),
     ]))
@@ -875,7 +875,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signed_certificate_timestamp_certificate_extension</span>(
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CertificateExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where what to put here</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">CertificateExtension::SignedCertificateTimestamp</span>(<span class="macro">vec!</span>[
         <span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>])),
     ]))
@@ -923,7 +923,7 @@
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_session_ticket_offer_extension</span>(<span class="ident">ticket</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SessionTicket</span>(<span class="ident">ClientSessionTicket::Offer</span>(
         <span class="ident">Payload::new</span>(<span class="ident">ticket</span>.<span class="ident">clone</span>()),
     )))
@@ -942,7 +942,7 @@
 <span class="doccomment">/// PreSharedKey =&gt; 0x0029,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_new_preshared_key_identity</span>(<span class="ident">identity</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PresharedKeyIdentity</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">PresharedKeyIdentity</span> {
         <span class="ident">identity</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">identity</span>.<span class="ident">clone</span>()),
         <span class="ident">obfuscated_ticket_age</span>: <span class="number">10</span>,
@@ -1112,14 +1112,14 @@
 <span class="doccomment">/// TransportParameters/quic_transport_parameters =&gt; 0x0039,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_transport_parameters_extension</span>(<span class="ident">parameters</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::TransportParameters</span>(<span class="ident">parameters</span>.<span class="ident">clone</span>()))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_transport_parameters_server_extension</span>(
     <span class="ident">parameters</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::TransportParameters</span>(<span class="ident">parameters</span>.<span class="ident">clone</span>()))
 }
 <span class="doccomment">/// NextProtocolNegotiation =&gt; 0x3374,</span>
@@ -1142,7 +1142,7 @@
     <span class="ident">parameters</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::TransportParametersDraft</span>(
         <span class="ident">parameters</span>.<span class="ident">clone</span>(),
     ))
@@ -1151,7 +1151,7 @@
     <span class="ident">parameters</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where the arguments come from here, needs manual trace implementation</span>
-    <span class="comment">//      https://gitlab.inria.fr/mammann/tlspuffin/-/issues/65</span>
+    <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::TransportParametersDraft</span>(
         <span class="ident">parameters</span>.<span class="ident">clone</span>(),
     ))

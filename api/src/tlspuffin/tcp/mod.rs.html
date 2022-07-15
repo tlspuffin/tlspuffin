@@ -299,6 +299,54 @@
 <span id="294">294</span>
 <span id="295">295</span>
 <span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">cell::RefCell</span>,
     <span class="ident">io</span>,
@@ -306,6 +354,7 @@
     <span class="ident">net</span>::{<span class="ident">AddrParseError</span>, <span class="ident">IpAddr</span>, <span class="ident">SocketAddr</span>, <span class="ident">TcpStream</span>, <span class="ident">ToSocketAddrs</span>},
     <span class="ident">rc::Rc</span>,
     <span class="ident">str::FromStr</span>,
+    <span class="ident">thread</span>,
     <span class="ident">time::Duration</span>,
 };
 
@@ -316,23 +365,26 @@
 };
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">agent</span>::{<span class="ident">AgentName</span>, <span class="ident">PutName</span>},
+    <span class="ident">agent</span>::{<span class="ident">AgentDescriptor</span>, <span class="ident">AgentName</span>},
     <span class="ident">error::Error</span>,
     <span class="ident">io</span>::{<span class="ident">MessageResult</span>, <span class="ident">Stream</span>},
-    <span class="ident">put</span>::{<span class="ident">Config</span>, <span class="ident">Put</span>},
-    <span class="ident">put_registry</span>::{<span class="ident">Factory</span>, <span class="ident">OPENSSL111</span>, <span class="ident">TCP</span>},
-    <span class="ident">trace::VecClaimer</span>,
+    <span class="ident">put</span>::{<span class="ident">Put</span>, <span class="ident">PutConfig</span>, <span class="ident">PutName</span>},
+    <span class="ident">put_registry</span>::{<span class="ident">Factory</span>, <span class="ident">TCP_PUT</span>},
 };
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_tcp_factory</span>() -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Factory</span><span class="op">&gt;</span> {
     <span class="kw">struct</span> <span class="ident">OpenSSLFactory</span>;
     <span class="kw">impl</span> <span class="ident">Factory</span> <span class="kw">for</span> <span class="ident">OpenSSLFactory</span> {
-        <span class="kw">fn</span> <span class="ident">create</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">config</span>: <span class="ident">Config</span>) -&gt; <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Put</span><span class="op">&gt;</span> {
-            <span class="ident">Box::new</span>(<span class="ident">TcpPut::new</span>(<span class="ident">config</span>).<span class="ident">unwrap</span>())
+        <span class="kw">fn</span> <span class="ident">create</span>(
+            <span class="kw-2">&amp;</span><span class="self">self</span>,
+            <span class="ident">agent</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>,
+            <span class="ident">config</span>: <span class="ident">PutConfig</span>,
+        ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Put</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">Box::new</span>(<span class="ident">TcpPut::new</span>(<span class="ident">agent</span>, <span class="ident">config</span>)<span class="question-mark">?</span>))
         }
 
         <span class="kw">fn</span> <span class="ident">put_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">PutName</span> {
-            <span class="ident">TCP</span>
+            <span class="ident">TCP_PUT</span>
         }
 
         <span class="kw">fn</span> <span class="ident">put_version</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
@@ -361,17 +413,36 @@
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TcpPut</span> {
     <span class="ident">stream</span>: <span class="ident">TcpStream</span>,
-    <span class="ident">outbound_buffer</span>: <span class="ident">io::Cursor</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">deframer</span>: <span class="ident">MessageDeframer</span>,
+    <span class="ident">config</span>: <span class="ident">PutConfig</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TcpPut</span> {
     <span class="kw">fn</span> <span class="ident">new_stream</span><span class="op">&lt;</span><span class="ident">A</span>: <span class="ident">ToSocketAddrs</span><span class="op">&gt;</span>(<span class="ident">addr</span>: <span class="ident">A</span>) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">TcpStream</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">TcpStream::connect</span>(<span class="ident">addr</span>)<span class="question-mark">?</span>;
-        <span class="comment">// FIXME: instead of having a timeout, switch to non-blocking sockets. In this case</span>
-        <span class="comment">// we would wait for new data with the Put::progress function</span>
-        <span class="ident">stream</span>.<span class="ident">set_read_timeout</span>(<span class="prelude-val">Some</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>)))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">stream</span>)
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tries</span> <span class="op">=</span> <span class="number">3</span>;
+        <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="kw">loop</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">stream</span>) <span class="op">=</span> <span class="ident">TcpStream::connect</span>(<span class="kw-2">&amp;</span><span class="ident">addr</span>) {
+                <span class="comment">// We are waiting 1 second for a response of the PUT behind the TCP socket.</span>
+                <span class="comment">// If we are expecting data from it and this timeout is reached, then we assume that</span>
+                <span class="comment">// no more will follow.</span>
+                <span class="ident">stream</span>.<span class="ident">set_read_timeout</span>(<span class="prelude-val">Some</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>)))<span class="question-mark">?</span>;
+                <span class="ident">stream</span>.<span class="ident">set_nodelay</span>(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+                <span class="kw">break</span> <span class="prelude-val">Some</span>(<span class="ident">stream</span>);
+            }
+
+            <span class="ident">tries</span> <span class="op">-</span><span class="op">=</span> <span class="number">1</span>;
+
+            <span class="kw">if</span> <span class="ident">tries</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="kw">break</span> <span class="prelude-val">None</span>;
+            }
+
+            <span class="ident">thread::sleep</span>(<span class="ident">Duration::from_millis</span>(<span class="number">500</span>));
+        };
+
+        <span class="ident">stream</span>.<span class="ident">ok_or</span>(<span class="ident">io::Error::new</span>(
+            <span class="ident">ErrorKind::NotConnected</span>,
+            <span class="string">&quot;TcpPut failed to connect&quot;</span>,
+        ))
     }
 }
 
@@ -380,27 +451,27 @@
         <span class="self">self</span>.<span class="ident">stream</span>
             .<span class="ident">write_all</span>(<span class="kw-2">&amp;mut</span> <span class="ident">opaque_message</span>.<span class="ident">clone</span>().<span class="ident">encode</span>())
             .<span class="ident">unwrap</span>();
+        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">flush</span>().<span class="ident">unwrap</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">take_message_from_outbound</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">MessageResult</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first_message</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">deframer</span>.<span class="ident">frames</span>.<span class="ident">pop_front</span>();
-
         <span class="comment">// Retry to read if no more frames in the deframer buffer</span>
-        <span class="kw">if</span> <span class="ident">first_message</span>.<span class="ident">is_none</span>() {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">deframer</span>.<span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">stream</span>) {
-                <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="ident">e</span>.<span class="ident">kind</span>();
-                <span class="kw">match</span> <span class="ident">kind</span> {
+        <span class="kw">let</span> <span class="ident">opaque_message</span> <span class="op">=</span> <span class="kw">loop</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opaque_message</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">deframer</span>.<span class="ident">frames</span>.<span class="ident">pop_front</span>() {
+                <span class="kw">break</span> <span class="prelude-val">Some</span>(<span class="ident">opaque_message</span>);
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">deframer</span>.<span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">stream</span>) {
+                <span class="kw">match</span> <span class="ident">e</span>.<span class="ident">kind</span>() {
                     <span class="ident">ErrorKind::WouldBlock</span> =&gt; {
                         <span class="comment">// This is not a hard error. It just means we will should read again from</span>
                         <span class="comment">// the TCPStream in the next steps.</span>
+                        <span class="kw">break</span> <span class="prelude-val">None</span>;
                     }
                     <span class="kw">_</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>.<span class="ident">into</span>()),
                 }
             }
-            <span class="ident">first_message</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">deframer</span>.<span class="ident">frames</span>.<span class="ident">pop_front</span>()
-        }
+        };
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opaque_message</span>) <span class="op">=</span> <span class="ident">first_message</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opaque_message</span>) <span class="op">=</span> <span class="ident">opaque_message</span> {
             <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">Message::try_from</span>(<span class="ident">opaque_message</span>.<span class="ident">clone</span>().<span class="ident">into_plain_message</span>()) {
                 <span class="prelude-val">Ok</span>(<span class="ident">message</span>) =&gt; <span class="prelude-val">Some</span>(<span class="ident">message</span>),
                 <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
@@ -417,52 +488,46 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">TcpPut</span> {
-    <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u8</span>]) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">read</span>(<span class="ident">buf</span>)
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Write</span> <span class="kw">for</span> <span class="ident">TcpPut</span> {
-    <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">write</span>(<span class="ident">buf</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">io::Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">flush</span>()
-    }
-}
-
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">TcpPut</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {}
 }
 
 <span class="kw">impl</span> <span class="ident">Put</span> <span class="kw">for</span> <span class="ident">TcpPut</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">_config</span>: <span class="ident">Config</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">_agent</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>, <span class="ident">config</span>: <span class="ident">PutConfig</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_stream</span>(<span class="ident">SocketAddr::new</span>(<span class="ident">IpAddr::from_str</span>(<span class="string">&quot;127.0.0.1&quot;</span>)<span class="question-mark">?</span>, <span class="number">44330</span>))<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">host</span> <span class="op">=</span> <span class="ident">config</span>.<span class="ident">get_option</span>(<span class="string">&quot;host&quot;</span>).<span class="ident">unwrap_or</span>(<span class="string">&quot;127.0.0.1&quot;</span>);
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="ident">config</span>
+            .<span class="ident">get_option</span>(<span class="string">&quot;port&quot;</span>)
+            .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">u16::from_str</span>(<span class="ident">value</span>).<span class="ident">ok</span>())
+            .<span class="ident">expect</span>(<span class="string">&quot;Failed to parse port option&quot;</span>);
+
+        <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_stream</span>(<span class="ident">SocketAddr::new</span>(<span class="ident">IpAddr::from_str</span>(<span class="ident">host</span>)<span class="question-mark">?</span>, <span class="ident">port</span>))<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">stream</span>,
-            <span class="ident">outbound_buffer</span>: <span class="ident">io::Cursor::new</span>(<span class="ident">Vec::new</span>()),
             <span class="ident">deframer</span>: <span class="ident">Default::default</span>(),
+            <span class="ident">config</span>,
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">progress</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">progress</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_agent_name</span>: <span class="kw-2">&amp;</span><span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_agent_name</span>: <span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">address</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream</span>.<span class="ident">peer_addr</span>()<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">stream</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::new_stream</span>(<span class="ident">address</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn</span> <span class="ident">config</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">PutConfig</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">config</span>
+    }
+
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;claims&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {
+    <span class="kw">fn</span> <span class="ident">register_claimer</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_agent_name</span>: <span class="ident">AgentName</span>) {
         <span class="macro">panic!</span>(<span class="string">&quot;Claims are not supported with TcpPut&quot;</span>)
     }
 
@@ -471,7 +536,9 @@
         <span class="macro">panic!</span>(<span class="string">&quot;Claims are not supported with TcpPut&quot;</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">change_agent_name</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">claimer</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">VecClaimer</span><span class="op">&gt;</span><span class="op">&gt;</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>) {}
+    <span class="kw">fn</span> <span class="ident">rename_agent</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">_agent_name</span>: <span class="ident">AgentName</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="prelude-val">Ok</span>(())
+    }
 
     <span class="kw">fn</span> <span class="ident">describe_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="macro">panic!</span>(<span class="string">&quot;Can not describe the state with TcpPut&quot;</span>)
@@ -498,101 +565,130 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">std</span>::{
-        <span class="ident">fs::File</span>,
-        <span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>},
+        <span class="ident">ffi::OsStr</span>,
+        <span class="ident">io</span>::{<span class="ident">stderr</span>, <span class="ident">Read</span>, <span class="ident">Write</span>},
         <span class="ident">process</span>::{<span class="ident">Child</span>, <span class="ident">Command</span>, <span class="ident">Stdio</span>},
     };
 
+    <span class="kw">use</span> <span class="ident">log::info</span>;
     <span class="kw">use</span> <span class="ident">tempfile</span>::{<span class="ident">tempdir</span>, <span class="ident">TempDir</span>};
+    <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span>::{
-        <span class="ident">agent::AgentName</span>,
-        <span class="ident">put_registry::TCP</span>,
-        <span class="ident">tls::seeds</span>::{<span class="ident">seed_client_attacker_full</span>, <span class="ident">seed_session_resumption_dhe_full</span>},
-        <span class="ident">trace::TraceContext</span>,
+        <span class="ident">put::PutDescriptor</span>,
+        <span class="ident">put_registry::TCP_PUT</span>,
+        <span class="ident">tls::seeds</span>::{<span class="ident">seed_client_attacker_full</span>, <span class="ident">seed_session_resumption_dhe_full</span>, <span class="ident">SeedHelper</span>},
     };
 
     <span class="kw">struct</span> <span class="ident">OpenSSLServer</span> {
-        <span class="ident">child</span>: <span class="ident">Child</span>,
-        <span class="ident">tmp</span>: <span class="ident">TempDir</span>,
+        <span class="ident">child</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Child</span><span class="op">&gt;</span>,
+        <span class="ident">temp_dir</span>: <span class="ident">TempDir</span>,
     }
 
     <span class="kw">impl</span> <span class="ident">OpenSSLServer</span> {
         <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">port</span>: <span class="ident">u16</span>) -&gt; <span class="self">Self</span> {
-            <span class="kw">let</span> <span class="ident">dir</span> <span class="op">=</span> <span class="ident">tempdir</span>().<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">dir</span>.<span class="ident">path</span>().<span class="ident">join</span>(<span class="string">&quot;key.pem&quot;</span>);
-            <span class="kw">let</span> <span class="ident">cert</span> <span class="op">=</span> <span class="ident">dir</span>.<span class="ident">path</span>().<span class="ident">join</span>(<span class="string">&quot;cert.pem&quot;</span>);
-            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">Command::new</span>(<span class="string">&quot;openssl&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;req&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;-x509&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;-newkey&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;rsa:2048&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;-keyout&quot;</span>)
-                .<span class="ident">arg</span>(<span class="ident">key</span>.<span class="ident">as_path</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>())
-                .<span class="ident">arg</span>(<span class="string">&quot;-out&quot;</span>)
-                .<span class="ident">arg</span>(<span class="ident">cert</span>.<span class="ident">as_path</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>())
-                .<span class="ident">arg</span>(<span class="string">&quot;-days&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;365&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;-nodes&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;-subj&quot;</span>)
-                .<span class="ident">arg</span>(<span class="string">&quot;/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...&quot;</span>)
-                <span class="comment">/*.stdout(Stdio::null())
-                .stderr(Stdio::null())*/</span>
-                .<span class="ident">spawn</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;failed to generate certs&quot;</span>)
-                .<span class="ident">wait</span>()
-                .<span class="ident">expect</span>(<span class="string">&quot;failed to wait on child&quot;</span>);
+            <span class="ident"><span class="self">Self</span>::wait_and_print</span>(<span class="ident"><span class="self">Self</span>::execute_command</span>([<span class="string">&quot;version&quot;</span>]));
+
+            <span class="kw">let</span> <span class="ident">temp_dir</span> <span class="op">=</span> <span class="ident">tempdir</span>().<span class="ident">unwrap</span>();
+
+            <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">temp_dir</span>.<span class="ident">path</span>().<span class="ident">join</span>(<span class="string">&quot;key.pem&quot;</span>);
+            <span class="kw">let</span> <span class="ident">key_path</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">as_os_str</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">cert</span> <span class="op">=</span> <span class="ident">temp_dir</span>.<span class="ident">path</span>().<span class="ident">join</span>(<span class="string">&quot;cert.pem&quot;</span>);
+            <span class="kw">let</span> <span class="ident">cert_path</span> <span class="op">=</span> <span class="ident">cert</span>.<span class="ident">as_os_str</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>();
+
+            <span class="ident"><span class="self">Self</span>::wait_and_print</span>(<span class="ident"><span class="self">Self</span>::execute_command</span>([
+                <span class="string">&quot;req&quot;</span>,
+                <span class="string">&quot;-x509&quot;</span>,
+                <span class="string">&quot;-newkey&quot;</span>,
+                <span class="string">&quot;rsa:2048&quot;</span>,
+                <span class="string">&quot;-keyout&quot;</span>,
+                <span class="ident">key_path</span>,
+                <span class="string">&quot;-out&quot;</span>,
+                <span class="ident">cert_path</span>,
+                <span class="string">&quot;-days&quot;</span>,
+                <span class="string">&quot;365&quot;</span>,
+                <span class="string">&quot;-nodes&quot;</span>,
+                <span class="string">&quot;-subj&quot;</span>,
+                <span class="string">&quot;/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...&quot;</span>,
+            ]));
 
             <span class="self">Self</span> {
-                <span class="ident">child</span>: <span class="ident">Command::new</span>(<span class="string">&quot;openssl&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="string">&quot;s_server&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="string">&quot;-accept&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="ident">port</span>.<span class="ident">to_string</span>())
-                    .<span class="ident">arg</span>(<span class="string">&quot;-msg&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="string">&quot;-debug&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="string">&quot;-state&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="string">&quot;-key&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="ident">key</span>.<span class="ident">as_path</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>())
-                    .<span class="ident">arg</span>(<span class="string">&quot;-cert&quot;</span>)
-                    .<span class="ident">arg</span>(<span class="ident">cert</span>.<span class="ident">as_path</span>().<span class="ident">to_str</span>().<span class="ident">unwrap</span>())
-                    <span class="comment">/*.stdout(Stdio::null())
-                    .stderr(Stdio::null())*/</span>
-                    .<span class="ident">spawn</span>()
-                    .<span class="ident">expect</span>(<span class="string">&quot;failed to execute process&quot;</span>),
-                <span class="ident">tmp</span>: <span class="ident">dir</span>,
+                <span class="ident">child</span>: <span class="prelude-val">Some</span>(<span class="ident"><span class="self">Self</span>::execute_command</span>([
+                    <span class="string">&quot;s_server&quot;</span>,
+                    <span class="string">&quot;-accept&quot;</span>,
+                    <span class="kw-2">&amp;</span><span class="ident">port</span>.<span class="ident">to_string</span>(),
+                    <span class="string">&quot;-msg&quot;</span>,
+                    <span class="string">&quot;-state&quot;</span>,
+                    <span class="string">&quot;-key&quot;</span>,
+                    <span class="ident">key_path</span>,
+                    <span class="string">&quot;-cert&quot;</span>,
+                    <span class="ident">cert_path</span>,
+                ])),
+                <span class="ident">temp_dir</span>,
             }
+        }
+
+        <span class="kw">fn</span> <span class="ident">wait_and_print</span>(<span class="ident">child</span>: <span class="ident">Child</span>) {
+            <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">child</span>.<span class="ident">wait_with_output</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to wait on child&quot;</span>);
+            <span class="macro">info!</span>(<span class="string">&quot;--- stderr&quot;</span>);
+            <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>.<span class="ident">stderr</span>).<span class="ident">unwrap</span>());
+            <span class="macro">info!</span>(<span class="string">&quot;--- stderr&quot;</span>);
+            <span class="macro">info!</span>(<span class="string">&quot;--- stdout&quot;</span>);
+            <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">std::str::from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">output</span>.<span class="ident">stdout</span>).<span class="ident">unwrap</span>());
+            <span class="macro">info!</span>(<span class="string">&quot;--- stdout&quot;</span>);
+        }
+
+        <span class="kw">fn</span> <span class="ident">execute_command</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>(<span class="ident">args</span>: <span class="ident">I</span>) -&gt; <span class="ident">Child</span>
+        <span class="kw">where</span>
+            <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">S</span><span class="op">&gt;</span>,
+            <span class="ident">S</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">OsStr</span><span class="op">&gt;</span>,
+        {
+            <span class="ident">Command::new</span>(<span class="string">&quot;openssl&quot;</span>)
+                .<span class="ident">args</span>(<span class="ident">args</span>)
+                .<span class="ident">stdin</span>(<span class="ident">Stdio::piped</span>()) <span class="comment">// This line is super important! Else the OpenSSL server immediately stops</span>
+                .<span class="ident">stdout</span>(<span class="ident">Stdio::piped</span>())
+                .<span class="ident">stderr</span>(<span class="ident">Stdio::piped</span>())
+                .<span class="ident">spawn</span>()
+                .<span class="ident">expect</span>(<span class="string">&quot;failed to execute process&quot;</span>)
         }
     }
 
     <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">OpenSSLServer</span> {
         <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
-            <span class="self">self</span>.<span class="ident">child</span>.<span class="ident">kill</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to stop server&quot;</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">child</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">child</span>.<span class="ident">take</span>() {
+                <span class="ident">child</span>.<span class="ident">kill</span>().<span class="ident">expect</span>(<span class="string">&quot;failed to stop server&quot;</span>);
+
+                <span class="ident"><span class="self">Self</span>::wait_and_print</span>(<span class="ident">child</span>)
+            }
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">ignore</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_tcp_put_session_resumption_dhe_full</span>() {
-        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">OpenSSLServer::new</span>(<span class="number">44330</span>);
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44330</span>;
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">OpenSSLServer::new</span>(<span class="ident">port</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>();
-        <span class="kw">let</span> <span class="ident">initial_server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
-        <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">initial_server</span>.<span class="ident">next</span>();
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe_full</span>(<span class="ident">initial_server</span>, <span class="ident">server</span>, <span class="ident">TCP</span>);
+        <span class="kw">let</span> <span class="ident">put</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
+            <span class="ident">name</span>: <span class="ident">TCP_PUT</span>,
+            <span class="ident">options</span>: <span class="macro">vec!</span>[(<span class="string">&quot;port&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">port</span>.<span class="ident">to_string</span>())],
+        };
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe_full</span>.<span class="ident">build_trace_with_put</span>(<span class="ident">put</span>);
+        <span class="ident">trace</span>.<span class="ident">execute_default</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">ignore</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_tcp_put_seed_client_attacker_full</span>() {
-        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">OpenSSLServer::new</span>(<span class="number">44330</span>);
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44331</span>;
+        <span class="kw">let</span> <span class="ident">_guard</span> <span class="op">=</span> <span class="ident">OpenSSLServer::new</span>(<span class="ident">port</span>);
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>();
-        <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
-        <span class="kw">let</span> (<span class="ident">trace</span>, ..) <span class="op">=</span> <span class="ident">seed_client_attacker_full</span>(<span class="ident">server</span>, <span class="ident">TCP</span>);
+        <span class="kw">let</span> <span class="ident">put</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
+            <span class="ident">name</span>: <span class="ident">TCP_PUT</span>,
+            <span class="ident">options</span>: <span class="macro">vec!</span>[(<span class="string">&quot;port&quot;</span>.<span class="ident">to_owned</span>(), <span class="ident">port</span>.<span class="ident">to_string</span>())],
+        };
 
-        <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker_full</span>.<span class="ident">build_trace_with_put</span>(<span class="ident">put</span>);
+        <span class="ident">trace</span>.<span class="ident">execute_default</span>();
     }
 }
 </code></pre></div>

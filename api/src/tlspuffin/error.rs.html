@@ -70,7 +70,7 @@
 
 <span class="kw">use</span> <span class="ident">rustls::msgs::enums::ContentType</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">agent::AgentName</span>, <span class="ident">tls::error::FnError</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">agent::AgentName</span>, <span class="ident">claims::ClaimList</span>, <span class="ident">tls::error::FnError</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Error</span> {
@@ -86,7 +86,7 @@
     <span class="doccomment">/// Error while operating on a [`Stream`]</span>
     <span class="ident">Stream</span>(<span class="ident">String</span>),
     <span class="ident">Extraction</span>(<span class="ident">ContentType</span>),
-    <span class="ident">SecurityClaim</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">AgentName</span>, <span class="ident">security_claims::Claim</span>)<span class="op">&gt;</span>),
+    <span class="ident">SecurityClaim</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">ClaimList</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">std::error::Error</span> <span class="kw">for</span> <span class="ident">Error</span> {}
