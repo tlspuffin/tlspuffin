@@ -32,7 +32,7 @@ pub fn fn_certificate_transcript(claim: &TranscriptCertificate) -> Result<Handsh
     _fn_transcript::<TranscriptCertificate>(claim)
 }
 
-pub fn _fn_transcript<T: Transcript>(claim: &T) -> Result<HandshakeHash, FnError> {
+fn _fn_transcript<T: Transcript>(claim: &T) -> Result<HandshakeHash, FnError> {
     let algorithm = tls13::TLS13_AES_128_GCM_SHA256.hash_algorithm();
 
     let hash = HandshakeHash::new_override(Vec::from(claim.as_slice()), algorithm);
