@@ -187,7 +187,13 @@ define_signature!(
     fn_get_server_key_share
     fn_new_cipher_suites
     fn_new_random
+    fn_new_random_0
+    fn_new_random_1
+    fn_new_random_2
     fn_new_session_id
+    fn_new_session_id_0
+    fn_new_session_id_1
+    fn_new_session_id_2
     fn_no_key_share
     fn_protocol_version12
     fn_protocol_version13

@@ -24,8 +24,6 @@ pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
 pub mod log;
-#[cfg(feature = "openssl-binding")]
-pub mod openssl;
 pub mod put;
 pub mod put_registry;
 pub mod static_certs;
@@ -34,6 +32,8 @@ pub mod tcp;
 pub mod tls;
 pub mod trace;
 pub mod variable_data;
+#[cfg(feature = "openssl-binding")]
+pub mod openssl;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
 

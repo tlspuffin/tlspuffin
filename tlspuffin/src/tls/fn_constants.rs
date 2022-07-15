@@ -6,9 +6,7 @@ use crate::tls::error::FnError;
 pub fn fn_seq_0() -> Result<u64, FnError> {
     Ok(0)
 }
-pub fn fn_seq_1() -> Result<u64, FnError> {
-    Ok(1)
-}
+pub fn fn_seq_1() -> Result<u64, FnError> { Ok(1) }
 pub fn fn_seq_2() -> Result<u64, FnError> {
     Ok(2)
 }

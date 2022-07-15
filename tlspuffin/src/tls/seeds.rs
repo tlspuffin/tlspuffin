@@ -977,7 +977,7 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
           fn_client_hello(
             fn_protocol_version12,
             fn_new_random,
-            fn_new_session_id,
+            fn_new_session_id_2,
             (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256

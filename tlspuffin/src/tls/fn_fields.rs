@@ -11,6 +11,8 @@ use rustls::{
     CipherSuite, NoKeyLog, ProtocolVersion,
 };
 
+use seq_macro::seq;
+
 use crate::tls::{error::FnError, key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
@@ -21,6 +23,13 @@ pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_2)
 }
 
+pub fn fn_new_session_id_count(j: u32) -> Result<SessionID, FnError> {
+    let mut id: Vec<u8> = Vec::from([(30+j) as u8; 32]);
+    id.insert(0, 32);
+    let id = SessionID::read(&mut Reader::init(id.as_slice()));
+    Ok(id.unwrap())
+}
+
 pub fn fn_new_session_id() -> Result<SessionID, FnError> {
     let mut id: Vec<u8> = Vec::from([3u8; 32]);
     id.insert(0, 32);
@@ -28,11 +37,27 @@ pub fn fn_new_session_id() -> Result<SessionID, FnError> {
     Ok(id.unwrap())
 }
 
+fn const_name(index:usize) -> String {
+    format!("{}{}",
+            char::from_u32('A' as u32
+                + (index as u32 % 8)).unwrap()
+            , index / 8)
+}
+
 pub fn fn_new_random() -> Result<Random, FnError> {
     let random_data: [u8; 32] = [1; 32];
     Ok(Random::from(random_data))
 }
 
+pub fn fn_new_random_count(j: u32) -> Result<Random, FnError> {
+    let random_data: [u8; 32] = [10+j as u8; 32];
+    Ok(Random::from(random_data))
+}
+
+seq!(C in 0..3 {
+    pub fn fn_new_session_id_~C() -> Result<SessionID, FnError> { fn_new_session_id_count(C as u32) }
+    pub fn fn_new_random_~C() -> Result<Random, FnError> { fn_new_random_count(C as u32) }
+});
 pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
     Ok(vec![Compression::Null])
 }
