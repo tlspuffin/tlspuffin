@@ -1,11 +1,11 @@
-#set follow-fork-mode child
-#set substitute-path  /home/runner/work/tlspuffin/tlspuffin/target/x86_64-unknown-linux-gnu/release/build/wolfssl-sys-e95bba76f80a1b7e/out /home/max/projects/wolfssl
+set follow-fork-mode child
+set substitute-path  /home/runner/work/tlspuffin/tlspuffin/target/x86_64-unknown-linux-gnu/release/build/wolfssl-sys-e95bba76f80a1b7e/out /home/max/projects/wolfssl
 set env LD_LIBRARY_PATH /home/max/projects/wolfssl/src/.libs
 
 #break ssl.c:13587
 #processing session ticket
-break internal.c:14286
-break ssl.c:13432
+#break internal.c:14286
+#break ssl.c:13432
 
 
 # write to session ticket
