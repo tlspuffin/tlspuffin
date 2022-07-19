@@ -2,7 +2,7 @@ use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
 
-use crate::{put_registry::PUT_REGISTRY, GIT_MSG, GIT_REF};
+use crate::{GIT_MSG, GIT_REF};
 
 pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");

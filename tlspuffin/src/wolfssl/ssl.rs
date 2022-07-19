@@ -15,12 +15,12 @@ use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_uchar, c_void};
 use log::LevelFilter;
+use puffin::agent::TLSVersion;
 use rustls::msgs::enums::HandshakeType;
 use smallvec::SmallVec;
 use wolfssl_sys as wolf;
 
 use crate::{
-    agent::TLSVersion,
     static_certs::ALICE_PRIVATE_KEY,
     wolfssl::{
         bio,

@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::{
-    algebra::dynamic_function::TypeShape, error::Error, tls::error::FnError, trace::TraceContext,
+    algebra::{dynamic_function::TypeShape, error::FnError},
+    error::Error,
+    trace::TraceContext,
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].

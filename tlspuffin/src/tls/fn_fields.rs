@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use itertools::Itertools;
+use puffin::algebra::error::FnError;
 use rustls::{
     hash_hs::HandshakeHash,
     msgs::{
@@ -15,7 +16,7 @@ use rustls::{
     CipherSuite, NoKeyLog, ProtocolVersion,
 };
 
-use crate::tls::{error::FnError, key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
+use crate::tls::{key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)

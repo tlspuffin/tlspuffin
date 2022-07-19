@@ -166,10 +166,7 @@ mod fn_container {
         Deserialize, Deserializer, Serialize, Serializer,
     };
 
-    use crate::{
-        algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        tls::SIGNATURE,
-    };
+    use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";

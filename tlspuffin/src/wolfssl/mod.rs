@@ -12,21 +12,23 @@ use std::{
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
+    error::Error,
+    io::{MemoryStream, MessageResult, Stream},
+    put::{Put, PutConfig, PutName},
+    put_registry::Factory,
+};
 use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
 use smallvec::SmallVec;
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
     claims::{
         Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TranscriptCertificate,
         TranscriptClientFinished, TranscriptClientHello, TranscriptServerFinished,
         TranscriptServerHello,
     },
-    error::Error,
-    io::{MemoryStream, MessageResult, Stream},
-    put::{Put, PutConfig, PutName},
-    put_registry::{Factory, WOLFSSL520_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
         bio::{MemBio, MemBioSlice},

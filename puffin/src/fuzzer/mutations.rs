@@ -13,7 +13,6 @@ use crate::{
     algebra::{atoms::Function, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     mutator,
-    tls::SIGNATURE,
     trace::Trace,
 };
 

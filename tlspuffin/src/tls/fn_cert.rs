@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use puffin::algebra::error::FnError;
 use ring::signature::{EcdsaKeyPair, RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 use rustls::{
     hash_hs::HandshakeHash,
@@ -15,12 +16,8 @@ use rustls::{
     Certificate, PrivateKey, SignatureScheme,
 };
 
-use crate::{
-    error::Error,
-    static_certs::{
-        ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
-    },
-    tls::error::FnError,
+use crate::static_certs::{
+    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
 };
 
 pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {

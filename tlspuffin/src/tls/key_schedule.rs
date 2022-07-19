@@ -1,3 +1,4 @@
+use puffin::algebra::error::FnError;
 use ring::{digest, hkdf::Prk};
 use rustls::{
     hash_hs::HandshakeHash,
@@ -9,7 +10,7 @@ use rustls::{
     NoKeyLog, SupportedCipherSuite,
 };
 
-use crate::tls::{error::FnError, key_exchange::tls13_key_exchange};
+use crate::tls::key_exchange::tls13_key_exchange;
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,

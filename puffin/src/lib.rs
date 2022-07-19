@@ -15,27 +15,17 @@ compile_error!("`Only one binding at the same time is currently supported.");
 
 pub mod agent;
 pub mod algebra;
-pub mod claims;
-pub mod debug;
 pub mod error;
 pub mod experiment;
-pub mod extraction;
 pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
 pub mod log;
-#[cfg(feature = "openssl-binding")]
-pub mod openssl;
+pub mod main;
 pub mod put;
 pub mod put_registry;
-pub mod static_certs;
-pub mod tcp;
-#[allow(clippy::ptr_arg)]
-pub mod tls;
 pub mod trace;
 pub mod variable_data;
-#[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
 
 pub const GIT_REF: &str = match option_env!("GIT_REF") {
     Some(env) => env,

@@ -3,6 +3,7 @@
 
 use std::convert::TryFrom;
 
+use puffin::algebra::error::FnError;
 use rustls::{
     conn::Side,
     hash_hs::HandshakeHash,
@@ -23,7 +24,6 @@ use rustls::{
 };
 
 use crate::tls::{
-    error::FnError,
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
 };

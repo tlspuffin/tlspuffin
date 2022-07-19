@@ -40,8 +40,6 @@ use crate::{
         stats_stage::StatsStage,
     },
     log::create_file_config,
-    put_registry::PUT_REGISTRY,
-    tls::seeds::create_corpus,
     trace::Trace,
 };
 

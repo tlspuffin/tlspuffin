@@ -1,9 +1,9 @@
 use std::{any::Any, fmt::Debug, hash::Hash};
 
 use itertools::Itertools;
+use puffin::agent::{AgentType, TLSVersion};
 
 use crate::{
-    agent::{AgentType, TLSVersion},
     claims::{Claim, ClaimData, ClaimDataMessage, Finished},
     static_certs::{ALICE_CERT, BOB_CERT},
 };

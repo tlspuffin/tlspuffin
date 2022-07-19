@@ -17,10 +17,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
-    claims::{ClaimList, GlobalClaimList},
     error::Error,
     io::Stream,
-    put_registry::DUMMY_PUT,
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]

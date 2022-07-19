@@ -60,7 +60,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::{error::FnError, SIGNATURE};
+use crate::algebra::error::FnError;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]

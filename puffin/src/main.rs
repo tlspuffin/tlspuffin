@@ -9,7 +9,8 @@ use std::{
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
 use log::{error, info, SetLoggerError};
 use log4rs::Handle;
-use tlspuffin::{
+
+use crate::{
     experiment::*,
     fuzzer::{
         sanitizer::asan::{asan_info, setup_asan_env},
@@ -17,8 +18,6 @@ use tlspuffin::{
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
-    put_registry::PUT_REGISTRY,
-    tls::seeds::create_corpus,
     trace::{Trace, TraceContext},
 };
 
@@ -54,7 +53,7 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-fn main() -> ExitCode {
+pub fn main() -> ExitCode {
     let handle = match log4rs::init_config(create_stdout_config()) {
         Ok(handle) => handle,
         Err(err) => {
@@ -73,7 +72,7 @@ fn main() -> ExitCode {
     let monitor = matches.is_present("monitor");
     let no_launcher = matches.is_present("no-launcher");
 
-    info!("Version: {}", tlspuffin::GIT_REF);
+    info!("Version: {}", crate::GIT_REF);
     info!("Put Versions:");
     for version in PUT_REGISTRY.version_strings() {
         info!("{}", version);

@@ -90,13 +90,9 @@ use serde::{Deserialize, Serialize, __private::de::Borrowed};
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, remove_prefix, Term},
-    claims::{AsAny, CheckViolation, Claim, GlobalClaimList, Policy},
-    debug::{debug_message_with_info, debug_opaque_message_with_info},
+    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Term},
     error::Error,
-    extraction::extract_knowledge,
     io::MessageResult,
-    tls::{error::FnError, violation::is_violation},
     variable_data::VariableData,
 };
 

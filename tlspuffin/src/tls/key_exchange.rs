@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use puffin::algebra::error::FnError;
 use ring::test::rand::FixedByteRandom;
 use rustls::{
     conn::ConnectionRandoms,
@@ -11,8 +12,6 @@ use rustls::{
     tls12::ConnectionSecrets,
     SupportedKxGroup, ALL_KX_GROUPS,
 };
-
-use crate::tls::error::FnError;
 
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };

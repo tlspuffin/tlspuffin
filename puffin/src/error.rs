@@ -1,8 +1,6 @@
 use std::{fmt, fmt::Formatter, io};
 
-use rustls::msgs::enums::ContentType;
-
-use crate::{agent::AgentName, claims::ClaimList, tls::error::FnError};
+use crate::{agent::AgentName, algebra::error::FnError};
 
 #[derive(Debug, Clone)]
 pub enum Error {

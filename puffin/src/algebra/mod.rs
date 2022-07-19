@@ -32,9 +32,10 @@ pub use self::term::*;
 
 pub mod atoms;
 pub mod dynamic_function;
+pub mod error;
 pub mod macros;
 pub mod signature;
-mod term;
+pub mod term;
 
 #[cfg(test)]
 mod tests {

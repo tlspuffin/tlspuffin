@@ -40,22 +40,3 @@ pub trait Factory {
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);
 }
-
-pub const CURRENT_PUT_NAME: PutName = {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "openssl-binding")] {
-            OPENSSL111_PUT
-        } else if #[cfg(feature = "wolfssl-binding")] {
-            WOLFSSL520_PUT
-        } else {
-            DUMMY_PUT
-        }
-    }
-};
-
-pub fn current_put() -> PutDescriptor {
-    PutDescriptor {
-        name: CURRENT_PUT_NAME,
-        ..PutDescriptor::default()
-    }
-}

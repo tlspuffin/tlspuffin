@@ -2,6 +2,18 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::Term,
+    put::PutDescriptor,
+    term,
+    tls::fn_impl::*,
+    trace::{
+        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
+        TraceContext,
+    },
+    variable_data::VariableData,
+};
 use rustls::{
     internal::msgs::{
         enums::{Compression, HandshakeType},
@@ -12,18 +24,8 @@ use rustls::{
 };
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::Term,
-    put::PutDescriptor,
     put_registry::{current_put, PUT_REGISTRY},
     static_certs::BOB_PRIVATE_KEY,
-    term,
-    tls::{error::FnError, fn_impl::*},
-    trace::{
-        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
-        TraceContext,
-    },
-    variable_data::VariableData,
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {

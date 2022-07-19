@@ -11,13 +11,12 @@ use std::{
 
 use itertools::Itertools;
 use log::{debug, trace};
-use smallvec::SmallVec;
-
-use crate::{
+use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     variable_data::VariableData,
 };
+use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);

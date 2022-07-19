@@ -1,3 +1,4 @@
+use puffin::{error::Error, variable_data::VariableData};
 use rustls::{
     msgs::{
         enums::Compression,
@@ -6,8 +7,6 @@ use rustls::{
     },
     CipherSuite,
 };
-
-use crate::{error::Error, variable_data::VariableData};
 
 /// Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more
 /// knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted
