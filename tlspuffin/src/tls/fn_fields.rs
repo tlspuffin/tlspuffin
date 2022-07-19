@@ -24,8 +24,9 @@ pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
 pub fn fn_new_session_id() -> Result<SessionID, FnError> {
     let mut id: Vec<u8> = Vec::from([3u8; 32]);
     id.insert(0, 32);
-    let id = SessionID::read(&mut Reader::init(id.as_slice()));
-    Ok(id.unwrap())
+    let id = SessionID::read(&mut Reader::init(id.as_slice()))
+        .ok_or_else(|| FnError::Unknown("Failed to create session id".to_string()))?;
+    Ok(id)
 }
 
 pub fn fn_new_random() -> Result<Random, FnError> {
@@ -96,10 +97,10 @@ pub fn fn_verify_data(
 
 pub fn fn_sign_transcript(
     server_random: &Random,
-    server_ecdh_params: &ServerECDHParams,
+    server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey)?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))

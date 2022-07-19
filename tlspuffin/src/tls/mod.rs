@@ -199,7 +199,8 @@ define_signature!(
     fn_append_certificate
     fn_append_certificate_entry
     fn_append_transcript
-    fn_decode_ecdh_params
+    fn_decode_ecdh_pubkey
+    fn_encode_ec_pubkey12
     fn_decrypt_application
     fn_decrypt_handshake
     fn_encrypt12

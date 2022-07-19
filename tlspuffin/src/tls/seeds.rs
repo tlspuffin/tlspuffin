@@ -1332,7 +1332,9 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
 
     let client_key_exchange = term! {
         fn_client_key_exchange(
-            (fn_new_pubkey12())
+            (fn_encode_ec_pubkey12(
+                fn_new_pubkey12
+            ))
         )
     };
 
@@ -1346,7 +1348,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
     let client_verify_data = term! {
         fn_sign_transcript(
             ((server, 0)),
-            (fn_decode_ecdh_params(
+            (fn_decode_ecdh_pubkey(
                 ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript)
@@ -1386,7 +1388,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
-                            (fn_decode_ecdh_params(
+                            (fn_decode_ecdh_pubkey(
                                 ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                             )),
                             fn_seq_0
@@ -1442,7 +1444,7 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                 fn_encrypt12(
                     (@renegotiation_client_hello),
                     ((server, 0)),
-                    (fn_decode_ecdh_params(
+                    (fn_decode_ecdh_pubkey(
                         ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
                     fn_seq_1

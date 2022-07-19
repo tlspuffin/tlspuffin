@@ -11,6 +11,7 @@ use rustls::{
     msgs::{
         base::PayloadU8,
         codec::{Codec, Reader},
+        enums::NamedGroup,
         handshake::{
             CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
             Random, ServerECDHParams,
@@ -262,28 +263,33 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     Ok(transcript)
 }
 
-pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
+pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd)
-        .ok_or_else(|| FnError::Unknown("Failed to create ServerECDHParams".to_string()))
+    let params = ServerECDHParams::read(&mut rd)
+        .ok_or_else(|| FnError::Unknown("Failed to parse ecdh public key".to_string()))?;
+    Ok(params.public.0)
 }
 
 pub fn fn_new_pubkey12() -> Result<Vec<u8>, FnError> {
     let kx = tls12_key_exchange()?;
+    Ok(Vec::from(kx.pubkey.as_ref()))
+}
 
+pub fn fn_encode_ec_pubkey12(pubkey: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut buf = Vec::new();
-    let ecpoint = PayloadU8::new(Vec::from(kx.pubkey.as_ref()));
+    let ecpoint = PayloadU8::new(pubkey.clone());
     ecpoint.encode(&mut buf);
+
     Ok(buf)
 }
 
 pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
-    server_ecdh_params: &ServerECDHParams,
+    server_ecdh_pubkey: &Vec<u8>,
     sequence: &u64,
 ) -> Result<OpaqueMessage, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey)?;
 
     let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client);
     let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
