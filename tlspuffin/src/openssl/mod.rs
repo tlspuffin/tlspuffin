@@ -281,7 +281,7 @@ impl Put for OpenSSL {
         Ok(())
     }
 
-    fn describe_state(&self) -> &'static str {
+    fn describe_state(&self) -> &str {
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
@@ -304,6 +304,10 @@ impl Put for OpenSSL {
         deterministic::set_openssl_deterministic();
         #[cfg(not(feature = "openssl111"))]
         log::warn!("Unable to make PUT determinisitic!");
+    }
+
+    fn shutdown(&mut self) -> String {
+        panic!("Unsupported with OpenSSL PUT")
     }
 }
 

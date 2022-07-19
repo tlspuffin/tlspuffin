@@ -112,9 +112,9 @@ fn benchmark_seeds(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("seed_successful12", |b| {
+    group.bench_function("seed_successful12_with_tickets", |b| {
         b.iter(|| {
-            seed_successful12.execute_trace();
+            seed_successful12_with_tickets.execute_trace();
         })
     });
 
