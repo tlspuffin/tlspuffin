@@ -1,12 +1,16 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
+use itertools::Itertools;
 use rustls::{
     hash_hs::HandshakeHash,
     msgs::{
         codec::{Codec, Reader},
         enums::{Compression, ExtensionType, NamedGroup},
-        handshake::{HasServerExtensions, Random, ServerECDHParams, ServerExtension, SessionID},
+        handshake::{
+            ClientExtension, HasServerExtensions, Random, ServerECDHParams, ServerExtension,
+            SessionID,
+        },
     },
     CipherSuite, NoKeyLog, ProtocolVersion,
 };
@@ -27,6 +31,13 @@ pub fn fn_new_session_id() -> Result<SessionID, FnError> {
     let id = SessionID::read(&mut Reader::init(id.as_slice()))
         .ok_or_else(|| FnError::Unknown("Failed to create session id".to_string()))?;
     Ok(id)
+}
+
+pub fn fn_empty_session_id() -> Result<SessionID, FnError> {
+    let mut id: Vec<u8> = Vec::from([]);
+    id.insert(0, 0);
+    let id = SessionID::read(&mut Reader::init(id.as_slice()));
+    Ok(id.unwrap())
 }
 
 pub fn fn_new_random() -> Result<Random, FnError> {
@@ -60,16 +71,53 @@ pub fn fn_get_server_key_share(
     }
 }
 
+pub fn fn_get_client_key_share(
+    client_extensions: &Vec<ClientExtension>,
+    group: &NamedGroup,
+) -> Result<Option<Vec<u8>>, FnError> {
+    let client_extension = client_extensions
+        .iter()
+        .find(|x| x.get_type() == ExtensionType::KeyShare)
+        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+
+    if let ClientExtension::KeyShare(keyshares) = client_extension {
+        let keyshare = keyshares
+            .iter()
+            .find(|keyshare| keyshare.group == *group)
+            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?;
+        Ok(Some(keyshare.payload.0.clone()))
+    } else {
+        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+    }
+}
+
+pub fn fn_get_any_client_curve(
+    client_extensions: &Vec<ClientExtension>,
+) -> Result<NamedGroup, FnError> {
+    let client_extension = client_extensions
+        .iter()
+        .find(|x| x.get_type() == ExtensionType::KeyShare)
+        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+
+    if let ClientExtension::KeyShare(keyshares) = client_extension {
+        Ok(keyshares
+            .get(0)
+            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?
+            .group)
+    } else {
+        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+    }
+}
+
 pub fn fn_verify_data(
     server_finished: &HandshakeHash,
     server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
-
-    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
@@ -91,6 +139,29 @@ pub fn fn_verify_data(
     Ok(Vec::from(tag.as_ref()))
 }
 
+pub fn fn_verify_data_server(
+    server_finished: &HandshakeHash,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    psk: &Option<Vec<u8>>,
+) -> Result<Vec<u8>, FnError> {
+    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+
+    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
+
+    let (hs, _client_secret, _server_secret) = key_schedule.derive_handshake_secrets(
+        &server_hello.get_current_hash_raw(),
+        &NoKeyLog,
+        client_random,
+    );
+
+    let tag = hs.sign_server_finish_raw(&server_finished.get_current_hash_raw());
+    let vec = Vec::from(tag.as_ref());
+    Ok(vec)
+}
+
 // ----
 // seed_client_attacker12()
 // ----
@@ -99,8 +170,9 @@ pub fn fn_sign_transcript(
     server_random: &Random,
     server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))

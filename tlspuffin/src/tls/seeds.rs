@@ -692,6 +692,190 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
+pub fn seed_server_attacker_full(client: AgentName, client_put: PutDescriptor) -> Trace {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_append(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_key_share_deterministic_server_extension((@curve)))
+                )),
+                fn_supported_versions13_server_extension
+            ))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_empty_bytes_vec),
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_alice_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_rsa_sign_server(
+                (@certificate_transcript),
+                fn_alice_key,
+                fn_rsa_pss_signature_algorithm
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: client,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Client,
+            put_descriptor: client_put,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: server_hello,
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3  // sequence 3
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
 pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -> Trace {
     let client_hello = term! {
           fn_client_hello(
@@ -708,11 +892,11 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -725,6 +909,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0
         )
     };*/
@@ -736,6 +922,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -769,7 +957,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -802,6 +991,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -816,6 +1007,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -830,6 +1023,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_2  // sequence 2
                         )
                     },
@@ -858,11 +1053,11 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -876,6 +1071,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -898,7 +1095,7 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
         fn_certificate_verify(
             (fn_invalid_signature_algorithm),
             // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
-            //fn_eve_cert // or fn_new_pubkey12, fn_empty_bytes_vec
+            //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
             fn_eve_pkcs1_signature
             // Option 3 (for testing):
@@ -916,7 +1113,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -949,6 +1147,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -963,6 +1163,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -977,6 +1179,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_2  // sequence 2
                         )
                     },
@@ -1005,11 +1209,11 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1023,6 +1227,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -1045,7 +1251,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                 (fn_certificate_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1078,6 +1285,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1092,6 +1301,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -1120,11 +1331,11 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1137,7 +1348,8 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1170,6 +1382,8 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1197,11 +1411,11 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1214,7 +1428,8 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1244,6 +1459,8 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1282,7 +1499,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
@@ -1333,7 +1550,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
     let client_key_exchange = term! {
         fn_client_key_exchange(
             (fn_encode_ec_pubkey12(
-                fn_new_pubkey12
+                (fn_new_pubkey12(fn_named_group_secp384r1))
             ))
         )
     };
@@ -1351,7 +1568,8 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
             (fn_decode_ecdh_pubkey(
                 ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
-            (@client_key_exchange_transcript)
+            (@client_key_exchange_transcript),
+            fn_named_group_secp384r1
         )
     };
 
@@ -1391,6 +1609,8 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                             (fn_decode_ecdh_pubkey(
                                 ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                             )),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0
                         )
                     },
@@ -1422,7 +1642,7 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 fn_client_extensions_new,
-                                fn_secp384r1_support_group_extension
+                                (fn_support_group_extension(fn_named_group_secp384r1))
                             )),
                             fn_ec_point_formats_extension
                         )),
@@ -1447,6 +1667,8 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                     (fn_decode_ecdh_pubkey(
                         ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
+                    fn_named_group_secp384r1,
+                    fn_true,
                     fn_seq_1
                 )
             },
@@ -1463,6 +1685,8 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                     (fn_decode_ecdh_params(
                         ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
+                    fn_named_group_secp384r1,
+                    fn_true,
                     fn_seq_1
                 )
             },
@@ -1493,7 +1717,7 @@ pub fn seed_heartbleed(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         fn_client_extensions_new,
-                        fn_secp384r1_support_group_extension
+                        (fn_support_group_extension(fn_named_group_secp384r1))
                     )),
                     fn_ec_point_formats_extension
                 )),
@@ -1649,6 +1873,8 @@ pub fn seed_session_resumption_dhe(
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -1670,13 +1896,13 @@ pub fn seed_session_resumption_dhe(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1695,7 +1921,8 @@ pub fn seed_session_resumption_dhe(
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-            (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -1719,7 +1946,8 @@ pub fn seed_session_resumption_dhe(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_psk((@psk)))
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1749,6 +1977,8 @@ pub fn seed_session_resumption_dhe(
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1775,6 +2005,8 @@ pub fn seed_session_resumption_ke(
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -1796,13 +2028,13 @@ pub fn seed_session_resumption_ke(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_ke_extension
                 )),
@@ -1821,7 +2053,8 @@ pub fn seed_session_resumption_ke(
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-            (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -1845,7 +2078,8 @@ pub fn seed_session_resumption_ke(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 fn_no_key_share,
-                (fn_psk((@psk)))
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1875,6 +2109,8 @@ pub fn seed_session_resumption_ke(
                             (fn_server_hello_transcript(((server, 0)))),
                             fn_no_key_share,
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1910,11 +2146,11 @@ fn _seed_client_attacker_full(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1939,6 +2175,8 @@ fn _seed_client_attacker_full(
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0  // sequence 0
         )
     };
@@ -1956,6 +2194,8 @@ fn _seed_client_attacker_full(
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1 // sequence 1
         )
     };
@@ -1973,6 +2213,8 @@ fn _seed_client_attacker_full(
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_2 // sequence 2
         )
     };
@@ -1990,6 +2232,8 @@ fn _seed_client_attacker_full(
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_3 // sequence 3
         )
     };
@@ -2007,7 +2251,8 @@ fn _seed_client_attacker_full(
                 (@server_finished_transcript),
                 (@server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -2048,6 +2293,8 @@ fn _seed_client_attacker_full(
                             (@server_hello_transcript),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -2109,6 +2356,8 @@ pub fn seed_session_resumption_dhe_full(
             (@server_finished_transcript),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -2130,13 +2379,13 @@ pub fn seed_session_resumption_dhe_full(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -2151,11 +2400,12 @@ pub fn seed_session_resumption_dhe_full(
 
     let psk = term! {
         fn_derive_psk(
-                (@server_hello_transcript),
-                (@server_finished_transcript),
-                (@client_finished_transcript),
-                (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_get_ticket_nonce((@new_ticket_message)))
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (@client_finished_transcript),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -2189,6 +2439,8 @@ pub fn seed_session_resumption_dhe_full(
             (@resumption_server_hello_transcript),
             (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0  // sequence 0
         )
     };
@@ -2206,6 +2458,8 @@ pub fn seed_session_resumption_dhe_full(
             (@resumption_server_hello_transcript),
             (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1 // sequence 1
         )
     };
@@ -2223,7 +2477,8 @@ pub fn seed_session_resumption_dhe_full(
                 (@resumption_server_finished_transcript),
                 (@resumption_server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_psk((@psk)))
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -2253,6 +2508,8 @@ pub fn seed_session_resumption_dhe_full(
                             (@resumption_server_hello_transcript),
                             (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -2308,7 +2565,9 @@ pub fn create_corpus() -> Vec<(Trace, &'static str)> {
         seed_client_attacker12: cfg(feature = "tls13"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
-        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption"))
+        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        // Server Attackers
+        seed_server_attacker_full: cfg(feature = "tls13")
     )
 }
 
@@ -2453,6 +2712,13 @@ pub mod tests {
     #[test]
     fn test_seed_client_attacker_full() {
         let ctx = seed_client_attacker_full.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_server_attacker_full() {
+        let ctx = seed_server_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 
@@ -2668,6 +2934,28 @@ pub mod tests {
         #[test]
         fn test_serialisation_seed_client_attacker_auth_postcard() {
             let trace = seed_client_attacker_auth.build_trace();
+            let serialized1 = postcard::to_allocvec(&trace).unwrap();
+            let serialized2 = postcard::to_allocvec(
+                &postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(serialized1, serialized2);
+        }
+
+        #[test]
+        fn test_serialisation_seed_server_attacker_full_json() {
+            let trace = seed_server_attacker_full.build_trace();
+            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let serialized2 = serde_json::to_string_pretty(
+                &serde_json::from_str::<Trace>(serialized1.as_str()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(serialized1, serialized2);
+        }
+
+        #[test]
+        fn test_serialisation_seed_server_attacker_full_postcard() {
+            let trace = seed_server_attacker_full.build_trace();
             let serialized1 = postcard::to_allocvec(&trace).unwrap();
             let serialized2 = postcard::to_allocvec(
                 &postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap(),

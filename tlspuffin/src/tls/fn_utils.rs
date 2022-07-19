@@ -53,13 +53,16 @@ pub fn fn_decrypt_handshake(
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_handshake_traffic_secret(
         server_hello_transcript,
         server_key_share,
         psk,
-        false, // false, because only clients are decrypting right now, todo support both
+        !*client,
+        group,
     )?;
     let decrypter = suite
         .tls13()
@@ -86,6 +89,8 @@ pub fn fn_decrypt_application(
     server_finished_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
@@ -93,7 +98,8 @@ pub fn fn_decrypt_application(
         server_finished_transcript,
         server_key_share,
         psk,
-        false, // false, because only clients are decrypting right now, todo support both
+        group,
+        !*client,
     )?;
     let decrypter = suite
         .tls13()
@@ -111,10 +117,12 @@ pub fn fn_encrypt_handshake(
     server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) =
-        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
+        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, *client, group)?;
     let encrypter = suite
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
@@ -130,6 +138,7 @@ pub fn fn_encrypt_application(
     server_finished_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
     sequence: &u64,
 ) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
@@ -137,6 +146,7 @@ pub fn fn_encrypt_application(
         server_finished_transcript,
         server_key_share,
         psk,
+        group,
         true,
     )?;
     let encrypter = suite
@@ -154,6 +164,7 @@ pub fn fn_derive_psk(
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let psk = tls13_derive_psk(
         server_hello,
@@ -161,6 +172,7 @@ pub fn fn_derive_psk(
         client_finished,
         server_key_share,
         new_ticket_nonce,
+        group,
     )?;
 
     Ok(psk)
@@ -270,8 +282,8 @@ pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     Ok(params.public.0)
 }
 
-pub fn fn_new_pubkey12() -> Result<Vec<u8>, FnError> {
-    let kx = tls12_key_exchange()?;
+pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
+    let kx = tls12_key_exchange(group)?;
     Ok(Vec::from(kx.pubkey.as_ref()))
 }
 
@@ -287,11 +299,16 @@ pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
     server_ecdh_pubkey: &Vec<u8>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<OpaqueMessage, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey)?;
+    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
 
-    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client);
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
     let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
     Ok(encrypted)
 }
@@ -353,4 +370,12 @@ pub fn fn_append_certificate_entry(
     });
 
     Ok(new_certs)
+}
+
+pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::secp384r1)
+}
+
+pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::X25519)
 }
