@@ -241,6 +241,10 @@ impl Put for WolfSSL {
     fn make_deterministic() {
         // TODO
     }
+
+    fn shutdown(&mut self) -> String {
+        panic!("Unsupported with OpenSSL PUT")
+    }
 }
 
 impl WolfSSL {
@@ -271,7 +275,7 @@ impl WolfSSL {
         }
 
         if descriptor.server_authentication {
-            ctx.set_verify(SslVerifyMode::PEER);
+            ctx.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx.load_verify_buffer(ALICE_CERT.0.as_bytes())?;
             ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
         } else {
@@ -323,7 +327,7 @@ impl WolfSSL {
         }
 
         if descriptor.client_authentication {
-            ctx.set_verify(SslVerifyMode::PEER);
+            ctx.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
             ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
         } else {

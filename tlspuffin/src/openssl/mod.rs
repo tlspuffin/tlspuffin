@@ -281,7 +281,7 @@ impl Put for OpenSSL {
         Ok(())
     }
 
-    fn describe_state(&self) -> &'static str {
+    fn describe_state(&self) -> &str {
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
@@ -305,6 +305,10 @@ impl Put for OpenSSL {
         #[cfg(not(feature = "openssl111"))]
         log::warn!("Unable to make PUT determinisitic!");
     }
+
+    fn shutdown(&mut self) -> String {
+        panic!("Unsupported with OpenSSL PUT")
+    }
 }
 
 impl OpenSSL {
@@ -327,7 +331,7 @@ impl OpenSSL {
                 .init(&store, &cert, &chain, |c| c.verify_cert())
                 .unwrap());*/
 
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx_builder.set_cert_store(store);
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
@@ -382,7 +386,7 @@ impl OpenSSL {
         }
 
         if descriptor.server_authentication {
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(ALICE_CERT.0.as_bytes())?)?;

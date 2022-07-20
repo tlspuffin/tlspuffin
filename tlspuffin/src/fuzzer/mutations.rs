@@ -744,15 +744,6 @@ mod tests {
             let mut trace = seed_client_attacker12.build_trace();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-            let is_last_not_encrypt = if let Some(last) = trace.steps.iter().last() {
-                match &last.action {
-                    Action::Input(input) => Some(input.recipe.name() != fn_encrypt12.name()),
-                    Action::Output(_) => None,
-                }
-            } else {
-                None
-            };
-
             let is_first_not_ch = if let Some(first) = trace.steps.get(0) {
                 match &first.action {
                     Action::Input(input) => Some(input.recipe.name() != fn_client_hello.name()),
@@ -762,9 +753,20 @@ mod tests {
                 None
             };
 
+            let is_next_not_fn_client_key_exchange = if let Some(next) = trace.steps.get(1) {
+                match &next.action {
+                    Action::Input(input) => {
+                        Some(input.recipe.name() != fn_client_key_exchange.name())
+                    }
+                    Action::Output(_) => None,
+                }
+            } else {
+                None
+            };
+
             if let Some(first) = is_first_not_ch {
-                if let Some(last) = is_last_not_encrypt {
-                    if first && last {
+                if let Some(second) = is_next_not_fn_client_key_exchange {
+                    if first && second {
                         break;
                     }
                 }
@@ -907,7 +909,7 @@ mod tests {
                                     (fn_client_extensions_append(
                                         (fn_client_extensions_append(
                                             fn_client_extensions_new,
-                                            fn_secp384r1_support_group_extension
+                                            (fn_support_group_extension(fn_named_group_secp384r1))
                                         )),
                                         fn_signature_algorithm_extension
                                     )),

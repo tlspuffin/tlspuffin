@@ -359,7 +359,7 @@ impl TraceContext {
         Ok(agent_name)
     }
 
-    fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
+    pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.name == name).ok_or_else(|| {

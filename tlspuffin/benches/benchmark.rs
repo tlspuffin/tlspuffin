@@ -82,7 +82,7 @@ fn benchmark_trace(c: &mut Criterion) {
                                 (fn_client_extensions_append(
                                     (fn_client_extensions_append(
                                         fn_client_extensions_new,
-                                        fn_secp384r1_support_group_extension
+                                        (fn_support_group_extension(fn_named_group_secp384r1))
                                     )),
                                     fn_signature_algorithm_extension
                                 )),
@@ -112,9 +112,9 @@ fn benchmark_seeds(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("seed_successful12", |b| {
+    group.bench_function("seed_successful12_with_tickets", |b| {
         b.iter(|| {
-            seed_successful12.execute_trace();
+            seed_successful12_with_tickets.execute_trace();
         })
     });
 

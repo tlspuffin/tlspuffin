@@ -34,17 +34,20 @@ impl PutRegistry {
     }
 }
 
+
 pub const DUMMY_PUT: PutName = PutName([' ', ' ', 'D', 'U', 'M', 'Y', 'Y']);
 pub const OPENSSL_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L']);
 pub const WOLFSSL_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L']);
-pub const TCP_PUT: PutName = PutName([' ', ' ', ' ', ' ', 'T', 'C', 'P']);
+pub const TCP_CLIENT_PUT: PutName = PutName(['T', 'C', 'P', '-', 'C', 'L', 'I']);
+pub const TCP_SERVER_PUT: PutName = PutName(['T', 'C', 'P', '-', 'S', 'E', 'R']);
 
 pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
     #[cfg(feature = "openssl-binding")]
     crate::openssl::new_openssl_factory,
     #[cfg(feature = "wolfssl-binding")]
     crate::wolfssl::new_wolfssl_factory,
-    crate::tcp::new_tcp_factory,
+    crate::tcp::new_tcp_client_factory,
+    crate::tcp::new_tcp_server_factory,
 ]);
 
 pub trait Factory {

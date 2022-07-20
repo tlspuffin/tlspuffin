@@ -19,6 +19,7 @@ use rustls::{
     msgs::{
         alert::AlertMessagePayload,
         base::{PayloadU16, PayloadU24, PayloadU8},
+        codec::Codec,
         enums::*,
         handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
         message::OpaqueMessage,
@@ -370,12 +371,12 @@ pub fn fn_certificate_verify(
     })
 }
 /// ClientKeyExchange => 0x10,
-pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_client_key_exchange(encoded_pubkey_data: &Vec<u8>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ClientKeyExchange,
-            payload: HandshakePayload::ClientKeyExchange(Payload::new(data.clone())),
+            payload: HandshakePayload::ClientKeyExchange(Payload::new(encoded_pubkey_data.clone())),
         }),
     })
 }
