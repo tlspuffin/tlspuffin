@@ -1,4 +1,4 @@
-//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
+//! This module adds plotting capabilities to [`Term`]s and Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
 use std::{

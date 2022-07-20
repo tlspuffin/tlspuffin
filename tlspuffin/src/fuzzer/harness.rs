@@ -26,13 +26,13 @@ pub fn harness(input: &Trace) -> ExitKind {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
-            Error::OpenSSL(_) => OPENSSL.increment(),
+            Error::Put(_) => OPENSSL.increment(),
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction(_) => EXTRACTION.increment(),
             Error::SecurityClaim(msg, claims) => {
-                warn!("{} claims: {:?}", msg, claims);
+                warn!("[SECURITY VIOLATION] {} claims: {:?}", msg, claims);
                 std::process::abort()
             }
         }

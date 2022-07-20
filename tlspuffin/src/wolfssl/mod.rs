@@ -26,7 +26,7 @@ use crate::{
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutConfig, PutName},
-    put_registry::{Factory, WOLFSSL520_PUT},
+    put_registry::{Factory, WOLFSSL_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
         bio::{MemBio, MemBioSlice},
@@ -64,7 +64,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            WOLFSSL520_PUT
+            WOLFSSL_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -81,7 +81,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
+        Error::Put(err.to_string())
     }
 }
 
@@ -495,7 +495,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }

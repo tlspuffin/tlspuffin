@@ -31,7 +31,7 @@ use crate::{
     io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::{Put, PutConfig, PutName},
-    put_registry::{Factory, OPENSSL111_PUT},
+    put_registry::{Factory, OPENSSL_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
 };
 
@@ -58,7 +58,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory> {
         }
 
         fn put_name(&self) -> PutName {
-            OPENSSL111_PUT
+            OPENSSL_PUT
         }
 
         fn put_version(&self) -> &'static str {
@@ -75,7 +75,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory> {
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
+        Error::Put(err.to_string())
     }
 }
 
@@ -431,7 +431,7 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }
