@@ -4,11 +4,11 @@ use itertools::Itertools;
 use puffin::agent::{AgentType, TLSVersion};
 
 use crate::{
-    claims::{Claim, ClaimData, ClaimDataMessage, Finished},
+    claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim},
     static_certs::{ALICE_CERT, BOB_CERT},
 };
 
-pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
+pub fn is_violation(claims: &[TlsClaim]) -> Option<&'static str> {
     if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
         if let Some(((client_claim, client), (server_claim, server))) =
             get_client_server(claim_a, claim_b)
@@ -119,9 +119,9 @@ pub fn is_violation(claims: &[Claim]) -> Option<&'static str> {
 }
 
 pub fn find_two_finished_messages(
-    claims: &[Claim],
-) -> Option<((&Claim, &Finished), (&Claim, &Finished))> {
-    let two_finishes: Option<((&Claim, &Finished), (&Claim, &Finished))> = claims
+    claims: &[TlsClaim],
+) -> Option<((&TlsClaim, &Finished), (&TlsClaim, &Finished))> {
+    let two_finishes: Option<((&TlsClaim, &Finished), (&TlsClaim, &Finished))> = claims
         .iter()
         .filter_map(|claim| match &claim.data {
             ClaimData::Message(ClaimDataMessage::Finished(data)) => {
@@ -146,9 +146,9 @@ pub fn find_two_finished_messages(
 }
 
 pub fn get_client_server<'a, T>(
-    a: (&'a Claim, &'a T),
-    b: (&'a Claim, &'a T),
-) -> Option<((&'a Claim, &'a T), (&'a Claim, &'a T))> {
+    a: (&'a TlsClaim, &'a T),
+    b: (&'a TlsClaim, &'a T),
+) -> Option<((&'a TlsClaim, &'a T), (&'a TlsClaim, &'a T))> {
     match a.0.origin {
         AgentType::Server => match b.0.origin {
             AgentType::Server => None,

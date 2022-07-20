@@ -7,7 +7,7 @@ use wolfssl_sys as wolf;
 
 use crate::{
     claims::{
-        Claim, ClaimData, ClaimDataTranscript, TlsTranscript, TranscriptCertificate,
+        ClaimData, ClaimDataTranscript, TlsClaim, TlsTranscript, TranscriptCertificate,
         TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
     },
     wolfssl::SslRef,

@@ -70,27 +70,12 @@ pub struct PutDescriptor {
     pub options: PutOptions,
 }
 
-/// Static configuration for creating a new agent state for the PUT
-#[derive(Clone)]
-pub struct PutConfig {
-    pub descriptor: PutDescriptor,
-    pub typ: AgentType,
-    pub tls_version: TLSVersion,
-    pub claims: GlobalClaimList<Box<dyn ClaimTrait>>,
-    pub authenticate_peer: bool,
-    pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
-}
-
 pub trait Put: Stream + Drop + 'static {
-    /// Create a new agent state for the PUT + set up buffers/BIOs
-    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized;
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
-    fn config(&self) -> &PutConfig;
+    fn descriptor(&self) -> &AgentDescriptor;
     /// Register a new claim for agent_name
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName);
@@ -114,8 +99,8 @@ pub trait Put: Stream + Drop + 'static {
 
     /// checks whether a agent is reusable with the descriptor
     fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        let config = self.config();
-        config.typ == other.typ && config.tls_version == other.tls_version
+        let agent_descriptor = self.descriptor();
+        agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
     }
 
     fn shutdown(&mut self) -> String;

@@ -5,7 +5,7 @@ use puffin::{agent::AgentName, algebra::error::FnError};
 use rustls::{hash_hs::HandshakeHash, tls13};
 
 use crate::claims::{
-    Claim, ClaimData, ClaimDataTranscript, Transcript, TranscriptCertificate,
+    ClaimData, ClaimDataTranscript, TlsClaim, Transcript, TranscriptCertificate,
     TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
 

@@ -1,7 +1,7 @@
 use puffin::{
     agent::{AgentDescriptor, AgentName},
     error::Error,
-    put::{Put, PutConfig, PutDescriptor, PutName},
+    put::{Put, PutDescriptor, PutName},
     put_registry::PutRegistry,
 };
 

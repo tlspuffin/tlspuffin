@@ -20,8 +20,9 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, TLSVersion},
     error::Error,
     io::{MessageResult, Stream},
-    put::{Put, PutConfig, PutName},
+    put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
+    trace::TraceContext,
 };
 use rustls::msgs::{
     deframer::MessageDeframer,
@@ -35,10 +36,10 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory> {
     impl Factory for TCPFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
+            context: &TraceContext,
+            agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
-            let options = &config.descriptor.options;
+            let options = &agent_descriptor.put_descriptor.options;
             let args = options
                 .get_option("args")
                 .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?;
@@ -52,7 +53,7 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory> {
 
             let process = TLSProcess::new(&prog, &args, cwd);
 
-            let mut client = TcpClientPut::new(agent, config)?;
+            let mut client = TcpClientPut::new(agent_descriptor)?;
             client.set_process(process);
             Ok(Box::new(client))
         }
@@ -78,10 +79,10 @@ pub fn new_tcp_server_factory() -> Box<dyn Factory> {
     impl Factory for TCPFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
+            _context: &TraceContext,
+            agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
-            let options = &config.descriptor.options;
+            let options = &agent_descriptor.put_descriptor.options;
             let args = options
                 .get_option("args")
                 .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?
@@ -94,7 +95,7 @@ pub fn new_tcp_server_factory() -> Box<dyn Factory> {
                 .get_option("cwd")
                 .map(|cwd| Some(cwd.to_owned()))
                 .unwrap_or_default();
-            let mut server = TcpServerPut::new(agent, config)?;
+            let mut server = TcpServerPut::new(agent_descriptor)?;
 
             server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
 
@@ -134,7 +135,7 @@ trait TcpPut {
 pub struct TcpClientPut {
     stream: TcpStream,
     deframer: MessageDeframer,
-    config: PutConfig,
+    agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
 
@@ -154,6 +155,19 @@ impl TcpPut for TcpClientPut {
 }
 
 impl TcpClientPut {
+    fn new(agent_descriptor: &AgentDescriptor) -> Result<Self, Error> {
+        let addr =
+            addr_from_config(&agent_descriptor).map_err(|err| Error::OpenSSL(err.to_string()))?;
+        let stream = Self::new_stream(addr)?;
+
+        Ok(Self {
+            stream,
+            deframer: Default::default(),
+            agent_descriptor: agent_descriptor.clone(),
+            process: None,
+        })
+    }
+
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
         let mut tries = 3;
         let stream = loop {
@@ -190,11 +204,41 @@ pub struct TcpServerPut {
     stream: Option<(TcpStream, TcpListener)>,
     stream_receiver: mpsc::Receiver<(TcpStream, TcpListener)>,
     deframer: MessageDeframer,
-    config: PutConfig,
+    agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
 
 impl TcpServerPut {
+    fn new(agent_descriptor: &AgentDescriptor) -> Result<Self, Error> {
+        let (sender, stream_receiver) = channel();
+        let addr =
+            addr_from_config(&agent_descriptor).map_err(|err| Error::OpenSSL(err.to_string()))?;
+
+        thread::spawn(move || {
+            let listener = TcpListener::bind(&addr).unwrap();
+
+            if let Some(new_stream) = listener.incoming().next() {
+                let stream = new_stream.unwrap();
+                // We are waiting 500ms for a response of the PUT behind the TCP socket.
+                // If we are expecting data from it and this timeout is reached, then we assume that
+                // no more will follow.
+                stream
+                    .set_read_timeout(Some(Duration::from_millis(500)))
+                    .unwrap();
+                stream.set_nodelay(true).unwrap();
+                sender.send((stream, listener)).unwrap();
+            }
+        });
+
+        Ok(Self {
+            stream: None,
+            stream_receiver,
+            deframer: Default::default(),
+            agent_descriptor: agent_descriptor.clone(),
+            process: None,
+        })
+    }
+
     pub fn set_process(&mut self, process: TLSProcess) {
         self.process = Some(process)
     }
@@ -302,8 +346,8 @@ impl Drop for TcpServerPut {
     fn drop(&mut self) {}
 }
 
-fn addr_from_config(config: &PutConfig) -> Result<SocketAddr, AddrParseError> {
-    let options = &config.descriptor.options;
+fn addr_from_config(agent_descriptor: &AgentDescriptor) -> Result<SocketAddr, AddrParseError> {
+    let options = &agent_descriptor.put_descriptor.options;
     let host = options.get_option("host").unwrap_or("127.0.0.1");
     let port = options
         .get_option("port")
@@ -314,38 +358,6 @@ fn addr_from_config(config: &PutConfig) -> Result<SocketAddr, AddrParseError> {
 }
 
 impl Put for TcpServerPut {
-    fn new(_agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        let (sender, stream_receiver) = channel();
-        let addr = addr_from_config(&config).map_err(|err| Error::OpenSSL(err.to_string()))?;
-
-        thread::spawn(move || {
-            let listener = TcpListener::bind(&addr).unwrap();
-
-            if let Some(new_stream) = listener.incoming().next() {
-                let stream = new_stream.unwrap();
-                // We are waiting 500ms for a response of the PUT behind the TCP socket.
-                // If we are expecting data from it and this timeout is reached, then we assume that
-                // no more will follow.
-                stream
-                    .set_read_timeout(Some(Duration::from_millis(500)))
-                    .unwrap();
-                stream.set_nodelay(true).unwrap();
-                sender.send((stream, listener)).unwrap();
-            }
-        });
-
-        Ok(Self {
-            stream: None,
-            stream_receiver,
-            deframer: Default::default(),
-            config,
-            process: None,
-        })
-    }
-
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         Ok(())
     }
@@ -354,8 +366,8 @@ impl Put for TcpServerPut {
         panic!("Not supported")
     }
 
-    fn config(&self) -> &PutConfig {
-        &self.config
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.agent_descriptor
     }
 
     #[cfg(feature = "claims")]
@@ -399,19 +411,8 @@ impl Put for TcpServerPut {
 }
 
 impl Put for TcpClientPut {
-    fn new(_agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        let addr = addr_from_config(&config).map_err(|err| Error::OpenSSL(err.to_string()))?;
-        let stream = Self::new_stream(addr)?;
-
-        Ok(Self {
-            stream,
-            deframer: Default::default(),
-            config,
-            process: None,
-        })
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.agent_descriptor
     }
 
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
@@ -422,10 +423,6 @@ impl Put for TcpClientPut {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
-    }
-
-    fn config(&self) -> &PutConfig {
-        &self.config
     }
 
     #[cfg(feature = "claims")]

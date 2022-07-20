@@ -17,21 +17,26 @@ use openssl::{
         X509Ref, X509StoreContext, X509,
     },
 };
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    error::Error,
+    io::{MemoryStream, MessageResult, Stream},
+    put::{Put, PutDescriptor, PutName},
+    put_registry::Factory,
+    trace::TraceContext,
+};
 use rustls::msgs::message::OpaqueMessage;
 use smallvec::SmallVec;
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{
-        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
         TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
-    error::Error,
-    io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    put::{Put, PutConfig, PutName},
-    put_registry::{Factory, OPENSSL111_PUT},
+    put::TlsPutConfig,
+    put_registry::OPENSSL111_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
 };
 
@@ -51,10 +56,21 @@ pub fn new_openssl_factory() -> Box<dyn Factory> {
     impl Factory for OpenSSLFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
+            context: &TraceContext,
+            agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
-            Ok(Box::new(OpenSSL::new(agent, config)?))
+            let config = TlsPutConfig {
+                descriptor: agent_descriptor.clone(),
+                claims: context.claims().clone(),
+                authenticate_peer: agent_descriptor.typ == AgentType::Client
+                    && agent_descriptor.server_authentication
+                    || agent_descriptor.typ == AgentType::Server
+                        && agent_descriptor.client_authentication,
+                extract_deferred: Rc::new(RefCell::new(None)),
+            };
+            Ok(Box::new(OpenSSL::new(config).map_err(|err| {
+                Error::OpenSSL(format!("Failed to create client/server: {}", err))
+            })?))
         }
 
         fn put_name(&self) -> PutName {
@@ -73,15 +89,9 @@ pub fn new_openssl_factory() -> Box<dyn Factory> {
     Box::new(OpenSSLFactory)
 }
 
-impl From<ErrorStack> for Error {
-    fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
-    }
-}
-
 pub struct OpenSSL {
     stream: SslStream<MemoryStream>,
-    config: PutConfig,
+    config: TlsPutConfig,
 }
 
 impl Drop for OpenSSL {
@@ -199,22 +209,6 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
 }
 
 impl Put for OpenSSL {
-    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
-        let ssl = match config.typ {
-            AgentType::Server => Self::create_server(agent)?,
-            AgentType::Client => Self::create_client(agent)?,
-        };
-
-        let stream = SslStream::new(ssl, MemoryStream::new())?;
-
-        let mut openssl = OpenSSL { config, stream };
-
-        #[cfg(feature = "claims")]
-        openssl.register_claimer(agent.name);
-
-        Ok(openssl)
-    }
-
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
@@ -234,8 +228,8 @@ impl Put for OpenSSL {
         Ok(())
     }
 
-    fn config(&self) -> &PutConfig {
-        &self.config
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.config.descriptor
     }
 
     #[cfg(feature = "claims")]
@@ -244,14 +238,14 @@ impl Put for OpenSSL {
             use foreign_types_shared::ForeignTypeRef;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.tls_version;
-            let origin = self.config.typ;
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
                     if let Some(data) = to_claim_data(protocol_version, claim) {
-                        claims.deref_borrow_mut().claim_sized(Claim {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
                             protocol_version,
@@ -312,6 +306,23 @@ impl Put for OpenSSL {
 }
 
 impl OpenSSL {
+    fn new(config: TlsPutConfig) -> Result<OpenSSL, ErrorStack> {
+        let agent_descriptor = &config.descriptor;
+        let mut ssl = match agent_descriptor.typ {
+            AgentType::Server => Self::create_server(agent_descriptor)?,
+            AgentType::Client => Self::create_client(agent_descriptor)?,
+        };
+
+        let stream = SslStream::new(ssl, MemoryStream::new())?;
+
+        let mut openssl = OpenSSL { config, stream };
+
+        #[cfg(feature = "claims")]
+        openssl.register_claimer(agent_descriptor.name);
+
+        Ok(openssl)
+    }
+
     fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 

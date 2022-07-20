@@ -7,6 +7,7 @@ mod debug;
 mod extraction;
 #[cfg(feature = "openssl-binding")]
 mod openssl;
+mod put;
 mod put_registry;
 mod static_certs;
 mod tcp;

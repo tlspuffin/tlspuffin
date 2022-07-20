@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
-    put::{Put, PutConfig, PutDescriptor},
+    put::{Put, PutDescriptor},
     trace::TraceContext,
 };
 
@@ -177,18 +177,8 @@ impl Agent {
             .put_registry()
             .find_factory(descriptor.put_descriptor.name)
             .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
-        let config = PutConfig {
-            descriptor: descriptor.put_descriptor.clone(),
-            typ: descriptor.typ,
-            tls_version: descriptor.tls_version,
-            claims: context.claims().clone(),
-            authenticate_peer: descriptor.typ == AgentType::Client
-                && descriptor.server_authentication
-                || descriptor.typ == AgentType::Server && descriptor.client_authentication,
-            extract_deferred: Rc::new(RefCell::new(None)),
-        };
 
-        let mut stream = factory.create(&descriptor, config)?;
+        let mut stream = factory.create(context, descriptor)?;
         let agent = Agent {
             name: descriptor.name,
             typ: descriptor.typ,

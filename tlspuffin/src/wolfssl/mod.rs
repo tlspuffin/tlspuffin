@@ -17,18 +17,20 @@ use puffin::{
     algebra::dynamic_function::TypeShape,
     error::Error,
     io::{MemoryStream, MessageResult, Stream},
-    put::{Put, PutConfig, PutName},
+    put::{Put, PutName},
     put_registry::Factory,
+    trace::TraceContext,
 };
 use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
 use smallvec::SmallVec;
 
 use crate::{
     claims::{
-        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TranscriptCertificate,
-        TranscriptClientFinished, TranscriptClientHello, TranscriptServerFinished,
-        TranscriptServerHello,
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim,
+        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptServerFinished, TranscriptServerHello,
     },
+    put::TlsPutConfig,
     put_registry::WOLFSSL520_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
@@ -60,10 +62,20 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory> {
     impl Factory for WolfSSLFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
+            context: &TraceContext,
+            agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
-            Ok(Box::new(WolfSSL::new(agent, config)?))
+            let config = TlsPutConfig {
+                descriptor: agent_descriptor.clone(),
+                claims: context.claims().clone(),
+                authenticate_peer: agent_descriptor.typ == AgentType::Client
+                    && agent_descriptor.server_authentication
+                    || agent_descriptor.typ == AgentType::Server
+                        && agent_descriptor.client_authentication,
+                extract_deferred: Rc::new(RefCell::new(None)),
+            };
+
+            Ok(Box::new(WolfSSL::new(config)?))
         }
 
         fn put_name(&self) -> PutName {
@@ -91,7 +103,7 @@ impl From<ErrorStack> for Error {
 pub struct WolfSSL {
     ctx: SslContext,
     stream: SslStream<MemoryStream>,
-    config: PutConfig,
+    config: TlsPutConfig,
 }
 
 impl Stream for WolfSSL {
@@ -115,31 +127,15 @@ impl Drop for WolfSSL {
 }
 
 impl WolfSSL {
-    fn new_stream(
-        ctx: &SslContextRef,
-        config: &PutConfig,
-    ) -> Result<SslStream<MemoryStream>, Error> {
-        let ssl = match config.typ {
-            AgentType::Server => Self::create_server(ctx)?,
-            AgentType::Client => Self::create_client(ctx)?,
-        };
-
-        Ok(SslStream::new(ssl, MemoryStream::new())?)
-    }
-}
-
-impl Put for WolfSSL {
-    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        let mut ctx = match config.typ {
-            AgentType::Server => Self::create_server_ctx(agent)?,
-            AgentType::Client => Self::create_client_ctx(agent)?,
+    fn new(config: TlsPutConfig) -> Result<Self, Error> {
+        let agent_descriptor = &config.descriptor;
+        let mut ctx = match agent_descriptor.typ {
+            AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
+            AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
 
         #[cfg(not(feature = "wolfssl430"))]
-        ctx.set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
+        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
 
         let mut stream = Self::new_stream(&ctx, &config)?;
 
@@ -159,6 +155,20 @@ impl Put for WolfSSL {
         Ok(wolfssl)
     }
 
+    fn new_stream(
+        ctx: &SslContextRef,
+        config: &TlsPutConfig,
+    ) -> Result<SslStream<MemoryStream>, Error> {
+        let ssl = match config.descriptor.typ {
+            AgentType::Server => Self::create_server(ctx)?,
+            AgentType::Client => Self::create_client(ctx)?,
+        };
+
+        Ok(SslStream::new(ssl, MemoryStream::new())?)
+    }
+}
+
+impl Put for WolfSSL {
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
@@ -179,10 +189,6 @@ impl Put for WolfSSL {
         self.stream = Self::new_stream(&self.ctx, &self.config)?;
         //self.stream.clear();
         Ok(())
-    }
-
-    fn config(&self) -> &PutConfig {
-        &self.config
     }
 
     #[cfg(feature = "claims")]
@@ -247,6 +253,10 @@ impl Put for WolfSSL {
 
     fn shutdown(&mut self) -> String {
         panic!("Unsupported with OpenSSL PUT")
+    }
+
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.config.descriptor
     }
 }
 
@@ -358,7 +368,7 @@ impl WolfSSL {
     }
 
     fn deferred_transcript_extraction(&self, agent_name: &AgentName) {
-        let config = self.config();
+        let config = self.config;
         if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
             if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
                 let CERT_SHAPE: TypeShape = TypeShape::of::<TranscriptCertificate>();
@@ -382,10 +392,10 @@ impl WolfSSL {
                 };
 
                 if let Some(data) = data {
-                    config.claims.deref_borrow_mut().claim_sized(Claim {
+                    config.claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name: *agent_name,
-                        origin: config.typ,
-                        protocol_version: config.tls_version,
+                        origin: config.descriptor.typ,
+                        protocol_version: config.descriptor.tls_version,
                         data,
                     });
                 }
@@ -395,10 +405,10 @@ impl WolfSSL {
 
     fn create_msg_callback(
         agent_name: AgentName,
-        config: &PutConfig,
+        config: &TlsPutConfig,
     ) -> impl Fn(&mut SslRef, HandshakeType, bool) {
-        let origin = config.typ;
-        let protocol_version = config.tls_version;
+        let origin = config.descriptor.typ;
+        let protocol_version = config.descriptor.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;
@@ -419,7 +429,7 @@ impl WolfSSL {
                             Some(TypeShape::of::<TranscriptServerFinished>());
                     }
                     HandshakeType::Finished => {
-                        claims.deref_borrow_mut().claim_sized(Claim {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
                             protocol_version,
@@ -466,7 +476,7 @@ impl WolfSSL {
                 };
 
                 if let Some(data) = claim {
-                    claims.deref_borrow_mut().claim_sized(Claim {
+                    claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
                         protocol_version,

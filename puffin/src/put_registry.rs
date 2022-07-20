@@ -5,8 +5,8 @@ use crate::{
     algebra::signature::Signature,
     claims::{ClaimTrait, Policy},
     error::Error,
-    put::{Put, PutConfig, PutDescriptor, PutName},
-    trace::Trace,
+    put::{Put, PutDescriptor, PutName},
+    trace::{Trace, TraceContext},
     variable_data::VariableData,
 };
 
@@ -64,7 +64,11 @@ impl PutRegistry {
 }
 
 pub trait Factory {
-    fn create(&self, agent: &AgentDescriptor, config: PutConfig) -> Result<Box<dyn Put>, Error>;
+    fn create(
+        &self,
+        context: &TraceContext,
+        agent_descriptor: &AgentDescriptor,
+    ) -> Result<Box<dyn Put>, Error>;
     fn put_name(&self) -> PutName;
     fn put_version(&self) -> &'static str;
     fn make_deterministic(&self);

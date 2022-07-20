@@ -14,6 +14,7 @@ use log::{debug, trace};
 use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
+    claims::ClaimTrait,
     variable_data::VariableData,
 };
 use smallvec::SmallVec;
@@ -155,15 +156,19 @@ pub enum ClaimData {
 }
 
 #[derive(Debug, Clone)]
-pub struct Claim {
+pub struct TlsClaim {
     pub agent_name: AgentName,
     pub origin: AgentType,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
 }
 
-impl Claim {
-    pub fn id(&self) -> TypeShape {
+impl ClaimTrait for TlsClaim {
+    fn agent_name(&self) -> AgentName {
+        self.agent_name
+    }
+
+    fn id(&self) -> TypeShape {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         type Type = TypeShape;
@@ -185,7 +190,10 @@ impl Claim {
             },
         }
     }
+}
 
+impl TlsClaim {
+    // FIXME: is this used?
     pub fn clone_boxed_any(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
