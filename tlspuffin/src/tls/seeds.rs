@@ -2676,7 +2676,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
@@ -2689,7 +2689,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640_simple() {
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
@@ -2702,7 +2702,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
