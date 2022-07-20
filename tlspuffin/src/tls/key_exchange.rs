@@ -27,35 +27,42 @@ fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExch
     })
 }
 
-pub fn deterministic_key_share(skxg: &'static SupportedKxGroup) -> Result<Vec<u8>, FnError> {
-    Ok(Vec::from(deterministic_key_exchange(skxg)?.pubkey.as_ref()))
+pub fn deterministic_key_share(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
+    if let Some(supported_group) = ALL_KX_GROUPS
+        .iter()
+        .find(|supported| supported.name == *group)
+    {
+        Ok(Vec::from(
+            deterministic_key_exchange(supported_group)?.pubkey.as_ref(),
+        ))
+    } else {
+        Err(FnError::Rustls("Unable to find named group".to_string()))
+    }
 }
 
 pub fn tls13_key_exchange(
     server_key_share: &Vec<u8>,
-    group: NamedGroup,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     // Shared Secret
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
+    let skxg = KeyExchange::choose(group.clone(), &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared_secret = kx.complete(server_key_share, |secret| Ok(Vec::from(secret)))?;
     Ok(shared_secret)
 }
 
-pub fn tls12_key_exchange(//  server_ecdh_params: &ServerECDHParams,
-) -> Result<KeyExchange, FnError> {
-    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
-    let skxg = KeyExchange::choose(group, &ALL_KX_GROUPS)
+pub fn tls12_key_exchange(group: &NamedGroup) -> Result<KeyExchange, FnError> {
+    let skxg = KeyExchange::choose(group.clone(), &ALL_KX_GROUPS)
         .ok_or_else(|| "Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
-    //let kxd = tls12::complete_ecdh(kx, &server_ecdh_params.public.0)?;
     Ok(kx)
 }
 
 pub fn tls12_new_secrets(
     server_random: &Random,
-    server_ecdh_params: &ServerECDHParams,
+    server_ecdh_pubkey: &Vec<u8>,
+    group: &NamedGroup,
 ) -> Result<ConnectionSecrets, FnError> {
     let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
@@ -70,17 +77,12 @@ pub fn tls12_new_secrets(
         client: [1; 32], // todo https://github.com/tlspuffin/tlspuffin/issues/129
         server: server_random,
     };
-    let kx = tls12_key_exchange()?;
+    let kx = tls12_key_exchange(group)?;
     let suite = suite
         .tls12()
         .ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
-    let secrets = ConnectionSecrets::from_key_exchange(
-        kx,
-        &server_ecdh_params.public.0,
-        None,
-        randoms,
-        suite,
-    )?;
+    let secrets =
+        ConnectionSecrets::from_key_exchange(kx, &server_ecdh_pubkey, None, randoms, suite)?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

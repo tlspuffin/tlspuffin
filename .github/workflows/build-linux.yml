@@ -23,6 +23,7 @@ jobs:
           - wolfssl520_asan
           - wolfssl530
           - wolfssl530_asan
+          - wolfssl540
           - no_default_features
         include:
           - name: openssl111
@@ -49,6 +50,8 @@ jobs:
             features: wolfssl530
           - name: wolfssl530_asan
             features: wolfssl530,asan
+          - name: wolfssl540
+            features: wolfssl540
           - name: no_default_features
             features: ""
             cargo-flags: "--no-default-features"

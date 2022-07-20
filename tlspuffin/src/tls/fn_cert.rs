@@ -141,8 +141,13 @@ fn _fn_rsa_sign(
     let key = RsaKeyPair::from_der(private_key)
         .map_err(|_| FnError::Rustls("Failed to parse rsa key.".to_string()))?;
 
-    let signer = RsaSigner::new(Arc::new(key), *scheme);
-    Ok(signer.sign(&message)?)
+    let signer = RsaSigner::new(
+        Arc::new(key),
+        *scheme,
+        Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
+    );
+    let signed = signer.sign(&message)?;
+    Ok(signed)
 }
 
 pub fn fn_ecdsa_sign_client(
@@ -170,7 +175,10 @@ fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnEr
     .map_err(|_| FnError::Rustls("Failed to parse ecdsa key.".to_string()))?;
 
     let signer = key
-        .choose_scheme(&[SignatureScheme::ECDSA_NISTP256_SHA256])
+        .choose_scheme(
+            &[SignatureScheme::ECDSA_NISTP256_SHA256],
+            Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
+        )
         .ok_or_else(|| FnError::Rustls("Failed to find signature scheme.".to_string()))?;
 
     Ok(signer.sign(&message)?)

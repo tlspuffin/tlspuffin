@@ -8,14 +8,13 @@
 //!
 
 use rustls::{
-    kx_group::SECP384R1,
     msgs::{
         base::{Payload, PayloadU16, PayloadU24, PayloadU8},
         enums::*,
         handshake::*,
         message::Message,
     },
-    x509, ProtocolVersion, SignatureScheme,
+    x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
 };
 use webpki::DnsNameRef;
 
@@ -192,8 +191,8 @@ nyi_fn!();
 /// CertificateType => 0x0009,
 nyi_fn!();
 /// EllipticCurves => 0x000a,
-pub fn fn_secp384r1_support_group_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![NamedGroup::secp384r1]))
+pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::NamedGroups(vec![group.clone()]))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
@@ -477,26 +476,38 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
     ]))
 }
 /// KeyShare => 0x0033,
-pub fn fn_key_share_deterministic_extension() -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(&deterministic_key_share(&SECP384R1)?)
+pub fn fn_key_share_deterministic_extension(
+    group: &NamedGroup,
+) -> Result<ClientExtension, FnError> {
+    fn_key_share_extension(&deterministic_key_share(group)?, group)
 }
-pub fn fn_key_share_extension(key_share: &Vec<u8>) -> Result<ClientExtension, FnError> {
+pub fn fn_key_share_extension(
+    key_share: &Vec<u8>,
+    group: &NamedGroup,
+) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: NamedGroup::secp384r1,
+        group: group.clone(),
         payload: PayloadU16::new(key_share.clone()),
     }]))
 }
-pub fn fn_key_share_deterministic_server_extension() -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(&deterministic_key_share(&SECP384R1)?)
+pub fn fn_key_share_deterministic_server_extension(
+    group: &NamedGroup,
+) -> Result<ServerExtension, FnError> {
+    fn_key_share_server_extension(&deterministic_key_share(group)?, group)
 }
-pub fn fn_key_share_server_extension(key_share: &Vec<u8>) -> Result<ServerExtension, FnError> {
+pub fn fn_key_share_server_extension(
+    key_share: &Vec<u8>,
+    group: &NamedGroup,
+) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
-        group: NamedGroup::secp384r1,
+        group: group.clone(),
         payload: PayloadU16::new(key_share.clone()),
     }))
 }
-pub fn fn_key_share_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(NamedGroup::secp384r1))
+pub fn fn_key_share_hello_retry_extension(
+    group: &NamedGroup,
+) -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::KeyShare(group.clone()))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();
