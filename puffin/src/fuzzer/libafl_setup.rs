@@ -33,6 +33,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::harness;
 use crate::{
+    algebra::set_current_signature,
     fuzzer::{
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},

@@ -39,7 +39,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn new_registry() -> &'static dyn PutRegistry<Self> {
-        todo!()
+        &PUT_REGISTRY
     }
 }
 

@@ -11,6 +11,7 @@ use log::{error, info, SetLoggerError};
 use log4rs::Handle;
 
 use crate::{
+    algebra::set_current_signature,
     experiment::*,
     fuzzer::{
         sanitizer::asan::{asan_info, setup_asan_env},
@@ -83,6 +84,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
     asan_info();
     setup_asan_env();
+
+    set_current_signature(PB::signature());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(put_registry) {
