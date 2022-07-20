@@ -29,14 +29,14 @@ use rustls::msgs::{
     message::{Message, OpaqueMessage},
 };
 
-use crate::put_registry::{TCP_CLIENT_PUT, TCP_SERVER_PUT};
+use crate::put_registry::{TLSProtocolBehavior, TCP_CLIENT_PUT, TCP_SERVER_PUT};
 
-pub fn new_tcp_client_factory() -> Box<dyn Factory> {
+pub fn new_tcp_client_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
-    impl Factory for TCPFactory {
+    impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            context: &TraceContext,
+            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
             let options = &agent_descriptor.put_descriptor.options;
@@ -74,12 +74,12 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory> {
     Box::new(TCPFactory)
 }
 
-pub fn new_tcp_server_factory() -> Box<dyn Factory> {
+pub fn new_tcp_server_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
-    impl Factory for TCPFactory {
+    impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            _context: &TraceContext,
+            _context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
             let options = &agent_descriptor.put_descriptor.options;

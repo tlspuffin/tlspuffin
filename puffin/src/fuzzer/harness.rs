@@ -6,18 +6,18 @@ use rand::Rng;
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
-    put_registry::PutRegistry,
+    put_registry::{ProtocolBehavior, PutRegistry},
     trace::{Action, Trace, TraceContext},
 };
 
-static CURRENT_SIGNATURE: Lazy<Option<&'static PutRegistry>> = Lazy::new(|| None);
+/*static CURRENT_SIGNATURE: Lazy<Option<&'static PutRegistry>> = Lazy::new(|| None);
 
 pub fn current_put_registry() -> &'static PutRegistry {
     CURRENT_SIGNATURE.expect("current put registry needs to be set")
 }
-
-pub fn harness(input: &Trace) -> ExitKind {
-    let mut ctx = TraceContext::new(current_put_registry());
+*/
+pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace) -> ExitKind {
+    let mut ctx = TraceContext::new(PB::new_registry());
 
     TRACE_LENGTH.update(input.steps.len());
 
@@ -39,8 +39,8 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
-            Error::SecurityClaim(msg, claims) => {
-                warn!("{} claims: {:?}", msg, claims);
+            Error::SecurityClaim(msg) => {
+                warn!("{}", msg);
                 std::process::abort()
             }
         }

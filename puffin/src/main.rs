@@ -18,7 +18,7 @@ use crate::{
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
-    put_registry::PutRegistry,
+    put_registry::{ProtocolBehavior, PutRegistry},
     trace::{Trace, TraceContext},
 };
 
@@ -54,7 +54,9 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-pub fn main(put_registry: &'static PutRegistry) -> ExitCode {
+pub fn main<PB: ProtocolBehavior + Clone + 'static>(
+    put_registry: &'static dyn PutRegistry<PB>,
+) -> ExitCode {
     let handle = match log4rs::init_config(create_stdout_config()) {
         Ok(handle) => handle,
         Err(err) => {
@@ -227,9 +229,11 @@ fn plot(
     Ok(())
 }
 
-fn seed(put_registry: &PutRegistry) -> Result<(), Box<dyn std::error::Error>> {
+fn seed<PB: ProtocolBehavior>(
+    put_registry: &dyn PutRegistry<PB>,
+) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in put_registry.create_corpus() {
+    for (trace, name) in PB::create_corpus() {
         let mut file = File::create(format!("./seeds/{}.trace", name))?;
         let buffer = postcard::to_allocvec(&trace)?;
         file.write_all(&buffer)?;
@@ -238,9 +242,9 @@ fn seed(put_registry: &PutRegistry) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn execute(
+fn execute<PB: ProtocolBehavior>(
     input: &str,
-    put_registry: &'static PutRegistry,
+    put_registry: &'static dyn PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut input_file = File::open(input)?;
 

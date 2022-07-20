@@ -36,7 +36,7 @@ use crate::{
     },
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     put::TlsPutConfig,
-    put_registry::OPENSSL111_PUT,
+    put_registry::{TLSProtocolBehavior, OPENSSL111_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
 };
 
@@ -51,12 +51,12 @@ mod util;
    git checkout OpenSSL_1_1_1j
 */
 
-pub fn new_openssl_factory() -> Box<dyn Factory> {
+pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct OpenSSLFactory;
-    impl Factory for OpenSSLFactory {
+    impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
-            context: &TraceContext,
+            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put>, Error> {
             let config = TlsPutConfig {
@@ -315,10 +315,13 @@ impl OpenSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
+        #[cfg(feature = "claims")]
+        let agent_name = agent_descriptor.name;
+
         let mut openssl = OpenSSL { config, stream };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(agent_descriptor.name);
+        openssl.register_claimer(agent_name);
 
         Ok(openssl)
     }

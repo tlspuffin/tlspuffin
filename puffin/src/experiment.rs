@@ -2,7 +2,10 @@ use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
 
-use crate::{put_registry::PutRegistry, GIT_MSG, GIT_REF};
+use crate::{
+    put_registry::{ProtocolBehavior, PutRegistry},
+    GIT_MSG, GIT_REF,
+};
 
 pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");
@@ -14,11 +17,11 @@ pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     )
 }
 
-pub fn write_experiment_markdown(
+pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     directory: &Path,
     title: impl Display,
     description_text: impl Display,
-    put_registry: &PutRegistry,
+    put_registry: &dyn PutRegistry<PB>,
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\

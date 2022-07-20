@@ -28,9 +28,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::sync::Mutex;
+use std::{ops::DerefMut, sync::Mutex};
 
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 
 pub use self::term::*;
 use crate::algebra::signature::Signature;
@@ -42,10 +42,16 @@ pub mod macros;
 pub mod signature;
 pub mod term;
 
-static CURRENT_SIGNATURE: Lazy<Option<&'static Signature>> = Lazy::new(|| None);
+static CURRENT_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
 
 pub fn current_signature() -> &'static Signature {
-    CURRENT_SIGNATURE.expect("current signature needs to be set")
+    CURRENT_SIGNATURE
+        .get()
+        .expect("current signature needs to be set")
+}
+
+pub fn set_current_signature(signature: &'static Signature) {
+    CURRENT_SIGNATURE.set(signature);
 }
 
 #[cfg(test)]

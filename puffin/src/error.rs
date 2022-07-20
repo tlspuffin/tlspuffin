@@ -20,7 +20,7 @@ pub enum Error {
     /// Error while operating on a [`Stream`]
     Stream(String),
     Extraction(), // FIXME: Used to be: Extraction(ContentType),
-    SecurityClaim(&'static str, ClaimList<Box<dyn ClaimTrait>>),
+    SecurityClaim(&'static str),
 }
 
 impl std::error::Error for Error {}
@@ -39,10 +39,10 @@ impl fmt::Display for Error {
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
             Error::Extraction() => write!(f, "error while extracting variable",),
-            Error::SecurityClaim(msg, claims) => write!(
+            Error::SecurityClaim(msg) => write!(
                 f,
-                "error because a security violation occurred. msg: {}, claims: {:?}",
-                msg, claims
+                "error because a security violation occurred. msg: {}",
+                msg
             ),
         }
     }

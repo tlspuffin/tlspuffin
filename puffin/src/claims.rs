@@ -15,6 +15,7 @@ use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_dat
 pub trait ClaimTrait: VariableData {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape;
+    fn inner(&self) -> Box<dyn Any>;
 }
 
 impl Clone for Box<dyn ClaimTrait> {
@@ -30,6 +31,10 @@ impl ClaimTrait for Box<dyn ClaimTrait> {
 
     fn id(&self) -> TypeShape {
         self.id()
+    }
+
+    fn inner(&self) -> Box<dyn Any> {
+        self.inner()
     }
 }
 

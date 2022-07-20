@@ -73,6 +73,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     cell::{Ref, RefCell, RefMut},
     convert::TryFrom,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     rc::Rc,
     slice::Iter,
@@ -94,7 +95,7 @@ use crate::{
     claims::{CheckViolation, ClaimTrait, GlobalClaimList},
     error::Error,
     io::MessageResult,
-    put_registry::PutRegistry,
+    put_registry::{ProtocolBehavior, PutRegistry},
     variable_data::VariableData,
 };
 
@@ -230,20 +231,21 @@ pub struct Knowledge {
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
-pub struct TraceContext {
+pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    claims: GlobalClaimList<Box<dyn ClaimTrait>>,
-    put_registry: &'static PutRegistry,
+    claims: GlobalClaimList<PB::Claim>,
+    put_registry: &'static dyn PutRegistry<PB>,
+    phantom: PhantomData<PB>,
 }
 
 pub trait QueryMatcher {
     fn matches(&self, query: &Self) -> bool;
 }
 
-impl TraceContext {
-    pub fn new(put_registry: &'static PutRegistry) -> Self {
+impl<PB: ProtocolBehavior> TraceContext<PB> {
+    pub fn new(put_registry: &'static dyn PutRegistry<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -253,14 +255,15 @@ impl TraceContext {
             agents: vec![],
             claims,
             put_registry,
+            phantom: Default::default(),
         }
     }
 
-    pub fn put_registry(&self) -> &PutRegistry {
-        &self.put_registry
+    pub fn put_registry(&self) -> &dyn PutRegistry<PB> {
+        self.put_registry
     }
 
-    pub fn claims(&self) -> &GlobalClaimList<Box<dyn ClaimTrait>> {
+    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
         &self.claims
     }
 
@@ -268,16 +271,16 @@ impl TraceContext {
         &self,
         message: &Message,
     ) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        self.put_registry.extract_knowledge(message)
+        PB::extract_knowledge(message)
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
-        let policy = self.put_registry.policy();
+        let policy = PB::policy();
         let claims = self.claims.deref_borrow();
         if let Some(msg) = claims.check_violation(policy) {
             // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             // Max: We only check for Finished claims right now, so its fine to check only at the end
-            return Err(Error::SecurityClaim(msg, claims.clone()));
+            return Err(Error::SecurityClaim(msg));
         }
         Ok(())
     }
@@ -313,7 +316,7 @@ impl TraceContext {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.boxed_any())
+            .map(|claim| claim.inner())
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -432,7 +435,7 @@ pub struct Trace {
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl Trace {
-    fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -450,7 +453,7 @@ impl Trace {
         Ok(())
     }
 
-    pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+    pub fn execute<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
@@ -484,7 +487,10 @@ impl Trace {
         Ok(())
     }
 
-    pub fn execute_default(&self, put_registry: &'static PutRegistry) -> TraceContext {
+    pub fn execute_default<PB: ProtocolBehavior>(
+        &self,
+        put_registry: &'static dyn PutRegistry<PB>,
+    ) -> TraceContext<PB> {
         let mut ctx = TraceContext::new(put_registry);
         self.execute(&mut ctx).unwrap();
         ctx
@@ -529,7 +535,11 @@ pub enum Action {
 }
 
 impl Action {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn execute<PB: ProtocolBehavior>(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         match self {
             Action::Input(input) => input.input(step, ctx),
             Action::Output(output) => output.output(step, ctx),
@@ -560,7 +570,11 @@ impl OutputAction {
         }
     }
 
-    fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn output<PB: ProtocolBehavior>(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         ctx.next_state(step.agent)?;
 
         while let Some(MessageResult(message_o, opaque_message)) =
@@ -643,7 +657,11 @@ impl InputAction {
         }
     }
 
-    fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn input<PB: ProtocolBehavior>(
+        &self,
+        step: &Step,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 

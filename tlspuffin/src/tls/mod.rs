@@ -46,7 +46,7 @@ macro_rules! nyi_fn {
 }
 
 define_signature!(
-    SIGNATURE,
+    TLS_SIGNATURE,
     // constants
     fn_true
     fn_false

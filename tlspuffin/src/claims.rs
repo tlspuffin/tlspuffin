@@ -190,43 +190,27 @@ impl ClaimTrait for TlsClaim {
             },
         }
     }
-}
 
-impl TlsClaim {
-    // FIXME: is this used?
-    pub fn clone_boxed_any(&self) -> Box<dyn Any> {
+    fn inner(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         type Type = TypeShape;
         match &self.data {
             ClaimData::Message(message) => match message {
-                Message::ClientHello(claim) => claim.as_any(),
-                Message::ServerHello(claim) => claim.as_any(),
-                Message::Certificate(claim) => claim.as_any(),
-                Message::CertificateVerify(claim) => claim.as_any(),
-                Message::Finished(claim) => claim.as_any(),
+                Message::ClientHello(claim) => claim.boxed_any(),
+                Message::ServerHello(claim) => claim.boxed_any(),
+                Message::Certificate(claim) => claim.boxed_any(),
+                Message::CertificateVerify(claim) => claim.boxed_any(),
+                Message::Finished(claim) => claim.boxed_any(),
             },
             ClaimData::Transcript(transcript) => match transcript {
-                Transcript::ClientHello(claim) => claim.as_any(),
-                Transcript::PartialClientHello(claim) => claim.as_any(),
-                Transcript::ServerHello(claim) => claim.as_any(),
-                Transcript::ServerFinished(claim) => claim.as_any(),
-                Transcript::ClientFinished(claim) => claim.as_any(),
-                Transcript::Certificate(claim) => claim.as_any(),
+                Transcript::ClientHello(claim) => claim.boxed_any(),
+                Transcript::PartialClientHello(claim) => claim.boxed_any(),
+                Transcript::ServerHello(claim) => claim.boxed_any(),
+                Transcript::ServerFinished(claim) => claim.boxed_any(),
+                Transcript::ClientFinished(claim) => claim.boxed_any(),
+                Transcript::Certificate(claim) => claim.boxed_any(),
             },
         }
-    }
-}
-
-pub trait AsAny: Any {
-    fn as_any(&self) -> Box<dyn any::Any>;
-}
-
-impl<T> AsAny for T
-where
-    T: Any + Clone,
-{
-    fn as_any(&self) -> Box<dyn Any> {
-        Box::new(self.clone())
     }
 }

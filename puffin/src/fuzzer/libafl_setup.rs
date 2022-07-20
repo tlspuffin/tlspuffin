@@ -40,7 +40,7 @@ use crate::{
         stats_stage::StatsStage,
     },
     log::create_file_config,
-    put_registry::PutRegistry,
+    put_registry::{ProtocolBehavior, PutRegistry},
     trace::Trace,
 };
 
@@ -53,7 +53,7 @@ type ConcreteExecutor<'harness, H, OT, S> =
 type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
 
 #[derive(Clone)]
-pub struct FuzzerConfig {
+pub struct FuzzerConfig<PB: ProtocolBehavior + Clone + 'static> {
     pub initial_corpus_dir: PathBuf,
     pub static_seed: Option<u64>,
     pub max_iters: Option<u64>,
@@ -68,7 +68,7 @@ pub struct FuzzerConfig {
     pub monitor: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
-    pub put_registry: &'static PutRegistry,
+    pub put_registry: &'static dyn PutRegistry<PB>,
 }
 
 #[derive(Clone, Copy)]
@@ -113,13 +113,14 @@ impl Default for MutationConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
 where
     C: Corpus<Trace>,
     R: Rand,
     SC: Corpus<Trace>,
+    PB: ProtocolBehavior + Clone + 'static,
 {
-    config: FuzzerConfig,
+    config: FuzzerConfig<PB>,
 
     harness_fn: &'harness mut H,
     existing_state: Option<ConcreteState<C, R, SC>>,
@@ -133,8 +134,8 @@ where
     objective: Option<OF>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
 where
     C: Corpus<Trace>,
     R: Rand,
@@ -154,9 +155,10 @@ where
             ConcreteState<C, R, SC>,
             StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
         > + ProgressReporter<Trace>,
+    PB: ProtocolBehavior + Clone + 'static,
 {
     fn new(
-        config: FuzzerConfig,
+        config: FuzzerConfig<PB>,
         harness_fn: &'harness mut H,
         existing_state: Option<ConcreteState<C, R, SC>>,
         event_manager: EM,
@@ -253,7 +255,7 @@ where
             max_trace_length,
             term_constraints,
             fresh_zoo_after,
-            put_registry.signature(),
+            PB::signature(),
         );
 
         let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
@@ -297,7 +299,7 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in put_registry.create_corpus() {
+                for (seed, name) in PB::create_corpus() {
                     info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
@@ -349,7 +351,7 @@ type ConcreteFeedback<'a, C, R, SC> = CombinedFeedback<
     ConcreteState<C, R, SC>,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF>
+impl<'harness, 'a, H, SC, C, R, EM, OF, PB>
     RunClientBuilder<
         'harness,
         H,
@@ -361,6 +363,7 @@ impl<'harness, 'a, H, SC, C, R, EM, OF>
         OF,
         ConcreteObservers<'a>,
         ConcreteMinimizer<C, R, SC>,
+        PB,
     >
 where
     C: Corpus<Trace> + fmt::Debug,
@@ -383,6 +386,7 @@ where
                 ConcreteState<C, R, SC>,
             >,
         > + ProgressReporter<Trace>,
+    PB: ProtocolBehavior + Clone + 'static,
 {
     fn install_minimizer(self) -> Self {
         #[cfg(not(test))]
@@ -429,7 +433,10 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Error> {
+pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+    config: FuzzerConfig<PB>,
+    log_handle: Handle,
+) -> Result<(), libafl::Error> {
     let FuzzerConfig {
         core_definition,
         corpus_dir,
@@ -452,7 +459,7 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Err
          -> Result<(), Error> {
             let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
-            let harness_fn = &mut harness::harness;
+            let harness_fn = &mut harness::harness::<PB>;
 
             let mut builder =
                 RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);

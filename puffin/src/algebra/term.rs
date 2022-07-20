@@ -9,6 +9,7 @@ use super::atoms::{Function, Variable};
 use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError},
     error::Error,
+    put_registry::ProtocolBehavior,
     trace::TraceContext,
 };
 
@@ -101,7 +102,10 @@ impl Term {
         }
     }
 
-    pub fn evaluate(&self, context: &TraceContext) -> Result<Box<dyn Any>, Error> {
+    pub fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(variable) => context
                 .find_variable(variable.typ, variable.query)

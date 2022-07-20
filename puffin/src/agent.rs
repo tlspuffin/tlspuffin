@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Error,
     put::{Put, PutDescriptor},
+    put_registry::ProtocolBehavior,
     trace::TraceContext,
 };
 
@@ -172,7 +173,10 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(context: &TraceContext, descriptor: &AgentDescriptor) -> Result<Self, Error> {
+    pub fn new<PB: ProtocolBehavior>(
+        context: &TraceContext<PB>,
+        descriptor: &AgentDescriptor,
+    ) -> Result<Self, Error> {
         let factory = context
             .put_registry()
             .find_factory(descriptor.put_descriptor.name)
