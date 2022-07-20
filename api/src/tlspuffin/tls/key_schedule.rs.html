@@ -138,6 +138,9 @@
 <span id="133">133</span>
 <span id="134">134</span>
 <span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">ring</span>::{<span class="ident">digest</span>, <span class="ident">hkdf::Prk</span>};
 <span class="kw">use</span> <span class="ident">rustls</span>::{
     <span class="ident">hash_hs::HandshakeHash</span>,
@@ -155,11 +158,11 @@
     <span class="ident">server_hello</span>: <span class="kw-2">&amp;</span><span class="ident">HandshakeHash</span>,
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">server</span>: <span class="ident">bool</span>,
+    <span class="ident">client</span>: <span class="ident">bool</span>,
+    <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">SupportedCipherSuite</span>, <span class="ident">Prk</span>, <span class="ident">KeyScheduleHandshake</span>), <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">client_random</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1u8</span>; <span class="number">32</span>]; <span class="comment">// todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129</span>
     <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::tls13::TLS13_AES_128_GCM_SHA256</span>; <span class="comment">// todo see op_cipher_suites() https://github.com/tlspuffin/tlspuffin/issues/129</span>
-    <span class="kw">let</span> <span class="ident">group</span> <span class="op">=</span> <span class="ident">NamedGroup::secp384r1</span>; <span class="comment">// todo https://github.com/tlspuffin/tlspuffin/issues/129</span>
     <span class="kw">let</span> <span class="ident">key_schedule</span> <span class="op">=</span> <span class="ident">dhe_key_schedule</span>(<span class="ident">suite</span>, <span class="ident">group</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> (<span class="ident">hs</span>, <span class="ident">client_secret</span>, <span class="ident">server_secret</span>) <span class="op">=</span> <span class="ident">key_schedule</span>.<span class="ident">derive_handshake_secrets</span>(
@@ -170,7 +173,7 @@
 
     <span class="prelude-val">Ok</span>((
         <span class="ident">suite</span>,
-        <span class="kw">if</span> <span class="ident">server</span> { <span class="ident">client_secret</span> } <span class="kw">else</span> { <span class="ident">server_secret</span> },
+        <span class="kw">if</span> <span class="ident">client</span> { <span class="ident">client_secret</span> } <span class="kw">else</span> { <span class="ident">server_secret</span> },
         <span class="ident">hs</span>,
     ))
 }
@@ -180,7 +183,8 @@
     <span class="ident">server_finished</span>: <span class="kw-2">&amp;</span><span class="ident">HandshakeHash</span>,
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
-    <span class="ident">server</span>: <span class="ident">bool</span>,
+    <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
+    <span class="ident">client</span>: <span class="ident">bool</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>
     (
         <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">SupportedCipherSuite</span>,
@@ -191,7 +195,7 @@
 <span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">client_random</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1u8</span>; <span class="number">32</span>]; <span class="comment">// todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129</span>
     <span class="kw">let</span> (<span class="ident">suite</span>, <span class="ident">_key</span>, <span class="ident">key_schedule</span>) <span class="op">=</span>
-        <span class="ident">tls13_handshake_traffic_secret</span>(<span class="ident">server_hello</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>, <span class="ident">server</span>)<span class="question-mark">?</span>;
+        <span class="ident">tls13_handshake_traffic_secret</span>(<span class="ident">server_hello</span>, <span class="ident">server_key_share</span>, <span class="ident">psk</span>, <span class="ident">client</span>, <span class="ident">group</span>)<span class="question-mark">?</span>;
 
     <span class="kw">let</span> (<span class="ident">pending</span>, <span class="ident">client_secret</span>, <span class="ident">server_secret</span>) <span class="op">=</span> <span class="ident">key_schedule</span>
         .<span class="ident">into_traffic_with_client_finished_pending_raw</span>(
@@ -201,7 +205,7 @@
         );
     <span class="prelude-val">Ok</span>((
         <span class="ident">suite</span>,
-        <span class="kw">if</span> <span class="ident">server</span> { <span class="ident">client_secret</span> } <span class="kw">else</span> { <span class="ident">server_secret</span> },
+        <span class="kw">if</span> <span class="ident">client</span> { <span class="ident">client_secret</span> } <span class="kw">else</span> { <span class="ident">server_secret</span> },
         <span class="ident">pending</span>,
     ))
 }
@@ -212,12 +216,14 @@
     <span class="ident">client_finished</span>: <span class="kw-2">&amp;</span><span class="ident">HandshakeHash</span>,
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">new_ticket_nonce</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+    <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">pending</span>) <span class="op">=</span> <span class="ident">tls13_application_traffic_secret</span>(
         <span class="ident">server_hello</span>,
         <span class="ident">server_finished</span>,
         <span class="ident">server_key_share</span>,
         <span class="kw-2">&amp;</span><span class="prelude-val">None</span>,
+        <span class="ident">group</span>,
         <span class="bool-val">true</span>,
     )<span class="question-mark">?</span>;
 
@@ -233,7 +239,7 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">dhe_key_schedule</span>(
     <span class="ident">suite</span>: <span class="kw-2">&amp;</span><span class="ident">SupportedCipherSuite</span>,
-    <span class="ident">group</span>: <span class="ident">NamedGroup</span>,
+    <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
     <span class="ident">server_key_share</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">psk</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyScheduleHandshakeStart</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {

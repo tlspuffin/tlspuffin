@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["new_tcp_factory",""]],"struct":[["TcpPut","A PUT which is backed by a TCP stream to a server. In order to use this start an OpenSSL server like this:"]]});
+initSidebarItems({"fn":[["addr_from_config",""],["collect_output",""],["execute_command",""],["new_tcp_client_factory",""],["new_tcp_server_factory",""]],"struct":[["TLSProcess",""],["TcpClientPut","A PUT which is backed by a TCP stream to a server. In order to use this start an OpenSSL server like this:"],["TcpServerPut",""]],"trait":[["TcpPut",""]]});

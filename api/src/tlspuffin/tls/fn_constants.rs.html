@@ -68,10 +68,24 @@
 <span id="63">63</span>
 <span id="64">64</span>
 <span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::ptr_arg</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::error::FnError</span>;
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_true</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+}
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_false</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+    <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>)
+}
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_seq_0</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="number">0</span>)

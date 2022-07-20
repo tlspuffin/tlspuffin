@@ -339,6 +339,8 @@
 <span id="334">334</span>
 <span id="335">335</span>
 <span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module provides traits for calling rust functions dynamically.</span>
 <span class="doccomment">//! All functions which implement the DynamicFunction trait can be called by passing an array of</span>
 <span class="doccomment">//! [`Any`]s to it. The return value is again of type [`Any`].</span>
@@ -587,6 +589,8 @@
 <span class="macro">dynamic_fn!</span>(<span class="ident">T1</span> <span class="ident">T2</span> <span class="ident">T3</span> <span class="ident">T4</span> =&gt; <span class="ident">R</span>);
 <span class="macro">dynamic_fn!</span>(<span class="ident">T1</span> <span class="ident">T2</span> <span class="ident">T3</span> <span class="ident">T4</span> <span class="ident">T5</span> =&gt; <span class="ident">R</span>);
 <span class="macro">dynamic_fn!</span>(<span class="ident">T1</span> <span class="ident">T2</span> <span class="ident">T3</span> <span class="ident">T4</span> <span class="ident">T5</span> <span class="ident">T6</span> =&gt; <span class="ident">R</span>);
+<span class="macro">dynamic_fn!</span>(<span class="ident">T1</span> <span class="ident">T2</span> <span class="ident">T3</span> <span class="ident">T4</span> <span class="ident">T5</span> <span class="ident">T6</span> <span class="ident">T7</span> =&gt; <span class="ident">R</span>);
+<span class="macro">dynamic_fn!</span>(<span class="ident">T1</span> <span class="ident">T2</span> <span class="ident">T3</span> <span class="ident">T4</span> <span class="ident">T5</span> <span class="ident">T6</span> <span class="ident">T7</span> <span class="ident">T8</span> =&gt; <span class="ident">R</span>);
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">make_dynamic</span><span class="op">&lt;</span><span class="ident">F</span>: <span class="lifetime">&#39;static</span>, <span class="ident">Types</span><span class="op">&gt;</span>(
     <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">F</span>,
