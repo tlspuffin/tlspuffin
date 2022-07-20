@@ -10,12 +10,6 @@ use crate::{
     trace::{Action, Trace, TraceContext},
 };
 
-/*static CURRENT_SIGNATURE: Lazy<Option<&'static PutRegistry>> = Lazy::new(|| None);
-
-pub fn current_put_registry() -> &'static PutRegistry {
-    CURRENT_SIGNATURE.expect("current put registry needs to be set")
-}
-*/
 pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace) -> ExitKind {
     let mut ctx = TraceContext::new(PB::new_registry());
 
