@@ -16,5 +16,5 @@ mod tls;
 mod wolfssl;
 
 pub fn main() -> ExitCode {
-    puffin::main::main(&PUT_REGISTRY)
+    puffin::cli::main(&PUT_REGISTRY)
 }
