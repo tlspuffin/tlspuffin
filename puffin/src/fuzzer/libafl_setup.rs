@@ -40,6 +40,7 @@ use crate::{
         stats_stage::StatsStage,
     },
     log::create_file_config,
+    put_registry::PutRegistry,
     trace::Trace,
 };
 
@@ -67,6 +68,7 @@ pub struct FuzzerConfig {
     pub monitor: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
+    pub put_registry: &'static PutRegistry,
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +120,7 @@ where
     SC: Corpus<Trace>,
 {
     config: FuzzerConfig,
+
     harness_fn: &'harness mut H,
     existing_state: Option<ConcreteState<C, R, SC>>,
     rand: Option<R>,
@@ -241,6 +244,7 @@ where
                     min_trace_length,
                     term_constraints,
                 },
+            put_registry,
             ..
         } = self.config;
 
@@ -249,6 +253,7 @@ where
             max_trace_length,
             term_constraints,
             fresh_zoo_after,
+            put_registry.signature(),
         );
 
         let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
@@ -292,7 +297,7 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in create_corpus() {
+                for (seed, name) in put_registry.create_corpus() {
                     info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
@@ -445,8 +450,6 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Err
          event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
-            PUT_REGISTRY.make_deterministic();
-
             let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
             let harness_fn = &mut harness::harness;

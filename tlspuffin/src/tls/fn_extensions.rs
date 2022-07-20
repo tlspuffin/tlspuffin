@@ -7,6 +7,7 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
+use puffin::algebra::error::FnError;
 use rustls::{
     msgs::{
         base::{Payload, PayloadU16, PayloadU24, PayloadU8},

@@ -18,6 +18,7 @@ use crate::{
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
+    put_registry::PutRegistry,
     trace::{Trace, TraceContext},
 };
 
@@ -53,7 +54,7 @@ fn create_app() -> Command<'static> {
         ])
 }
 
-pub fn main() -> ExitCode {
+pub fn main(put_registry: &'static PutRegistry) -> ExitCode {
     let handle = match log4rs::init_config(create_stdout_config()) {
         Ok(handle) => handle,
         Err(err) => {
@@ -74,7 +75,7 @@ pub fn main() -> ExitCode {
 
     info!("Version: {}", crate::GIT_REF);
     info!("Put Versions:");
-    for version in PUT_REGISTRY.version_strings() {
+    for version in put_registry.version_strings() {
         info!("{}", version);
     }
 
@@ -82,7 +83,7 @@ pub fn main() -> ExitCode {
     setup_asan_env();
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed() {
+        if let Err(err) = seed(put_registry) {
             error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -102,7 +103,7 @@ pub fn main() -> ExitCode {
         // Parse arguments
         let input = matches.value_of("input").unwrap();
 
-        if let Err(err) = execute(input) {
+        if let Err(err) = execute(input, put_registry) {
             error!("Failed to execute trace: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -116,7 +117,9 @@ pub fn main() -> ExitCode {
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
 
-            if let Err(err) = write_experiment_markdown(&experiment_path, title, description) {
+            if let Err(err) =
+                write_experiment_markdown(&experiment_path, title, description, put_registry)
+            {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -137,7 +140,9 @@ pub fn main() -> ExitCode {
                 i += 1;
             }
 
-            if let Err(err) = write_experiment_markdown(&experiment_path, title, description) {
+            if let Err(err) =
+                write_experiment_markdown(&experiment_path, title, description, put_registry)
+            {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -166,6 +171,7 @@ pub fn main() -> ExitCode {
             mutation_config: Default::default(),
             monitor,
             no_launcher,
+            put_registry,
         };
 
         if let Err(err) = start(config, handle) {
@@ -221,9 +227,9 @@ fn plot(
     Ok(())
 }
 
-fn seed() -> Result<(), Box<dyn std::error::Error>> {
+fn seed(put_registry: &PutRegistry) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in create_corpus() {
+    for (trace, name) in put_registry.create_corpus() {
         let mut file = File::create(format!("./seeds/{}.trace", name))?;
         let buffer = postcard::to_allocvec(&trace)?;
         file.write_all(&buffer)?;
@@ -232,7 +238,10 @@ fn seed() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn execute(input: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn execute(
+    input: &str,
+    put_registry: &'static PutRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut input_file = File::open(input)?;
 
     // Read trace file
@@ -242,7 +251,7 @@ fn execute(input: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new();
+    let mut ctx = TraceContext::new(put_registry);
     trace.execute(&mut ctx)?;
     Ok(())
 }

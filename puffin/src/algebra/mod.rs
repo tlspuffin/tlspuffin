@@ -28,7 +28,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+use std::sync::Mutex;
+
+use once_cell::sync::Lazy;
+
 pub use self::term::*;
+use crate::algebra::signature::Signature;
 
 pub mod atoms;
 pub mod dynamic_function;
@@ -36,6 +41,12 @@ pub mod error;
 pub mod macros;
 pub mod signature;
 pub mod term;
+
+static CURRENT_SIGNATURE: Lazy<Option<&'static Signature>> = Lazy::new(|| None);
+
+pub fn current_signature() -> &'static Signature {
+    CURRENT_SIGNATURE.expect("current signature needs to be set")
+}
 
 #[cfg(test)]
 mod tests {
@@ -45,7 +56,7 @@ mod tests {
 
     use crate::{
         agent::AgentName,
-        algebra::{signature::Signature, Term},
+        algebra::{error::FnError, signature::Signature, Term},
         term,
         tls::{
             error::FnError,

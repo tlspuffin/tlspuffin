@@ -161,12 +161,17 @@ mod fn_container {
 
     use serde::{
         de,
-        de::{MapAccess, SeqAccess, Visitor},
+        de::{DeserializeSeed, MapAccess, SeqAccess, Visitor},
         ser::SerializeStruct,
         Deserialize, Deserializer, Serialize, Serializer,
     };
 
-    use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::algebra::{
+        current_signature,
+        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        signature::Signature,
+        CURRENT_SIGNATURE,
+    };
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";
@@ -229,7 +234,7 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) = SIGNATURE
+            let (shape, dynamic_fn) = current_signature()
                 .functions_by_name
                 .get(name)
                 .ok_or_else(|| de::Error::custom(format!("could not find function {}", name)))?;
@@ -284,12 +289,16 @@ mod fn_container {
             }
 
             let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-            let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
-                de::Error::custom(format!(
-                    "Failed to link function symbol: Could not find function {}",
-                    name
-                ))
-            })?;
+            let (shape, dynamic_fn) =
+                current_signature()
+                    .functions_by_name
+                    .get(name)
+                    .ok_or_else(|| {
+                        de::Error::custom(format!(
+                            "Failed to link function symbol: Could not find function {}",
+                            name
+                        ))
+                    })?;
 
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;

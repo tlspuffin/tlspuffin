@@ -70,11 +70,12 @@ impl MemoryStream {
 
 impl Stream for MemoryStream {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        let mut out: Vec<u8> = Vec::new();
-        out.append(&mut opaque_message.clone().encode());
-        self.inbound.get_mut().extend_from_slice(&out);
+        self.inbound
+            .get_mut()
+            .extend_from_slice(&opaque_message.clone().encode());
     }
 
+    // TODO: Refactor like in tcp module to avoid rest_buffer
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
         let mut deframer = MessageDeframer::new();
         if deframer

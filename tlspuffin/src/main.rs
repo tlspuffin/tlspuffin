@@ -1,5 +1,7 @@
 use std::process::ExitCode;
 
+use crate::put_registry::PUT_REGISTRY;
+
 mod claims;
 mod debug;
 mod extraction;
@@ -13,5 +15,5 @@ mod tls;
 mod wolfssl;
 
 pub fn main() -> ExitCode {
-    puffin::main::main()
+    puffin::main::main(&PUT_REGISTRY)
 }

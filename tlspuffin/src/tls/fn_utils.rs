@@ -68,11 +68,14 @@ pub fn fn_decrypt_handshake(
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
-    let message = decrypter.decrypt(
-        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-        *sequence,
-    )?;
-    Ok(Message::try_from(message)?)
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|err| FnError::Rustls("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+    Message::try_from(message)
+        .map_err(|err| FnError::Rustls("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -105,11 +108,16 @@ pub fn fn_decrypt_application(
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
-    let message = decrypter.decrypt(
-        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-        *sequence,
-    )?;
-    Ok(Message::try_from(message)?)
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|err| {
+            FnError::Rustls("Failed to decrypt it fn_decrypt_application".to_string())
+        })?;
+    Message::try_from(message)
+        .map_err(|err| FnError::Rustls("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_encrypt_handshake(
@@ -127,8 +135,9 @@ pub fn fn_encrypt_handshake(
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
-    let application_data =
-        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|err| FnError::Rustls("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
     Ok(application_data)
 }
 
@@ -153,8 +162,11 @@ pub fn fn_encrypt_application(
         .tls13()
         .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
-    let application_data =
-        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|err| {
+            FnError::Rustls("Failed to encrypt it fn_encrypt_application".to_string())
+        })?;
     Ok(application_data)
 }
 
@@ -309,7 +321,9 @@ pub fn fn_encrypt12(
         true => Side::Client,
         false => Side::Server,
     });
-    let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
+    let encrypted = encrypter
+        .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
+        .map_err(|err| FnError::Rustls("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
 }
 

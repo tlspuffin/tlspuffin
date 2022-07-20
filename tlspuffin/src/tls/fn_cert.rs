@@ -143,8 +143,9 @@ fn _fn_rsa_sign(
         *scheme,
         Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
     );
-    let signed = signer.sign(&message)?;
-    Ok(signed)
+    signer
+        .sign(&message)
+        .map_err(|err| FnError::Rustls("Failed to sign using RSA key".to_string()))
 }
 
 pub fn fn_ecdsa_sign_client(
@@ -178,7 +179,9 @@ fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnEr
         )
         .ok_or_else(|| FnError::Rustls("Failed to find signature scheme.".to_string()))?;
 
-    Ok(signer.sign(&message)?)
+    signer
+        .sign(&message)
+        .map_err(|err| FnError::Rustls("Failed to sign using ECDHE key".to_string()))
 }
 
 pub fn fn_rsa_pss_signature_algorithm() -> Result<SignatureScheme, FnError> {

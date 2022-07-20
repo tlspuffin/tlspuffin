@@ -1,6 +1,10 @@
 use std::{fmt, fmt::Formatter, io};
 
-use crate::{agent::AgentName, algebra::error::FnError};
+use crate::{
+    agent::AgentName,
+    algebra::error::FnError,
+    claims::{ClaimList, ClaimTrait},
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -15,8 +19,8 @@ pub enum Error {
     Agent(String),
     /// Error while operating on a [`Stream`]
     Stream(String),
-    Extraction(ContentType),
-    SecurityClaim(&'static str, ClaimList),
+    Extraction(), // FIXME: Used to be: Extraction(ContentType),
+    SecurityClaim(&'static str, ClaimList<Box<dyn ClaimTrait>>),
 }
 
 impl std::error::Error for Error {}
@@ -34,11 +38,7 @@ impl fmt::Display for Error {
             ),
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
-            Error::Extraction(content_type) => write!(
-                f,
-                "error while extracting variable data from {:?}",
-                content_type
-            ),
+            Error::Extraction() => write!(f, "error while extracting variable",),
             Error::SecurityClaim(msg, claims) => write!(
                 f,
                 "error because a security violation occurred. msg: {}, claims: {:?}",

@@ -29,6 +29,7 @@ use crate::{
         TranscriptClientFinished, TranscriptClientHello, TranscriptServerFinished,
         TranscriptServerHello,
     },
+    put_registry::WOLFSSL520_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
         bio::{MemBio, MemBioSlice},

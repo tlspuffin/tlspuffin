@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Error,
     put::{Put, PutConfig, PutDescriptor},
-    put_registry::PUT_REGISTRY,
     trace::TraceContext,
 };
 
@@ -174,7 +173,8 @@ pub struct Agent {
 
 impl Agent {
     pub fn new(context: &TraceContext, descriptor: &AgentDescriptor) -> Result<Self, Error> {
-        let factory = PUT_REGISTRY
+        let factory = context
+            .put_registry()
             .find_factory(descriptor.put_descriptor.name)
             .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
         let config = PutConfig {

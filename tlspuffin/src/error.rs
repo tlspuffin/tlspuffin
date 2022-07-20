@@ -1,5 +1,7 @@
+use puffin::algebra::error::FnError;
 use rustls::msgs::message::MessageError;
 
+/*
 impl From<rustls::error::Error> for FnError {
     fn from(err: rustls::error::Error) -> Self {
         FnError::Rustls(err.to_string())
@@ -23,3 +25,10 @@ impl From<ring::error::Unspecified> for FnError {
         FnError::Unknown(err.to_string()) // Returns ring::error::Unspecified"
     }
 }
+impl From<AddrParseError> for Error {
+    fn from(err: AddrParseError) -> Self {
+        Error::IO(err.to_string())
+    }
+}
+
+*/

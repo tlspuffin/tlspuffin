@@ -10,7 +10,7 @@ use libafl::{
 use util::{Choosable, *};
 
 use crate::{
-    algebra::{atoms::Function, Subterms, Term},
+    algebra::{atoms::Function, signature::Signature, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     mutator,
     trace::Trace,
@@ -21,6 +21,7 @@ pub fn trace_mutations<S>(
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
+    signature: &'static Signature,
 ) -> tuple_list_type!(
     RepeatMutator<S>,
     SkipMutator<S>,
@@ -37,9 +38,9 @@ where
         RepeatMutator::new(max_trace_length),
         SkipMutator::new(min_trace_length),
         ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None), // Refresh zoo after 100000M mutations
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints)
     )
 }
@@ -159,7 +160,7 @@ mutator! {
             match &mut to_mutate {
                 Term::Variable(variable) => {
                     // Replace variable with constant
-                    if let Some((shape, dynamic_fn)) = SIGNATURE.functions.choose_filtered(
+                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| {
                             variable.typ == shape.return_type && shape.is_constant()
                         },
@@ -173,7 +174,7 @@ mutator! {
                     }
                 }
                 Term::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = SIGNATURE.functions.choose_filtered(
+                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| {
                             func_mut.shape() != shape // do not mutate if we change the same function
                                 && func_mut.shape().return_type == shape.return_type
@@ -192,7 +193,8 @@ mutator! {
             Ok(MutationResult::Skipped)
         }
     },
-    constraints: TermConstraints
+    constraints: TermConstraints,
+    signature: &'static Signature
 }
 
 mutator! {
@@ -297,9 +299,9 @@ mutator! {
             self.mutation_counter += 1;
 
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
-                self.zoo.insert(TermZoo::generate(&SIGNATURE, rand))
+                self.zoo.insert(TermZoo::generate(self.signature, rand))
             } else {
-                self.zoo.get_or_insert_with(|| TermZoo::generate(&SIGNATURE, rand))
+                self.zoo.get_or_insert_with(|| TermZoo::generate(self.signature, rand))
             };
 
             // Replace with generated term
@@ -321,7 +323,8 @@ mutator! {
     mutation_counter: u64,
     refresh_zoo_after: u64,
     constraints: TermConstraints,
-    zoo: Option<TermZoo>
+    zoo: Option<TermZoo>,
+    signature: &'static Signature
 }
 
 pub mod util {

@@ -100,14 +100,14 @@ impl Signature {
 macro_rules! define_signature {
     ($name_signature:ident, $($f:path)+) => {
         use once_cell::sync::Lazy;
-        use crate::algebra::signature::Signature;
+        use $crate::algebra::signature::Signature;
         /// Signature which contains all functions defined in the `tls` module. A signature is responsible
         /// for linking function implementations to serialized data.
         ///
         /// Note: Changes in function symbols may cause deserialization of term to fail.
         pub static $name_signature: Lazy<Signature> = Lazy::new(|| {
             let definitions = vec![
-                $(crate::algebra::dynamic_function::make_dynamic(&$f)),*
+                $($crate::algebra::dynamic_function::make_dynamic(&$f)),*
             ];
             Signature::new(definitions)
         });

@@ -106,7 +106,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         Box::new(ticket.ticket.0.clone()),
                     ]
                 }
-                _ => return Err(Error::Extraction(message.payload.content_type())),
+                _ => return Err(Error::Extraction()),
             }
         }
         MessagePayload::ChangeCipherSpec(_ccs) => {

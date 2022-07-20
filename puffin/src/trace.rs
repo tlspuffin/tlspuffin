@@ -91,8 +91,10 @@ use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Term},
+    claims::{CheckViolation, ClaimTrait, GlobalClaimList},
     error::Error,
     io::MessageResult,
+    put_registry::PutRegistry,
     variable_data::VariableData,
 };
 
@@ -141,14 +143,14 @@ impl TryFrom<&MessageResult> for TlsMessageType {
                     Ok(TlsMessageType::Handshake(Some(handshake_payload.typ)))
                 }
                 MessagePayload::TLS12EncryptedHandshake(_) => Ok(TlsMessageType::Handshake(None)),
-                _ => Err(Error::Extraction(tls_opaque_type)),
+                _ => Err(Error::Extraction()),
             },
             (ContentType::Handshake, _) => Ok(TlsMessageType::Handshake(None)),
             (ContentType::ApplicationData, _) => Ok(TlsMessageType::ApplicationData),
             (ContentType::Heartbeat, _) => Ok(TlsMessageType::Heartbeat),
             (ContentType::Alert, _) => Ok(TlsMessageType::Alert),
             (ContentType::ChangeCipherSpec, _) => Ok(TlsMessageType::ChangeCipherSpec),
-            (ContentType::Unknown(_), _) => Err(Error::Extraction(tls_opaque_type)),
+            (ContentType::Unknown(_), _) => Err(Error::Extraction()),
         }
     }
 }
@@ -232,7 +234,8 @@ pub struct TraceContext {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge>,
     agents: Vec<Agent>,
-    claims: GlobalClaimList,
+    claims: GlobalClaimList<Box<dyn ClaimTrait>>,
+    put_registry: &'static PutRegistry,
 }
 
 pub trait QueryMatcher {
@@ -240,7 +243,7 @@ pub trait QueryMatcher {
 }
 
 impl TraceContext {
-    pub fn new() -> Self {
+    pub fn new(put_registry: &'static PutRegistry) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -249,11 +252,34 @@ impl TraceContext {
             knowledge: vec![],
             agents: vec![],
             claims,
+            put_registry,
         }
     }
 
-    pub fn claims(&self) -> &GlobalClaimList {
+    pub fn put_registry(&self) -> &PutRegistry {
+        &self.put_registry
+    }
+
+    pub fn claims(&self) -> &GlobalClaimList<Box<dyn ClaimTrait>> {
         &self.claims
+    }
+
+    pub fn extract_knowledge(
+        &self,
+        message: &Message,
+    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        self.put_registry.extract_knowledge(message)
+    }
+
+    pub fn verify_security_violations(&self) -> Result<(), Error> {
+        let policy = self.put_registry.policy();
+        let claims = self.claims.deref_borrow();
+        if let Some(msg) = claims.check_violation(policy) {
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the end
+            return Err(Error::SecurityClaim(msg, claims.clone()));
+        }
+        Ok(())
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge) {
@@ -287,7 +313,7 @@ impl TraceContext {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.clone_boxed_any())
+            .map(|claim| claim.boxed_any())
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -453,18 +479,13 @@ impl Trace {
             ctx.claims.deref_borrow().log();
         }
 
-        let claims = ctx.claims.deref_borrow();
-        if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
-            return Err(Error::SecurityClaim(msg, claims.clone()));
-        }
+        ctx.verify_security_violations()?;
 
         Ok(())
     }
 
-    pub fn execute_default(&self) -> TraceContext {
-        let mut ctx = TraceContext::new();
+    pub fn execute_default(&self, put_registry: &'static PutRegistry) -> TraceContext {
+        let mut ctx = TraceContext::new(put_registry);
         self.execute(&mut ctx).unwrap();
         ctx
     }
@@ -551,7 +572,7 @@ impl OutputAction {
 
             match &message {
                 Some(message) => {
-                    let knowledge = extract_knowledge(message)?;
+                    let knowledge = ctx.extract_knowledge(message)?;
 
                     debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
@@ -627,15 +648,15 @@ impl InputAction {
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
-            debug_message_with_info("Input message".to_string().as_str(), msg);
+            /* FIXME debug_message_with_info("Input message".to_string().as_str(), msg); */
 
             let opaque_message = PlainMessage::from(msg.clone()).into_unencrypted_opaque();
             ctx.add_to_inbound(step.agent, &opaque_message)?;
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
-            debug_opaque_message_with_info(
+            /* FIXME debug_opaque_message_with_info(
                 "Input opaque message".to_string().as_str(),
                 opaque_message,
-            );
+            );*/
             ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(

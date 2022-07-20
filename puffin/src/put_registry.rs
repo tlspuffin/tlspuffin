@@ -1,12 +1,41 @@
+use rustls::msgs::message::Message;
+
 use crate::{
     agent::{AgentDescriptor, AgentName},
+    algebra::signature::Signature,
+    claims::{ClaimTrait, Policy},
     error::Error,
     put::{Put, PutConfig, PutDescriptor, PutName},
+    trace::Trace,
+    variable_data::VariableData,
 };
 
-pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
+pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+
+pub struct PutRegistry(pub &'static [fn() -> Box<dyn Factory>]);
+
+impl PutRegistry {}
 
 impl PutRegistry {
+    pub fn policy(&self) -> Policy<Box<dyn ClaimTrait>> {
+        todo!()
+    }
+
+    pub fn extract_knowledge(
+        &self,
+        message: &Message,
+    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        todo!()
+    }
+
+    pub fn signature(&self) -> &'static Signature {
+        todo!()
+    }
+
+    pub fn create_corpus(&self) -> Vec<(Trace, &str)> {
+        todo!()
+    }
+
     pub fn version_strings(&self) -> Vec<String> {
         let mut put_versions = Vec::new();
         for func in self.0 {

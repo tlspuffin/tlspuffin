@@ -7,7 +7,6 @@ use puffin::{
     algebra::Term,
     put::PutDescriptor,
     term,
-    tls::fn_impl::*,
     trace::{
         Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
         TraceContext,
@@ -26,6 +25,7 @@ use rustls::{
 use crate::{
     put_registry::{current_put, PUT_REGISTRY},
     static_certs::BOB_PRIVATE_KEY,
+    tls::fn_impl::*,
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
@@ -41,7 +41,7 @@ pub trait SeedExecutor<A> {
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
     fn execute_trace(self) -> TraceContext {
         PUT_REGISTRY.make_deterministic();
-        self.build_trace().execute_default()
+        self.build_trace().execute_default(&PUT_REGISTRY)
     }
 }
 
@@ -2585,14 +2585,11 @@ pub mod tests {
         },
         unistd::{fork, ForkResult},
     };
+    use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::{
-        agent::AgentName,
-        put_registry::{CURRENT_PUT_NAME, PUT_REGISTRY},
-        trace::Action,
-    };
+    use crate::put_registry::{CURRENT_PUT_NAME, PUT_REGISTRY};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2830,13 +2827,13 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use test_log::test;
-
-        use crate::{
+        use puffin::{
             agent::AgentName,
-            tls::seeds::*,
             trace::{Trace, TraceContext},
         };
+        use test_log::test;
+
+        use crate::tls::seeds::*;
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {

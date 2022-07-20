@@ -1,15 +1,23 @@
 use libafl::executors::ExitKind;
 use log::{info, trace, warn};
+use once_cell::sync::Lazy;
 use rand::Rng;
 
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
+    put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
 
+static CURRENT_SIGNATURE: Lazy<Option<&'static PutRegistry>> = Lazy::new(|| None);
+
+pub fn current_put_registry() -> &'static PutRegistry {
+    CURRENT_SIGNATURE.expect("current put registry needs to be set")
+}
+
 pub fn harness(input: &Trace) -> ExitKind {
-    let mut ctx = TraceContext::new();
+    let mut ctx = TraceContext::new(current_put_registry());
 
     TRACE_LENGTH.update(input.steps.len());
 
@@ -30,7 +38,7 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
-            Error::Extraction(_) => EXTRACTION.increment(),
+            Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg, claims) => {
                 warn!("{} claims: {:?}", msg, claims);
                 std::process::abort()

@@ -17,8 +17,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
+    claims::{ClaimTrait, GlobalClaimList},
     error::Error,
     io::Stream,
+    put_registry::DUMMY_PUT,
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
@@ -74,7 +76,7 @@ pub struct PutConfig {
     pub descriptor: PutDescriptor,
     pub typ: AgentType,
     pub tls_version: TLSVersion,
-    pub claims: GlobalClaimList,
+    pub claims: GlobalClaimList<Box<dyn ClaimTrait>>,
     pub authenticate_peer: bool,
     pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
 }
