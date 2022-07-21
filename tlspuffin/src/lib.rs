@@ -78,8 +78,6 @@
 //!     // further steps here
 //!     ]
 //! };
-//! let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY);
-//! trace.execute(&mut ctx).unwrap();
 //! ```
 //!
 //! # Example with `term!` macro

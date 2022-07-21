@@ -2629,34 +2629,12 @@ pub mod tests {
     }
 
     #[test]
-    fn test_corpus_term_size() {
-        let corpus = create_corpus();
-        let _trace_term_sizes = corpus
-            .iter()
-            .map(|(trace, name)| {
-                (
-                    name,
-                    trace
-                        .steps
-                        .iter()
-                        .map(|step| match &step.action {
-                            Action::Input(input) => input.recipe.size(),
-                            Action::Output(_) => 0,
-                        })
-                        .sum::<usize>(),
-                )
-            })
-            .collect::<Vec<_>>();
-
-        //FIXME println!("{:?}", trace_term_sizes);
-    }
-
-    #[test]
     fn test_version() {
         // FIXME PUT_REGISTRY.version_strings();
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_hearbeat() {
         expect_crash(|| {
@@ -2665,6 +2643,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
         /*FIXME if !PUT_REGISTRY
             .find_factory(CURRENT_PUT_NAME)
@@ -2680,6 +2659,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
         let ctx = seed_client_attacker12.execute_trace();
         assert!(ctx.agents_successful());
@@ -2817,6 +2797,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_successful12() {
         #[cfg(feature = "tls12-session-resumption")]
         let ctx = seed_successful12_with_tickets.execute_trace();
@@ -2827,6 +2808,7 @@ pub mod tests {
 
     // Vulnerable up until OpenSSL 1.0.1j
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(feature = "tls12")]
     #[test]
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {

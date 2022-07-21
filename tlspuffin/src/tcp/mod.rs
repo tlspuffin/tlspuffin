@@ -36,7 +36,7 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
+            _context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let options = &agent_descriptor.put_descriptor.options;
@@ -344,14 +344,6 @@ fn take_message_from_outbound<P: TcpPut>(
     }
 }
 
-impl Drop for TcpClientPut {
-    fn drop(&mut self) {}
-}
-
-impl Drop for TcpServerPut {
-    fn drop(&mut self) {}
-}
-
 fn addr_from_config(agent_descriptor: &AgentDescriptor) -> Result<SocketAddr, AddrParseError> {
     let options = &agent_descriptor.put_descriptor.options;
     let host = options.get_option("host").unwrap_or("127.0.0.1");
@@ -417,10 +409,6 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
 }
 
 impl Put<TLSProtocolBehavior> for TcpClientPut {
-    fn descriptor(&self) -> &AgentDescriptor {
-        &self.agent_descriptor
-    }
-
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         Ok(())
     }
@@ -429,6 +417,10 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
+    }
+
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.agent_descriptor
     }
 
     #[cfg(feature = "claims")]

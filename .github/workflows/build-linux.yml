@@ -55,7 +55,6 @@ jobs:
           - name: no_default_features
             features: ""
             cargo-flags: "--no-default-features"
-            skip-tests: true
     name: Build "${{ matrix.name }}"
     steps:
       - uses: actions/checkout@v2
@@ -98,6 +97,5 @@ jobs:
         shell: bash
         run: just test puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
       - name: Test
-        if: "!matrix.skip-tests"
         shell: bash
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"

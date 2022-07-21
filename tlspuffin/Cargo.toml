@@ -11,6 +11,7 @@ default = ["sancov_libafl", "introspection"]
 # Lastest OpenSSL 1.1.1
 openssl111 = [
     "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "tls12",
     "tls13",
     "tls12-session-resumption",
     "tls13-session-resumption",
@@ -22,17 +23,20 @@ openssl111 = [
 ]
 openssl101f = [
     "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 openssl102u = [
     "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 # Some LibreSSL version
 libressl = [
     "openssl/vendored-libressl",
+    "tls12",
     "tls13", # Supported features by openssl111
     "tls12-session-resumption",
     "claims",
@@ -42,6 +46,7 @@ libressl = [
 
 wolfssl430 = [
     "wolfssl-sys/vendored-wolfssl430",
+    "tls12",
     "tls13",
     "wolfssl-binding",
     "transcript-extraction",
@@ -51,6 +56,7 @@ wolfssl430 = [
 
 wolfssl510 = [
     "wolfssl-sys/vendored-wolfssl510",
+    "tls12",
     "tls13",
     "wolfssl-binding",
     "tls12-session-resumption",
@@ -62,6 +68,7 @@ wolfssl510 = [
 
 wolfssl520 = [
     "wolfssl-sys/vendored-wolfssl520",
+    "tls12",
     "tls13",
     "wolfssl-binding",
     "tls12-session-resumption",
@@ -73,6 +80,7 @@ wolfssl520 = [
 
 wolfssl530 = [
     "wolfssl-sys/vendored-wolfssl530",
+    "tls12",
     "tls13",
     "wolfssl-binding",
     "tls12-session-resumption",
@@ -84,6 +92,7 @@ wolfssl530 = [
 
 wolfssl540 = [
     "wolfssl-sys/vendored-wolfssl540",
+    "tls12",
     "tls13",
     "wolfssl-binding",
     "tls12-session-resumption",
@@ -109,6 +118,8 @@ openssl-binding = ["openssl", "foreign-types-shared"]
 
 # PUT supports TLS 1.3
 tls13 = []
+# PUT supports TLS 1.2
+tls12 = []
 # PUT supports session resumption through Tickets and PSK
 tls13-session-resumption = []
 # PUT supports session resumption through RFC5077

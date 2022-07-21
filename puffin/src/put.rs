@@ -70,7 +70,7 @@ pub struct PutDescriptor {
     pub options: PutOptions,
 }
 
-pub trait Put<PB: ProtocolBehavior>: Stream<PB> + Drop + 'static {
+pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state
