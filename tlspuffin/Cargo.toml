@@ -3,6 +3,7 @@ name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2021"
+doctest = true
 
 [features]
 default = ["sancov_libafl", "introspection"]

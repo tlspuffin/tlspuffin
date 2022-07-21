@@ -636,30 +636,22 @@ mod tests {
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
+    use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{
-        agent::AgentName,
-        algebra::{dynamic_function::DescribableFunction, Term},
-        put_registry::current_put,
-        tls::{fn_impl::*, seeds::*},
-        trace::{Action, Step, Trace},
+        agent::{AgentDescriptor, AgentName, TLSVersion},
+        algebra::{
+            dynamic_function::DescribableFunction,
+            test_signature::{TestQueryMatcher, TestTrace, *},
+            Term,
+        },
+        graphviz::write_graphviz,
+        put::{PutDescriptor, PutOptions},
+        put_registry::DUMMY_PUT,
+        term,
+        trace::{Action, InputAction, Step, Trace},
     };
-
-    struct DummyQueryMatcher;
-
-    impl Display for DummyQueryMatcher {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
-        }
-    }
-
-    impl QueryMatcher for DummyQueryMatcher {
-        fn matches(&self, query: &Self) -> bool {
-            todo!()
-        }
-    }
-    type TestTrace = puffin::trace::trace::Trace<DummyQueryMatcher>;
 
     fn create_state(
     ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -672,15 +664,11 @@ mod tests {
     /// Checks whether repeat can repeat the last step
     #[test]
     fn test_repeat_mutator() {
-        let _rand = StdRand::with_seed(1235);
-        let _corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
         let mut state = create_state();
-        let _server = AgentName::first();
-        let _trace = seed_client_attacker12.build_trace();
 
         let mut mutator = RepeatMutator::new(15);
 
-        fn check_is_encrypt12(step: &Step<DummyQueryMatcher>) -> bool {
+        fn check_is_encrypt12(step: &Step<TestQueryMatcher>) -> bool {
             if let Action::Input(input) = &step.action {
                 if input.recipe.name() == fn_encrypt12.name() {
                     return true;
@@ -690,7 +678,7 @@ mod tests {
         }
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
             let length = trace.steps.len();
@@ -710,10 +698,10 @@ mod tests {
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
-        let mut mutator = ReplaceMatchMutator::new(TermConstraints::default());
+        let mut mutator = ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE);
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
             if let Some(last) = trace.steps.iter().last() {
@@ -742,12 +730,12 @@ mod tests {
         let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
 
         // Returns the amount of extensions in the trace
-        fn sum_extension_appends(trace: &Trace) -> u16 {
+        fn sum_extension_appends(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_client_extensions_append.name())
         }
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             let before_mutation = sum_extension_appends(&trace);
             let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -767,16 +755,16 @@ mod tests {
         let _server = AgentName::first();
         let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
 
-        fn count_client_hello(trace: &Trace) -> u16 {
+        fn count_client_hello(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_client_hello.name())
         }
 
-        fn count_finished(trace: &Trace) -> u16 {
+        fn count_finished(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_finished.name())
         }
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
             if let MutationResult::Mutated = result {
@@ -797,7 +785,7 @@ mod tests {
         let mut mutator = SkipMutator::new(2);
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             let before_len = trace.steps.len();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -813,7 +801,7 @@ mod tests {
         let mut mutator = SwapMutator::new(TermConstraints::default());
 
         loop {
-            let mut trace = seed_client_attacker12.build_trace();
+            let mut trace = setup_simple_trace();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
             let is_first_not_ch = if let Some(first) = trace.steps.get(0) {
@@ -849,22 +837,18 @@ mod tests {
     #[test]
     fn test_find_term() {
         let mut rand = StdRand::with_seed(45);
-        let (client_hello, mut trace) = util::setup_simple_trace(current_put());
+        let mut trace = setup_simple_trace();
+        let term_size = trace.count_functions();
 
         let mut stats: HashSet<TracePath> = HashSet::new();
 
         for _ in 0..10000 {
-            let path = crate::fuzzer::mutations::util::choose_term_path(
-                &trace,
-                TermConstraints::default(),
-                &mut rand,
-            )
-            .unwrap();
-            crate::fuzzer::mutations::util::find_term_mut(&mut trace, &path).unwrap();
+            let path = choose_term_path(&trace, TermConstraints::default(), &mut rand).unwrap();
+            find_term_mut(&mut trace, &path).unwrap();
             stats.insert(path);
         }
 
-        assert_eq!(client_hello.size(), stats.len());
+        assert_eq!(term_size, stats.len());
     }
 
     #[test]
@@ -899,7 +883,8 @@ mod tests {
             }
         }
 
-        let (client_hello, trace) = util::setup_simple_trace(current_put());
+        let mut trace = setup_simple_trace();
+        let term_size = trace.count_functions();
 
         let mut rand = StdRand::with_seed(45);
         let mut stats: HashMap<u32, u32> = HashMap::new();
@@ -924,131 +909,52 @@ mod tests {
         println!("{:?}", stats);*/
 
         assert!(std_dev < 30.0);
-        assert_eq!(client_hello.size(), stats.len());
+        assert_eq!(term_size, stats.len());
     }
 
-    #[test]
-    fn test_corpus_term_size() {
-        let corpus = create_corpus();
-        let _trace_term_sizes = corpus
-            .iter()
-            .map(|(trace, name)| {
-                (
-                    name,
-                    trace
-                        .steps
-                        .iter()
-                        .map(|step| match &step.action {
-                            Action::Input(input) => input.recipe.size(),
-                            Action::Output(_) => 0,
-                        })
-                        .sum::<usize>(),
-                )
-            })
-            .collect::<Vec<_>>();
+    impl<QM: QueryMatcher> Trace<QM> {
+        pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
+            self.steps
+                .iter()
+                .map(|step| match &step.action {
+                    Action::Input(input) => input.recipe.count_functions_by_name(find_name),
+                    Action::Output(_) => 0,
+                })
+                .sum()
+        }
 
-        //println!("{:?}", trace_term_sizes);
-    }
+        pub fn count_functions(&self) -> usize {
+            self.steps
+                .iter()
+                .flat_map(|step| match &step.action {
+                    Action::Input(input) => Some(&input.recipe),
+                    Action::Output(_) => None,
+                })
+                .map(|term| term.size())
+                .sum()
+        }
 
-    mod util {
-        use crate::{
-            agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-            algebra::Term,
-            graphviz::write_graphviz,
-            put::PutDescriptor,
-            term,
-            tls::fn_impl::*,
-            trace::{Action, InputAction, Step, Trace},
-        };
-
-        pub fn setup_simple_trace(put_descriptor: PutDescriptor) -> (Term, Trace) {
-            let server = AgentName::first();
-            let client_hello = term! {
-                  fn_client_hello(
-                    fn_protocol_version12,
-                    fn_new_random,
-                    fn_new_session_id,
-                    (fn_append_cipher_suite(
-                        (fn_new_cipher_suites()),
-                        // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                        fn_cipher_suite12
-                    )),
-                    fn_compressions,
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    (fn_client_extensions_append(
-                                        (fn_client_extensions_append(
-                                            fn_client_extensions_new,
-                                            (fn_support_group_extension(fn_named_group_secp384r1))
-                                        )),
-                                        fn_signature_algorithm_extension
-                                    )),
-                                    fn_ec_point_formats_extension
-                                )),
-                                fn_signed_certificate_timestamp_extension
-                            )),
-                             // Enable Renegotiation
-                            (fn_renegotiation_info_extension(fn_empty_bytes_vec))
-                        )),
-                        // Add signature cert extension
-                        fn_signature_algorithm_cert_extension
-                    ))
-                )
-            };
-
-            let cloned = client_hello.clone();
-            (
-                client_hello,
-                Trace {
-                    prior_traces: vec![],
-                    descriptors: vec![AgentDescriptor::new_server(
-                        server,
-                        TLSVersion::V1_2,
-                        put_descriptor,
-                    )],
-                    steps: vec![Step {
-                        agent: server,
-                        action: Action::Input(InputAction { recipe: cloned }),
-                    }],
-                },
+        pub fn write_plots(&self, i: u16) {
+            write_graphviz(
+                format!("test_mutation{}.svg", i).as_str(),
+                "svg",
+                self.dot_graph(true).as_str(),
             )
+            .unwrap();
         }
+    }
 
-        impl Trace {
-            pub fn count_functions_by_name(&self, find_name: &'static str) -> u16 {
-                self.steps
-                    .iter()
-                    .map(|step| match &step.action {
-                        Action::Input(input) => input.recipe.count_functions_by_name(find_name),
-                        Action::Output(_) => 0,
-                    })
-                    .sum::<u16>()
-            }
-
-            pub fn write_plots(&self, i: u16) {
-                write_graphviz(
-                    format!("test_mutation{}.svg", i).as_str(),
-                    "svg",
-                    self.dot_graph(true).as_str(),
-                )
-                .unwrap();
-            }
-        }
-
-        impl Term {
-            pub fn count_functions_by_name(&self, find_name: &'static str) -> u16 {
-                let mut found = 0;
-                for term in self.into_iter() {
-                    if let Term::Application(func, _) = term {
-                        if func.name() == find_name {
-                            found += 1;
-                        }
+    impl<QM: QueryMatcher> Term<QM> {
+        pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
+            let mut found = 0;
+            for term in self.into_iter() {
+                if let Term::Application(func, _) = term {
+                    if func.name() == find_name {
+                        found += 1;
                     }
                 }
-                found
             }
+            found
         }
     }
 }

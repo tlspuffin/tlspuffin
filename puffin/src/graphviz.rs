@@ -207,11 +207,11 @@ impl<QM: QueryMatcher> Term<QM> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tls::seeds::*;
+    use crate::algebra::test_signature::setup_simple_trace;
 
     #[test]
     fn test_dot_graph() {
-        let trace = seed_client_attacker12.build_trace();
+        let trace = setup_simple_trace();
         let _string = trace.dot_graph(true);
         //println!("{}", string);
     }

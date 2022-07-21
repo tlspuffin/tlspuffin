@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+};
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -25,6 +28,12 @@ pub struct Signature {
     pub functions_by_typ: HashMap<TypeShape, Vec<FunctionDefinition>>,
     pub functions: Vec<FunctionDefinition>,
     pub types_by_name: HashMap<&'static str, TypeShape>,
+}
+
+impl Debug for Signature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "functions; {:?}\n", self.functions)
+    }
 }
 
 impl Signature {
@@ -77,12 +86,16 @@ impl Signature {
         Function::new(shape, dynamic_fn.clone())
     }
 
-    /* FIXME pub fn new_var<T: 'static>(query: Query) -> Variable {
+    pub fn new_var_with_type<T: 'static, QM: QueryMatcher>(
+        agent_name: AgentName,
+        matcher: Option<QM>,
+        counter: u16,
+    ) -> Variable<QM> {
         let type_shape = TypeShape::of::<T>();
-        Variable::new(type_shape, query)
-    }*/
+        Self::new_var(type_shape, agent_name, matcher, counter)
+    }
 
-    pub fn new_var_by_type_id<QM: QueryMatcher>(
+    pub fn new_var<QM: QueryMatcher>(
         type_shape: TypeShape,
         agent_name: AgentName,
         matcher: Option<QM>,

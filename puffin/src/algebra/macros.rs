@@ -1,27 +1,5 @@
 //! This module provides a DLS for writing[`Term`]s within Rust.
-//!
-//! # Example
-//!
-//! ```rust
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use tlspuffin::term;
-//! use tlspuffin::agent::AgentName;
-//! use rustls::{ProtocolVersion, CipherSuite};
-//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use rustls::msgs::enums::Compression;
-//!
-//! let client = AgentName::first();
-//! let term = term! {
-//!     fn_client_hello(
-//!         ((client, 0)/ProtocolVersion),
-//!         ((client, 0)/Random),
-//!         ((client, 0)/SessionID),
-//!         ((client, 0)/Vec<CipherSuite>),
-//!         ((client, 0)/Vec<Compression>),
-//!         ((client, 0)/Vec<ClientExtension>)
-//!     )
-//! };
-//! ```
+//! See the tlspufin crate for usage examples.
 
 #[macro_export]
 macro_rules! term {
@@ -36,11 +14,10 @@ macro_rules! term {
         term!(($agent, $counter) > TypeShape::of::<$typ>())
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
-        //use $crate::trace::TlsMessageType; FIXME
         use $crate::algebra::signature::Signature;
         use $crate::algebra::Term;
 
-        let var = Signature::new_var_by_type_id($($req_type)?, $agent, None, $counter);
+        let var = Signature::new_var($($req_type)?, $agent, None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
         Term::Variable(var)
     }};
 
@@ -58,7 +35,7 @@ macro_rules! term {
         use $crate::algebra::signature::Signature;
         use $crate::algebra::Term;
 
-        let var = Signature::new_var_by_type_id($($req_type)?, $agent, $message_type, $counter);
+        let var = Signature::new_var($($req_type)?, $agent, $message_type, $counter);
         Term::Variable(var)
     }};
 
@@ -77,11 +54,12 @@ macro_rules! term {
         #[allow(clippy::eval_order_dependence)]
         let arguments = vec![$({
             #[allow(unused)]
-            let argument = func.shape().argument_types.get(i)
-                    .expect("too many arguments specified for function")
-                    .clone();
-            i += 1;
-            $crate::term_arg!($args > argument)
+            if let Some(argument) = func.shape().argument_types.get(i) {
+                i += 1;
+                $crate::term_arg!($args > argument.clone())
+            } else {
+                panic!("too many arguments specified for function {}", func)
+            }
         }),*];
 
         Term::Application(func, arguments)

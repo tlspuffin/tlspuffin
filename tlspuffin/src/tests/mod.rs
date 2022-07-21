@@ -1,1 +1,1 @@
-mod algebra;
+mod term_zoo;

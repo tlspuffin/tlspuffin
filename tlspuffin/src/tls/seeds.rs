@@ -20,7 +20,7 @@ use rustls::{
 };
 
 use crate::{
-    put_registry::{current_put, TLSProtocolBehavior, PUT_REGISTRY},
+    put_registry::{current_put, TLSProtocolBehavior, TLS_PUT_REGISTRY},
     query::TlsQueryMatcher,
     static_certs::BOB_PRIVATE_KEY,
     tls::fn_impl::*,
@@ -39,7 +39,7 @@ pub trait SeedExecutor<A> {
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
         // FIXME PUT_REGISTRY.make_deterministic();
-        self.build_trace().execute_default(&PUT_REGISTRY)
+        self.build_trace().execute_default(&TLS_PUT_REGISTRY)
     }
 }
 
@@ -2598,7 +2598,7 @@ pub mod tests {
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::put_registry::{CURRENT_PUT_NAME, PUT_REGISTRY};
+    use crate::put_registry::{CURRENT_PUT_NAME, TLS_PUT_REGISTRY};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2627,6 +2627,30 @@ pub mod tests {
             Err(_) => panic!("Fork failed"),
         }
     }
+
+    #[test]
+    fn test_corpus_term_size() {
+        let corpus = create_corpus();
+        let _trace_term_sizes = corpus
+            .iter()
+            .map(|(trace, name)| {
+                (
+                    name,
+                    trace
+                        .steps
+                        .iter()
+                        .map(|step| match &step.action {
+                            Action::Input(input) => input.recipe.size(),
+                            Action::Output(_) => 0,
+                        })
+                        .sum::<usize>(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        //FIXME println!("{:?}", trace_term_sizes);
+    }
+
     #[test]
     fn test_version() {
         // FIXME PUT_REGISTRY.version_strings();

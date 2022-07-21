@@ -45,7 +45,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn new_registry() -> &'static dyn PutRegistry<Self> {
-        &PUT_REGISTRY
+        &TLS_PUT_REGISTRY
     }
 
     fn to_query_matcher(
@@ -92,7 +92,7 @@ pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', 
 pub const TCP_CLIENT_PUT: PutName = PutName(['T', 'C', 'P', 'C', 'L', 'I', 'E', 'N', 'T', '_']);
 pub const TCP_SERVER_PUT: PutName = PutName(['T', 'C', 'P', 'S', 'E', 'R', 'V', 'E', 'R', '_']);
 
-pub const PUT_REGISTRY: TlsPutRegistry = TlsPutRegistry {
+pub const TLS_PUT_REGISTRY: TlsPutRegistry = TlsPutRegistry {
     factories: &[
         crate::tcp::new_tcp_client_factory,
         crate::tcp::new_tcp_server_factory,

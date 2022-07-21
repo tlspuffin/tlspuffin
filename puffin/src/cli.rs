@@ -176,10 +176,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             mutation_config: Default::default(),
             monitor,
             no_launcher,
-            put_registry,
         };
 
-        if let Err(err) = start(config, handle) {
+        if let Err(err) = start::<PB>(config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
                     // ignore

@@ -550,7 +550,7 @@ mod tests {
     use test_log::test;
 
     use crate::{
-        put_registry::{PUT_REGISTRY, TCP_CLIENT_PUT, TCP_SERVER_PUT},
+        put_registry::{TCP_CLIENT_PUT, TCP_SERVER_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command, TLSProcess},
         tls::seeds::{
             seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12,
@@ -728,9 +728,9 @@ mod tests {
         };
 
         let trace = seed_session_resumption_dhe_full.build_trace_with_puts(&[put.clone(), put]);
-        trace.execute_default(&PUT_REGISTRY);
+        trace.execute_default(&TLS_PUT_REGISTRY);
 
-        let mut context = trace.execute_default(&PUT_REGISTRY);
+        let mut context = trace.execute_default(&TLS_PUT_REGISTRY);
 
         let server = AgentName::first().next();
         let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
@@ -749,7 +749,7 @@ mod tests {
         };
 
         let trace = seed_client_attacker_full.build_trace_with_puts(&[put]);
-        let mut context = trace.execute_default(&PUT_REGISTRY);
+        let mut context = trace.execute_default(&TLS_PUT_REGISTRY);
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
@@ -778,7 +778,7 @@ mod tests {
 
         let trace =
             seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
-        let mut context = trace.execute_default(&PUT_REGISTRY);
+        let mut context = trace.execute_default(&TLS_PUT_REGISTRY);
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
@@ -812,7 +812,7 @@ mod tests {
 
         let trace =
             seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
-        let mut context = trace.execute_default(&PUT_REGISTRY);
+        let mut context = trace.execute_default(&TLS_PUT_REGISTRY);
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();

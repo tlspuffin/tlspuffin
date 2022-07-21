@@ -15,7 +15,8 @@
 //! Each function which implements the following trait can be made into a dynamic function:
 //!
 //! ```rust
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
+//!
 //! type ConcreteFunction<A1, A2, A3, R> = dyn Fn(A1, A2, A3) -> Result<R, FnError>;
 //! ```
 //!
@@ -23,7 +24,7 @@
 //! typed function we can generate dynamically types ones which implement the following trait:
 //!
 //! ```rust
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
 //! use std::any::Any;
 //!
 //! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {

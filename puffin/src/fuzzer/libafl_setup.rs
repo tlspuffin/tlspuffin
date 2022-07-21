@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, fmt::Debug, path::PathBuf};
+use std::{fmt, fmt::Debug, marker::PhantomData, path::PathBuf};
 
 use libafl::{
     bolts::{
@@ -23,9 +23,10 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::Input,
     monitors::{tui::TuiMonitor, MultiMonitor},
+    mutators::MutatorsTuple,
     observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState},
+    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, HasRand, StdState},
     Error, Evaluator,
 };
 use log::{info, warn};
@@ -55,7 +56,7 @@ type ConcreteExecutor<'harness, H, OT, S, I> =
 type ConcreteState<C, R, SC, I> = StdState<C, I, R, SC>;
 
 #[derive(Clone)]
-pub struct FuzzerConfig<PB: ProtocolBehavior + Clone + 'static> {
+pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
     pub static_seed: Option<u64>,
     pub max_iters: Option<u64>,
@@ -70,7 +71,6 @@ pub struct FuzzerConfig<PB: ProtocolBehavior + Clone + 'static> {
     pub monitor: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
-    pub put_registry: &'static dyn PutRegistry<PB>,
 }
 
 #[derive(Clone, Copy)]
@@ -115,15 +115,15 @@ impl Default for MutationConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB, I>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
     I: Input,
     C: Corpus<I>,
     R: Rand,
     SC: Corpus<I>,
-    PB: ProtocolBehavior + Clone + 'static,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
-    config: FuzzerConfig<PB>,
+    config: FuzzerConfig,
 
     harness_fn: &'harness mut H,
     existing_state: Option<ConcreteState<C, R, SC, I>>,
@@ -135,10 +135,12 @@ where
     observers: Option<OT>,
     feedback: Option<F>,
     objective: Option<OF>,
+    initial_inputs: Option<Vec<(I, &'static str)>>,
+    mutations: Option<MT>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, I, PB>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB, I>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
     I: Input,
     C: Corpus<I>,
@@ -159,10 +161,10 @@ where
             ConcreteState<C, R, SC, I>,
             StdFuzzer<CS, F, I, OF, OT, ConcreteState<C, R, SC, I>>,
         > + ProgressReporter<I>,
-    PB: ProtocolBehavior + Clone + 'static,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     fn new(
-        config: FuzzerConfig<PB>,
+        config: FuzzerConfig,
         harness_fn: &'harness mut H,
         existing_state: Option<ConcreteState<C, R, SC, I>>,
         event_manager: EM,
@@ -179,6 +181,8 @@ where
             observers: None,
             feedback: None,
             objective: None,
+            initial_inputs: None,
+            mutations: None,
         }
     }
     fn with_rand(mut self, rand: R) -> Self {
@@ -216,6 +220,16 @@ where
         self
     }
 
+    fn with_initial_inputs(mut self, initial_inputs: Vec<(I, &'static str)>) -> Self {
+        self.initial_inputs = Some(initial_inputs);
+        self
+    }
+
+    fn with_mutations(mut self, mutations: MT) -> Self {
+        self.mutations = Some(mutations);
+        self
+    }
+
     fn run_client(mut self) -> Result<(), Error> {
         let event_manager_id = self.event_manager.mgr_id().id as u64;
         info!("Event manager ID is {}", event_manager_id);
@@ -243,28 +257,13 @@ where
                     max_iterations_per_stage,
                     max_mutations_per_iteration,
                 },
-            mutation_config:
-                MutationConfig {
-                    fresh_zoo_after,
-                    max_trace_length,
-                    min_trace_length,
-                    term_constraints,
-                },
-            put_registry,
             ..
         } = self.config;
 
-        /*let mutations = trace_mutations(
-            min_trace_length,
-            max_trace_length,
-            term_constraints,
-            fresh_zoo_after,
-            PB::signature(),
-        );*/
-
-        //let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
+        let mutator =
+            PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
         let mut stages = tuple_list!(
-            //PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StatsStage::new()
         );
 
@@ -303,12 +302,12 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                /* FIXME for (seed, name) in PB::create_corpus() {
+                for (seed, name) in self.initial_inputs.unwrap() {
                     info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
                         .expect("Failed to add input");
-                }*/
+                }
             }
         }
 
@@ -355,7 +354,7 @@ type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
     ConcreteState<C, R, SC, I>,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, PB, I>
+impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
     RunClientBuilder<
         'harness,
         H,
@@ -367,7 +366,7 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, PB, I>
         OF,
         ConcreteObservers<'a>,
         ConcreteMinimizer<C, R, SC, I>,
-        PB,
+        MT,
         I,
     >
 where
@@ -392,7 +391,7 @@ where
                 ConcreteState<C, R, SC, I>,
             >,
         > + ProgressReporter<I>,
-    PB: ProtocolBehavior + Clone + 'static,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     fn install_minimizer(self) -> Self {
         #[cfg(not(test))]
@@ -440,7 +439,7 @@ where
 
 /// Starts the fuzzing loop
 pub fn start<PB: ProtocolBehavior + Clone + 'static>(
-    config: FuzzerConfig<PB>,
+    config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), libafl::Error> {
     let FuzzerConfig {
@@ -453,6 +452,13 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         broker_port,
         monitor,
         no_launcher,
+        mutation_config:
+            MutationConfig {
+                fresh_zoo_after,
+                max_trace_length,
+                min_trace_length,
+                term_constraints,
+            },
         ..
     } = &config;
 
@@ -473,6 +479,14 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
+            .with_mutations(trace_mutations(
+                *min_trace_length,
+                *max_trace_length,
+                *term_constraints,
+                *fresh_zoo_after,
+                PB::signature(),
+            ))
+            .with_initial_inputs(PB::create_corpus())
             .with_rand(StdRand::with_seed(seed))
             .with_corpus(
                 CachedOnDiskCorpus::new_save_meta(
