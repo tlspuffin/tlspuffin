@@ -17,10 +17,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
-    claims::{ClaimTrait, GlobalClaimList},
+    claims::{Claim, GlobalClaimList},
     error::Error,
     io::Stream,
-    put_registry::{ProtocolBehavior, DUMMY_PUT},
+    protocol::ProtocolBehavior,
+    put_registry::DUMMY_PUT,
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]

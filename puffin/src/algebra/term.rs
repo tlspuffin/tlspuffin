@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::{
-    algebra::{dynamic_function::TypeShape, error::FnError},
+    algebra::{dynamic_function::TypeShape, error::FnError, QueryMatcher},
     error::Error,
-    put_registry::ProtocolBehavior,
-    trace::{QueryMatcher, TraceContext},
+    protocol::ProtocolBehavior,
+    trace::TraceContext,
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].

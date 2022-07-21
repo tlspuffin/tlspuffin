@@ -4,12 +4,12 @@ use puffin::{
     claims::Policy,
     error::Error,
     io::MessageResult,
+    protocol::{MessageDeframer, ProtocolBehavior},
     put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, MessageDeframer, ProtocolBehavior, PutRegistry},
+    put_registry::{Factory, PutRegistry},
     trace::Trace,
     variable_data::VariableData,
 };
-use rustls::msgs::message::Message;
 
 use crate::{
     claims::TlsClaim,
@@ -32,7 +32,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         Policy { func: is_violation }
     }
 
-    fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
+    fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
         extract_knowledge(message)
     }
 
@@ -44,7 +44,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         Vec::from(create_corpus())
     }
 
-    fn new_registry() -> &'static dyn PutRegistry<Self> {
+    fn new_registry() -> &'static PutRegistry<Self> {
         &TLS_PUT_REGISTRY
     }
 
@@ -55,44 +55,12 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 }
 
-pub struct TlsPutRegistry {
-    pub factories: &'static [fn() -> Box<dyn Factory<TLSProtocolBehavior>>],
-}
-
-impl PutRegistry<TLSProtocolBehavior> for TlsPutRegistry {
-    fn version_strings(&self) -> Vec<String> {
-        let mut put_versions = Vec::new();
-        for func in self.factories {
-            let factory = func();
-
-            let name = factory.put_name();
-            let version = factory.put_version();
-            put_versions.push(format!("{}: {}", name, version));
-        }
-        put_versions
-    }
-
-    fn make_deterministic(&self) {
-        for func in self.factories {
-            let factory = func();
-            factory.make_deterministic();
-        }
-    }
-
-    fn find_factory(&self, put_name: PutName) -> Option<Box<dyn Factory<TLSProtocolBehavior>>> {
-        self.factories
-            .iter()
-            .map(|func| func())
-            .find(|factory: &Box<dyn Factory<TLSProtocolBehavior>>| factory.put_name() == put_name)
-    }
-}
-
 pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
 pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
 pub const TCP_CLIENT_PUT: PutName = PutName(['T', 'C', 'P', 'C', 'L', 'I', 'E', 'N', 'T', '_']);
 pub const TCP_SERVER_PUT: PutName = PutName(['T', 'C', 'P', 'S', 'E', 'R', 'V', 'E', 'R', '_']);
 
-pub const TLS_PUT_REGISTRY: TlsPutRegistry = TlsPutRegistry {
+pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
     factories: &[
         crate::tcp::new_tcp_client_factory,
         crate::tcp::new_tcp_server_factory,

@@ -35,7 +35,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::harness;
 use crate::{
-    algebra::set_current_signature,
+    algebra::set_deserialize_signature,
     fuzzer::{
         mutations::{trace_mutations, util::TermConstraints},
         stages::{PuffinMutationalStage, PuffinScheduledMutator},
@@ -43,7 +43,8 @@ use crate::{
         stats_stage::StatsStage,
     },
     log::create_file_config,
-    put_registry::{ProtocolBehavior, PutRegistry},
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::Trace,
 };
 

@@ -16,8 +16,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
+    protocol::ProtocolBehavior,
     put::{Put, PutDescriptor},
-    put_registry::ProtocolBehavior,
     trace::TraceContext,
 };
 

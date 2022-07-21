@@ -6,7 +6,8 @@ use rand::Rng;
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
-    put_registry::{ProtocolBehavior, PutRegistry},
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
 

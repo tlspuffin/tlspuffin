@@ -14,9 +14,9 @@ use crate::{
     algebra::{
         atoms::fn_container::FnContainer,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        remove_prefix,
+        remove_prefix, QueryMatcher,
     },
-    trace::{Query, QueryMatcher},
+    trace::Query,
 };
 
 /// A variable symbol with fixed type.
@@ -167,7 +167,7 @@ mod fn_container {
     };
 
     use crate::algebra::{
-        current_signature,
+        deserialize_signature,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         signature::Signature,
         CURRENT_SIGNATURE,
@@ -211,7 +211,9 @@ mod fn_container {
         }
     }
 
-    struct FnContainerVisitor;
+    struct FnContainerVisitor {
+        signature: &'static Signature,
+    }
 
     impl<'de> Visitor<'de> for FnContainerVisitor {
         type Value = FnContainer;
@@ -234,10 +236,10 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) = current_signature()
-                .functions_by_name
-                .get(name)
-                .ok_or_else(|| de::Error::custom(format!("could not find function {}", name)))?;
+            let (shape, dynamic_fn) =
+                self.signature.functions_by_name.get(name).ok_or_else(|| {
+                    de::Error::custom(format!("could not find function {}", name))
+                })?;
 
             if name != shape.name {
                 return Err(de::Error::custom("Function name does not match!"));
@@ -290,15 +292,12 @@ mod fn_container {
 
             let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
             let (shape, dynamic_fn) =
-                current_signature()
-                    .functions_by_name
-                    .get(name)
-                    .ok_or_else(|| {
-                        de::Error::custom(format!(
-                            "Failed to link function symbol: Could not find function {}",
-                            name
-                        ))
-                    })?;
+                self.signature.functions_by_name.get(name).ok_or_else(|| {
+                    de::Error::custom(format!(
+                        "Failed to link function symbol: Could not find function {}",
+                        name
+                    ))
+                })?;
 
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
@@ -325,7 +324,13 @@ mod fn_container {
         where
             D: Deserializer<'de>,
         {
-            deserializer.deserialize_struct("FnContainer", FIELDS, FnContainerVisitor)
+            deserializer.deserialize_struct(
+                "FnContainer",
+                FIELDS,
+                FnContainerVisitor {
+                    signature: deserialize_signature(),
+                },
+            )
         }
     }
 }

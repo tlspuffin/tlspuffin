@@ -14,7 +14,7 @@ use log::{debug, trace};
 use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
-    claims::ClaimTrait,
+    claims::Claim,
     variable_data::VariableData,
 };
 use smallvec::SmallVec;
@@ -163,7 +163,7 @@ pub struct TlsClaim {
     pub data: ClaimData,
 }
 
-impl ClaimTrait for TlsClaim {
+impl Claim for TlsClaim {
     fn agent_name(&self) -> AgentName {
         self.agent_name
     }

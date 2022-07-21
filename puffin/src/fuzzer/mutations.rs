@@ -10,10 +10,10 @@ use libafl::{
 use util::{Choosable, *};
 
 use crate::{
-    algebra::{atoms::Function, signature::Signature, Subterms, Term},
+    algebra::{atoms::Function, signature::Signature, QueryMatcher, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     mutator,
-    trace::{QueryMatcher, Trace},
+    trace::Trace,
 };
 
 pub fn trace_mutations<S, QM: QueryMatcher>(
@@ -373,8 +373,8 @@ pub mod util {
     use libafl::bolts::rands::Rand;
 
     use crate::{
-        algebra::Term,
-        trace::{Action, QueryMatcher, Step, Trace},
+        algebra::{QueryMatcher, Term},
+        trace::{Action, Step, Trace},
     };
 
     #[derive(Copy, Clone)]

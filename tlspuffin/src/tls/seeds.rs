@@ -2844,7 +2844,7 @@ pub mod tests {
     pub mod serialization {
         use puffin::{
             agent::AgentName,
-            algebra::set_current_signature,
+            algebra::set_deserialize_signature,
             trace::{Trace, TraceContext},
         };
         use test_log::test;
@@ -2853,7 +2853,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_session_resumption_dhe.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2867,7 +2867,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_ke_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_session_resumption_ke.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2881,7 +2881,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_client_attacker12_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker12.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2895,7 +2895,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_successful_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2909,7 +2909,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_successful_postcard() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful.build_trace();
 
             let serialized1 = postcard::to_allocvec(&trace).unwrap();
@@ -2923,7 +2923,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_successful12_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful12.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2937,7 +2937,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_heartbleed() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_heartbleed.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
@@ -2951,7 +2951,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker_auth.build_trace();
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
             let serialized2 = serde_json::to_string_pretty(
@@ -2963,7 +2963,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_postcard() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker_auth.build_trace();
             let serialized1 = postcard::to_allocvec(&trace).unwrap();
             let serialized2 = postcard::to_allocvec(
@@ -2975,7 +2975,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_server_attacker_full_json() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_server_attacker_full.build_trace();
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
             let serialized2 = serde_json::to_string_pretty(
@@ -2987,7 +2987,7 @@ pub mod tests {
 
         #[test]
         fn test_serialisation_seed_server_attacker_full_postcard() {
-            set_current_signature(&TLS_SIGNATURE);
+            set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_server_attacker_full.build_trace();
             let serialized1 = postcard::to_allocvec(&trace).unwrap();
             let serialized2 = postcard::to_allocvec(

@@ -14,8 +14,9 @@ use crate::{
         dynamic_function::{
             make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
         },
+        QueryMatcher,
     },
-    trace::{Query, QueryMatcher},
+    trace::Query,
 };
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);

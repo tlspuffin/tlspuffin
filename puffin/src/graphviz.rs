@@ -10,8 +10,8 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Term},
-    trace::{Action, QueryMatcher, Trace},
+    algebra::{remove_fn_prefix, remove_prefix, QueryMatcher, Term},
+    trace::{Action, Trace},
 };
 
 // Colorful theme

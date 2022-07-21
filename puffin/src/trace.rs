@@ -35,11 +35,12 @@ use serde::{Deserialize, Serialize};
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Term},
-    claims::{CheckViolation, ClaimTrait, GlobalClaimList},
+    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, QueryMatcher, Term},
+    claims::{CheckViolation, Claim, GlobalClaimList},
     error::Error,
     io::MessageResult,
-    put_registry::{Message, ProtocolBehavior, PutRegistry},
+    protocol::{Message, ProtocolBehavior},
+    put_registry::PutRegistry,
     variable_data::VariableData,
 };
 
@@ -63,28 +64,6 @@ impl<QM: QueryMatcher> fmt::Display for Query<QM> {
 impl<QM: QueryMatcher> Knowledge<QM> {
     pub fn specificity(&self) -> u32 {
         self.matcher.specificity()
-    }
-}
-
-impl<T> QueryMatcher for Option<T>
-where
-    T: QueryMatcher,
-{
-    fn matches(&self, query: &Self) -> bool {
-        match (self, query) {
-            (Some(inner), Some(inner_query)) => inner.matches(inner_query),
-            (Some(_), None) => true, // None matches everything as query -> True
-            (None, None) => true,    // None == None => True
-            (None, Some(_)) => false, // None != Some => False
-        }
-    }
-
-    fn specificity(&self) -> u32 {
-        if let Some(matcher) = self {
-            1 + matcher.specificity()
-        } else {
-            0
-        }
     }
 }
 
@@ -113,20 +92,12 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     knowledge: Vec<Knowledge<PB::QueryMatcher>>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
-    put_registry: &'static dyn PutRegistry<PB>,
+    put_registry: &'static PutRegistry<PB>,
     phantom: PhantomData<PB>,
 }
 
-pub trait QueryMatcher:
-    Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
-{
-    fn matches(&self, query: &Self) -> bool;
-
-    fn specificity(&self) -> u32;
-}
-
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &'static dyn PutRegistry<PB>) -> Self {
+    pub fn new(put_registry: &'static PutRegistry<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -140,7 +111,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
     }
 
-    pub fn put_registry(&self) -> &dyn PutRegistry<PB> {
+    pub fn put_registry(&self) -> &PutRegistry<PB> {
         self.put_registry
     }
 
@@ -369,10 +340,7 @@ impl<QM: QueryMatcher> Trace<QM> {
         Ok(())
     }
 
-    pub fn execute_default<PB>(
-        &self,
-        put_registry: &'static dyn PutRegistry<PB>,
-    ) -> TraceContext<PB>
+    pub fn execute_default<PB>(&self, put_registry: &'static PutRegistry<PB>) -> TraceContext<PB>
     where
         PB: ProtocolBehavior<QueryMatcher = QM>,
     {

@@ -28,7 +28,7 @@ use log::error;
 
 use crate::{
     error::Error,
-    put_registry::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
 };
 
 pub trait Stream<PB: ProtocolBehavior> {

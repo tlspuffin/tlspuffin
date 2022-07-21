@@ -11,7 +11,7 @@ use log::{error, info, SetLoggerError};
 use log4rs::Handle;
 
 use crate::{
-    algebra::set_current_signature,
+    algebra::set_deserialize_signature,
     experiment::*,
     fuzzer::{
         sanitizer::asan::{asan_info, setup_asan_env},
@@ -19,7 +19,8 @@ use crate::{
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
-    put_registry::{ProtocolBehavior, PutRegistry},
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::{Trace, TraceContext},
 };
 
@@ -56,7 +57,7 @@ fn create_app() -> Command<'static> {
 }
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
-    put_registry: &'static dyn PutRegistry<PB>,
+    put_registry: &'static PutRegistry<PB>,
 ) -> ExitCode {
     let handle = match log4rs::init_config(create_stdout_config()) {
         Ok(handle) => handle,
@@ -85,7 +86,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     asan_info();
     setup_asan_env();
 
-    set_current_signature(PB::signature());
+    set_deserialize_signature(PB::signature());
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(put_registry) {
@@ -232,7 +233,7 @@ fn plot<PB: ProtocolBehavior>(
 }
 
 fn seed<PB: ProtocolBehavior>(
-    put_registry: &dyn PutRegistry<PB>,
+    put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
@@ -246,7 +247,7 @@ fn seed<PB: ProtocolBehavior>(
 
 fn execute<PB: ProtocolBehavior>(
     input: &str,
-    put_registry: &'static dyn PutRegistry<PB>,
+    put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut input_file = File::open(input)?;
 

@@ -28,7 +28,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{ops::DerefMut, sync::Mutex};
+use std::{fmt::Debug, hash::Hash, ops::DerefMut, sync::Mutex};
 
 use once_cell::sync::{Lazy, OnceCell};
 
@@ -45,14 +45,44 @@ pub mod term;
 static CURRENT_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
 
 /// Returns the current signature which is used during deserialization.
-pub fn current_signature() -> &'static Signature {
+pub fn deserialize_signature() -> &'static Signature {
     CURRENT_SIGNATURE
         .get()
         .expect("current signature needs to be set")
 }
 
-pub fn set_current_signature(signature: &'static Signature) {
+pub fn set_deserialize_signature(signature: &'static Signature) {
     CURRENT_SIGNATURE.set(signature);
+}
+
+impl<T> QueryMatcher for Option<T>
+where
+    T: QueryMatcher,
+{
+    fn matches(&self, query: &Self) -> bool {
+        match (self, query) {
+            (Some(inner), Some(inner_query)) => inner.matches(inner_query),
+            (Some(_), None) => true, // None matches everything as query -> True
+            (None, None) => true,    // None == None => True
+            (None, Some(_)) => false, // None != Some => False
+        }
+    }
+
+    fn specificity(&self) -> u32 {
+        if let Some(matcher) = self {
+            1 + matcher.specificity()
+        } else {
+            0
+        }
+    }
+}
+
+pub trait QueryMatcher:
+    Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
+{
+    fn matches(&self, query: &Self) -> bool;
+
+    fn specificity(&self) -> u32;
 }
 
 #[cfg(test)]
@@ -68,18 +98,16 @@ pub mod test_signature {
 
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, Term},
-        claims::{ClaimTrait, Policy},
+        algebra::{dynamic_function::TypeShape, error::FnError, QueryMatcher, Term},
+        claims::{Claim, Policy},
         define_signature,
         error::Error,
         io::MessageResult,
+        protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
         put::{PutDescriptor, PutName, PutOptions},
-        put_registry::{
-            Factory, Message, MessageDeframer, OpaqueMessage, ProtocolBehavior, PutRegistry,
-            DUMMY_PUT,
-        },
+        put_registry::{Factory, PutRegistry, DUMMY_PUT},
         term,
-        trace::{Action, InputAction, QueryMatcher, Step, Trace},
+        trace::{Action, InputAction, Step, Trace},
         variable_data::VariableData,
     };
 
@@ -361,7 +389,7 @@ pub mod test_signature {
         }
     }
 
-    impl ClaimTrait for TestClaim {
+    impl Claim for TestClaim {
         fn agent_name(&self) -> AgentName {
             todo!()
         }
@@ -464,32 +492,13 @@ pub mod test_signature {
             todo!()
         }
 
-        fn new_registry() -> &'static dyn PutRegistry<Self> {
+        fn new_registry() -> &'static PutRegistry<Self> {
             todo!()
         }
 
         fn to_query_matcher(
             message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
         ) -> Self::QueryMatcher {
-            todo!()
-        }
-    }
-
-    pub struct TestPutRegistry;
-
-    impl PutRegistry<TestProtocolBehavior> for TestPutRegistry {
-        fn version_strings(&self) -> Vec<String> {
-            todo!()
-        }
-
-        fn make_deterministic(&self) {
-            todo!()
-        }
-
-        fn find_factory(
-            &self,
-            put_name: PutName,
-        ) -> Option<Box<dyn Factory<TestProtocolBehavior>>> {
             todo!()
         }
     }
@@ -504,7 +513,11 @@ mod tests {
     use super::test_signature::*;
     use crate::{
         agent::AgentName,
-        algebra::{dynamic_function::TypeShape, error::FnError, signature::Signature, Term},
+        algebra::{
+            atoms::Variable, dynamic_function::TypeShape, error::FnError, signature::Signature,
+            Term,
+        },
+        put_registry::PutRegistry,
         term,
         trace::{Knowledge, Query, TraceContext},
     };
@@ -565,7 +578,8 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable = Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
+        let variable: Variable<TestQueryMatcher> =
+            Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
         let generated_term = Term::Application(
             hmac256,
@@ -576,7 +590,8 @@ mod tests {
         );
 
         //println!("{}", generated_term);
-        let mut context = TraceContext::new(&TestPutRegistry);
+        let mut context =
+            TraceContext::new(&PutRegistry::<TestProtocolBehavior> { factories: &[] });
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),
             matcher: None,

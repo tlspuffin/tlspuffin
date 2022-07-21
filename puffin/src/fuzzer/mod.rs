@@ -3,7 +3,7 @@
 
 use libafl::{bolts::HasLen, inputs::Input};
 
-use crate::trace::{QueryMatcher, Trace};
+use crate::trace::Trace;
 
 mod harness;
 mod libafl_setup;
@@ -17,6 +17,8 @@ pub mod term_zoo;
 pub mod mutations;
 
 pub use libafl_setup::{start, FuzzerConfig};
+
+use crate::algebra::QueryMatcher;
 
 // LibAFL support
 impl<QM: QueryMatcher> Input for Trace<QM> {

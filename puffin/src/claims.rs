@@ -12,19 +12,19 @@ use log::{debug, trace};
 
 use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
 
-pub trait ClaimTrait: VariableData {
+pub trait Claim: VariableData {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape;
     fn inner(&self) -> Box<dyn Any>;
 }
 
-impl Clone for Box<dyn ClaimTrait> {
+impl Clone for Box<dyn Claim> {
     fn clone(&self) -> Self {
         todo!()
     }
 }
 
-impl ClaimTrait for Box<dyn ClaimTrait> {
+impl Claim for Box<dyn Claim> {
     fn agent_name(&self) -> AgentName {
         self.agent_name()
     }
@@ -38,26 +38,26 @@ impl ClaimTrait for Box<dyn ClaimTrait> {
     }
 }
 
-pub struct Policy<C: ClaimTrait> {
+pub struct Policy<C: Claim> {
     pub func: fn(claims: &[C]) -> Option<&'static str>,
 }
 
-pub trait CheckViolation<C: ClaimTrait> {
+pub trait CheckViolation<C: Claim> {
     fn check_violation(&self, policy: Policy<C>) -> Option<&'static str>;
 }
 
 #[derive(Clone, Debug)]
-pub struct ClaimList<C: ClaimTrait> {
+pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
 }
 
-impl<C: ClaimTrait> CheckViolation<C> for ClaimList<C> {
+impl<C: Claim> CheckViolation<C> for ClaimList<C> {
     fn check_violation(&self, policy: Policy<C>) -> Option<&'static str> {
         (policy.func)(&self.claims)
     }
 }
 
-impl<C: ClaimTrait> ClaimList<C> {
+impl<C: Claim> ClaimList<C> {
     pub fn iter(&self) -> Iter<'_, C> {
         self.claims.iter()
     }
@@ -79,7 +79,7 @@ impl<C: ClaimTrait> ClaimList<C> {
     }
 }
 
-impl<C: ClaimTrait> ClaimList<C> {
+impl<C: Claim> ClaimList<C> {
     pub fn log(&self) {
         debug!(
             "New Claims: {}",
@@ -95,13 +95,13 @@ impl<C: ClaimTrait> ClaimList<C> {
     }
 }
 
-impl<C: ClaimTrait> From<Vec<C>> for ClaimList<C> {
+impl<C: Claim> From<Vec<C>> for ClaimList<C> {
     fn from(claims: Vec<C>) -> Self {
         Self { claims }
     }
 }
 
-impl<C: ClaimTrait> ClaimList<C> {
+impl<C: Claim> ClaimList<C> {
     pub fn new() -> Self {
         Self { claims: vec![] }
     }
@@ -112,11 +112,11 @@ impl<C: ClaimTrait> ClaimList<C> {
 }
 
 #[derive(Clone)]
-pub struct GlobalClaimList<C: ClaimTrait> {
+pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }
 
-impl<C: ClaimTrait> GlobalClaimList<C> {
+impl<C: Claim> GlobalClaimList<C> {
     pub fn new() -> Self {
         Self {
             claims: Rc::new(RefCell::new(ClaimList::new())),

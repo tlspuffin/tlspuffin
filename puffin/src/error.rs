@@ -3,7 +3,7 @@ use std::{fmt, fmt::Formatter, io};
 use crate::{
     agent::AgentName,
     algebra::error::FnError,
-    claims::{ClaimList, ClaimTrait},
+    claims::{Claim, ClaimList},
 };
 
 #[derive(Debug, Clone)]

@@ -1,4 +1,4 @@
-use puffin::{error::Error, io::MessageResult, trace::QueryMatcher};
+use puffin::{algebra::QueryMatcher, error::Error, io::MessageResult};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage},

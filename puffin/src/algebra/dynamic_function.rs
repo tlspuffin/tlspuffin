@@ -60,7 +60,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::algebra::{current_signature, error::FnError};
+use crate::algebra::{deserialize_signature, error::FnError};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -325,7 +325,7 @@ impl<'de> Deserialize<'de> for TypeShape {
             where
                 E: de::Error,
             {
-                let typ = current_signature()
+                let typ = deserialize_signature()
                     .types_by_name
                     .get(v)
                     .ok_or_else(|| de::Error::missing_field("could not find type"))?;

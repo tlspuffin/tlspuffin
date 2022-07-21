@@ -7,10 +7,9 @@ use crate::{
     algebra::{
         atoms::Function,
         signature::{FunctionDefinition, Signature},
-        Term,
+        QueryMatcher, Term,
     },
     fuzzer::mutations::util::Choosable,
-    trace::QueryMatcher,
 };
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max

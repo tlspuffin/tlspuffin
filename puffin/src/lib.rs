@@ -13,6 +13,7 @@ pub mod fuzzer;
 pub mod graphviz;
 pub mod io;
 pub mod log;
+pub mod protocol;
 pub mod put;
 pub mod put_registry;
 pub mod trace;
