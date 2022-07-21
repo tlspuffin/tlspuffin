@@ -21,7 +21,10 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::{enums::HandshakeType, message::OpaqueMessage};
+use rustls::msgs::{
+    enums::HandshakeType,
+    message::{Message, OpaqueMessage},
+};
 use smallvec::SmallVec;
 
 use crate::{
@@ -31,7 +34,7 @@ use crate::{
         TranscriptServerFinished, TranscriptServerHello,
     },
     put::TlsPutConfig,
-    put_registry::WOLFSSL520_PUT,
+    put_registry::{TLSProtocolBehavior, WOLFSSL520_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     wolfssl::{
         bio::{MemBio, MemBioSlice},
@@ -57,14 +60,14 @@ mod util;
 mod version;
 mod x509;
 
-pub fn new_wolfssl_factory() -> Box<dyn Factory> {
+pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct WolfSSLFactory;
-    impl Factory for WolfSSLFactory {
+    impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
             &self,
-            context: &TraceContext,
+            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
-        ) -> Result<Box<dyn Put>, Error> {
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
                 claims: context.claims().clone(),
@@ -102,17 +105,19 @@ impl From<ErrorStack> for Error {
 
 pub struct WolfSSL {
     ctx: SslContext,
-    stream: SslStream<MemoryStream>,
+    stream: SslStream<MemoryStream<TLSProtocolBehavior>>,
     config: TlsPutConfig,
 }
 
-impl Stream for WolfSSL {
+impl Stream<TLSProtocolBehavior> for WolfSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         let raw_stream = self.stream.get_mut();
         raw_stream.add_to_inbound(result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
         self.stream.get_mut().take_message_from_outbound()
     }
 }
@@ -158,7 +163,7 @@ impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream>, Error> {
+    ) -> Result<SslStream<MemoryStream<TLSProtocolBehavior>>, Error> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
@@ -168,7 +173,7 @@ impl WolfSSL {
     }
 }
 
-impl Put for WolfSSL {
+impl Put<TLSProtocolBehavior> for WolfSSL {
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
@@ -368,7 +373,7 @@ impl WolfSSL {
     }
 
     fn deferred_transcript_extraction(&self, agent_name: &AgentName) {
-        let config = self.config;
+        let config = &self.config;
         if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
             if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
                 let CERT_SHAPE: TypeShape = TypeShape::of::<TranscriptCertificate>();
