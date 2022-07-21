@@ -28,7 +28,7 @@ use log::error;
 
 use crate::{
     error::Error,
-    put_registry::{Message, OpaqueMessage, ProtocolBehavior},
+    put_registry::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
 };
 
 pub trait Stream<PB: ProtocolBehavior> {
@@ -60,7 +60,7 @@ pub struct MemoryStream<PB> {
     phantom: PhantomData<PB>,
 }
 
-pub struct MessageResult<M: Message<O>, O: OpaqueMessage>(pub Option<M>, pub O);
+pub struct MessageResult<M: Message<O>, O: OpaqueMessage<M>>(pub Option<M>, pub O);
 
 impl<PB: ProtocolBehavior> MemoryStream<PB> {
     pub fn new() -> Self {
@@ -83,19 +83,14 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
-        /*FIXME let mut deframer = MessageDeframer::new();
+        let mut deframer = PB::MessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())
             .is_ok()
         {
-            let mut rest_buffer: Vec<u8> = Vec::new();
-            let mut frames = deframer.frames;
+            let first_message = deframer.pop_frame();
 
-            let first_message = frames.pop_front();
-
-            for message in frames {
-                rest_buffer.append(&mut message.encode());
-            }
+            let mut rest_buffer: Vec<u8> = deframer.encode();
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();
@@ -104,7 +99,7 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
             })?;
 
             if let Some(opaque_message) = first_message {
-                let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
+                let message = match opaque_message.clone().into_message() {
                     Ok(message) => Some(message),
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
@@ -120,8 +115,7 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
         } else {
             // Unable to deframe
             Err(Error::Stream("Failed to deframe binary buffer".to_string()))
-        }*/
-        Ok(None)
+        }
     }
 }
 

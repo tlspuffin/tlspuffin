@@ -3,8 +3,9 @@ use puffin::{
     algebra::signature::Signature,
     claims::Policy,
     error::Error,
+    io::MessageResult,
     put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, ProtocolBehavior, PutRegistry},
+    put_registry::{Factory, MessageDeframer, ProtocolBehavior, PutRegistry},
     trace::Trace,
     variable_data::VariableData,
 };
@@ -24,6 +25,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
     type Message = rustls::msgs::message::Message;
     type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
+    type MessageDeframer = rustls::msgs::deframer::MessageDeframer;
     type QueryMatcher = TlsQueryMatcher;
 
     fn policy() -> Policy<Self::Claim> {
@@ -44,6 +46,12 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn new_registry() -> &'static dyn PutRegistry<Self> {
         &PUT_REGISTRY
+    }
+
+    fn to_query_matcher(
+        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+    ) -> Self::QueryMatcher {
+        TlsQueryMatcher::try_from(message_result).unwrap()
     }
 }
 

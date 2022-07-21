@@ -471,7 +471,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
         {
             let message_result = MessageResult(message_o, opaque_message);
             let MessageResult(message, opaque_message) = &message_result;
-            // FIXME let tls_message_type = Some(TlsMessageType::try_from(&message_result)?);
+            let matcher = Some(PB::to_query_matcher(&message_result));
 
             match &message {
                 Some(message) => {
@@ -486,8 +486,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
                         let counter = 9999999;
                         let knowledge = Knowledge::<QM> {
                             agent_name: step.agent,
-                            // FIXME tls_message_type,
-                            matcher: None,
+                            matcher: matcher.clone(),
                             data: variable,
                         };
                         debug!(

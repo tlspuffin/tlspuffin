@@ -33,7 +33,15 @@ impl QueryMatcher for TlsQueryMatcher {
     }
 
     fn specificity(&self) -> u32 {
-        todo!()
+        match self {
+            TlsQueryMatcher::Handshake(handshake_type) => {
+                1 + match handshake_type {
+                    None => 0,
+                    Some(_) => 1,
+                }
+            }
+            _ => 0,
+        }
     }
 }
 
@@ -58,20 +66,6 @@ impl TryFrom<&MessageResult<Message, OpaqueMessage>> for TlsQueryMatcher {
             (ContentType::Alert, _) => Ok(TlsQueryMatcher::Alert),
             (ContentType::ChangeCipherSpec, _) => Ok(TlsQueryMatcher::ChangeCipherSpec),
             (ContentType::Unknown(_), _) => Err(Error::Extraction()),
-        }
-    }
-}
-
-impl TlsQueryMatcher {
-    pub fn specificity(&self) -> u32 {
-        match self {
-            TlsQueryMatcher::Handshake(handshake_type) => {
-                1 + match handshake_type {
-                    None => 0,
-                    Some(_) => 1,
-                }
-            }
-            _ => 0,
         }
     }
 }
