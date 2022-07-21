@@ -251,7 +251,7 @@ impl TcpServerPut {
         if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
             self.stream = Some(tuple);
         } else {
-            panic!("Unstable to get stream to client!")
+            panic!("Unable to get stream to client!")
         }
     }
 }

@@ -1896,7 +1896,6 @@ dependencies = [
  "libc",
  "log",
  "nix 0.24.1",
- "once_cell",
  "openssl",
  "postcard",
  "puffin",

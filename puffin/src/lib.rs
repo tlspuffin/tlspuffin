@@ -18,6 +18,8 @@ pub mod put_registry;
 pub mod trace;
 pub mod variable_data;
 
+pub use libafl;
+
 pub const GIT_REF: &str = match option_env!("GIT_REF") {
     Some(env) => env,
     None => "undefined",

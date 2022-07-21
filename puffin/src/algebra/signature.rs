@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 
 use super::atoms::Function;
 use crate::{
@@ -96,16 +97,24 @@ impl Signature {
     }
 }
 
+pub type StaticSignature = Lazy<Signature>;
+
+pub const fn create_static_signature(init: fn() -> Signature) -> StaticSignature {
+    Lazy::new(init)
+}
+
 #[macro_export]
 macro_rules! define_signature {
     ($name_signature:ident, $($f:path)+) => {
-        use once_cell::sync::Lazy;
+        use $crate::algebra::signature::create_static_signature;
+        use $crate::algebra::signature::StaticSignature;
         use $crate::algebra::signature::Signature;
+
         /// Signature which contains all functions defined in the `tls` module. A signature is responsible
         /// for linking function implementations to serialized data.
         ///
         /// Note: Changes in function symbols may cause deserialization of term to fail.
-        pub static $name_signature: Lazy<Signature> = Lazy::new(|| {
+        pub static $name_signature: StaticSignature = create_static_signature(|| {
             let definitions = vec![
                 $($crate::algebra::dynamic_function::make_dynamic(&$f)),*
             ];
