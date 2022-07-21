@@ -15,6 +15,7 @@ use crate::{
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(bound = "QM: QueryMatcher")]
 pub enum Term<QM: QueryMatcher> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
@@ -105,7 +106,10 @@ impl<QM: QueryMatcher> Term<QM> {
     pub fn evaluate<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error> {
+    ) -> Result<Box<dyn Any>, Error>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         match self {
             Term::Variable(variable) => context
                 .find_variable(variable.typ, &variable.query)

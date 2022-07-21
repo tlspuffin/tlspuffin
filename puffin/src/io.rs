@@ -21,6 +21,7 @@ use std::{
     convert::TryFrom,
     io,
     io::{Read, Write},
+    marker::PhantomData,
 };
 
 use log::error;
@@ -53,34 +54,36 @@ pub type Channel = io::Cursor<Vec<u8>>;
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**
-pub struct MemoryStream {
+pub struct MemoryStream<PB> {
     inbound: Channel,
     outbound: Channel,
+    phantom: PhantomData<PB>,
 }
 
 pub struct MessageResult<M: Message<O>, O: OpaqueMessage>(pub Option<M>, pub O);
 
-impl MemoryStream {
+impl<PB: ProtocolBehavior> MemoryStream<PB> {
     pub fn new() -> Self {
         Self {
             inbound: io::Cursor::new(Vec::new()),
             outbound: io::Cursor::new(Vec::new()),
+            phantom: PhantomData::default(),
         }
     }
 }
 
-impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
+impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
     fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage) {
         self.inbound
             .get_mut()
-            .extend_from_slice(&opaque_message.clone().encode());
+            .extend_from_slice(&opaque_message.encode());
     }
 
     // TODO: Refactor like in tcp module to avoid rest_buffer
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
-        let mut deframer = MessageDeframer::new();
+        /*FIXME let mut deframer = MessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())
             .is_ok()
@@ -117,11 +120,12 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
         } else {
             // Unable to deframe
             Err(Error::Stream("Failed to deframe binary buffer".to_string()))
-        }
+        }*/
+        Ok(None)
     }
 }
 
-impl Read for MemoryStream {
+impl<PB: ProtocolBehavior> Read for MemoryStream<PB> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inbound.read(buf)?;
 
@@ -140,7 +144,7 @@ impl Read for MemoryStream {
     }
 }
 
-impl Write for MemoryStream {
+impl<PB: ProtocolBehavior> Write for MemoryStream<PB> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.outbound.write(buf)
     }

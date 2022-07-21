@@ -254,24 +254,24 @@ where
             ..
         } = self.config;
 
-        let mutations = trace_mutations(
+        /*let mutations = trace_mutations(
             min_trace_length,
             max_trace_length,
             term_constraints,
             fresh_zoo_after,
             PB::signature(),
-        );
+        );*/
 
-        let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
+        //let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
         let mut stages = tuple_list!(
-            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            //PuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StatsStage::new()
         );
 
-        let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
+        let mut fuzzer: StdFuzzer<CS, F, I, OF, OT, _> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _, _> = TimeoutExecutor::new(
+        let mut executor: ConcreteExecutor<'harness, H, OT, _, I> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
                 // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
@@ -303,12 +303,12 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in PB::create_corpus() {
+                /* FIXME for (seed, name) in PB::create_corpus() {
                     info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
                         .expect("Failed to add input");
-                }
+                }*/
             }
         }
 

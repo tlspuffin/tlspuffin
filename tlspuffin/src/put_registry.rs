@@ -13,6 +13,7 @@ use rustls::msgs::message::Message;
 use crate::{
     claims::TlsClaim,
     extraction::extract_knowledge,
+    query::TlsQueryMatcher,
     tls::{seeds::create_corpus, violation::is_violation, TLS_SIGNATURE},
 };
 
@@ -21,6 +22,9 @@ pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
+    type Message = rustls::msgs::message::Message;
+    type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
+    type QueryMatcher = TlsQueryMatcher;
 
     fn policy() -> Policy<Self::Claim> {
         Policy { func: is_violation }
@@ -34,8 +38,8 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         &TLS_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace, &'static str)> {
-        create_corpus()
+    fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)> {
+        Vec::from(create_corpus())
     }
 
     fn new_registry() -> &'static dyn PutRegistry<Self> {

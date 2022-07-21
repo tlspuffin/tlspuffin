@@ -26,7 +26,7 @@
 #[macro_export]
 macro_rules! term {
     //
-    // Handshake with TlsMessageType
+    // Handshake with QueryMatcher
     // `>$req_type:expr` must be the last part of the arm, even if it is not used.
     //
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
@@ -36,11 +36,11 @@ macro_rules! term {
         term!(($agent, $counter) > TypeShape::of::<$typ>())
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
-        use $crate::trace::TlsMessageType;
+        //use $crate::trace::TlsMessageType; FIXME
         use $crate::algebra::signature::Signature;
         use $crate::algebra::Term;
 
-        let var = Signature::new_var_by_type_id($($req_type)?, $agent, Some(TlsMessageType::Handshake(None)), $counter);
+        let var = Signature::new_var_by_type_id($($req_type)?, $agent, None, $counter);
         Term::Variable(var)
     }};
 
@@ -101,7 +101,7 @@ macro_rules! term {
     (@$e:ident $(>$req_type:expr)?) => {{
         use $crate::algebra::Term;
 
-        let subterm: &Term = &$e;
+        let subterm: &Term<_> = &$e;
         subterm.clone()
     }};
 }

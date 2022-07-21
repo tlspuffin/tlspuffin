@@ -25,7 +25,7 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::message::OpaqueMessage;
+use rustls::msgs::message::{Message, OpaqueMessage};
 use smallvec::SmallVec;
 
 use crate::{
@@ -58,7 +58,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             &self,
             context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
-        ) -> Result<Box<dyn Put>, Error> {
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
                 claims: context.claims().clone(),
@@ -90,7 +90,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 }
 
 pub struct OpenSSL {
-    stream: SslStream<MemoryStream>,
+    stream: SslStream<MemoryStream<TLSProtocolBehavior>>,
     config: TlsPutConfig,
 }
 
@@ -101,13 +101,18 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream for OpenSSL {
+impl Stream<TLSProtocolBehavior> for OpenSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         self.stream.get_mut().add_to_inbound(result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        self.stream.get_mut().take_message_from_outbound()
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+        let memory_stream = self.stream.get_mut();
+        //memory_stream.take_message_from_outbound()
+
+        MemoryStream::take_message_from_outbound(memory_stream)
     }
 }
 
@@ -208,7 +213,7 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
     }
 }
 
-impl Put for OpenSSL {
+impl Put<TLSProtocolBehavior> for OpenSSL {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use crate::{
     agent::{AgentDescriptor, AgentName},
@@ -18,13 +18,15 @@ pub trait PutRegistry<PB> {
     fn find_factory(&self, put_name: PutName) -> Option<Box<dyn Factory<PB>>>;
 }
 
-pub trait Message<O: OpaqueMessage> {
+pub trait Message<O: OpaqueMessage>: Clone + Debug {
     fn create_opaque(&self) -> O;
 }
 
-pub trait OpaqueMessage {}
+pub trait OpaqueMessage: Clone + Debug {
+    fn encode(&self) -> Vec<u8>;
+}
 
-pub trait ProtocolBehavior {
+pub trait ProtocolBehavior: 'static {
     type Claim: ClaimTrait;
     type Message: Message<Self::OpaqueMessage>;
     type OpaqueMessage: OpaqueMessage;

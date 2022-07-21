@@ -134,6 +134,7 @@ libc = { version = "0.2.126" }
 once_cell = "1.12.0" # TODO: possibly remove and add puffin API
 cfg-if = "1.0.0"
 hex = "0.4.3"
+serde = { version = "1.0.137", features = ["derive"] }
 
 # TLS
 # Custom work because:

@@ -1536,6 +1536,7 @@ name = "rustls"
 version = "0.20.4"
 dependencies = [
  "log",
+ "puffin",
  "ring",
  "sct",
  "serde",
@@ -1902,6 +1903,7 @@ dependencies = [
  "ring",
  "rustls",
  "security-claims",
+ "serde",
  "serde_json",
  "smallvec",
  "tempfile",

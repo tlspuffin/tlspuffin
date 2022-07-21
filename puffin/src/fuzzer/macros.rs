@@ -18,7 +18,7 @@ macro_rules! mutator {
             pub fn new($($arg_name: $arg_type,)*) -> Self {
                 Self {
                     $($arg_name,)*
-                    phantom: std::marker::PhantomData,
+                    phantom_s: std::marker::PhantomData,
                 }
             }
         }

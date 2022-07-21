@@ -100,7 +100,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         let is_multiple = matches.is_present("multiple");
         let is_tree = matches.is_present("tree");
 
-        if let Err(err) = plot(input, format, output_prefix, is_multiple, is_tree) {
+        if let Err(err) = plot::<PB>(input, format, output_prefix, is_multiple, is_tree) {
             error!("Failed to plot trace: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -194,7 +194,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     ExitCode::SUCCESS
 }
 
-fn plot(
+fn plot<PB: ProtocolBehavior>(
     input: &str,
     format: &str,
     output_prefix: &str,
@@ -206,7 +206,7 @@ fn plot(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::QueryMatcher>>(&buffer)?;
 
     // All-in-one tree
     write_graphviz(
@@ -254,7 +254,7 @@ fn execute<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::QueryMatcher>>(&buffer)?;
 
     info!("Agents: {:?}", &trace.descriptors);
 

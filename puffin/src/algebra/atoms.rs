@@ -21,7 +21,7 @@ use crate::{
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Variable<QM: QueryMatcher> {
+pub struct Variable<QM> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
@@ -52,7 +52,7 @@ impl<QM: QueryMatcher> Clone for Variable<QM> {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ,
-            query: self.query,
+            query: self.query.clone(),
         }
     }
 }

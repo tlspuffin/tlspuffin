@@ -63,7 +63,7 @@ mutator! {
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
-                |term: &Term| term.get_type_shape() == term_a.get_type_shape(),
+                |term: &Term<QM>| term.get_type_shape() == term_a.get_type_shape(),
                 self.constraints,
                 rand,
             ) {
@@ -104,7 +104,7 @@ mutator! {
 
         // Check whether there are grand_subterms with the same shape as a subterm.
         // If we find such a term, then we can remove the subterm and lift the children to the `term`.
-        let filter = |term: &Term| match term {
+        let filter = |term: &Term<QM>| match term {
             Term::Variable(_) => false,
             Term::Application(_, subterms) => subterms
                 .find_subterm(|subterm| match subterm {
@@ -219,7 +219,7 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(trace, |term: &Term| {
+            if let Some(to_replace) = choose_term_filtered_mut(trace, |term: &Term<QM>| {
                 term.get_type_shape() == replacement.get_type_shape()
             }, self.constraints, rand) {
                 to_replace.mutate(replacement);
@@ -293,13 +293,44 @@ mutator! {
     },
     max_trace_length: usize
 }
-
-mutator! {
-    /// GENERATE: Generates a previously-unseen term using a term zoo
-    <QM1: QueryMatcher>,
-    GenerateMutator,
-    <QM: QueryMatcher>,
-    Trace<QM>,
+/// GENERATE: Generates a previously-unseen term using a term zoo
+pub struct GenerateMutator<S, QM1: QueryMatcher>
+where
+    S: libafl::state::HasRand,
+{
+    mutation_counter: u64,
+    refresh_zoo_after: u64,
+    constraints: TermConstraints,
+    zoo: Option<TermZoo<QM1>>,
+    signature: &'static Signature,
+    phantom_s: std::marker::PhantomData<S>,
+}
+impl<S, QM1: QueryMatcher> GenerateMutator<S, QM1>
+where
+    S: libafl::state::HasRand,
+{
+    #[must_use]
+    pub fn new(
+        mutation_counter: u64,
+        refresh_zoo_after: u64,
+        constraints: TermConstraints,
+        zoo: Option<TermZoo<QM1>>,
+        signature: &'static Signature,
+    ) -> Self {
+        Self {
+            mutation_counter,
+            refresh_zoo_after,
+            constraints,
+            zoo,
+            signature,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+impl<S, QM: QueryMatcher> libafl::mutators::Mutator<Trace<QM>, S> for GenerateMutator<S, QM>
+where
+    S: libafl::state::HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -307,22 +338,16 @@ mutator! {
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-
             self.mutation_counter += 1;
-
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 self.zoo.insert(TermZoo::generate(self.signature, rand))
             } else {
-                self.zoo.get_or_insert_with(|| TermZoo::generate(self.signature, rand))
+                self.zoo
+                    .get_or_insert_with(|| TermZoo::generate(self.signature, rand))
             };
-
-            // Replace with generated term
             if let Some(term) = zoo.choose_filtered(
-                |term| {
-                    to_mutate.get_type_shape() == term.get_type_shape()
-                },
+                |term| to_mutate.get_type_shape() == term.get_type_shape(),
                 rand,
             ) {
                 to_mutate.mutate(term.clone());
@@ -333,12 +358,15 @@ mutator! {
         } else {
             Ok(MutationResult::Skipped)
         }
-    },
-    mutation_counter: u64,
-    refresh_zoo_after: u64,
-    constraints: TermConstraints,
-    zoo: Option<TermZoo<QM1>>,
-    signature: &'static Signature
+    }
+}
+impl<S, QM: QueryMatcher> libafl::bolts::tuples::Named for GenerateMutator<S, QM>
+where
+    S: libafl::state::HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<GenerateMutator<S, QM>>()
+    }
 }
 
 pub mod util {

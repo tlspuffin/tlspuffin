@@ -19,7 +19,7 @@ use std::{
     borrow::{Borrow, BorrowMut},
     cell::{Ref, RefCell, RefMut},
     convert::TryFrom,
-    fmt::Display,
+    fmt::{Debug, Display, Formatter},
     hash::Hash,
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -44,7 +44,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct Query<QM: QueryMatcher> {
+pub struct Query<QM> {
     pub agent_name: AgentName,
     pub matcher: Option<QM>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
@@ -55,18 +55,14 @@ impl<QM: QueryMatcher> fmt::Display for Query<QM> {
         write!(
             f,
             "({}, {})[{:?}]",
-            self.agent_name, self.counter, self.tls_message_type
+            self.agent_name, self.counter, self.matcher
         )
     }
 }
 
 impl<QM: QueryMatcher> Knowledge<QM> {
     pub fn specificity(&self) -> u32 {
-        if let Some(tls_message_type) = self.tls_message_type {
-            1 + tls_message_type.specificity()
-        } else {
-            0
-        }
+        self.matcher.specificity()
     }
 }
 
@@ -82,6 +78,14 @@ where
             (None, Some(_)) => false, // None != Some => False
         }
     }
+
+    fn specificity(&self) -> u32 {
+        if let Some(matcher) = self {
+            1 + matcher.specificity()
+        } else {
+            0
+        }
+    }
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred
@@ -95,7 +99,7 @@ pub struct Knowledge<QM: QueryMatcher> {
 
 impl<QM: QueryMatcher> fmt::Display for Knowledge<QM> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({})/{:?}", self.agent_name, self.tls_message_type)
+        write!(f, "({})/{:?}", self.agent_name, self.matcher)
     }
 }
 
@@ -114,9 +118,11 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
 }
 
 pub trait QueryMatcher:
-    Display + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned
+    Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
 {
     fn matches(&self, query: &Self) -> bool;
+
+    fn specificity(&self) -> u32;
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
@@ -210,7 +216,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
             if query_type_id == data.type_id()
                 && query.agent_name == knowledge.agent_name
-                && knowledge.tls_message_type.matches(&query.tls_message_type)
+                && knowledge.matcher.matches(&query.matcher)
             {
                 possibilities.push(knowledge);
             }
@@ -299,6 +305,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
+#[serde(bound = "QM: QueryMatcher")]
 pub struct Trace<QM: QueryMatcher> {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step<QM>>,
@@ -328,7 +335,10 @@ impl<QM: QueryMatcher> Trace<QM> {
         Ok(())
     }
 
-    pub fn execute<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
@@ -344,10 +354,7 @@ impl<QM: QueryMatcher> Trace<QM> {
             // Output after each InputAction step
             match step.action {
                 Action::Input(_) => {
-                    let output_step = &Step {
-                        agent: step.agent,
-                        action: Action::Output(OutputAction {}),
-                    };
+                    let output_step = &OutputAction::<QM>::new_step(step.agent);
 
                     output_step.action.execute(output_step, ctx)?;
                 }
@@ -362,10 +369,13 @@ impl<QM: QueryMatcher> Trace<QM> {
         Ok(())
     }
 
-    pub fn execute_default<PB: ProtocolBehavior>(
+    pub fn execute_default<PB>(
         &self,
         put_registry: &'static dyn PutRegistry<PB>,
-    ) -> TraceContext<PB> {
+    ) -> TraceContext<PB>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         let mut ctx = TraceContext::new(put_registry);
         self.execute(&mut ctx).unwrap();
         ctx
@@ -389,6 +399,7 @@ impl<QM: QueryMatcher> fmt::Display for Trace<QM> {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[serde(bound = "QM: QueryMatcher")]
 pub struct Step<QM: QueryMatcher> {
     pub agent: AgentName,
     pub action: Action<QM>,
@@ -404,17 +415,17 @@ pub struct Step<QM: QueryMatcher> {
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[serde(bound = "QM: QueryMatcher")]
 pub enum Action<QM: QueryMatcher> {
     Input(InputAction<QM>),
     Output(OutputAction<QM>),
 }
 
 impl<QM: QueryMatcher> Action<QM> {
-    fn execute<PB: ProtocolBehavior>(
-        &self,
-        step: &Step<QM>,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error> {
+    fn execute<PB>(&self, step: &Step<QM>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         match self {
             Action::Input(input) => input.input(step, ctx),
             Action::Output(output) => output.output(step, ctx),
@@ -435,7 +446,7 @@ impl<QM: QueryMatcher> fmt::Display for Action<QM> {
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct OutputAction<QM: QueryMatcher> {
+pub struct OutputAction<QM> {
     phantom: PhantomData<QM>,
 }
 
@@ -449,11 +460,10 @@ impl<QM: QueryMatcher> OutputAction<QM> {
         }
     }
 
-    fn output<PB: ProtocolBehavior>(
-        &self,
-        step: &Step<QM>,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error> {
+    fn output<PB>(&self, step: &Step<QM>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         ctx.next_state(step.agent)?;
 
         while let Some(MessageResult(message_o, opaque_message)) =
@@ -461,7 +471,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
         {
             let message_result = MessageResult(message_o, opaque_message);
             let MessageResult(message, opaque_message) = &message_result;
-            let tls_message_type = Some(TlsMessageType::try_from(&message_result)?);
+            // FIXME let tls_message_type = Some(TlsMessageType::try_from(&message_result)?);
 
             match &message {
                 Some(message) => {
@@ -476,7 +486,8 @@ impl<QM: QueryMatcher> OutputAction<QM> {
                         let counter = 9999999;
                         let knowledge = Knowledge::<QM> {
                             agent_name: step.agent,
-                            tls_message_type,
+                            // FIXME tls_message_type,
+                            matcher: None,
                             data: variable,
                         };
                         debug!(
@@ -523,6 +534,7 @@ impl<QM: QueryMatcher> fmt::Display for OutputAction<QM> {
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[serde(bound = "QM: QueryMatcher")]
 pub struct InputAction<QM: QueryMatcher> {
     pub recipe: Term<QM>,
 }
@@ -541,7 +553,10 @@ impl<QM: QueryMatcher> InputAction<QM> {
         &self,
         step: &Step<QM>,
         ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<QueryMatcher = QM>,
+    {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 

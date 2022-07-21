@@ -38,7 +38,7 @@ pub fn new_tcp_client_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             &self,
             context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
-        ) -> Result<Box<dyn Put>, Error> {
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let options = &agent_descriptor.put_descriptor.options;
             let args = options
                 .get_option("args")
@@ -81,7 +81,7 @@ pub fn new_tcp_server_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             &self,
             _context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
-        ) -> Result<Box<dyn Put>, Error> {
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let options = &agent_descriptor.put_descriptor.options;
             let args = options
                 .get_option("args")
@@ -276,29 +276,35 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream for TcpServerPut {
+impl Stream<TLSProtocolBehavior> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
         take_message_from_outbound(self)
     }
 }
 
-impl Stream for TcpClientPut {
+impl Stream<TLSProtocolBehavior> for TcpClientPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
         take_message_from_outbound(self)
     }
 }
 
-fn take_message_from_outbound<P: TcpPut>(put: &mut P) -> Result<Option<MessageResult>, Error> {
+fn take_message_from_outbound<P: TcpPut>(
+    put: &mut P,
+) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
     // Retry to read if no more frames in the deframer buffer
     let opaque_message = loop {
         if let Some(opaque_message) = put.deframer_mut().frames.pop_front() {
@@ -357,7 +363,7 @@ fn addr_from_config(agent_descriptor: &AgentDescriptor) -> Result<SocketAddr, Ad
     Ok(SocketAddr::new(IpAddr::from_str(host)?, port))
 }
 
-impl Put for TcpServerPut {
+impl Put<TLSProtocolBehavior> for TcpServerPut {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         Ok(())
     }
@@ -410,7 +416,7 @@ impl Put for TcpServerPut {
     }
 }
 
-impl Put for TcpClientPut {
+impl Put<TLSProtocolBehavior> for TcpClientPut {
     fn descriptor(&self) -> &AgentDescriptor {
         &self.agent_descriptor
     }
