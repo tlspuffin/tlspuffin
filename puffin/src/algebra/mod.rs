@@ -52,7 +52,7 @@ pub fn deserialize_signature() -> &'static Signature {
 }
 
 pub fn set_deserialize_signature(signature: &'static Signature) {
-    CURRENT_SIGNATURE.set(signature);
+    CURRENT_SIGNATURE.set(signature); // TODO: Fine to ignore?
 }
 
 impl<T> QueryMatcher for Option<T>
@@ -346,17 +346,17 @@ pub mod test_signature {
 
     impl Display for TestQueryMatcher {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl QueryMatcher for TestQueryMatcher {
         fn matches(&self, query: &Self) -> bool {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn specificity(&self) -> u32 {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
@@ -367,39 +367,39 @@ pub mod test_signature {
 
     impl VariableData for TestClaim {
         fn boxed(&self) -> Box<dyn VariableData> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn boxed_any(&self) -> Box<dyn Any> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn type_id(&self) -> TypeId {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn type_name(&self) -> &'static str {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl Debug for TestClaim {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl Claim for TestClaim {
         fn agent_name(&self) -> AgentName {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn id(&self) -> TypeShape {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn inner(&self) -> Box<dyn Any> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
@@ -407,23 +407,27 @@ pub mod test_signature {
 
     impl Clone for TestOpaqueMessage {
         fn clone(&self) -> Self {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl Debug for TestOpaqueMessage {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl OpaqueMessage<TestMessage> for TestOpaqueMessage {
         fn encode(&self) -> Vec<u8> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn into_message(self) -> Result<TestMessage, Error> {
-            todo!()
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, info: &str) {
+            panic!("Not implemented for test stub");
         }
     }
 
@@ -431,19 +435,23 @@ pub mod test_signature {
 
     impl Clone for TestMessage {
         fn clone(&self) -> Self {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl Debug for TestMessage {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
     impl Message<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
-            todo!()
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, info: &str) {
+            panic!("Not implemented for test stub");
         }
     }
 
@@ -451,19 +459,19 @@ pub mod test_signature {
 
     impl MessageDeframer<TestMessage, TestOpaqueMessage> for TestMessageDeframer {
         fn new() -> Self {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn pop_frame(&mut self) -> Option<TestOpaqueMessage> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn encode(&self) -> Vec<u8> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn read(&mut self, rd: &mut dyn Read) -> std::io::Result<usize> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 
@@ -477,29 +485,29 @@ pub mod test_signature {
         type QueryMatcher = TestQueryMatcher;
 
         fn policy() -> Policy<Self::Claim> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn signature() -> &'static Signature {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn new_registry() -> &'static PutRegistry<Self> {
-            todo!()
+            panic!("Not implemented for test stub");
         }
 
         fn to_query_matcher(
             message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
         ) -> Self::QueryMatcher {
-            todo!()
+            panic!("Not implemented for test stub");
         }
     }
 }

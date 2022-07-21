@@ -20,7 +20,7 @@ pub trait Claim: VariableData {
 
 impl Clone for Box<dyn Claim> {
     fn clone(&self) -> Self {
-        todo!()
+        Box::new(self.clone())
     }
 }
 

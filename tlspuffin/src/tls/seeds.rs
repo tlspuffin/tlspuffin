@@ -38,7 +38,7 @@ pub trait SeedExecutor<A> {
 
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
-        // FIXME PUT_REGISTRY.make_deterministic();
+        TLS_PUT_REGISTRY.make_deterministic();
         self.build_trace().execute_default(&TLS_PUT_REGISTRY)
     }
 }
@@ -2630,7 +2630,7 @@ pub mod tests {
 
     #[test]
     fn test_version() {
-        // FIXME PUT_REGISTRY.version_strings();
+        TLS_PUT_REGISTRY.version_strings();
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
@@ -2645,7 +2645,7 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        /*FIXME if !PUT_REGISTRY
+        if !TLS_PUT_REGISTRY
             .find_factory(CURRENT_PUT_NAME)
             .unwrap()
             .put_version()
@@ -2655,7 +2655,7 @@ pub mod tests {
         }
         expect_crash(|| {
             seed_cve_2021_3449.execute_trace();
-        });*/
+        });
     }
 
     #[test]

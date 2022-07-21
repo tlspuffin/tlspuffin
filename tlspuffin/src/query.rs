@@ -37,7 +37,7 @@ impl QueryMatcher for TlsQueryMatcher {
             TlsQueryMatcher::Handshake(handshake_type) => {
                 1 + match handshake_type {
                     None => 0,
-                    Some(_) => 1,
+                    Some(handshake_type) => handshake_type.specificity(),
                 }
             }
             _ => 0,

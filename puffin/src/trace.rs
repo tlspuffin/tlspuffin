@@ -39,7 +39,7 @@ use crate::{
     claims::{CheckViolation, Claim, GlobalClaimList},
     error::Error,
     io::MessageResult,
-    protocol::{Message, ProtocolBehavior},
+    protocol::{Message, OpaqueMessage, ProtocolBehavior},
     put_registry::PutRegistry,
     variable_data::VariableData,
 };
@@ -142,23 +142,21 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
-    /* FIXME pub fn number_matching_message(
+    pub fn number_matching_message(
         &self,
         agent: AgentName,
         type_id: TypeId,
-        tls_message_type: Option<TlsMessageType>,
-    ) -> u16 {
-        let known_count = self
-            .knowledge
+        tls_message_type: &Option<PB::QueryMatcher>,
+    ) -> usize {
+        self.knowledge
             .iter()
             .filter(|knowledge| {
                 knowledge.agent_name == agent
-                    && knowledge.tls_message_type == tls_message_type
+                    && knowledge.matcher == *tls_message_type
                     && knowledge.data.as_ref().type_id() == type_id
             })
-            .count();
-        known_count as u16
-    }*/
+            .count()
+    }
 
     pub fn find_claim(
         &self,
@@ -450,8 +448,8 @@ impl<QM: QueryMatcher> OutputAction<QM> {
                     for variable in knowledge {
                         let data_type_id = variable.as_ref().type_id();
 
-                        // FIXME let counter = ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
-                        let counter = 9999999;
+                        let counter =
+                            ctx.number_matching_message(step.agent, data_type_id, &matcher);
                         let knowledge = Knowledge::<QM> {
                             agent_name: step.agent,
                             matcher: matcher.clone(),
@@ -477,8 +475,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
                 data: Box::new(message_result.1),
             };
 
-            // FIXME: let counter = ctx.number_matching_message(step.agent, type_id, None);
-            let counter = 9999999;
+            let counter = ctx.number_matching_message(step.agent, type_id, &None);
             debug!(
                 "New knowledge {}: {} (counter: {})",
                 &knowledge,
@@ -528,16 +525,12 @@ impl<QM: QueryMatcher> InputAction<QM> {
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::Message>() {
-            /* FIXME debug_message_with_info("Input message".to_string().as_str(), msg); */
+            msg.debug("Input message");
 
-            //let opaque_message = PlainMessage::from(msg.clone()).into_unencrypted_opaque();
             ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
         } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<PB::OpaqueMessage>()
         {
-            /* FIXME debug_opaque_message_with_info(
-                "Input opaque message".to_string().as_str(),
-                opaque_message,
-            );*/
+            opaque_message.debug("Input opaque message");
             ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(

@@ -12,12 +12,13 @@ use crate::{
 
 pub trait Message<O: OpaqueMessage<Self>>: Clone + Debug {
     fn create_opaque(&self) -> O;
+    fn debug(&self, info: &str);
 }
 
 pub trait OpaqueMessage<M: Message<Self>>: Clone + Debug {
     fn encode(&self) -> Vec<u8>;
-
     fn into_message(self) -> Result<M, Error>;
+    fn debug(&self, info: &str);
 }
 
 pub trait MessageDeframer<M: Message<O>, O: OpaqueMessage<M>> {
