@@ -147,7 +147,7 @@ impl WolfSSL {
         #[cfg(feature = "wolfssl430")]
         stream
             .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent.name, &config))?;
+            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
 
         let mut wolfssl = WolfSSL {
             ctx,

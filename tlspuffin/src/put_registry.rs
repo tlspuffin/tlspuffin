@@ -110,7 +110,7 @@ pub const CURRENT_PUT_NAME: PutName = {
         } else if #[cfg(feature = "wolfssl-binding")] {
             WOLFSSL520_PUT
         } else {
-            DUMMY_PUT
+            puffin::put_registry::DUMMY_PUT
         }
     }
 };
