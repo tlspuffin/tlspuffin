@@ -10,7 +10,7 @@ use crate::{
     trace::{Action, Trace, TraceContext},
 };
 
-pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace) -> ExitKind {
+pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::QueryMatcher>) -> ExitKind {
     let mut ctx = TraceContext::new(PB::new_registry());
 
     TRACE_LENGTH.update(input.steps.len());
@@ -46,7 +46,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace) -> ExitKind {
 }
 
 #[allow(unused)]
-pub fn dummy_harness(_input: &Trace) -> ExitKind {
+pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::QueryMatcher>) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);

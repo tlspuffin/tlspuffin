@@ -24,18 +24,19 @@ use std::{
 };
 
 use log::error;
-use rustls::msgs::{
-    deframer::MessageDeframer,
-    message::{Message, OpaqueMessage},
+
+use crate::{
+    error::Error,
+    put_registry::{Message, OpaqueMessage, ProtocolBehavior},
 };
 
-use crate::error::Error;
-
-pub trait Stream {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage);
+pub trait Stream<PB: ProtocolBehavior> {
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error>;
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
@@ -57,7 +58,7 @@ pub struct MemoryStream {
     outbound: Channel,
 }
 
-pub struct MessageResult(pub Option<Message>, pub OpaqueMessage);
+pub struct MessageResult<M: Message<O>, O: OpaqueMessage>(pub Option<M>, pub O);
 
 impl MemoryStream {
     pub fn new() -> Self {
@@ -68,15 +69,17 @@ impl MemoryStream {
     }
 }
 
-impl Stream for MemoryStream {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
+impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage) {
         self.inbound
             .get_mut()
             .extend_from_slice(&opaque_message.clone().encode());
     }
 
     // TODO: Refactor like in tcp module to avoid rest_buffer
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
         let mut deframer = MessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())

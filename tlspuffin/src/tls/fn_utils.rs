@@ -66,16 +66,16 @@ pub fn fn_decrypt_handshake(
     )?;
     let decrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
     let message = decrypter
         .decrypt(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|err| FnError::Rustls("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
     Message::try_from(message)
-        .map_err(|err| FnError::Rustls("Failed to create Message from decrypted data".to_string()))
+        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -106,7 +106,7 @@ pub fn fn_decrypt_application(
     )?;
     let decrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
     let message = decrypter
         .decrypt(
@@ -114,10 +114,10 @@ pub fn fn_decrypt_application(
             *sequence,
         )
         .map_err(|err| {
-            FnError::Rustls("Failed to decrypt it fn_decrypt_application".to_string())
+            FnError::Crypto("Failed to decrypt it fn_decrypt_application".to_string())
         })?;
     Message::try_from(message)
-        .map_err(|err| FnError::Rustls("Failed to create Message from decrypted data".to_string()))
+        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_encrypt_handshake(
@@ -133,11 +133,11 @@ pub fn fn_encrypt_handshake(
         tls13_handshake_traffic_secret(server_hello, server_key_share, psk, *client, group)?;
     let encrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Rustls("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
     Ok(application_data)
 }
 
@@ -160,12 +160,12 @@ pub fn fn_encrypt_application(
     )?;
     let encrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
         .map_err(|err| {
-            FnError::Rustls("Failed to encrypt it fn_encrypt_application".to_string())
+            FnError::Crypto("Failed to encrypt it fn_encrypt_application".to_string())
         })?;
     Ok(application_data)
 }
@@ -202,7 +202,7 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
     let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
     let hkdf_alg = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
     let suite_hash = suite.hash_algorithm();
 
@@ -323,7 +323,7 @@ pub fn fn_encrypt12(
     });
     let encrypted = encrypter
         .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Rustls("Failed to encrypt it fn_encrypt12".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
 }
 

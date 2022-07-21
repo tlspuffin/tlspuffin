@@ -132,11 +132,11 @@ fn _fn_rsa_sign(
         _ => true,
     };
     if invalid_scheme {
-        return Err(FnError::Rustls("Unknown signature scheme".to_string()));
+        return Err(FnError::Crypto("Unknown signature scheme".to_string()));
     }
 
     let key = RsaKeyPair::from_der(private_key)
-        .map_err(|_| FnError::Rustls("Failed to parse rsa key.".to_string()))?;
+        .map_err(|_| FnError::Crypto("Failed to parse rsa key.".to_string()))?;
 
     let signer = RsaSigner::new(
         Arc::new(key),
@@ -145,7 +145,7 @@ fn _fn_rsa_sign(
     );
     signer
         .sign(&message)
-        .map_err(|err| FnError::Rustls("Failed to sign using RSA key".to_string()))
+        .map_err(|err| FnError::Crypto("Failed to sign using RSA key".to_string()))
 }
 
 pub fn fn_ecdsa_sign_client(
@@ -170,18 +170,18 @@ fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnEr
         SignatureScheme::ECDSA_NISTP256_SHA256,
         &ECDSA_P256_SHA256_ASN1_SIGNING,
     )
-    .map_err(|_| FnError::Rustls("Failed to parse ecdsa key.".to_string()))?;
+    .map_err(|_| FnError::Crypto("Failed to parse ecdsa key.".to_string()))?;
 
     let signer = key
         .choose_scheme(
             &[SignatureScheme::ECDSA_NISTP256_SHA256],
             Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
         )
-        .ok_or_else(|| FnError::Rustls("Failed to find signature scheme.".to_string()))?;
+        .ok_or_else(|| FnError::Crypto("Failed to find signature scheme.".to_string()))?;
 
     signer
         .sign(&message)
-        .map_err(|err| FnError::Rustls("Failed to sign using ECDHE key".to_string()))
+        .map_err(|err| FnError::Crypto("Failed to sign using ECDHE key".to_string()))
 }
 
 pub fn fn_rsa_pss_signature_algorithm() -> Result<SignatureScheme, FnError> {

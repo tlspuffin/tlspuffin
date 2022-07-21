@@ -16,12 +16,12 @@ use crate::{
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         remove_prefix,
     },
-    trace::Query,
+    trace::{Query, QueryMatcher},
 };
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Variable {
+pub struct Variable<QM: QueryMatcher> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
@@ -29,24 +29,24 @@ pub struct Variable {
     pub resistant_id: u32,
     pub typ: TypeShape,
     /// The struct which holds information about how to query this variable from knowledge
-    pub query: Query,
+    pub query: Query<QM>,
 }
 
-impl Hash for Variable {
+impl<QM: QueryMatcher> Hash for Variable<QM> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
         self.query.hash(state);
     }
 }
 
-impl Eq for Variable {}
-impl PartialEq for Variable {
+impl<QM: QueryMatcher> Eq for Variable<QM> {}
+impl<QM: QueryMatcher> PartialEq for Variable<QM> {
     fn eq(&self, other: &Self) -> bool {
         self.typ == other.typ && self.query == other.query
     }
 }
 
-impl Clone for Variable {
+impl<QM: QueryMatcher> Clone for Variable<QM> {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),
@@ -57,8 +57,8 @@ impl Clone for Variable {
     }
 }
 
-impl Variable {
-    pub fn new(typ: TypeShape, query: Query) -> Self {
+impl<QM: QueryMatcher> Variable<QM> {
+    pub fn new(typ: TypeShape, query: Query<QM>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -68,7 +68,7 @@ impl Variable {
     }
 }
 
-impl fmt::Display for Variable {
+impl<QM: QueryMatcher> fmt::Display for Variable<QM> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }

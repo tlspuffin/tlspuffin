@@ -40,11 +40,10 @@
 //! The following function is a simple example for a constant:
 //!
 //! ```rust
-//! use rustls::CipherSuite;
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
 //!
-//! pub fn fn_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
-//!     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
+//! pub fn fn_some_value() -> Result<u32, FnError> {
+//!     Ok(42)
 //! }
 //! ```
 //!

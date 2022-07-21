@@ -20,7 +20,7 @@ use crate::{
     claims::{ClaimTrait, GlobalClaimList},
     error::Error,
     io::Stream,
-    put_registry::DUMMY_PUT,
+    put_registry::{ProtocolBehavior, DUMMY_PUT},
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
@@ -70,7 +70,7 @@ pub struct PutDescriptor {
     pub options: PutOptions,
 }
 
-pub trait Put: Stream + Drop + 'static {
+pub trait Put<PB: ProtocolBehavior>: Stream<PB> + Drop + 'static {
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
     /// In-place reset of the state

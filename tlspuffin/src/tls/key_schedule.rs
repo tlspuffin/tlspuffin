@@ -103,7 +103,7 @@ pub fn dhe_key_schedule(
 ) -> Result<KeyScheduleHandshakeStart, FnError> {
     let hkdf_algorithm = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
 
     // Key Schedule with or without PSK

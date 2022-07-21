@@ -16,11 +16,11 @@ use rustls::{
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };
     let ours = ring::agreement::EphemeralPrivateKey::generate(skxg.agreement_algorithm, &random)
-        .map_err(|err| FnError::Rustls("Failed to generate ephemeral key".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to generate ephemeral key".to_string()))?;
 
     let pubkey = ours
         .compute_public_key()
-        .map_err(|err| FnError::Rustls("Failed to compute public key".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to compute public key".to_string()))?;
 
     Ok(KeyExchange {
         skxg,
@@ -38,7 +38,7 @@ pub fn deterministic_key_share(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
             deterministic_key_exchange(supported_group)?.pubkey.as_ref(),
         ))
     } else {
-        Err(FnError::Rustls("Unable to find named group".to_string()))
+        Err(FnError::Crypto("Unable to find named group".to_string()))
     }
 }
 
@@ -52,7 +52,7 @@ pub fn tls13_key_exchange(
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared_secret = kx
         .complete(server_key_share, |secret| Ok(Vec::from(secret)))
-        .map_err(|err| FnError::Rustls("Failed to compute shared secret".to_string()))?;
+        .map_err(|err| FnError::Crypto("Failed to compute shared secret".to_string()))?;
     Ok(shared_secret)
 }
 
@@ -87,7 +87,7 @@ pub fn tls12_new_secrets(
         .ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
     let secrets =
         ConnectionSecrets::from_key_exchange(kx, &server_ecdh_pubkey, None, randoms, suite)
-            .map_err(|err| FnError::Rustls("Failed to shared secrets for TLS 1.2".to_string()))?;
+            .map_err(|err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

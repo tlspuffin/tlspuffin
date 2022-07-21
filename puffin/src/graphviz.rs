@@ -11,7 +11,7 @@ use itertools::Itertools;
 
 use crate::{
     algebra::{remove_fn_prefix, remove_prefix, Term},
-    trace::{Action, Trace},
+    trace::{Action, QueryMatcher, Trace},
 };
 
 // Colorful theme
@@ -58,7 +58,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     Ok(())
 }
 
-impl Trace {
+impl<QM: QueryMatcher> Trace<QM> {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -106,7 +106,7 @@ impl Trace {
     }
 }
 
-impl Term {
+impl<QM: QueryMatcher> Term<QM> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
             Term::Variable(variable) => {
@@ -137,7 +137,7 @@ impl Term {
     }
 
     fn collect_statements(
-        term: &Term,
+        term: &Term<QM>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,

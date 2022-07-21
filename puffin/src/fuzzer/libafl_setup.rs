@@ -7,7 +7,7 @@ use libafl::{
         rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
-        AsRefIterator,
+        AsRefIterator, HasLen,
     },
     corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
@@ -21,6 +21,7 @@ use libafl::{
         MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
+    inputs::Input,
     monitors::{tui::TuiMonitor, MultiMonitor},
     observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
@@ -48,10 +49,10 @@ use crate::{
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-type ConcreteExecutor<'harness, H, OT, S> =
-    TimeoutExecutor<InProcessExecutor<'harness, H, Trace, OT, S>>;
+type ConcreteExecutor<'harness, H, OT, S, I> =
+    TimeoutExecutor<InProcessExecutor<'harness, H, I, OT, S>>;
 
-type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
+type ConcreteState<C, R, SC, I> = StdState<C, I, R, SC>;
 
 #[derive(Clone)]
 pub struct FuzzerConfig<PB: ProtocolBehavior + Clone + 'static> {
@@ -114,17 +115,18 @@ impl Default for MutationConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB, I>
 where
-    C: Corpus<Trace>,
+    I: Input,
+    C: Corpus<I>,
     R: Rand,
-    SC: Corpus<Trace>,
+    SC: Corpus<I>,
     PB: ProtocolBehavior + Clone + 'static,
 {
     config: FuzzerConfig<PB>,
 
     harness_fn: &'harness mut H,
-    existing_state: Option<ConcreteState<C, R, SC>>,
+    existing_state: Option<ConcreteState<C, R, SC, I>>,
     rand: Option<R>,
     objective_corpus: Option<SC>,
     corpus: Option<C>,
@@ -135,33 +137,34 @@ where
     objective: Option<OF>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, I, PB>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PB, I>
 where
-    C: Corpus<Trace>,
+    I: Input,
+    C: Corpus<I>,
     R: Rand,
-    SC: Corpus<Trace>,
-    H: FnMut(&Trace) -> ExitKind,
-    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
-    OT: ObserversTuple<Trace, ConcreteState<C, R, SC>>
+    SC: Corpus<I>,
+    H: FnMut(&I) -> ExitKind,
+    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
+    OT: ObserversTuple<I, ConcreteState<C, R, SC, I>>
         + serde::Serialize
         + serde::de::DeserializeOwned,
-    F: Feedback<Trace, ConcreteState<C, R, SC>>,
-    CS: Scheduler<Trace, ConcreteState<C, R, SC>>,
-    EM: EventFirer<Trace>
-        + EventRestarter<ConcreteState<C, R, SC>>
+    F: Feedback<I, ConcreteState<C, R, SC, I>>,
+    CS: Scheduler<I, ConcreteState<C, R, SC, I>>,
+    EM: EventFirer<I>
+        + EventRestarter<ConcreteState<C, R, SC, I>>
         + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC>>,
-            Trace,
-            ConcreteState<C, R, SC>,
-            StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
-        > + ProgressReporter<Trace>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>, I>,
+            I,
+            ConcreteState<C, R, SC, I>,
+            StdFuzzer<CS, F, I, OF, OT, ConcreteState<C, R, SC, I>>,
+        > + ProgressReporter<I>,
     PB: ProtocolBehavior + Clone + 'static,
 {
     fn new(
         config: FuzzerConfig<PB>,
         harness_fn: &'harness mut H,
-        existing_state: Option<ConcreteState<C, R, SC>>,
+        existing_state: Option<ConcreteState<C, R, SC, I>>,
         event_manager: EM,
     ) -> Self {
         Self {
@@ -268,7 +271,7 @@ where
         let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
+        let mut executor: ConcreteExecutor<'harness, H, OT, _, _> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
                 // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
@@ -329,30 +332,30 @@ where
     }
 }
 
-type ConcreteMinimizer<C, R, SC> =
-    IndexesLenTimeMinimizerScheduler<QueueScheduler, Trace, ConcreteState<C, R, SC>>;
+type ConcreteMinimizer<C, R, SC, I> =
+    IndexesLenTimeMinimizerScheduler<QueueScheduler, I, ConcreteState<C, R, SC, I>>;
 
 type ConcreteObservers<'a> = (
     TimeObserver,
     (HitcountsMapObserver<StdMapObserver<'a, u8>>, ()),
 );
 
-type ConcreteFeedback<'a, C, R, SC> = CombinedFeedback<
+type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
     MapFeedback<
-        Trace,
+        I,
         DifferentIsNovel,
         HitcountsMapObserver<StdMapObserver<'a, u8>>,
         MaxReducer,
-        ConcreteState<C, R, SC>,
+        ConcreteState<C, R, SC, I>,
         u8,
     >,
     TimeFeedback,
     LogicEagerOr,
-    Trace,
-    ConcreteState<C, R, SC>,
+    I,
+    ConcreteState<C, R, SC, I>,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, PB>
+impl<'harness, 'a, H, SC, C, R, EM, OF, PB, I>
     RunClientBuilder<
         'harness,
         H,
@@ -360,33 +363,35 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, PB>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, C, R, SC>,
+        ConcreteFeedback<'a, C, R, SC, I>,
         OF,
         ConcreteObservers<'a>,
-        ConcreteMinimizer<C, R, SC>,
+        ConcreteMinimizer<C, R, SC, I>,
         PB,
+        I,
     >
 where
-    C: Corpus<Trace> + fmt::Debug,
+    I: Input + HasLen,
+    C: Corpus<I> + fmt::Debug,
     R: Rand,
-    SC: Corpus<Trace> + fmt::Debug,
-    H: FnMut(&Trace) -> ExitKind,
-    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
-    EM: EventFirer<Trace>
-        + EventRestarter<ConcreteState<C, R, SC>>
+    SC: Corpus<I> + fmt::Debug,
+    H: FnMut(&I) -> ExitKind,
+    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
+    EM: EventFirer<I>
+        + EventRestarter<ConcreteState<C, R, SC, I>>
         + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC>>,
-            Trace,
-            ConcreteState<C, R, SC>,
+            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
+            I,
+            ConcreteState<C, R, SC, I>,
             StdFuzzer<
-                ConcreteMinimizer<C, R, SC>,
-                ConcreteFeedback<'a, C, R, SC>,
-                Trace,
+                ConcreteMinimizer<C, R, SC, I>,
+                ConcreteFeedback<'a, C, R, SC, I>,
+                I,
                 OF,
                 ConcreteObservers<'a>,
-                ConcreteState<C, R, SC>,
+                ConcreteState<C, R, SC, I>,
             >,
-        > + ProgressReporter<Trace>,
+        > + ProgressReporter<I>,
     PB: ProtocolBehavior + Clone + 'static,
 {
     fn install_minimizer(self) -> Self {
@@ -453,54 +458,57 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Running on cores: {}", &core_definition);
 
-    let mut run_client =
-        |state: Option<StdState<_, Trace, _, _>>,
-         event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
-         _unknown: usize|
-         -> Result<(), Error> {
-            let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
-            info!("Seed is {}", seed);
-            let harness_fn = &mut harness::harness::<PB>;
+    let mut run_client = |state: Option<StdState<_, Trace<PB::QueryMatcher>, _, _>>,
+                          event_manager: LlmpRestartingEventManager<
+        Trace<PB::QueryMatcher>,
+        _,
+        _,
+        StdShMemProvider,
+    >,
+                          _unknown: usize|
+     -> Result<(), Error> {
+        let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
+        info!("Seed is {}", seed);
+        let harness_fn = &mut harness::harness::<PB>;
 
-            let mut builder =
-                RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        builder = builder
+            .with_rand(StdRand::with_seed(seed))
+            .with_corpus(
+                CachedOnDiskCorpus::new_save_meta(
+                    corpus_dir.clone(),
+                    Some(OnDiskMetadataFormat::Json),
+                    1000,
+                )
+                .unwrap(),
+            )
+            .with_objective_corpus(
+                OnDiskCorpus::new_save_meta(
+                    objective_dir.clone(),
+                    Some(OnDiskMetadataFormat::JsonPretty),
+                )
+                .unwrap(),
+            )
+            .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+
+        #[cfg(feature = "sancov_libafl")]
+        {
+            builder = builder.install_minimizer();
+        }
+
+        #[cfg(not(feature = "sancov_libafl"))]
+        {
+            log::error!("Running without minimizer is unsupported");
             builder = builder
-                .with_rand(StdRand::with_seed(seed))
-                .with_corpus(
-                    CachedOnDiskCorpus::new_save_meta(
-                        corpus_dir.clone(),
-                        Some(OnDiskMetadataFormat::Json),
-                        1000,
-                    )
-                    .unwrap(),
-                )
-                .with_objective_corpus(
-                    OnDiskCorpus::new_save_meta(
-                        objective_dir.clone(),
-                        Some(OnDiskMetadataFormat::JsonPretty),
-                    )
-                    .unwrap(),
-                )
-                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+                .with_feedback(())
+                .with_observers(())
+                .with_scheduler(libafl::schedulers::RandScheduler::new());
+        }
 
-            #[cfg(feature = "sancov_libafl")]
-            {
-                builder = builder.install_minimizer();
-            }
+        log_handle.clone().set_config(create_file_config(log_file));
 
-            #[cfg(not(feature = "sancov_libafl"))]
-            {
-                log::error!("Running without minimizer is unsupported");
-                builder = builder
-                    .with_feedback(())
-                    .with_observers(())
-                    .with_scheduler(libafl::schedulers::RandScheduler::new());
-            }
-
-            log_handle.clone().set_config(create_file_config(log_file));
-
-            builder.run_client()
-        };
+        builder.run_client()
+    };
 
     if *no_launcher {
         let (state, restarting_mgr) = setup_restarting_mgr_std(

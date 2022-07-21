@@ -3,7 +3,7 @@
 
 use libafl::{bolts::HasLen, inputs::Input};
 
-use crate::trace::Trace;
+use crate::trace::{QueryMatcher, Trace};
 
 mod harness;
 mod libafl_setup;
@@ -19,13 +19,13 @@ pub mod mutations;
 pub use libafl_setup::{start, FuzzerConfig};
 
 // LibAFL support
-impl Input for Trace {
+impl<QM: QueryMatcher> Input for Trace<QM> {
     fn generate_name(&self, idx: usize) -> String {
         format!("{id}.trace", id = idx)
     }
 }
 
-impl HasLen for Trace {
+impl<QM: QueryMatcher> HasLen for Trace<QM> {
     fn len(&self) -> usize {
         self.steps.len()
     }

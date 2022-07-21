@@ -166,17 +166,14 @@ pub enum TLSVersion {
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
-pub struct Agent {
+pub struct Agent<PB: ProtocolBehavior> {
     pub name: AgentName,
     pub typ: AgentType,
-    pub put: Box<dyn Put>,
+    pub put: Box<dyn Put<PB>>,
 }
 
-impl Agent {
-    pub fn new<PB: ProtocolBehavior>(
-        context: &TraceContext<PB>,
-        descriptor: &AgentDescriptor,
-    ) -> Result<Self, Error> {
+impl<PB: ProtocolBehavior> Agent<PB> {
+    pub fn new(context: &TraceContext<PB>, descriptor: &AgentDescriptor) -> Result<Self, Error> {
         let factory = context
             .put_registry()
             .find_factory(descriptor.put_descriptor.name)

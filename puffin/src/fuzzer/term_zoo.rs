@@ -10,16 +10,17 @@ use crate::{
         Term,
     },
     fuzzer::mutations::util::Choosable,
+    trace::QueryMatcher,
 };
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
-pub struct TermZoo {
-    terms: Vec<Term>,
+pub struct TermZoo<QM: QueryMatcher> {
+    terms: Vec<Term<QM>>,
 }
 
-impl TermZoo {
+impl<QM: QueryMatcher> TermZoo<QM> {
     pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
         let terms = signature
             .functions
@@ -49,7 +50,7 @@ impl TermZoo {
         (shape, dynamic_fn): &FunctionDefinition,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term> {
+    ) -> Option<Term<QM>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -86,9 +87,9 @@ impl TermZoo {
         ))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<QM>>
     where
-        P: FnMut(&&Term) -> bool,
+        P: FnMut(&&Term<QM>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }

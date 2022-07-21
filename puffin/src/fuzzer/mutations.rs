@@ -13,26 +13,26 @@ use crate::{
     algebra::{atoms::Function, signature::Signature, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     mutator,
-    trace::Trace,
+    trace::{QueryMatcher, Trace},
 };
 
-pub fn trace_mutations<S>(
+pub fn trace_mutations<S, QM: QueryMatcher>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
     signature: &'static Signature,
 ) -> tuple_list_type!(
-    RepeatMutator<S>,
-    SkipMutator<S>,
-    ReplaceReuseMutator<S>,
-    ReplaceMatchMutator<S>,
-    RemoveAndLiftMutator<S>,
-    GenerateMutator<S>,
-    SwapMutator<S>
-)
+       RepeatMutator<S>,
+       SkipMutator<S>,
+       ReplaceReuseMutator<S>,
+       ReplaceMatchMutator<S>,
+       RemoveAndLiftMutator<S>,
+       GenerateMutator<S, QM>,
+       SwapMutator<S>
+   )
 where
-    S: HasCorpus<Trace> + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus<Trace<QM>> + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
@@ -48,12 +48,14 @@ where
 mutator! {
     /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
     /// (such that types match).
+    <>,
     SwapMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
@@ -88,12 +90,14 @@ mutator! {
 mutator! {
     /// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
     /// (such that types match). This only works if there is only a single child.
+    <>,
     RemoveAndLiftMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
      fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
@@ -146,12 +150,14 @@ mutator! {
     /// An example would be to replace a constant with another constant or the binary function
     /// fn_add with fn_sub.
     /// It can also replace any variable with a constant.
+    <>,
     ReplaceMatchMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
@@ -200,13 +206,15 @@ mutator! {
 mutator! {
     /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
     /// (such that types match). The new sub-term could come from another step which has a different recipe term.
+    <>,
     ReplaceReuseMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     // TODO make sure that we do not replace a term with itself (performance improvement)
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
@@ -226,12 +234,14 @@ mutator! {
 
 mutator! {
     /// SKIP:  Removes an input step
+    <>,
     SkipMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let steps = &mut trace.steps;
@@ -254,12 +264,14 @@ mutator! {
 
 mutator! {
     /// REPEAT: Repeats an input which is already part of the trace
+    <>,
     RepeatMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let steps = &trace.steps;
@@ -284,12 +296,14 @@ mutator! {
 
 mutator! {
     /// GENERATE: Generates a previously-unseen term using a term zoo
+    <QM1: QueryMatcher>,
     GenerateMutator,
-    Trace,
+    <QM: QueryMatcher>,
+    Trace<QM>,
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace,
+        trace: &mut Trace<QM>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
@@ -323,7 +337,7 @@ mutator! {
     mutation_counter: u64,
     refresh_zoo_after: u64,
     constraints: TermConstraints,
-    zoo: Option<TermZoo>,
+    zoo: Option<TermZoo<QM1>>,
     signature: &'static Signature
 }
 
@@ -332,7 +346,7 @@ pub mod util {
 
     use crate::{
         algebra::Term,
-        trace::{Action, Step, Trace},
+        trace::{Action, QueryMatcher, Step, Trace},
     };
 
     #[derive(Copy, Clone)]
@@ -411,13 +425,13 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    fn reservoir_sample<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-        trace: &'a Trace,
+    fn reservoir_sample<'a, R: Rand, QM: QueryMatcher, P: Fn(&Term<QM>) -> bool + Copy>(
+        trace: &'a Trace<QM>,
         filter: P,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<(&'a Term, TracePath)> {
-        let mut reservoir: Option<(&'a Term, TracePath)> = None;
+    ) -> Option<(&'a Term<QM>, TracePath)> {
+        let mut reservoir: Option<(&'a Term<QM>, TracePath)> = None;
         let mut visited = 0;
 
         for (step_index, step) in trace.steps.iter().enumerate() {
@@ -430,7 +444,8 @@ pub mod util {
                         continue;
                     }
 
-                    let mut stack: Vec<(&Term, TracePath)> = vec![(term, (step_index, Vec::new()))];
+                    let mut stack: Vec<(&Term<QM>, TracePath)> =
+                        vec![(term, (step_index, Vec::new()))];
 
                     while let Some((term, path)) = stack.pop() {
                         // push next terms onto stack
@@ -475,32 +490,35 @@ pub mod util {
         reservoir
     }
 
-    pub fn find_term_mut<'a>(trace: &'a mut Trace, trace_path: &TracePath) -> Option<&'a mut Term> {
-        fn find_term_by_term_path_mut<'a>(
-            term: &'a mut Term,
-            term_path: &mut TermPath,
-        ) -> Option<&'a mut Term> {
-            if term_path.is_empty() {
-                return Some(term);
-            }
+    fn find_term_by_term_path_mut<'a, QM: QueryMatcher>(
+        term: &'a mut Term<QM>,
+        term_path: &mut TermPath,
+    ) -> Option<&'a mut Term<QM>> {
+        if term_path.is_empty() {
+            return Some(term);
+        }
 
-            let subterm_index = term_path.remove(0);
+        let subterm_index = term_path.remove(0);
 
-            match term {
-                Term::Variable(_) => None,
-                Term::Application(_, subterms) => {
-                    if let Some(subterm) = subterms.get_mut(subterm_index) {
-                        find_term_by_term_path_mut(subterm, term_path)
-                    } else {
-                        None
-                    }
+        match term {
+            Term::Variable(_) => None,
+            Term::Application(_, subterms) => {
+                if let Some(subterm) = subterms.get_mut(subterm_index) {
+                    find_term_by_term_path_mut(subterm, term_path)
+                } else {
+                    None
                 }
             }
         }
+    }
 
+    pub fn find_term_mut<'a, QM: QueryMatcher>(
+        trace: &'a mut Trace<QM>,
+        trace_path: &TracePath,
+    ) -> Option<&'a mut Term<QM>> {
         let (step_index, term_path) = trace_path;
 
-        let step: Option<&mut Step> = trace.steps.get_mut(*step_index);
+        let step: Option<&mut Step<QM>> = trace.steps.get_mut(*step_index);
         if let Some(step) = step {
             match &mut step.action {
                 Action::Input(input) => {
@@ -513,27 +531,27 @@ pub mod util {
         }
     }
 
-    pub fn choose<'a, R: Rand>(
-        trace: &'a Trace,
+    pub fn choose<'a, R: Rand, QM: QueryMatcher>(
+        trace: &'a Trace<QM>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<(&'a Term, (usize, TermPath))> {
+    ) -> Option<(&'a Term<QM>, (usize, TermPath))> {
         reservoir_sample(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term<'a, R: Rand>(
-        trace: &'a Trace,
+    pub fn choose_term<'a, R: Rand, QM: QueryMatcher>(
+        trace: &'a Trace<QM>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a Term> {
+    ) -> Option<&'a Term<QM>> {
         reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
     }
 
-    pub fn choose_term_mut<'a, R: Rand>(
-        trace: &'a mut Trace,
+    pub fn choose_term_mut<'a, R: Rand, QM: QueryMatcher>(
+        trace: &'a mut Trace<QM>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a mut Term> {
+    ) -> Option<&'a mut Term<QM>> {
         if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
@@ -541,12 +559,17 @@ pub mod util {
         }
     }
 
-    pub fn choose_term_filtered_mut<'a, R: Rand, P: Fn(&Term) -> bool + Copy>(
-        trace: &'a mut Trace,
+    pub fn choose_term_filtered_mut<
+        'a,
+        R: Rand,
+        QM: QueryMatcher,
+        P: Fn(&Term<QM>) -> bool + Copy,
+    >(
+        trace: &'a mut Trace<QM>,
         filter: P,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a mut Term> {
+    ) -> Option<&'a mut Term<QM>> {
         if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
@@ -554,16 +577,16 @@ pub mod util {
         }
     }
 
-    pub fn choose_term_path<R: Rand>(
-        trace: &Trace,
+    pub fn choose_term_path<R: Rand, QM: QueryMatcher>(
+        trace: &Trace<QM>,
         constraints: TermConstraints,
         rand: &mut R,
     ) -> Option<TracePath> {
         choose_term_path_filtered(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term_path_filtered<R: Rand, P: Fn(&Term) -> bool + Copy>(
-        trace: &Trace,
+    pub fn choose_term_path_filtered<R: Rand, QM: QueryMatcher, P: Fn(&Term<QM>) -> bool + Copy>(
+        trace: &Trace<QM>,
         filter: P,
         constraints: TermConstraints,
         rand: &mut R,
@@ -574,7 +597,10 @@ pub mod util {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::{
+        collections::{HashMap, HashSet},
+        fmt::{Display, Formatter},
+    };
 
     use libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -592,10 +618,26 @@ mod tests {
         trace::{Action, Step, Trace},
     };
 
-    fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>>
+    struct DummyQueryMatcher;
+
+    impl Display for DummyQueryMatcher {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            todo!()
+        }
+    }
+
+    impl QueryMatcher for DummyQueryMatcher {
+        fn matches(&self, query: &Self) -> bool {
+            todo!()
+        }
+    }
+    type TestTrace = puffin::trace::trace::Trace<DummyQueryMatcher>;
+
+    fn create_state(
+    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
-        let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+        let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
         StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
     }
 
@@ -603,14 +645,14 @@ mod tests {
     #[test]
     fn test_repeat_mutator() {
         let _rand = StdRand::with_seed(1235);
-        let _corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+        let _corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
         let mut state = create_state();
         let _server = AgentName::first();
         let _trace = seed_client_attacker12.build_trace();
 
         let mut mutator = RepeatMutator::new(15);
 
-        fn check_is_encrypt12(step: &Step) -> bool {
+        fn check_is_encrypt12(step: &Step<DummyQueryMatcher>) -> bool {
             if let Action::Input(input) = &step.action {
                 if input.recipe.name() == fn_encrypt12.name() {
                     return true;

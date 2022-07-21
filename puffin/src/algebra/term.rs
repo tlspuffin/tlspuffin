@@ -10,30 +10,30 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError},
     error::Error,
     put_registry::ProtocolBehavior,
-    trace::TraceContext,
+    trace::{QueryMatcher, TraceContext},
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Term {
+pub enum Term<QM: QueryMatcher> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
     ///
-    Variable(Variable),
+    Variable(Variable<QM>),
     /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<Term>),
+    Application(Function, Vec<Term<QM>>),
 }
 
-impl fmt::Display for Term {
+impl<QM: QueryMatcher> fmt::Display for Term<QM> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
 
-impl Term {
+impl<QM: QueryMatcher> Term<QM> {
     pub fn resistant_id(&self) -> u32 {
         match self {
             Term::Variable(v) => v.resistant_id,
@@ -75,7 +75,7 @@ impl Term {
         }
     }
 
-    pub fn mutate(&mut self, other: Term) {
+    pub fn mutate(&mut self, other: Term<QM>) {
         *self = other;
     }
 
@@ -108,7 +108,7 @@ impl Term {
     ) -> Result<Box<dyn Any>, Error> {
         match self {
             Term::Variable(variable) => context
-                .find_variable(variable.typ, variable.query)
+                .find_variable(variable.typ, &variable.query)
                 .map(|data| data.boxed_any())
                 .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
@@ -132,52 +132,52 @@ impl Term {
     }
 }
 
+fn append<'a, QM: QueryMatcher>(term: &'a Term<QM>, v: &mut Vec<&'a Term<QM>>) {
+    match *term {
+        Term::Variable(_) => {}
+        Term::Application(_, ref subterms) => {
+            for subterm in subterms {
+                append(subterm, v);
+            }
+        }
+    }
+
+    v.push(term);
+}
+
 /// Having the same mutator for &'a mut Term is not possible in Rust:
 /// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
 /// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
-impl<'a> IntoIterator for &'a Term {
-    type Item = &'a Term;
-    type IntoIter = std::vec::IntoIter<&'a Term>;
+impl<'a, QM: QueryMatcher> IntoIterator for &'a Term<QM> {
+    type Item = &'a Term<QM>;
+    type IntoIter = std::vec::IntoIter<&'a Term<QM>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        fn append<'a>(term: &'a Term, v: &mut Vec<&'a Term>) {
-            match *term {
-                Term::Variable(_) => {}
-                Term::Application(_, ref subterms) => {
-                    for subterm in subterms {
-                        append(subterm, v);
-                    }
-                }
-            }
-
-            v.push(term);
-        }
-
         let mut result = vec![];
-        append(self, &mut result);
+        append::<QM>(self, &mut result);
         result.into_iter()
     }
 }
 
-pub trait Subterms {
-    fn find_subterm_same_shape(&self, term: &Term) -> Option<&Term>;
+pub trait Subterms<QM: QueryMatcher> {
+    fn find_subterm_same_shape(&self, term: &Term<QM>) -> Option<&Term<QM>>;
 
-    fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, filter: P) -> Option<&Term>;
+    fn find_subterm<P: Fn(&&Term<QM>) -> bool + Copy>(&self, filter: P) -> Option<&Term<QM>>;
 
-    fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<QM>, &Term<QM>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term), &Term)>;
+    ) -> Vec<((usize, &Term<QM>), &Term<QM>)>;
 }
 
-impl Subterms for Vec<Term> {
+impl<QM: QueryMatcher> Subterms<QM> for Vec<Term<QM>> {
     /// Finds a subterm with the same type as `term`
-    fn find_subterm_same_shape(&self, term: &Term) -> Option<&Term> {
+    fn find_subterm_same_shape(&self, term: &Term<QM>) -> Option<&Term<QM>> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
     }
 
     /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&Term) -> bool + Copy>(&self, predicate: P) -> Option<&Term> {
+    fn find_subterm<P: Fn(&&Term<QM>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<QM>> {
         self.iter().find(predicate)
     }
 
@@ -186,10 +186,10 @@ impl Subterms for Vec<Term> {
     /// A grand subterm is defined as a subterm of a term in `self`.
     ///
     /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
-    fn filter_grand_subterms<P: Fn(&Term, &Term) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<QM>, &Term<QM>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term), &Term)> {
+    ) -> Vec<((usize, &Term<QM>), &Term<QM>)> {
         let mut found_grand_subterms = vec![];
 
         for (i, subterm) in self.iter().enumerate() {

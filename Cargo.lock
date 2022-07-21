@@ -1343,13 +1343,10 @@ dependencies = [
  "once_cell",
  "postcard",
  "rand",
- "ring",
- "rustls",
  "serde",
  "serde_json",
  "smallvec",
  "test-log",
- "webpki",
 ]
 
 [[package]]

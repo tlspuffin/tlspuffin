@@ -11,7 +11,7 @@ use crate::{
             make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
         },
     },
-    trace::{Query, TlsMessageType},
+    trace::{Query, QueryMatcher},
 };
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
@@ -76,20 +76,20 @@ impl Signature {
         Function::new(shape, dynamic_fn.clone())
     }
 
-    pub fn new_var<T: 'static>(query: Query) -> Variable {
+    /* FIXME pub fn new_var<T: 'static>(query: Query) -> Variable {
         let type_shape = TypeShape::of::<T>();
         Variable::new(type_shape, query)
-    }
+    }*/
 
-    pub fn new_var_by_type_id(
+    pub fn new_var_by_type_id<QM: QueryMatcher>(
         type_shape: TypeShape,
         agent_name: AgentName,
-        tls_message_type: Option<TlsMessageType>,
+        matcher: Option<QM>,
         counter: u16,
-    ) -> Variable {
+    ) -> Variable<QM> {
         let query = Query {
             agent_name,
-            tls_message_type,
+            matcher,
             counter,
         };
         Variable::new(type_shape, query)

@@ -17,11 +17,6 @@ claims = []
 
 [dependencies]
 
-# FIXME: Remove
-rustls = { path = "../deps/rust-rustls/rustls" }
-webpki = { version = "0.22.0", features = ["alloc", "std"] }
-ring = { version = "0.16.20", features = ["std"] }
-
 # LibAFL
 libafl = { git = "https://github.com/AFLplusplus/LibAFL.git", rev = "2e746bf439629e4fe8fa47cf9f39acd1395c828f" }
 # libafl_derive = "0.7.1"

@@ -1,16 +1,16 @@
 #[macro_export]
 macro_rules! mutator {
-    ($(#[$attr:meta])* $name:ident, $input_type:ident, $impl:item, $($arg_name:ident : $arg_type:ty),*) => {
+    ($(#[$attr:meta])* <$($generic_name:ident : $generic_type:ident),*>, $name:ident, <$($input_generic_name:ident : $input_generic_type:ident),*>, $input_type:ty, $impl:item, $($arg_name:ident : $arg_type:ty),*) => {
         $(#[$attr])*
-        pub struct $name<S>
+        pub struct $name<S, $($generic_name: $generic_type,)*>
         where
             S: libafl::state::HasRand,
         {
             $($arg_name: $arg_type,)*
-            phantom: std::marker::PhantomData<S>,
+            phantom_s: std::marker::PhantomData<S>,
         }
 
-        impl<S> $name<S>
+        impl<S, $($generic_name: $generic_type,)*> $name<S, $($generic_name,)*>
         where
             S: libafl::state::HasRand,
         {
@@ -23,14 +23,14 @@ macro_rules! mutator {
             }
         }
 
-        impl<S> libafl::mutators::Mutator<$input_type, S> for $name<S>
+        impl<S, $($generic_name: $generic_type,)* $($input_generic_name: $input_generic_type,)*> libafl::mutators::Mutator<$input_type, S> for $name<S, $($generic_name,)*>
         where
             S: libafl::state::HasRand,
         {
             $impl
         }
 
-        impl<S> libafl::bolts::tuples::Named for $name<S>
+        impl<S, $($generic_name: $generic_type,)*> libafl::bolts::tuples::Named for $name<S, $($generic_name,)*>
         where
             S: libafl::state::HasRand,
         {
