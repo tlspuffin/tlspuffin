@@ -500,11 +500,11 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn new_registry() -> &'static PutRegistry<Self> {
+        fn registry() -> &'static PutRegistry<Self> {
             panic!("Not implemented for test stub");
         }
 
-        fn to_query_matcher(
+        fn extract_query_matcher(
             message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
         ) -> Self::QueryMatcher {
             panic!("Not implemented for test stub");

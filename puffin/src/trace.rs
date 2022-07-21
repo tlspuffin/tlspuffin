@@ -437,7 +437,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
         {
             let message_result = MessageResult(message_o, opaque_message);
             let MessageResult(message, opaque_message) = &message_result;
-            let matcher = Some(PB::to_query_matcher(&message_result));
+            let matcher = Some(PB::extract_query_matcher(&message_result));
 
             match &message {
                 Some(message) => {

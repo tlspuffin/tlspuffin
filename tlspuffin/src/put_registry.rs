@@ -44,11 +44,11 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         Vec::from(create_corpus())
     }
 
-    fn new_registry() -> &'static PutRegistry<Self> {
+    fn registry() -> &'static PutRegistry<Self> {
         &TLS_PUT_REGISTRY
     }
 
-    fn to_query_matcher(
+    fn extract_query_matcher(
         message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
     ) -> Self::QueryMatcher {
         TlsQueryMatcher::try_from(message_result).unwrap()

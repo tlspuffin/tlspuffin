@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::QueryMatcher>) -> ExitKind {
-    let mut ctx = TraceContext::new(PB::new_registry());
+    let mut ctx = TraceContext::new(PB::registry());
 
     TRACE_LENGTH.update(input.steps.len());
 

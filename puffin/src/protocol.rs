@@ -43,11 +43,11 @@ pub trait ProtocolBehavior: 'static {
 
     fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)>;
 
-    fn new_registry() -> &'static PutRegistry<Self>
+    fn registry() -> &'static PutRegistry<Self>
     where
         Self: Sized;
 
-    fn to_query_matcher(
+    fn extract_query_matcher(
         message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
     ) -> Self::QueryMatcher;
 }
