@@ -14,7 +14,7 @@ use crate::{
     claims::TlsClaim,
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
-    tls::{seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
+    tls::{rustls, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
 };
 
 #[derive(Clone)]

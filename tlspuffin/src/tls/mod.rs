@@ -7,6 +7,7 @@ use puffin::{algebra::error::FnError, define_signature};
 mod key_exchange;
 mod key_schedule;
 
+pub mod rustls;
 pub mod seeds;
 pub mod violation;
 
@@ -34,8 +35,8 @@ pub mod fn_impl {
 ///
 #[allow(dead_code)]
 fn fn_debug(
-    message: &rustls::msgs::message::Message,
-) -> Result<rustls::msgs::message::Message, FnError> {
+    message: &crate::tls::rustls::msgs::message::Message,
+) -> Result<crate::tls::rustls::msgs::message::Message, FnError> {
     dbg!(message);
     Ok(message.clone())
 }

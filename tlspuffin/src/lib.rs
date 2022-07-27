@@ -14,9 +14,9 @@
 //! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
 //! use puffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use rustls::{ProtocolVersion, CipherSuite};
-//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use crate::tls::rustls::{ProtocolVersion, CipherSuite};
+//! use crate::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+//! use crate::tls::rustls::msgs::enums::{Compression, HandshakeType};
 //! use tlspuffin::put_registry::TLS_PUT_REGISTRY;
 //! use tlspuffin::query::TlsQueryMatcher;
 //!
@@ -86,9 +86,9 @@
 //! use puffin::agent::AgentName;
 //! use puffin::term;
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use rustls::{ProtocolVersion, CipherSuite};
-//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use crate::tls::rustls::{ProtocolVersion, CipherSuite};
+//! use crate::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+//! use crate::tls::rustls::msgs::enums::{Compression, HandshakeType};
 //! use puffin::algebra::Term;
 //! use tlspuffin::query::TlsQueryMatcher;
 //!

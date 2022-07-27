@@ -24,12 +24,14 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::{
-    deframer::MessageDeframer,
-    message::{Message, OpaqueMessage},
-};
 
-use crate::put_registry::{TLSProtocolBehavior, TCP_CLIENT_PUT, TCP_SERVER_PUT};
+use crate::{
+    put_registry::{TLSProtocolBehavior, TCP_CLIENT_PUT, TCP_SERVER_PUT},
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
+};
 
 pub fn new_tcp_client_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;

@@ -2,22 +2,24 @@ use std::sync::Arc;
 
 use puffin::algebra::error::FnError;
 use ring::signature::{EcdsaKeyPair, RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
-use rustls::{
-    hash_hs::HandshakeHash,
-    msgs::{
-        handshake::{CertReqExtension, CertificateEntry, HandshakePayload},
-        message::{Message, MessagePayload},
-    },
-    sign::{EcdsaSigner, EcdsaSigningKey, RsaSigner, Signer, SigningKey},
-    verify::{
-        construct_tls13_client_verify_message, construct_tls13_client_verify_message_raw,
-        construct_tls13_server_verify_message, construct_tls13_server_verify_message_raw,
-    },
-    Certificate, PrivateKey, SignatureScheme,
-};
 
-use crate::static_certs::{
-    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+use crate::{
+    static_certs::{
+        ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+    },
+    tls::rustls::{
+        hash_hs::HandshakeHash,
+        msgs::{
+            handshake::{CertReqExtension, CertificateEntry, HandshakePayload},
+            message::{Message, MessagePayload},
+        },
+        sign::{EcdsaSigner, EcdsaSigningKey, RsaSigner, Signer, SigningKey},
+        verify::{
+            construct_tls13_client_verify_message, construct_tls13_client_verify_message_raw,
+            construct_tls13_server_verify_message, construct_tls13_server_verify_message_raw,
+        },
+        Certificate, PrivateKey, SignatureScheme,
+    },
 };
 
 pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {

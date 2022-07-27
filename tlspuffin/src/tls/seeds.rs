@@ -10,20 +10,22 @@ use puffin::{
     trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
     variable_data::VariableData,
 };
-use rustls::{
-    internal::msgs::{
-        enums::{Compression, HandshakeType},
-        handshake::ServerExtension,
-    },
-    msgs::handshake::{Random, SessionID},
-    CipherSuite, ProtocolVersion,
-};
 
 use crate::{
     put_registry::{current_put, TLSProtocolBehavior, TLS_PUT_REGISTRY},
     query::TlsQueryMatcher,
     static_certs::BOB_PRIVATE_KEY,
-    tls::fn_impl::*,
+    tls::{
+        fn_impl::*,
+        rustls::{
+            internal::msgs::{
+                enums::{Compression, HandshakeType},
+                handshake::ServerExtension,
+            },
+            msgs::handshake::{Random, SessionID},
+            CipherSuite, ProtocolVersion,
+        },
+    },
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
@@ -2944,7 +2946,9 @@ pub mod tests {
     pub mod rustls {
         use std::convert::TryFrom;
 
-        use rustls::{
+        use test_log::test;
+
+        use crate::tls::rustls::{
             self,
             internal::msgs::{
                 enums::{ContentType, HandshakeType},
@@ -2961,7 +2965,6 @@ pub mod tests {
             },
             ProtocolVersion,
         };
-        use test_log::test;
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {
             Message::try_from(opaque_message.into_plain_message()).unwrap()

@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
 
 use log::debug;
-use rustls::msgs::{
+
+use crate::tls::rustls::msgs::{
     codec::Reader,
     message::{Message, MessagePayload, OpaqueMessage},
 };

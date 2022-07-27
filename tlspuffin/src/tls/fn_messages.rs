@@ -9,27 +9,29 @@
 //!
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    internal::msgs::{
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        handshake::*,
-        heartbeat::HeartbeatPayload,
-        message::{Message, MessagePayload},
-    },
-    msgs::{
-        alert::AlertMessagePayload,
-        base::{PayloadU16, PayloadU24, PayloadU8},
-        codec::Codec,
-        enums::*,
-        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-        message::OpaqueMessage,
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
-};
 use HandshakePayload::EncryptedExtensions;
 
-use crate::nyi_fn;
+use crate::{
+    nyi_fn,
+    tls::rustls::{
+        internal::msgs::{
+            base::Payload,
+            ccs::ChangeCipherSpecPayload,
+            handshake::*,
+            heartbeat::HeartbeatPayload,
+            message::{Message, MessagePayload},
+        },
+        msgs::{
+            alert::AlertMessagePayload,
+            base::{PayloadU16, PayloadU24, PayloadU8},
+            codec::Codec,
+            enums::*,
+            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
+            message::OpaqueMessage,
+        },
+        CipherSuite, ProtocolVersion, SignatureScheme,
+    },
+};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

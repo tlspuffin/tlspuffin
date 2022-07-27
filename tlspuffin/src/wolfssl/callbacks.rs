@@ -8,10 +8,12 @@ use std::{
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
-use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::ssl::{SslContextRef, SslRef};
+use crate::{
+    tls::rustls::msgs::enums::HandshakeType,
+    wolfssl::ssl::{SslContextRef, SslRef},
+};
 
 ///
 /// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does

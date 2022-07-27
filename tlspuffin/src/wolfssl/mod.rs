@@ -21,10 +21,6 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::{
-    enums::HandshakeType,
-    message::{Message, OpaqueMessage},
-};
 use smallvec::SmallVec;
 
 use crate::{
@@ -36,6 +32,10 @@ use crate::{
     put::TlsPutConfig,
     put_registry::{TLSProtocolBehavior, WOLFSSL520_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+    tls::rustls::msgs::{
+        enums::HandshakeType,
+        message::{Message, OpaqueMessage},
+    },
     wolfssl::{
         bio::{MemBio, MemBioSlice},
         error::{ErrorStack, SslError},

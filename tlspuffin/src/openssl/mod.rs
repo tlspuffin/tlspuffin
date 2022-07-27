@@ -25,7 +25,6 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::message::{Message, OpaqueMessage};
 use smallvec::SmallVec;
 
 use crate::{
@@ -38,6 +37,7 @@ use crate::{
     put::TlsPutConfig,
     put_registry::{TLSProtocolBehavior, OPENSSL111_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+    tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
 
 #[cfg(feature = "deterministic")]

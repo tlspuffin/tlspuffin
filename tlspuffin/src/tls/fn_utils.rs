@@ -4,28 +4,28 @@
 use std::convert::TryFrom;
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    conn::Side,
-    hash_hs::HandshakeHash,
-    internal::msgs::enums::HandshakeType,
-    key,
-    msgs::{
-        base::PayloadU8,
-        codec::{Codec, Reader},
-        enums::NamedGroup,
-        handshake::{
-            CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
-            Random, ServerECDHParams,
-        },
-        message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
-    },
-    tls13::key_schedule::KeyScheduleEarly,
-    Certificate,
-};
 
 use crate::tls::{
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
+    rustls::{
+        conn::Side,
+        hash_hs::HandshakeHash,
+        internal::msgs::enums::HandshakeType,
+        key,
+        msgs::{
+            base::PayloadU8,
+            codec::{Codec, Reader},
+            enums::NamedGroup,
+            handshake::{
+                CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
+                Random, ServerECDHParams,
+            },
+            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+        },
+        tls13::key_schedule::KeyScheduleEarly,
+        Certificate,
+    },
 };
 
 // ----
@@ -33,7 +33,7 @@ use crate::tls::{
 // ----
 
 pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256;
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
@@ -199,7 +199,7 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
     let hkdf_alg = suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
@@ -281,7 +281,7 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 // ----
 
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &crate::tls::rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)

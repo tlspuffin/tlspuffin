@@ -8,22 +8,23 @@
 //!
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::*,
-        message::Message,
-    },
-    x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
-};
 use webpki::DnsNameRef;
 
 use crate::{
     nyi_fn,
     tls::{
-        fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        fn_impl::fn_get_ticket_age_add,
+        fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
+        rustls::{
+            msgs::{
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                enums::*,
+                handshake::*,
+                message::Message,
+            },
+            x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
+        },
     },
 };
 
@@ -366,7 +367,7 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
     let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
-    let resuming_suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let resuming_suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let binder_len = resuming_suite.hash_algorithm().output_len;
     let binder = vec![0u8; binder_len];
 

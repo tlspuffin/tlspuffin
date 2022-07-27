@@ -1,5 +1,6 @@
 use puffin::{error::Error, variable_data::VariableData};
-use rustls::{
+
+use crate::tls::rustls::{
     msgs::{
         enums::Compression,
         handshake::{ClientExtension, HandshakePayload, ServerExtension, ServerKeyExchangePayload},

@@ -2,7 +2,8 @@ use std::convert::TryInto;
 
 use puffin::algebra::error::FnError;
 use ring::test::rand::FixedByteRandom;
-use rustls::{
+
+use crate::tls::rustls::{
     conn::ConnectionRandoms,
     kx::KeyExchange,
     msgs::{
@@ -68,7 +69,7 @@ pub fn tls12_new_secrets(
     server_ecdh_pubkey: &Vec<u8>,
     group: &NamedGroup,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &crate::tls::rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
     let mut server_random_bytes = vec![0; 32];
 
@@ -94,10 +95,9 @@ pub fn tls12_new_secrets(
 
 #[cfg(test)]
 mod tests {
-    use rustls::kx_group::SECP384R1;
     use test_log::test;
 
-    use crate::tls::key_exchange::deterministic_key_exchange;
+    use crate::tls::{key_exchange::deterministic_key_exchange, rustls::kx_group::SECP384R1};
 
     #[test]
     fn test_deterministic_key() {
