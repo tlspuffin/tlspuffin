@@ -177,7 +177,12 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         let factory = context
             .put_registry()
             .find_factory(descriptor.put_descriptor.name)
-            .ok_or_else(|| Error::Agent("unable to find PUT factory in binary".to_string()))?;
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "unable to find PUT {} factory in binary",
+                    &descriptor.put_descriptor.name
+                ))
+            })?;
 
         let mut stream = factory.create(context, descriptor)?;
         let agent = Agent {
