@@ -1,3 +1,4 @@
+use puffin::algebra::error::FnError;
 use ring::{digest, hkdf::Prk};
 use rustls::{
     hash_hs::HandshakeHash,
@@ -9,7 +10,7 @@ use rustls::{
     NoKeyLog, SupportedCipherSuite,
 };
 
-use crate::tls::{error::FnError, key_exchange::tls13_key_exchange};
+use crate::tls::key_exchange::tls13_key_exchange;
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,
@@ -102,7 +103,7 @@ pub fn dhe_key_schedule(
 ) -> Result<KeyScheduleHandshakeStart, FnError> {
     let hkdf_algorithm = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
 
     // Key Schedule with or without PSK

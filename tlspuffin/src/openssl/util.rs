@@ -10,11 +10,9 @@ use openssl::{
         X509NameBuilder, X509,
     },
 };
+use puffin::agent::TLSVersion;
 
-use crate::{
-    agent::TLSVersion,
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY},
-};
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY};
 
 // FIXME: remove or use
 pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {

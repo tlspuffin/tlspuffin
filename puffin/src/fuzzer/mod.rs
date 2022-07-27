@@ -7,25 +7,26 @@ use crate::trace::Trace;
 
 mod harness;
 mod libafl_setup;
-mod macros;
 pub mod sanitizer;
 mod stages;
 mod stats_monitor;
 mod stats_stage;
-mod term_zoo;
+pub mod term_zoo;
 // Public for benchmarks
 pub mod mutations;
 
 pub use libafl_setup::{start, FuzzerConfig};
 
+use crate::algebra::Matcher;
+
 // LibAFL support
-impl Input for Trace {
+impl<M: Matcher> Input for Trace<M> {
     fn generate_name(&self, idx: usize) -> String {
         format!("{id}.trace", id = idx)
     }
 }
 
-impl HasLen for Trace {
+impl<M: Matcher> HasLen for Trace<M> {
     fn len(&self) -> usize {
         self.steps.len()
     }

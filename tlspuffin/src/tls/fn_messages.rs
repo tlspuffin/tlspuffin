@@ -8,6 +8,7 @@
 //! Return type is `Message`
 //!
 
+use puffin::algebra::error::FnError;
 use rustls::{
     internal::msgs::{
         base::Payload,
@@ -28,7 +29,7 @@ use rustls::{
 };
 use HandshakePayload::EncryptedExtensions;
 
-use crate::{nyi_fn, tls::error::FnError};
+use crate::nyi_fn;
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

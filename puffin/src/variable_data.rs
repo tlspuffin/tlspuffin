@@ -1,5 +1,5 @@
 //! Definition of the VariableData trait. A VariableData can contain any data which has a `'static`
-//! type. This is true for [`rustls::msgs::message::Message`] for example.
+//! type.
 
 use std::{
     any::{Any, TypeId},

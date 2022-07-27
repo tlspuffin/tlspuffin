@@ -21,21 +21,23 @@ use std::{
     convert::TryFrom,
     io,
     io::{Read, Write},
+    marker::PhantomData,
 };
 
 use log::error;
-use rustls::msgs::{
-    deframer::MessageDeframer,
-    message::{Message, OpaqueMessage},
+
+use crate::{
+    error::Error,
+    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
 };
 
-use crate::error::Error;
-
-pub trait Stream {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage);
+pub trait Stream<PB: ProtocolBehavior> {
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error>;
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
@@ -52,43 +54,43 @@ pub type Channel = io::Cursor<Vec<u8>>;
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**
-pub struct MemoryStream {
+pub struct MemoryStream<PB> {
     inbound: Channel,
     outbound: Channel,
+    phantom: PhantomData<PB>,
 }
 
-pub struct MessageResult(pub Option<Message>, pub OpaqueMessage);
+pub struct MessageResult<M: Message<O>, O: OpaqueMessage<M>>(pub Option<M>, pub O);
 
-impl MemoryStream {
+impl<PB: ProtocolBehavior> MemoryStream<PB> {
     pub fn new() -> Self {
         Self {
             inbound: io::Cursor::new(Vec::new()),
             outbound: io::Cursor::new(Vec::new()),
+            phantom: PhantomData::default(),
         }
     }
 }
 
-impl Stream for MemoryStream {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        let mut out: Vec<u8> = Vec::new();
-        out.append(&mut opaque_message.clone().encode());
-        self.inbound.get_mut().extend_from_slice(&out);
+impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage) {
+        self.inbound
+            .get_mut()
+            .extend_from_slice(&opaque_message.encode());
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        let mut deframer = MessageDeframer::new();
+    // TODO: Refactor like in tcp module to avoid rest_buffer
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
+        let mut deframer = PB::MessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())
             .is_ok()
         {
-            let mut rest_buffer: Vec<u8> = Vec::new();
-            let mut frames = deframer.frames;
+            let first_message = deframer.pop_frame();
 
-            let first_message = frames.pop_front();
-
-            for message in frames {
-                rest_buffer.append(&mut message.encode());
-            }
+            let mut rest_buffer: Vec<u8> = deframer.encode();
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();
@@ -97,7 +99,7 @@ impl Stream for MemoryStream {
             })?;
 
             if let Some(opaque_message) = first_message {
-                let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
+                let message = match opaque_message.clone().into_message() {
                     Ok(message) => Some(message),
                     Err(err) => {
                         error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
@@ -117,7 +119,7 @@ impl Stream for MemoryStream {
     }
 }
 
-impl Read for MemoryStream {
+impl<PB: ProtocolBehavior> Read for MemoryStream<PB> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inbound.read(buf)?;
 
@@ -136,7 +138,7 @@ impl Read for MemoryStream {
     }
 }
 
-impl Write for MemoryStream {
+impl<PB: ProtocolBehavior> Write for MemoryStream<PB> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.outbound.write(buf)
     }

@@ -14,14 +14,14 @@ use crate::{
     algebra::{
         atoms::fn_container::FnContainer,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        remove_prefix,
+        remove_prefix, Matcher,
     },
     trace::Query,
 };
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Variable {
+pub struct Variable<M> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
@@ -29,36 +29,36 @@ pub struct Variable {
     pub resistant_id: u32,
     pub typ: TypeShape,
     /// The struct which holds information about how to query this variable from knowledge
-    pub query: Query,
+    pub query: Query<M>,
 }
 
-impl Hash for Variable {
+impl<M: Matcher> Hash for Variable<M> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
         self.query.hash(state);
     }
 }
 
-impl Eq for Variable {}
-impl PartialEq for Variable {
+impl<M: Matcher> Eq for Variable<M> {}
+impl<M: Matcher> PartialEq for Variable<M> {
     fn eq(&self, other: &Self) -> bool {
         self.typ == other.typ && self.query == other.query
     }
 }
 
-impl Clone for Variable {
+impl<M: Matcher> Clone for Variable<M> {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ,
-            query: self.query,
+            query: self.query.clone(),
         }
     }
 }
 
-impl Variable {
-    pub fn new(typ: TypeShape, query: Query) -> Self {
+impl<M: Matcher> Variable<M> {
+    pub fn new(typ: TypeShape, query: Query<M>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -68,7 +68,7 @@ impl Variable {
     }
 }
 
-impl fmt::Display for Variable {
+impl<M: Matcher> fmt::Display for Variable<M> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
@@ -161,14 +161,16 @@ mod fn_container {
 
     use serde::{
         de,
-        de::{MapAccess, SeqAccess, Visitor},
+        de::{DeserializeSeed, MapAccess, SeqAccess, Visitor},
         ser::SerializeStruct,
         Deserialize, Deserializer, Serialize, Serializer,
     };
 
-    use crate::{
-        algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        tls::SIGNATURE,
+    use crate::algebra::{
+        deserialize_signature,
+        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
+        signature::Signature,
+        DESERIALIZATION_SIGNATURE,
     };
 
     const NAME: &str = "name";
@@ -209,7 +211,9 @@ mod fn_container {
         }
     }
 
-    struct FnContainerVisitor;
+    struct FnContainerVisitor {
+        signature: &'static Signature,
+    }
 
     impl<'de> Visitor<'de> for FnContainerVisitor {
         type Value = FnContainer;
@@ -232,10 +236,10 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) = SIGNATURE
-                .functions_by_name
-                .get(name)
-                .ok_or_else(|| de::Error::custom(format!("could not find function {}", name)))?;
+            let (shape, dynamic_fn) =
+                self.signature.functions_by_name.get(name).ok_or_else(|| {
+                    de::Error::custom(format!("could not find function {}", name))
+                })?;
 
             if name != shape.name {
                 return Err(de::Error::custom("Function name does not match!"));
@@ -287,12 +291,13 @@ mod fn_container {
             }
 
             let name = name.ok_or_else(|| de::Error::missing_field(NAME))?;
-            let (shape, dynamic_fn) = SIGNATURE.functions_by_name.get(name).ok_or_else(|| {
-                de::Error::custom(format!(
-                    "Failed to link function symbol: Could not find function {}",
-                    name
-                ))
-            })?;
+            let (shape, dynamic_fn) =
+                self.signature.functions_by_name.get(name).ok_or_else(|| {
+                    de::Error::custom(format!(
+                        "Failed to link function symbol: Could not find function {}",
+                        name
+                    ))
+                })?;
 
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
@@ -319,7 +324,13 @@ mod fn_container {
         where
             D: Deserializer<'de>,
         {
-            deserializer.deserialize_struct("FnContainer", FIELDS, FnContainerVisitor)
+            deserializer.deserialize_struct(
+                "FnContainer",
+                FIELDS,
+                FnContainerVisitor {
+                    signature: deserialize_signature(),
+                },
+            )
         }
     }
 }

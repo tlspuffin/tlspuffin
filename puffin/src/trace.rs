@@ -4,60 +4,6 @@
 //! [`Agent`]s during the concrete execution of the Trace. It also holds the [`Agent`]s with
 //! the references to concrete PUT.
 //!
-//! # Example
-//!
-//! ```rust
-//! use tlspuffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
-//! use tlspuffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query, TlsMessageType};
-//! use tlspuffin::algebra::{Term, signature::Signature};
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use rustls::{ProtocolVersion, CipherSuite};
-//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use rustls::msgs::enums::{Compression, HandshakeType};
-//!
-//! # let client_put = tlspuffin::put_registry::current_put();
-//! # let server_put = tlspuffin::put_registry::current_put();
-//!
-//! let client: AgentName = AgentName::first();
-//! let server: AgentName = client.next();
-//!
-//! let query = Query {
-//!     agent_name: client,
-//!     tls_message_type: Some(TlsMessageType::Handshake(Some(HandshakeType::ClientHello))),
-//!     counter: 0
-//! };
-//! let trace = Trace {
-//!     prior_traces: vec![],
-//!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, client_put),
-//!         AgentDescriptor::new_server(server, V1_3, server_put),
-//!     ],
-//!     steps: vec![
-//!             Step { agent: client, action: Action::Output(OutputAction { }) },
-//!             // Client: Hello Client -> Server
-//!             Step {
-//!                 agent: server,
-//!                 action: Action::Input(InputAction {
-//!                     recipe: Term::Application(
-//!                         Signature::new_function(&fn_client_hello),
-//!                         vec![
-//!                             Term::Variable(Signature::new_var::<ProtocolVersion>(query)),
-//!                             Term::Variable(Signature::new_var::<Random>(query)),
-//!                             Term::Variable(Signature::new_var::<SessionID>(query)),
-//!                             Term::Variable(Signature::new_var::<Vec<CipherSuite>>(query)),
-//!                             Term::Variable(Signature::new_var::<Vec<Compression>>(query)),
-//!                             Term::Variable(Signature::new_var::<Vec<ClientExtension>>(query)),
-//!                         ],
-//!                     ),
-//!                 }),
-//!             },
-//!     // further steps here
-//!     ]
-//! };
-//! let mut ctx = TraceContext::new();
-//! trace.execute(&mut ctx).unwrap();
-//! ```
-//!
 //! ### Serializability of Traces
 //!
 //! Each trace is serializable to JSON or even binary data. This helps at reproducing discovered
@@ -73,6 +19,9 @@ use std::{
     borrow::{Borrow, BorrowMut},
     cell::{Ref, RefCell, RefMut},
     convert::TryFrom,
+    fmt::{Debug, Display, Formatter},
+    hash::Hash,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     rc::Rc,
     slice::Iter,
@@ -80,151 +29,57 @@ use std::{
 
 use itertools::Itertools;
 use log::{debug, trace};
-use rustls::msgs::{
-    enums::{ContentType, HandshakeType},
-    message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
-};
-use serde::{Deserialize, Serialize, __private::de::Borrowed};
+use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, remove_prefix, Term},
-    claims::{AsAny, CheckViolation, Claim, GlobalClaimList, Policy},
-    debug::{debug_message_with_info, debug_opaque_message_with_info},
+    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    extraction::extract_knowledge,
     io::MessageResult,
-    tls::{error::FnError, violation::is_violation},
+    protocol::{Message, OpaqueMessage, ProtocolBehavior},
+    put_registry::PutRegistry,
     variable_data::VariableData,
 };
 
-/// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
-/// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
-pub enum TlsMessageType {
-    ChangeCipherSpec,
-    Alert,
-    Handshake(Option<HandshakeType>),
-    ApplicationData,
-    Heartbeat,
-}
-
-impl QueryMatcher for HandshakeType {
-    fn matches(&self, query: &Self) -> bool {
-        query == self
-    }
-}
-
-impl QueryMatcher for TlsMessageType {
-    fn matches(&self, query: &TlsMessageType) -> bool {
-        match query {
-            TlsMessageType::Handshake(query_handshake_type) => match self {
-                TlsMessageType::Handshake(handshake_type) => {
-                    handshake_type.matches(query_handshake_type)
-                }
-                _ => false,
-            },
-            TlsMessageType::ChangeCipherSpec => matches!(self, TlsMessageType::ChangeCipherSpec),
-            TlsMessageType::Alert => matches!(self, TlsMessageType::Alert),
-            TlsMessageType::Heartbeat => matches!(self, TlsMessageType::Heartbeat),
-            TlsMessageType::ApplicationData => matches!(self, TlsMessageType::ApplicationData),
-        }
-    }
-}
-
-impl TryFrom<&MessageResult> for TlsMessageType {
-    type Error = Error;
-
-    fn try_from(message_result: &MessageResult) -> Result<Self, Self::Error> {
-        let tls_opaque_type = message_result.1.typ;
-        match (tls_opaque_type, message_result) {
-            (ContentType::Handshake, MessageResult(Some(message), _)) => match &message.payload {
-                MessagePayload::Handshake(handshake_payload) => {
-                    Ok(TlsMessageType::Handshake(Some(handshake_payload.typ)))
-                }
-                MessagePayload::TLS12EncryptedHandshake(_) => Ok(TlsMessageType::Handshake(None)),
-                _ => Err(Error::Extraction(tls_opaque_type)),
-            },
-            (ContentType::Handshake, _) => Ok(TlsMessageType::Handshake(None)),
-            (ContentType::ApplicationData, _) => Ok(TlsMessageType::ApplicationData),
-            (ContentType::Heartbeat, _) => Ok(TlsMessageType::Heartbeat),
-            (ContentType::Alert, _) => Ok(TlsMessageType::Alert),
-            (ContentType::ChangeCipherSpec, _) => Ok(TlsMessageType::ChangeCipherSpec),
-            (ContentType::Unknown(_), _) => Err(Error::Extraction(tls_opaque_type)),
-        }
-    }
-}
-
-impl TlsMessageType {
-    pub fn specificity(&self) -> u32 {
-        match self {
-            TlsMessageType::Handshake(handshake_type) => {
-                1 + match handshake_type {
-                    None => 0,
-                    Some(_) => 1,
-                }
-            }
-            _ => 0,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct Query {
+pub struct Query<M> {
     pub agent_name: AgentName,
-    pub tls_message_type: Option<TlsMessageType>,
+    pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
-impl Knowledge {
-    pub fn specificity(&self) -> u32 {
-        if let Some(tls_message_type) = self.tls_message_type {
-            1 + tls_message_type.specificity()
-        } else {
-            0
-        }
-    }
-}
-
-impl<T> QueryMatcher for Option<T>
-where
-    T: QueryMatcher,
-{
-    fn matches(&self, query: &Self) -> bool {
-        match (self, query) {
-            (Some(inner), Some(inner_query)) => inner.matches(inner_query),
-            (Some(_), None) => true, // None matches everything as query -> True
-            (None, None) => true,    // None == None => True
-            (None, Some(_)) => false, // None != Some => False
-        }
-    }
-}
-
-impl fmt::Display for Knowledge {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({})/{:?}", self.agent_name, self.tls_message_type)
-    }
-}
-
-impl fmt::Display for Query {
+impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "({}, {})[{:?}]",
-            self.agent_name, self.counter, self.tls_message_type
+            self.agent_name, self.counter, self.matcher
         )
+    }
+}
+
+impl<M: Matcher> Knowledge<M> {
+    pub fn specificity(&self) -> u32 {
+        self.matcher.specificity()
     }
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
-pub struct Knowledge {
+pub struct Knowledge<M: Matcher> {
     pub agent_name: AgentName,
-    pub tls_message_type: Option<TlsMessageType>,
+    pub matcher: Option<M>,
     pub data: Box<dyn VariableData>,
+}
+
+impl<M: Matcher> fmt::Display for Knowledge<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({})/{:?}", self.agent_name, self.matcher)
+    }
 }
 
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
@@ -232,19 +87,17 @@ pub struct Knowledge {
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
-pub struct TraceContext {
+pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     /// The knowledge of the attacker
-    knowledge: Vec<Knowledge>,
-    agents: Vec<Agent>,
-    claims: GlobalClaimList,
+    knowledge: Vec<Knowledge<PB::Matcher>>,
+    agents: Vec<Agent<PB>>,
+    claims: GlobalClaimList<PB::Claim>,
+    put_registry: &'static PutRegistry<PB>,
+    phantom: PhantomData<PB>,
 }
 
-pub trait QueryMatcher {
-    fn matches(&self, query: &Self) -> bool;
-}
-
-impl TraceContext {
-    pub fn new() -> Self {
+impl<PB: ProtocolBehavior> TraceContext<PB> {
+    pub fn new(put_registry: &'static PutRegistry<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -253,14 +106,37 @@ impl TraceContext {
             knowledge: vec![],
             agents: vec![],
             claims,
+            put_registry,
+            phantom: Default::default(),
         }
     }
 
-    pub fn claims(&self) -> &GlobalClaimList {
+    pub fn put_registry(&self) -> &PutRegistry<PB> {
+        self.put_registry
+    }
+
+    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
         &self.claims
     }
 
-    pub fn add_knowledge(&mut self, knowledge: Knowledge) {
+    pub fn extract_knowledge(
+        &self,
+        message: &PB::Message,
+    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        PB::extract_knowledge(message)
+    }
+
+    pub fn verify_security_violations(&self) -> Result<(), Error> {
+        let claims = self.claims.deref_borrow();
+        if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the end
+            return Err(Error::SecurityClaim(msg));
+        }
+        Ok(())
+    }
+
+    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
         self.knowledge.push(knowledge)
     }
 
@@ -269,18 +145,16 @@ impl TraceContext {
         &self,
         agent: AgentName,
         type_id: TypeId,
-        tls_message_type: Option<TlsMessageType>,
-    ) -> u16 {
-        let known_count = self
-            .knowledge
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge
             .iter()
             .filter(|knowledge| {
                 knowledge.agent_name == agent
-                    && knowledge.tls_message_type == tls_message_type
+                    && knowledge.matcher == *tls_message_type
                     && knowledge.data.as_ref().type_id() == type_id
             })
-            .count();
-        known_count as u16
+            .count()
     }
 
     pub fn find_claim(
@@ -291,7 +165,7 @@ impl TraceContext {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.clone_boxed_any())
+            .map(|claim| claim.inner())
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -299,18 +173,18 @@ impl TraceContext {
     pub fn find_variable(
         &self,
         query_type_shape: TypeShape,
-        query: Query,
+        query: &Query<PB::Matcher>,
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<&Knowledge> = Vec::new();
+        let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
 
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
                 && query.agent_name == knowledge.agent_name
-                && knowledge.tls_message_type.matches(&query.tls_message_type)
+                && knowledge.matcher.matches(&query.matcher)
             {
                 possibilities.push(knowledge);
             }
@@ -327,7 +201,7 @@ impl TraceContext {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &OpaqueMessage,
+        message: &PB::OpaqueMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put.add_to_inbound(message))
@@ -343,12 +217,12 @@ impl TraceContext {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<Option<MessageResult>, Error> {
+    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
         agent.put.take_message_from_outbound()
     }
 
-    fn add_agent(&mut self, agent: Agent) -> AgentName {
+    fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
         let name = agent.name;
         self.agents.push(agent);
         name
@@ -359,7 +233,7 @@ impl TraceContext {
         Ok(agent_name)
     }
 
-    pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent, Error> {
+    pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
         let mut iter = self.agents.iter_mut();
 
         iter.find(|agent| agent.name == name).ok_or_else(|| {
@@ -370,7 +244,7 @@ impl TraceContext {
         })
     }
 
-    pub fn find_agent(&self, name: AgentName) -> Result<&Agent, Error> {
+    pub fn find_agent(&self, name: AgentName) -> Result<&Agent<PB>, Error> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.name == name).ok_or_else(|| {
             Error::Agent(format!(
@@ -399,18 +273,19 @@ impl TraceContext {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
-pub struct Trace {
+#[serde(bound = "M: Matcher")]
+pub struct Trace<M: Matcher> {
     pub descriptors: Vec<AgentDescriptor>,
-    pub steps: Vec<Step>,
-    pub prior_traces: Vec<Trace>,
+    pub steps: Vec<Step<M>>,
+    pub prior_traces: Vec<Trace<M>>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-impl Trace {
-    fn spawn_agents(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+impl<M: Matcher> Trace<M> {
+    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -428,7 +303,10 @@ impl Trace {
         Ok(())
     }
 
-    pub fn execute(&self, ctx: &mut TraceContext) -> Result<(), Error> {
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
@@ -444,10 +322,7 @@ impl Trace {
             // Output after each InputAction step
             match step.action {
                 Action::Input(_) => {
-                    let output_step = &Step {
-                        agent: step.agent,
-                        action: Action::Output(OutputAction {}),
-                    };
+                    let output_step = &OutputAction::<M>::new_step(step.agent);
 
                     output_step.action.execute(output_step, ctx)?;
                 }
@@ -457,30 +332,36 @@ impl Trace {
             ctx.claims.deref_borrow().log();
         }
 
-        let claims = ctx.claims.deref_borrow();
-        if let Some(msg) = claims.check_violation(Policy { func: is_violation }) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
-            return Err(Error::SecurityClaim(msg, claims.clone()));
-        }
+        ctx.verify_security_violations()?;
 
         Ok(())
     }
 
-    pub fn execute_default(&self) -> TraceContext {
-        let mut ctx = TraceContext::new();
+    pub fn execute_default<PB>(&self, put_registry: &'static PutRegistry<PB>) -> TraceContext<PB>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        let mut ctx = TraceContext::new(put_registry);
         self.execute(&mut ctx).unwrap();
         ctx
     }
+
+    pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
+        postcard::to_allocvec(&self)
+    }
+
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M>, postcard::Error> {
+        postcard::from_bytes::<Trace<M>>(slice)
+    }
 }
 
-impl fmt::Debug for Trace {
+impl<M: Matcher> fmt::Debug for Trace<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Trace with {} steps", self.steps.len())
     }
 }
 
-impl fmt::Display for Trace {
+impl<M: Matcher> fmt::Display for Trace<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Trace:")?;
         for step in &self.steps {
@@ -491,9 +372,10 @@ impl fmt::Display for Trace {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct Step {
+#[serde(bound = "M: Matcher")]
+pub struct Step<M: Matcher> {
     pub agent: AgentName,
-    pub action: Action,
+    pub action: Action<M>,
 }
 
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
@@ -506,13 +388,17 @@ pub struct Step {
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub enum Action {
-    Input(InputAction),
-    Output(OutputAction),
+#[serde(bound = "M: Matcher")]
+pub enum Action<M: Matcher> {
+    Input(InputAction<M>),
+    Output(OutputAction<M>),
 }
 
-impl Action {
-    fn execute(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+impl<M: Matcher> Action<M> {
+    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
         match self {
             Action::Input(input) => input.input(step, ctx),
             Action::Output(output) => output.output(step, ctx),
@@ -520,7 +406,7 @@ impl Action {
     }
 }
 
-impl fmt::Display for Action {
+impl<M: Matcher> fmt::Display for Action<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
@@ -533,17 +419,24 @@ impl fmt::Display for Action {
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct OutputAction {}
+pub struct OutputAction<M> {
+    phantom: PhantomData<M>,
+}
 
-impl OutputAction {
-    pub fn new_step(agent: AgentName) -> Step {
+impl<M: Matcher> OutputAction<M> {
+    pub fn new_step(agent: AgentName) -> Step<M> {
         Step {
             agent,
-            action: Action::Output(OutputAction {}),
+            action: Action::Output(OutputAction {
+                phantom: Default::default(),
+            }),
         }
     }
 
-    fn output(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
         ctx.next_state(step.agent)?;
 
         while let Some(MessageResult(message_o, opaque_message)) =
@@ -551,11 +444,11 @@ impl OutputAction {
         {
             let message_result = MessageResult(message_o, opaque_message);
             let MessageResult(message, opaque_message) = &message_result;
-            let tls_message_type = Some(TlsMessageType::try_from(&message_result)?);
+            let matcher = Some(PB::extract_query_matcher(&message_result));
 
             match &message {
                 Some(message) => {
-                    let knowledge = extract_knowledge(message)?;
+                    let knowledge = ctx.extract_knowledge(message)?;
 
                     debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
@@ -563,10 +456,10 @@ impl OutputAction {
                         let data_type_id = variable.as_ref().type_id();
 
                         let counter =
-                            ctx.number_matching_message(step.agent, data_type_id, tls_message_type);
-                        let knowledge = Knowledge {
+                            ctx.number_matching_message(step.agent, data_type_id, &matcher);
+                        let knowledge = Knowledge::<M> {
                             agent_name: step.agent,
-                            tls_message_type,
+                            matcher: matcher.clone(),
                             data: variable,
                         };
                         debug!(
@@ -583,13 +476,13 @@ impl OutputAction {
             }
 
             let type_id = std::any::Any::type_id(opaque_message);
-            let knowledge = Knowledge {
+            let knowledge = Knowledge::<M> {
                 agent_name: step.agent,
-                tls_message_type: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
+                matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
                 data: Box::new(message_result.1),
             };
 
-            let counter = ctx.number_matching_message(step.agent, type_id, None);
+            let counter = ctx.number_matching_message(step.agent, type_id, &None);
             debug!(
                 "New knowledge {}: {} (counter: {})",
                 &knowledge,
@@ -602,7 +495,7 @@ impl OutputAction {
     }
 }
 
-impl fmt::Display for OutputAction {
+impl<M: Matcher> fmt::Display for OutputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OutputAction")
     }
@@ -612,34 +505,39 @@ impl fmt::Display for OutputAction {
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct InputAction {
-    pub recipe: Term,
+#[serde(bound = "M: Matcher")]
+pub struct InputAction<M: Matcher> {
+    pub recipe: Term<M>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
-impl InputAction {
-    pub fn new_step(agent: AgentName, recipe: Term) -> Step {
+impl<M: Matcher> InputAction<M> {
+    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
         }
     }
 
-    fn input(&self, step: &Step, ctx: &mut TraceContext) -> Result<(), Error> {
+    fn input<PB: ProtocolBehavior>(
+        &self,
+        step: &Step<M>,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<Message>() {
-            debug_message_with_info("Input message".to_string().as_str(), msg);
+        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::Message>() {
+            msg.debug("Input message");
 
-            let opaque_message = PlainMessage::from(msg.clone()).into_unencrypted_opaque();
-            ctx.add_to_inbound(step.agent, &opaque_message)?;
-        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<OpaqueMessage>() {
-            debug_opaque_message_with_info(
-                "Input opaque message".to_string().as_str(),
-                opaque_message,
-            );
+            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<PB::OpaqueMessage>()
+        {
+            opaque_message.debug("Input opaque message");
             ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(
@@ -652,7 +550,7 @@ impl InputAction {
     }
 }
 
-impl fmt::Display for InputAction {
+impl<M: Matcher> fmt::Display for InputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }

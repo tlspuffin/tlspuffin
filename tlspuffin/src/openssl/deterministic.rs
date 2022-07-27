@@ -23,9 +23,12 @@ pub fn set_openssl_deterministic() {
 mod tests {
     use openssl::rand::rand_bytes;
 
+    use crate::openssl::deterministic::set_openssl_deterministic;
+
     #[test]
+    #[cfg(feature = "openssl111")]
     fn test_openssl_no_randomness() {
-        crate::put_registry::PUT_REGISTRY.make_deterministic(); // his affects also other tests, which is fine as we generally prefer deterministic tests
+        set_openssl_deterministic();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
         assert_eq!(buf1, [70, 100]);

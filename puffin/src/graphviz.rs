@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Term},
+    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
     trace::{Action, Trace},
 };
 
@@ -58,7 +58,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     Ok(())
 }
 
-impl Trace {
+impl<M: Matcher> Trace<M> {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -106,7 +106,7 @@ impl Trace {
     }
 }
 
-impl Term {
+impl<M: Matcher> Term<M> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
             Term::Variable(variable) => {
@@ -137,7 +137,7 @@ impl Term {
     }
 
     fn collect_statements(
-        term: &Term,
+        term: &Term<M>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,
@@ -207,11 +207,11 @@ impl Term {
 
 #[cfg(test)]
 mod tests {
-    use crate::tls::seeds::*;
+    use crate::algebra::test_signature::setup_simple_trace;
 
     #[test]
     fn test_dot_graph() {
-        let trace = seed_client_attacker12.build_trace();
+        let trace = setup_simple_trace();
         let _string = trace.dot_graph(true);
         //println!("{}", string);
     }

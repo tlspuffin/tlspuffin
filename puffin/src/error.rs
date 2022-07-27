@@ -1,8 +1,10 @@
 use std::{fmt, fmt::Formatter, io};
 
-use rustls::msgs::enums::ContentType;
-
-use crate::{agent::AgentName, claims::ClaimList, tls::error::FnError};
+use crate::{
+    agent::AgentName,
+    algebra::error::FnError,
+    claims::{Claim, ClaimList},
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -17,8 +19,8 @@ pub enum Error {
     Agent(String),
     /// Error while operating on a [`Stream`]
     Stream(String),
-    Extraction(ContentType),
-    SecurityClaim(&'static str, ClaimList),
+    Extraction(),
+    SecurityClaim(&'static str),
 }
 
 impl std::error::Error for Error {}
@@ -36,15 +38,11 @@ impl fmt::Display for Error {
             ),
             Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
             Error::Stream(err) => write!(f, "error in the stream: {}", err),
-            Error::Extraction(content_type) => write!(
+            Error::Extraction() => write!(f, "error while extracting variable",),
+            Error::SecurityClaim(msg) => write!(
                 f,
-                "error while extracting variable data from {:?}",
-                content_type
-            ),
-            Error::SecurityClaim(msg, claims) => write!(
-                f,
-                "error because a security violation occurred. msg: {}, claims: {:?}",
-                msg, claims
+                "error because a security violation occurred. msg: {}",
+                msg
             ),
         }
     }

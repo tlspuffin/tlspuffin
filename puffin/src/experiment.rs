@@ -2,7 +2,7 @@ use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
 
-use crate::{put_registry::PUT_REGISTRY, GIT_MSG, GIT_REF};
+use crate::{protocol::ProtocolBehavior, put_registry::PutRegistry, GIT_MSG, GIT_REF};
 
 pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");
@@ -14,10 +14,11 @@ pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     )
 }
 
-pub fn write_experiment_markdown(
+pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     directory: &Path,
     title: impl Display,
     description_text: impl Display,
+    put_registry: &PutRegistry<PB>,
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\
@@ -28,7 +29,7 @@ pub fn write_experiment_markdown(
                 * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
                 {description}\n",
         title = &title,
-        put_versions = PUT_REGISTRY.version_strings().join(", "),
+        put_versions = put_registry.version_strings().join(", "),
         date = Local::now().to_rfc3339(),
         git_ref = GIT_REF,
         git_msg = GIT_MSG,

@@ -1,15 +1,18 @@
 use libafl::executors::ExitKind;
 use log::{info, trace, warn};
+use once_cell::sync::Lazy;
 use rand::Rng;
 
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
 
-pub fn harness(input: &Trace) -> ExitKind {
-    let mut ctx = TraceContext::new();
+pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> ExitKind {
+    let mut ctx = TraceContext::new(PB::registry());
 
     TRACE_LENGTH.update(input.steps.len());
 
@@ -30,9 +33,9 @@ pub fn harness(input: &Trace) -> ExitKind {
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
-            Error::Extraction(_) => EXTRACTION.increment(),
-            Error::SecurityClaim(msg, claims) => {
-                warn!("{} claims: {:?}", msg, claims);
+            Error::Extraction() => EXTRACTION.increment(),
+            Error::SecurityClaim(msg) => {
+                warn!("{}", msg);
                 std::process::abort()
             }
         }
@@ -44,7 +47,7 @@ pub fn harness(input: &Trace) -> ExitKind {
 }
 
 #[allow(unused)]
-pub fn dummy_harness(_input: &Trace) -> ExitKind {
+pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);

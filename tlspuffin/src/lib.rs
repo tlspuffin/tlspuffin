@@ -7,42 +7,117 @@
 //! We forked the [rustls](https://github.com/ctz/rustls) library for cryptographic operations like deriving secrets. We also use it to encode and decode TLS messages.
 //!
 //! The cryptographic library [ring](https://github.com/briansmith/ring) allows us to use the derived secrets to encrypt and decrypt TLS messages.
+//! # Example
+//!
+//! ```rust
+//! use puffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
+//! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
+//! use puffin::algebra::{Term, signature::Signature};
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use rustls::{ProtocolVersion, CipherSuite};
+//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+//! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use tlspuffin::put_registry::TLS_PUT_REGISTRY;
+//! use tlspuffin::query::TlsQueryMatcher;
+//!
+//! # let client_put = tlspuffin::put_registry::current_put();
+//! # let server_put = tlspuffin::put_registry::current_put();
+//!
+//! let client: AgentName = AgentName::first();
+//! let server: AgentName = client.next();
+//!
+//! let trace = Trace {
+//!     prior_traces: vec![],
+//!     descriptors: vec![
+//!         AgentDescriptor::new_client(client, V1_3, client_put),
+//!         AgentDescriptor::new_server(server, V1_3, server_put),
+//!     ],
+//!     steps: vec![
+//!             OutputAction::new_step(client),
+//!             // Client: Hello Client -> Server
+//!             Step {
+//!                 agent: server,
+//!                 action: Action::Input(InputAction {
+//!                     recipe: Term::Application(
+//!                         Signature::new_function(&fn_client_hello),
+//!                         vec![
+//!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                             Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                             Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                             Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                             Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
+//!                                     client,  
+//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                                     0
+//!                             )),
+//!                         ],
+//!                     ),
+//!                 }),
+//!             },
+//!     // further steps here
+//!     ]
+//! };
+//! ```
+//!
+//! # Example with `term!` macro
+//!
+//! ```rust
+//! use puffin::agent::AgentName;
+//! use puffin::term;
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use rustls::{ProtocolVersion, CipherSuite};
+//! use rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+//! use rustls::msgs::enums::{Compression, HandshakeType};
+//! use puffin::algebra::Term;
+//! use tlspuffin::query::TlsQueryMatcher;
+//!
+//! let client = AgentName::first();
+//! let term: Term<TlsQueryMatcher> = term! {
+//!     fn_client_hello(
+//!         ((client, 0)/ProtocolVersion),
+//!         ((client, 0)/Random),
+//!         ((client, 0)/SessionID),
+//!         ((client, 0)/Vec<CipherSuite>),
+//!         ((client, 0)/Vec<Compression>),
+//!         ((client, 0)/Vec<ClientExtension>)
+//!     )
+//! };
+//! ```
+//!
 
-#![allow(unused_doc_comments)]
-
-#[cfg(all(feature = "openssl-binding", feature = "wolfssl-binding"))]
-compile_error!("`Only one binding at the same time is currently supported.");
-
-pub mod agent;
-pub mod algebra;
 pub mod claims;
 pub mod debug;
-pub mod error;
-pub mod experiment;
 pub mod extraction;
-pub mod fuzzer;
-pub mod graphviz;
-pub mod io;
-pub mod log;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
 pub mod put;
 pub mod put_registry;
+pub mod query;
 pub mod static_certs;
 pub mod tcp;
-#[allow(clippy::ptr_arg)]
 pub mod tls;
-pub mod trace;
-pub mod variable_data;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
 
-pub const GIT_REF: &str = match option_env!("GIT_REF") {
-    Some(env) => env,
-    None => "undefined",
-};
-
-pub const GIT_MSG: &str = match option_env!("GIT_MSG") {
-    Some(env) => env,
-    None => "undefined",
-};
+mod tests;

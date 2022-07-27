@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, fmt::Debug, path::PathBuf};
+use std::{fmt, fmt::Debug, marker::PhantomData, path::PathBuf};
 
 use libafl::{
     bolts::{
@@ -7,7 +7,7 @@ use libafl::{
         rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
-        AsRefIterator,
+        AsRefIterator, HasLen,
     },
     corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
@@ -21,10 +21,12 @@ use libafl::{
         MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
+    inputs::Input,
     monitors::{tui::TuiMonitor, MultiMonitor},
+    mutators::MutatorsTuple,
     observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, StdState},
+    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, HasRand, StdState},
     Error, Evaluator,
 };
 use log::{info, warn};
@@ -40,18 +42,18 @@ use crate::{
         stats_stage::StatsStage,
     },
     log::create_file_config,
-    put_registry::PUT_REGISTRY,
-    tls::seeds::create_corpus,
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::Trace,
 };
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-type ConcreteExecutor<'harness, H, OT, S> =
-    TimeoutExecutor<InProcessExecutor<'harness, H, Trace, OT, S>>;
+type ConcreteExecutor<'harness, H, OT, S, I> =
+    TimeoutExecutor<InProcessExecutor<'harness, H, I, OT, S>>;
 
-type ConcreteState<C, R, SC> = StdState<C, Trace, R, SC>;
+type ConcreteState<C, R, SC, I> = StdState<C, I, R, SC>;
 
 #[derive(Clone)]
 pub struct FuzzerConfig {
@@ -113,15 +115,18 @@ impl Default for MutationConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
-    C: Corpus<Trace>,
+    I: Input,
+    C: Corpus<I>,
     R: Rand,
-    SC: Corpus<Trace>,
+    SC: Corpus<I>,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     config: FuzzerConfig,
+
     harness_fn: &'harness mut H,
-    existing_state: Option<ConcreteState<C, R, SC>>,
+    existing_state: Option<ConcreteState<C, R, SC, I>>,
     rand: Option<R>,
     objective_corpus: Option<SC>,
     corpus: Option<C>,
@@ -130,34 +135,38 @@ where
     observers: Option<OT>,
     feedback: Option<F>,
     objective: Option<OF>,
+    initial_inputs: Option<Vec<(I, &'static str)>>,
+    mutations: Option<MT>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
-    C: Corpus<Trace>,
+    I: Input,
+    C: Corpus<I>,
     R: Rand,
-    SC: Corpus<Trace>,
-    H: FnMut(&Trace) -> ExitKind,
-    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
-    OT: ObserversTuple<Trace, ConcreteState<C, R, SC>>
+    SC: Corpus<I>,
+    H: FnMut(&I) -> ExitKind,
+    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
+    OT: ObserversTuple<I, ConcreteState<C, R, SC, I>>
         + serde::Serialize
         + serde::de::DeserializeOwned,
-    F: Feedback<Trace, ConcreteState<C, R, SC>>,
-    CS: Scheduler<Trace, ConcreteState<C, R, SC>>,
-    EM: EventFirer<Trace>
-        + EventRestarter<ConcreteState<C, R, SC>>
+    F: Feedback<I, ConcreteState<C, R, SC, I>>,
+    CS: Scheduler<I, ConcreteState<C, R, SC, I>>,
+    EM: EventFirer<I>
+        + EventRestarter<ConcreteState<C, R, SC, I>>
         + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC>>,
-            Trace,
-            ConcreteState<C, R, SC>,
-            StdFuzzer<CS, F, Trace, OF, OT, ConcreteState<C, R, SC>>,
-        > + ProgressReporter<Trace>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>, I>,
+            I,
+            ConcreteState<C, R, SC, I>,
+            StdFuzzer<CS, F, I, OF, OT, ConcreteState<C, R, SC, I>>,
+        > + ProgressReporter<I>,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     fn new(
         config: FuzzerConfig,
         harness_fn: &'harness mut H,
-        existing_state: Option<ConcreteState<C, R, SC>>,
+        existing_state: Option<ConcreteState<C, R, SC, I>>,
         event_manager: EM,
     ) -> Self {
         Self {
@@ -172,6 +181,8 @@ where
             observers: None,
             feedback: None,
             objective: None,
+            initial_inputs: None,
+            mutations: None,
         }
     }
     fn with_rand(mut self, rand: R) -> Self {
@@ -209,6 +220,16 @@ where
         self
     }
 
+    fn with_initial_inputs(mut self, initial_inputs: Vec<(I, &'static str)>) -> Self {
+        self.initial_inputs = Some(initial_inputs);
+        self
+    }
+
+    fn with_mutations(mut self, mutations: MT) -> Self {
+        self.mutations = Some(mutations);
+        self
+    }
+
     fn run_client(mut self) -> Result<(), Error> {
         let event_manager_id = self.event_manager.mgr_id().id as u64;
         info!("Event manager ID is {}", event_manager_id);
@@ -236,33 +257,20 @@ where
                     max_iterations_per_stage,
                     max_mutations_per_iteration,
                 },
-            mutation_config:
-                MutationConfig {
-                    fresh_zoo_after,
-                    max_trace_length,
-                    min_trace_length,
-                    term_constraints,
-                },
             ..
         } = self.config;
 
-        let mutations = trace_mutations(
-            min_trace_length,
-            max_trace_length,
-            term_constraints,
-            fresh_zoo_after,
-        );
-
-        let mutator = PuffinScheduledMutator::new(mutations, max_mutations_per_iteration);
+        let mutator =
+            PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
         let mut stages = tuple_list!(
             PuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StatsStage::new()
         );
 
-        let mut fuzzer: StdFuzzer<CS, F, Trace, OF, OT, _> =
+        let mut fuzzer: StdFuzzer<CS, F, I, OF, OT, _> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
+        let mut executor: ConcreteExecutor<'harness, H, OT, _, I> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
                 // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
@@ -294,7 +302,7 @@ where
             } else {
                 warn!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in create_corpus() {
+                for (seed, name) in self.initial_inputs.unwrap() {
                     info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
@@ -323,30 +331,30 @@ where
     }
 }
 
-type ConcreteMinimizer<C, R, SC> =
-    IndexesLenTimeMinimizerScheduler<QueueScheduler, Trace, ConcreteState<C, R, SC>>;
+type ConcreteMinimizer<C, R, SC, I> =
+    IndexesLenTimeMinimizerScheduler<QueueScheduler, I, ConcreteState<C, R, SC, I>>;
 
 type ConcreteObservers<'a> = (
     TimeObserver,
     (HitcountsMapObserver<StdMapObserver<'a, u8>>, ()),
 );
 
-type ConcreteFeedback<'a, C, R, SC> = CombinedFeedback<
+type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
     MapFeedback<
-        Trace,
+        I,
         DifferentIsNovel,
         HitcountsMapObserver<StdMapObserver<'a, u8>>,
         MaxReducer,
-        ConcreteState<C, R, SC>,
+        ConcreteState<C, R, SC, I>,
         u8,
     >,
     TimeFeedback,
     LogicEagerOr,
-    Trace,
-    ConcreteState<C, R, SC>,
+    I,
+    ConcreteState<C, R, SC, I>,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF>
+impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
     RunClientBuilder<
         'harness,
         H,
@@ -354,32 +362,36 @@ impl<'harness, 'a, H, SC, C, R, EM, OF>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, C, R, SC>,
+        ConcreteFeedback<'a, C, R, SC, I>,
         OF,
         ConcreteObservers<'a>,
-        ConcreteMinimizer<C, R, SC>,
+        ConcreteMinimizer<C, R, SC, I>,
+        MT,
+        I,
     >
 where
-    C: Corpus<Trace> + fmt::Debug,
+    I: Input + HasLen,
+    C: Corpus<I> + fmt::Debug,
     R: Rand,
-    SC: Corpus<Trace> + fmt::Debug,
-    H: FnMut(&Trace) -> ExitKind,
-    OF: Feedback<Trace, ConcreteState<C, R, SC>>,
-    EM: EventFirer<Trace>
-        + EventRestarter<ConcreteState<C, R, SC>>
+    SC: Corpus<I> + fmt::Debug,
+    H: FnMut(&I) -> ExitKind,
+    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
+    EM: EventFirer<I>
+        + EventRestarter<ConcreteState<C, R, SC, I>>
         + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC>>,
-            Trace,
-            ConcreteState<C, R, SC>,
+            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
+            I,
+            ConcreteState<C, R, SC, I>,
             StdFuzzer<
-                ConcreteMinimizer<C, R, SC>,
-                ConcreteFeedback<'a, C, R, SC>,
-                Trace,
+                ConcreteMinimizer<C, R, SC, I>,
+                ConcreteFeedback<'a, C, R, SC, I>,
+                I,
                 OF,
                 ConcreteObservers<'a>,
-                ConcreteState<C, R, SC>,
+                ConcreteState<C, R, SC, I>,
             >,
-        > + ProgressReporter<Trace>,
+        > + ProgressReporter<I>,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     fn install_minimizer(self) -> Self {
         #[cfg(not(test))]
@@ -426,7 +438,10 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Error> {
+pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+    config: FuzzerConfig,
+    log_handle: Handle,
+) -> Result<(), libafl::Error> {
     let FuzzerConfig {
         core_definition,
         corpus_dir,
@@ -437,25 +452,38 @@ pub fn start(config: FuzzerConfig, log_handle: Handle) -> Result<(), libafl::Err
         broker_port,
         monitor,
         no_launcher,
+        mutation_config:
+            MutationConfig {
+                fresh_zoo_after,
+                max_trace_length,
+                min_trace_length,
+                term_constraints,
+            },
         ..
     } = &config;
 
     info!("Running on cores: {}", &core_definition);
 
     let mut run_client =
-        |state: Option<StdState<_, Trace, _, _>>,
-         event_manager: LlmpRestartingEventManager<Trace, _, _, StdShMemProvider>,
+        |state: Option<StdState<_, Trace<PB::Matcher>, _, _>>,
+         event_manager: LlmpRestartingEventManager<Trace<PB::Matcher>, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), Error> {
-            PUT_REGISTRY.make_deterministic();
-
             let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
-            let harness_fn = &mut harness::harness;
+            let harness_fn = &mut harness::harness::<PB>;
 
             let mut builder =
                 RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
             builder = builder
+                .with_mutations(trace_mutations(
+                    *min_trace_length,
+                    *max_trace_length,
+                    *term_constraints,
+                    *fresh_zoo_after,
+                    PB::signature(),
+                ))
+                .with_initial_inputs(PB::create_corpus())
                 .with_rand(StdRand::with_seed(seed))
                 .with_corpus(
                     CachedOnDiskCorpus::new_save_meta(

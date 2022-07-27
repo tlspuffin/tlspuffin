@@ -15,7 +15,8 @@
 //! Each function which implements the following trait can be made into a dynamic function:
 //!
 //! ```rust
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
+//!
 //! type ConcreteFunction<A1, A2, A3, R> = dyn Fn(A1, A2, A3) -> Result<R, FnError>;
 //! ```
 //!
@@ -23,7 +24,7 @@
 //! typed function we can generate dynamically types ones which implement the following trait:
 //!
 //! ```rust
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
 //! use std::any::Any;
 //!
 //! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
@@ -40,11 +41,10 @@
 //! The following function is a simple example for a constant:
 //!
 //! ```rust
-//! use rustls::CipherSuite;
-//! use tlspuffin::tls::error::FnError;
+//! use puffin::algebra::error::FnError;
 //!
-//! pub fn fn_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
-//!     Ok(vec![CipherSuite::TLS13_AES_128_GCM_SHA256])
+//! pub fn fn_some_value() -> Result<u32, FnError> {
+//!     Ok(42)
 //! }
 //! ```
 //!
@@ -60,7 +60,7 @@ use std::{
 use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::tls::{error::FnError, SIGNATURE};
+use crate::algebra::{deserialize_signature, error::FnError};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -325,7 +325,7 @@ impl<'de> Deserialize<'de> for TypeShape {
             where
                 E: de::Error,
             {
-                let typ = SIGNATURE
+                let typ = deserialize_signature()
                     .types_by_name
                     .get(v)
                     .ok_or_else(|| de::Error::missing_field("could not find type"))?;

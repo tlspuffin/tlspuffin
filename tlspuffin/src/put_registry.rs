@@ -1,60 +1,72 @@
-use crate::{
+use puffin::{
     agent::{AgentDescriptor, AgentName},
+    algebra::signature::Signature,
     error::Error,
-    put::{Put, PutConfig, PutDescriptor, PutName},
+    io::MessageResult,
+    protocol::{MessageDeframer, ProtocolBehavior},
+    put::{Put, PutDescriptor, PutName},
+    put_registry::{Factory, PutRegistry},
+    trace::Trace,
+    variable_data::VariableData,
 };
 
-pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
+use crate::{
+    claims::TlsClaim,
+    extraction::extract_knowledge,
+    query::TlsQueryMatcher,
+    tls::{seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
+};
 
-impl PutRegistry {
-    pub fn version_strings(&self) -> Vec<String> {
-        let mut put_versions = Vec::new();
-        for func in self.0 {
-            let factory = func();
+#[derive(Clone)]
+pub struct TLSProtocolBehavior;
 
-            let name = factory.put_name();
-            let version = factory.put_version();
-            put_versions.push(format!("{}: {}", name, version));
-        }
-        put_versions
+impl ProtocolBehavior for TLSProtocolBehavior {
+    type Claim = TlsClaim;
+    type SecurityViolationPolicy = TlsSecurityViolationPolicy;
+    type Message = rustls::msgs::message::Message;
+    type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
+    type MessageDeframer = rustls::msgs::deframer::MessageDeframer;
+
+    type Matcher = TlsQueryMatcher;
+
+    fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        extract_knowledge(message)
     }
 
-    pub fn make_deterministic(&self) {
-        for func in self.0 {
-            let factory = func();
-            factory.make_deterministic();
-        }
+    fn signature() -> &'static Signature {
+        &TLS_SIGNATURE
     }
 
-    pub fn find_factory(&self, put_name: PutName) -> Option<Box<dyn Factory>> {
-        self.0
-            .iter()
-            .map(|func| func())
-            .find(|factory: &Box<dyn Factory>| factory.put_name() == put_name)
+    fn registry() -> &'static PutRegistry<Self> {
+        &TLS_PUT_REGISTRY
+    }
+
+    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        Vec::from(create_corpus())
+    }
+
+    fn extract_query_matcher(
+        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+    ) -> Self::Matcher {
+        TlsQueryMatcher::try_from(message_result).unwrap()
     }
 }
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
 pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
 pub const TCP_CLIENT_PUT: PutName = PutName(['T', 'C', 'P', 'C', 'L', 'I', 'E', 'N', 'T', '_']);
 pub const TCP_SERVER_PUT: PutName = PutName(['T', 'C', 'P', 'S', 'E', 'R', 'V', 'E', 'R', '_']);
 
-pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
-    crate::tcp::new_tcp_client_factory,
-    crate::tcp::new_tcp_server_factory,
-    #[cfg(feature = "openssl-binding")]
-    crate::openssl::new_openssl_factory,
-    #[cfg(feature = "wolfssl-binding")]
-    crate::wolfssl::new_wolfssl_factory,
-]);
-
-pub trait Factory {
-    fn create(&self, agent: &AgentDescriptor, config: PutConfig) -> Result<Box<dyn Put>, Error>;
-    fn put_name(&self) -> PutName;
-    fn put_version(&self) -> &'static str;
-    fn make_deterministic(&self);
-}
+pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
+    factories: &[
+        crate::tcp::new_tcp_client_factory,
+        crate::tcp::new_tcp_server_factory,
+        #[cfg(feature = "openssl-binding")]
+        crate::openssl::new_openssl_factory,
+        #[cfg(feature = "wolfssl-binding")]
+        crate::wolfssl::new_wolfssl_factory,
+    ],
+};
 
 pub const CURRENT_PUT_NAME: PutName = {
     cfg_if::cfg_if! {
@@ -63,7 +75,7 @@ pub const CURRENT_PUT_NAME: PutName = {
         } else if #[cfg(feature = "wolfssl-binding")] {
             WOLFSSL520_PUT
         } else {
-            DUMMY_PUT
+            puffin::put_registry::DUMMY_PUT
         }
     }
 };

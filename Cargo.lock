@@ -1327,6 +1327,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "puffin"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "chrono",
+ "clap 3.1.18",
+ "env_logger",
+ "itertools",
+ "libafl",
+ "libafl_targets",
+ "libc",
+ "log",
+ "log4rs",
+ "once_cell",
+ "postcard",
+ "rand",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "test-log",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1513,6 +1536,7 @@ name = "rustls"
 version = "0.20.4"
 dependencies = [
  "log",
+ "puffin",
  "ring",
  "sct",
  "serde",
@@ -1707,6 +1731,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sshpuffin"
+version = "0.1.0"
+dependencies = [
+ "tlspuffin",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1856,24 +1887,17 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "cfg-if",
- "chrono",
- "clap 3.1.18",
  "criterion",
  "env_logger",
  "foreign-types 0.5.0",
  "foreign-types-shared 0.1.1",
  "hex",
  "itertools",
- "libafl",
- "libafl_targets",
  "libc",
  "log",
- "log4rs",
  "nix 0.24.1",
- "once_cell",
  "openssl",
- "postcard",
- "rand",
+ "puffin",
  "ring",
  "rustls",
  "security-claims",

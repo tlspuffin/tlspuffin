@@ -7,6 +7,7 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
+use puffin::algebra::error::FnError;
 use rustls::{
     msgs::{
         base::{Payload, PayloadU16, PayloadU24, PayloadU8},
@@ -21,7 +22,7 @@ use webpki::DnsNameRef;
 use crate::{
     nyi_fn,
     tls::{
-        error::FnError, fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
     },
 };
