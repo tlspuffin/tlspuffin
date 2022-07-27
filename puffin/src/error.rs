@@ -19,7 +19,7 @@ pub enum Error {
     Agent(String),
     /// Error while operating on a [`Stream`]
     Stream(String),
-    Extraction(), // FIXME: Used to be: Extraction(ContentType),
+    Extraction(),
     SecurityClaim(&'static str),
 }
 

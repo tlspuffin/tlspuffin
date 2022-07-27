@@ -1897,7 +1897,6 @@ dependencies = [
  "log",
  "nix 0.24.1",
  "openssl",
- "postcard",
  "puffin",
  "ring",
  "rustls",

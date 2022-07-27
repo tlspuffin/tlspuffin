@@ -2844,157 +2844,100 @@ pub mod tests {
     pub mod serialization {
         use puffin::{
             agent::AgentName,
-            algebra::set_deserialize_signature,
+            algebra::{set_deserialize_signature, Matcher},
             trace::{Trace, TraceContext},
         };
         use test_log::test;
 
         use crate::tls::{seeds::*, TLS_SIGNATURE};
 
-        #[test]
-        fn test_serialisation_seed_seed_session_resumption_dhe_json() {
+        fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
-            let trace = seed_session_resumption_dhe.build_trace();
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
             let deserialized_trace =
                 serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
             let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
 
             assert_eq!(serialized1, serialized2);
+        }
+
+        fn test_json_serialization<M: Matcher>(trace: Trace<M>) {
+            let _ = set_deserialize_signature(&TLS_SIGNATURE);
+
+            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let deserialized_trace =
+                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
+            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+            assert_eq!(serialized1, serialized2);
+        }
+
+        #[test]
+        fn test_serialisation_seed_seed_session_resumption_dhe_json() {
+            let trace = seed_session_resumption_dhe.build_trace();
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_ke_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_session_resumption_ke.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker12_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker12.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful_postcard() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful.build_trace();
-
-            let serialized1 = postcard::to_allocvec(&trace).unwrap();
-
-            let deserialized_trace =
-                postcard::from_bytes::<Trace<TlsQueryMatcher>>(serialized1.as_slice()).unwrap();
-            let serialized2 = postcard::to_allocvec(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_postcard_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful12_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_successful12.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
-        fn test_serialisation_seed_heartbleed() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
+        fn test_serialisation_seed_heartbleed_json() {
             let trace = seed_heartbleed.build_trace();
 
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker_auth.build_trace();
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-            let serialized2 = serde_json::to_string_pretty(
-                &serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_postcard() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_client_attacker_auth.build_trace();
-            let serialized1 = postcard::to_allocvec(&trace).unwrap();
-            let serialized2 = postcard::to_allocvec(
-                &postcard::from_bytes::<Trace<TlsQueryMatcher>>(serialized1.as_slice()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_postcard_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_server_attacker_full_json() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_server_attacker_full.build_trace();
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-            let serialized2 = serde_json::to_string_pretty(
-                &serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_server_attacker_full_postcard() {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
             let trace = seed_server_attacker_full.build_trace();
-            let serialized1 = postcard::to_allocvec(&trace).unwrap();
-            let serialized2 = postcard::to_allocvec(
-                &postcard::from_bytes::<Trace<TlsQueryMatcher>>(serialized1.as_slice()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_postcard_serialization(trace);
         }
     }
 

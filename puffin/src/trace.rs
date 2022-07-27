@@ -345,6 +345,14 @@ impl<M: Matcher> Trace<M> {
         self.execute(&mut ctx).unwrap();
         ctx
     }
+
+    pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
+        postcard::to_allocvec(&self)
+    }
+
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M>, postcard::Error> {
+        postcard::from_bytes::<Trace<M>>(slice)
+    }
 }
 
 impl<M: Matcher> fmt::Debug for Trace<M> {
