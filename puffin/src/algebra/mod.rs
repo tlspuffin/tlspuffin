@@ -77,6 +77,7 @@ where
     }
 }
 
+/// Determines whether two instances match. We can also ask it how specific it is.
 pub trait Matcher:
     Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
 {

@@ -18,6 +18,8 @@ use crate::{
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 
+/// Registry for [Factories](Factory). An instance of this is usually defined statically and then
+/// used throughout the fuzzer.
 pub struct PutRegistry<PB: 'static> {
     pub factories: &'static [fn() -> Box<dyn Factory<PB>>],
 }
@@ -50,6 +52,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 }
 
+/// Factory for instantiating programs-under-test.
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
