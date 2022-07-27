@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use crate::{
-    algebra::{signature::Signature, QueryMatcher},
-    claims::{Claim, Policy},
+    algebra::{signature::Signature, Matcher},
+    claims::{Claim, SecurityViolationPolicy},
     error::Error,
     io::MessageResult,
     put_registry::PutRegistry,
@@ -30,24 +30,25 @@ pub trait MessageDeframer<M: Message<O>, O: OpaqueMessage<M>> {
 
 pub trait ProtocolBehavior: 'static {
     type Claim: Claim;
+    type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
+
     type Message: Message<Self::OpaqueMessage>;
     type OpaqueMessage: OpaqueMessage<Self::Message>;
     type MessageDeframer: MessageDeframer<Self::Message, Self::OpaqueMessage>;
-    type QueryMatcher: QueryMatcher;
 
-    fn policy() -> Policy<Self::Claim>;
+    type Matcher: Matcher;
 
     fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error>;
 
     fn signature() -> &'static Signature;
 
-    fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)>;
-
     fn registry() -> &'static PutRegistry<Self>
     where
         Self: Sized;
 
+    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+
     fn extract_query_matcher(
         message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
-    ) -> Self::QueryMatcher;
+    ) -> Self::Matcher;
 }

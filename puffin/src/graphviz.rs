@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, QueryMatcher, Term},
+    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
     trace::{Action, Trace},
 };
 
@@ -58,7 +58,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     Ok(())
 }
 
-impl<QM: QueryMatcher> Trace<QM> {
+impl<M: Matcher> Trace<M> {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -106,7 +106,7 @@ impl<QM: QueryMatcher> Trace<QM> {
     }
 }
 
-impl<QM: QueryMatcher> Term<QM> {
+impl<M: Matcher> Term<M> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match self {
             Term::Variable(variable) => {
@@ -137,7 +137,7 @@ impl<QM: QueryMatcher> Term<QM> {
     }
 
     fn collect_statements(
-        term: &Term<QM>,
+        term: &Term<M>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,

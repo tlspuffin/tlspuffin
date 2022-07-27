@@ -7,7 +7,7 @@ use crate::{
     algebra::{
         atoms::Function,
         signature::{FunctionDefinition, Signature},
-        QueryMatcher, Term,
+        Matcher, Term,
     },
     fuzzer::mutations::util::Choosable,
 };
@@ -15,11 +15,11 @@ use crate::{
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
-pub struct TermZoo<QM: QueryMatcher> {
-    terms: Vec<Term<QM>>,
+pub struct TermZoo<M: Matcher> {
+    terms: Vec<Term<M>>,
 }
 
-impl<QM: QueryMatcher> TermZoo<QM> {
+impl<M: Matcher> TermZoo<M> {
     pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
         let terms = signature
             .functions
@@ -49,7 +49,7 @@ impl<QM: QueryMatcher> TermZoo<QM> {
         (shape, dynamic_fn): &FunctionDefinition,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term<QM>> {
+    ) -> Option<Term<M>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -86,14 +86,14 @@ impl<QM: QueryMatcher> TermZoo<QM> {
         ))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<QM>>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M>>
     where
-        P: FnMut(&&Term<QM>) -> bool,
+        P: FnMut(&&Term<M>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
-    pub fn terms(&self) -> &[Term<QM>] {
+    pub fn terms(&self) -> &[Term<M>] {
         &self.terms
     }
 }

@@ -11,7 +11,7 @@
 //!
 //! ```rust
 //! use puffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
-//! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
+//! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Matcher};
 //! use puffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use rustls::{ProtocolVersion, CipherSuite};

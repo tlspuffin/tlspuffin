@@ -1,4 +1,4 @@
-use puffin::{algebra::QueryMatcher, error::Error, io::MessageResult};
+use puffin::{algebra::Matcher, error::Error, io::MessageResult};
 use rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage},
@@ -16,9 +16,9 @@ pub enum TlsQueryMatcher {
     Heartbeat,
 }
 
-impl QueryMatcher for TlsQueryMatcher {
-    fn matches(&self, query: &TlsQueryMatcher) -> bool {
-        match query {
+impl Matcher for TlsQueryMatcher {
+    fn matches(&self, matcher: &TlsQueryMatcher) -> bool {
+        match matcher {
             TlsQueryMatcher::Handshake(query_handshake_type) => match self {
                 TlsQueryMatcher::Handshake(handshake_type) => {
                     handshake_type.matches(query_handshake_type)

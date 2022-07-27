@@ -86,7 +86,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     asan_info();
     setup_asan_env();
 
-    set_deserialize_signature(PB::signature());
+    if let Err(_) = set_deserialize_signature(PB::signature()) {
+        error!("Failed to initialize deserialization");
+    }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(put_registry) {
@@ -206,7 +208,7 @@ fn plot<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::QueryMatcher>>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
 
     // All-in-one tree
     write_graphviz(
@@ -254,7 +256,7 @@ fn execute<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::QueryMatcher>>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
 
     info!("Agents: {:?}", &trace.descriptors);
 

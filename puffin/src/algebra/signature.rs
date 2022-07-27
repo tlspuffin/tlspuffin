@@ -14,7 +14,7 @@ use crate::{
         dynamic_function::{
             make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
         },
-        QueryMatcher,
+        Matcher,
     },
     trace::Query,
 };
@@ -87,21 +87,21 @@ impl Signature {
         Function::new(shape, dynamic_fn.clone())
     }
 
-    pub fn new_var_with_type<T: 'static, QM: QueryMatcher>(
+    pub fn new_var_with_type<T: 'static, M: Matcher>(
         agent_name: AgentName,
-        matcher: Option<QM>,
+        matcher: Option<M>,
         counter: u16,
-    ) -> Variable<QM> {
+    ) -> Variable<M> {
         let type_shape = TypeShape::of::<T>();
         Self::new_var(type_shape, agent_name, matcher, counter)
     }
 
-    pub fn new_var<QM: QueryMatcher>(
+    pub fn new_var<M: Matcher>(
         type_shape: TypeShape,
         agent_name: AgentName,
-        matcher: Option<QM>,
+        matcher: Option<M>,
         counter: u16,
-    ) -> Variable<QM> {
+    ) -> Variable<M> {
         let query = Query {
             agent_name,
             matcher,

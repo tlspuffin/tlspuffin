@@ -35,8 +35,8 @@ use serde::{Deserialize, Serialize};
 use crate::io::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, QueryMatcher, Term},
-    claims::{CheckViolation, Claim, GlobalClaimList},
+    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     io::MessageResult,
     protocol::{Message, OpaqueMessage, ProtocolBehavior},
@@ -45,13 +45,13 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct Query<QM> {
+pub struct Query<M> {
     pub agent_name: AgentName,
-    pub matcher: Option<QM>,
+    pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
-impl<QM: QueryMatcher> fmt::Display for Query<QM> {
+impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -61,7 +61,7 @@ impl<QM: QueryMatcher> fmt::Display for Query<QM> {
     }
 }
 
-impl<QM: QueryMatcher> Knowledge<QM> {
+impl<M: Matcher> Knowledge<M> {
     pub fn specificity(&self) -> u32 {
         self.matcher.specificity()
     }
@@ -70,13 +70,13 @@ impl<QM: QueryMatcher> Knowledge<QM> {
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
-pub struct Knowledge<QM: QueryMatcher> {
+pub struct Knowledge<M: Matcher> {
     pub agent_name: AgentName,
-    pub matcher: Option<QM>,
+    pub matcher: Option<M>,
     pub data: Box<dyn VariableData>,
 }
 
-impl<QM: QueryMatcher> fmt::Display for Knowledge<QM> {
+impl<M: Matcher> fmt::Display for Knowledge<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.agent_name, self.matcher)
     }
@@ -89,7 +89,7 @@ impl<QM: QueryMatcher> fmt::Display for Knowledge<QM> {
 /// which have need exchanged and are not yet processed by an output step.
 pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     /// The knowledge of the attacker
-    knowledge: Vec<Knowledge<PB::QueryMatcher>>,
+    knowledge: Vec<Knowledge<PB::Matcher>>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
     put_registry: &'static PutRegistry<PB>,
@@ -127,9 +127,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
-        let policy = PB::policy();
         let claims = self.claims.deref_borrow();
-        if let Some(msg) = claims.check_violation(policy) {
+        if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
             // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
             // Max: We only check for Finished claims right now, so its fine to check only at the end
             return Err(Error::SecurityClaim(msg));
@@ -137,7 +136,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         Ok(())
     }
 
-    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::QueryMatcher>) {
+    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
         self.knowledge.push(knowledge)
     }
 
@@ -146,7 +145,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         agent: AgentName,
         type_id: TypeId,
-        tls_message_type: &Option<PB::QueryMatcher>,
+        tls_message_type: &Option<PB::Matcher>,
     ) -> usize {
         self.knowledge
             .iter()
@@ -174,11 +173,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn find_variable(
         &self,
         query_type_shape: TypeShape,
-        query: &Query<PB::QueryMatcher>,
+        query: &Query<PB::Matcher>,
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<&Knowledge<PB::QueryMatcher>> = Vec::new();
+        let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
 
         for knowledge in &self.knowledge {
             let data: &dyn VariableData = knowledge.data.as_ref();
@@ -274,18 +273,18 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
-#[serde(bound = "QM: QueryMatcher")]
-pub struct Trace<QM: QueryMatcher> {
+#[serde(bound = "M: Matcher")]
+pub struct Trace<M: Matcher> {
     pub descriptors: Vec<AgentDescriptor>,
-    pub steps: Vec<Step<QM>>,
-    pub prior_traces: Vec<Trace<QM>>,
+    pub steps: Vec<Step<M>>,
+    pub prior_traces: Vec<Trace<M>>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
-impl<QM: QueryMatcher> Trace<QM> {
+impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
@@ -306,7 +305,7 @@ impl<QM: QueryMatcher> Trace<QM> {
 
     pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<QueryMatcher = QM>,
+        PB: ProtocolBehavior<Matcher = M>,
     {
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
@@ -323,7 +322,7 @@ impl<QM: QueryMatcher> Trace<QM> {
             // Output after each InputAction step
             match step.action {
                 Action::Input(_) => {
-                    let output_step = &OutputAction::<QM>::new_step(step.agent);
+                    let output_step = &OutputAction::<M>::new_step(step.agent);
 
                     output_step.action.execute(output_step, ctx)?;
                 }
@@ -340,7 +339,7 @@ impl<QM: QueryMatcher> Trace<QM> {
 
     pub fn execute_default<PB>(&self, put_registry: &'static PutRegistry<PB>) -> TraceContext<PB>
     where
-        PB: ProtocolBehavior<QueryMatcher = QM>,
+        PB: ProtocolBehavior<Matcher = M>,
     {
         let mut ctx = TraceContext::new(put_registry);
         self.execute(&mut ctx).unwrap();
@@ -348,13 +347,13 @@ impl<QM: QueryMatcher> Trace<QM> {
     }
 }
 
-impl<QM: QueryMatcher> fmt::Debug for Trace<QM> {
+impl<M: Matcher> fmt::Debug for Trace<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Trace with {} steps", self.steps.len())
     }
 }
 
-impl<QM: QueryMatcher> fmt::Display for Trace<QM> {
+impl<M: Matcher> fmt::Display for Trace<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Trace:")?;
         for step in &self.steps {
@@ -365,10 +364,10 @@ impl<QM: QueryMatcher> fmt::Display for Trace<QM> {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "QM: QueryMatcher")]
-pub struct Step<QM: QueryMatcher> {
+#[serde(bound = "M: Matcher")]
+pub struct Step<M: Matcher> {
     pub agent: AgentName,
-    pub action: Action<QM>,
+    pub action: Action<M>,
 }
 
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
@@ -381,16 +380,16 @@ pub struct Step<QM: QueryMatcher> {
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "QM: QueryMatcher")]
-pub enum Action<QM: QueryMatcher> {
-    Input(InputAction<QM>),
-    Output(OutputAction<QM>),
+#[serde(bound = "M: Matcher")]
+pub enum Action<M: Matcher> {
+    Input(InputAction<M>),
+    Output(OutputAction<M>),
 }
 
-impl<QM: QueryMatcher> Action<QM> {
-    fn execute<PB>(&self, step: &Step<QM>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+impl<M: Matcher> Action<M> {
+    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<QueryMatcher = QM>,
+        PB: ProtocolBehavior<Matcher = M>,
     {
         match self {
             Action::Input(input) => input.input(step, ctx),
@@ -399,7 +398,7 @@ impl<QM: QueryMatcher> Action<QM> {
     }
 }
 
-impl<QM: QueryMatcher> fmt::Display for Action<QM> {
+impl<M: Matcher> fmt::Display for Action<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
@@ -412,12 +411,12 @@ impl<QM: QueryMatcher> fmt::Display for Action<QM> {
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// An output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct OutputAction<QM> {
-    phantom: PhantomData<QM>,
+pub struct OutputAction<M> {
+    phantom: PhantomData<M>,
 }
 
-impl<QM: QueryMatcher> OutputAction<QM> {
-    pub fn new_step(agent: AgentName) -> Step<QM> {
+impl<M: Matcher> OutputAction<M> {
+    pub fn new_step(agent: AgentName) -> Step<M> {
         Step {
             agent,
             action: Action::Output(OutputAction {
@@ -426,9 +425,9 @@ impl<QM: QueryMatcher> OutputAction<QM> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<QM>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<QueryMatcher = QM>,
+        PB: ProtocolBehavior<Matcher = M>,
     {
         ctx.next_state(step.agent)?;
 
@@ -450,7 +449,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
 
                         let counter =
                             ctx.number_matching_message(step.agent, data_type_id, &matcher);
-                        let knowledge = Knowledge::<QM> {
+                        let knowledge = Knowledge::<M> {
                             agent_name: step.agent,
                             matcher: matcher.clone(),
                             data: variable,
@@ -469,7 +468,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
             }
 
             let type_id = std::any::Any::type_id(opaque_message);
-            let knowledge = Knowledge::<QM> {
+            let knowledge = Knowledge::<M> {
                 agent_name: step.agent,
                 matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
                 data: Box::new(message_result.1),
@@ -488,7 +487,7 @@ impl<QM: QueryMatcher> OutputAction<QM> {
     }
 }
 
-impl<QM: QueryMatcher> fmt::Display for OutputAction<QM> {
+impl<M: Matcher> fmt::Display for OutputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OutputAction")
     }
@@ -498,15 +497,15 @@ impl<QM: QueryMatcher> fmt::Display for OutputAction<QM> {
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "QM: QueryMatcher")]
-pub struct InputAction<QM: QueryMatcher> {
-    pub recipe: Term<QM>,
+#[serde(bound = "M: Matcher")]
+pub struct InputAction<M: Matcher> {
+    pub recipe: Term<M>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
-impl<QM: QueryMatcher> InputAction<QM> {
-    pub fn new_step(agent: AgentName, recipe: Term<QM>) -> Step<QM> {
+impl<M: Matcher> InputAction<M> {
+    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
@@ -515,11 +514,11 @@ impl<QM: QueryMatcher> InputAction<QM> {
 
     fn input<PB: ProtocolBehavior>(
         &self,
-        step: &Step<QM>,
+        step: &Step<M>,
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<QueryMatcher = QM>,
+        PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
@@ -543,7 +542,7 @@ impl<QM: QueryMatcher> InputAction<QM> {
     }
 }
 
-impl<QM: QueryMatcher> fmt::Display for InputAction<QM> {
+impl<M: Matcher> fmt::Display for InputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }

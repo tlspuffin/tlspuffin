@@ -1,7 +1,6 @@
 use puffin::{
     agent::{AgentDescriptor, AgentName},
     algebra::signature::Signature,
-    claims::Policy,
     error::Error,
     io::MessageResult,
     protocol::{MessageDeframer, ProtocolBehavior},
@@ -15,7 +14,7 @@ use crate::{
     claims::TlsClaim,
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
-    tls::{seeds::create_corpus, violation::is_violation, TLS_SIGNATURE},
+    tls::{seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
 };
 
 #[derive(Clone)]
@@ -23,14 +22,12 @@ pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
+    type SecurityViolationPolicy = TlsSecurityViolationPolicy;
     type Message = rustls::msgs::message::Message;
     type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
     type MessageDeframer = rustls::msgs::deframer::MessageDeframer;
-    type QueryMatcher = TlsQueryMatcher;
 
-    fn policy() -> Policy<Self::Claim> {
-        Policy { func: is_violation }
-    }
+    type Matcher = TlsQueryMatcher;
 
     fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
         extract_knowledge(message)
@@ -40,17 +37,17 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         &TLS_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)> {
-        Vec::from(create_corpus())
-    }
-
     fn registry() -> &'static PutRegistry<Self> {
         &TLS_PUT_REGISTRY
     }
 
+    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        Vec::from(create_corpus())
+    }
+
     fn extract_query_matcher(
         message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
-    ) -> Self::QueryMatcher {
+    ) -> Self::Matcher {
         TlsQueryMatcher::try_from(message_result).unwrap()
     }
 }

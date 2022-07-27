@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     agent::{AgentDescriptor, AgentName},
-    algebra::{signature::Signature, QueryMatcher},
-    claims::{Claim, Policy},
+    algebra::{signature::Signature, Matcher},
+    claims::Claim,
     error::Error,
     io,
     io::MessageResult,

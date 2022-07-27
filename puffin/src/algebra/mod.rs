@@ -42,26 +42,26 @@ pub mod macros;
 pub mod signature;
 pub mod term;
 
-static CURRENT_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
+static DESERIALIZATION_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
 
 /// Returns the current signature which is used during deserialization.
 pub fn deserialize_signature() -> &'static Signature {
-    CURRENT_SIGNATURE
+    DESERIALIZATION_SIGNATURE
         .get()
         .expect("current signature needs to be set")
 }
 
-pub fn set_deserialize_signature(signature: &'static Signature) {
-    CURRENT_SIGNATURE.set(signature); // TODO: Fine to ignore?
+pub fn set_deserialize_signature(signature: &'static Signature) -> Result<(), ()> {
+    DESERIALIZATION_SIGNATURE.set(signature).map_err(|err| ())
 }
 
-impl<T> QueryMatcher for Option<T>
+impl<T> Matcher for Option<T>
 where
-    T: QueryMatcher,
+    T: Matcher,
 {
-    fn matches(&self, query: &Self) -> bool {
-        match (self, query) {
-            (Some(inner), Some(inner_query)) => inner.matches(inner_query),
+    fn matches(&self, matcher: &Self) -> bool {
+        match (self, matcher) {
+            (Some(inner), Some(inner_matcher)) => inner.matches(inner_matcher),
             (Some(_), None) => true, // None matches everything as query -> True
             (None, None) => true,    // None == None => True
             (None, Some(_)) => false, // None != Some => False
@@ -77,10 +77,10 @@ where
     }
 }
 
-pub trait QueryMatcher:
+pub trait Matcher:
     Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
 {
-    fn matches(&self, query: &Self) -> bool;
+    fn matches(&self, matcher: &Self) -> bool;
 
     fn specificity(&self) -> u32;
 }
@@ -98,8 +98,8 @@ pub mod test_signature {
 
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, QueryMatcher, Term},
-        claims::{Claim, Policy},
+        algebra::{dynamic_function::TypeShape, error::FnError, Matcher, Term},
+        claims::{Claim, SecurityViolationPolicy},
         define_signature,
         error::Error,
         io::MessageResult,
@@ -350,8 +350,8 @@ pub mod test_signature {
         }
     }
 
-    impl QueryMatcher for TestQueryMatcher {
-        fn matches(&self, query: &Self) -> bool {
+    impl Matcher for TestQueryMatcher {
+        fn matches(&self, matcher: &Self) -> bool {
             panic!("Not implemented for test stub");
         }
 
@@ -475,18 +475,22 @@ pub mod test_signature {
         }
     }
 
+    pub struct TestSecurityViolationPolicy;
+    impl SecurityViolationPolicy<TestClaim> for TestSecurityViolationPolicy {
+        fn check_violation(claims: &[TestClaim]) -> Option<&'static str> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
         type Claim = TestClaim;
+        type SecurityViolationPolicy = TestSecurityViolationPolicy;
         type Message = TestMessage;
         type OpaqueMessage = TestOpaqueMessage;
         type MessageDeframer = TestMessageDeframer;
-        type QueryMatcher = TestQueryMatcher;
-
-        fn policy() -> Policy<Self::Claim> {
-            panic!("Not implemented for test stub");
-        }
+        type Matcher = TestQueryMatcher;
 
         fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
@@ -496,17 +500,17 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn create_corpus() -> Vec<(Trace<Self::QueryMatcher>, &'static str)> {
+        fn registry() -> &'static PutRegistry<Self> {
             panic!("Not implemented for test stub");
         }
 
-        fn registry() -> &'static PutRegistry<Self> {
+        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
 
         fn extract_query_matcher(
             message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
-        ) -> Self::QueryMatcher {
+        ) -> Self::Matcher {
             panic!("Not implemented for test stub");
         }
     }
@@ -527,7 +531,7 @@ mod tests {
         },
         put_registry::PutRegistry,
         term,
-        trace::{Knowledge, Query, TraceContext},
+        trace::{Knowledge, TraceContext},
     };
 
     #[allow(dead_code)]

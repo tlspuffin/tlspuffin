@@ -38,23 +38,13 @@ impl Claim for Box<dyn Claim> {
     }
 }
 
-pub struct Policy<C: Claim> {
-    pub func: fn(claims: &[C]) -> Option<&'static str>,
-}
-
-pub trait CheckViolation<C: Claim> {
-    fn check_violation(&self, policy: Policy<C>) -> Option<&'static str>;
+pub trait SecurityViolationPolicy<C: Claim> {
+    fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
 #[derive(Clone, Debug)]
 pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
-}
-
-impl<C: Claim> CheckViolation<C> for ClaimList<C> {
-    fn check_violation(&self, policy: Policy<C>) -> Option<&'static str> {
-        (policy.func)(&self.claims)
-    }
 }
 
 impl<C: Claim> ClaimList<C> {

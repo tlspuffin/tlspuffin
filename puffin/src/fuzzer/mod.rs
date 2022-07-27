@@ -18,16 +18,16 @@ pub mod mutations;
 
 pub use libafl_setup::{start, FuzzerConfig};
 
-use crate::algebra::QueryMatcher;
+use crate::algebra::Matcher;
 
 // LibAFL support
-impl<QM: QueryMatcher> Input for Trace<QM> {
+impl<M: Matcher> Input for Trace<M> {
     fn generate_name(&self, idx: usize) -> String {
         format!("{id}.trace", id = idx)
     }
 }
 
-impl<QM: QueryMatcher> HasLen for Trace<QM> {
+impl<M: Matcher> HasLen for Trace<M> {
     fn len(&self) -> usize {
         self.steps.len()
     }

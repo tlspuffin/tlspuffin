@@ -14,14 +14,14 @@ use crate::{
     algebra::{
         atoms::fn_container::FnContainer,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        remove_prefix, QueryMatcher,
+        remove_prefix, Matcher,
     },
     trace::Query,
 };
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Variable<QM> {
+pub struct Variable<M> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
     /// change this ID.
     pub unique_id: u32,
@@ -29,24 +29,24 @@ pub struct Variable<QM> {
     pub resistant_id: u32,
     pub typ: TypeShape,
     /// The struct which holds information about how to query this variable from knowledge
-    pub query: Query<QM>,
+    pub query: Query<M>,
 }
 
-impl<QM: QueryMatcher> Hash for Variable<QM> {
+impl<M: Matcher> Hash for Variable<M> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
         self.query.hash(state);
     }
 }
 
-impl<QM: QueryMatcher> Eq for Variable<QM> {}
-impl<QM: QueryMatcher> PartialEq for Variable<QM> {
+impl<M: Matcher> Eq for Variable<M> {}
+impl<M: Matcher> PartialEq for Variable<M> {
     fn eq(&self, other: &Self) -> bool {
         self.typ == other.typ && self.query == other.query
     }
 }
 
-impl<QM: QueryMatcher> Clone for Variable<QM> {
+impl<M: Matcher> Clone for Variable<M> {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),
@@ -57,8 +57,8 @@ impl<QM: QueryMatcher> Clone for Variable<QM> {
     }
 }
 
-impl<QM: QueryMatcher> Variable<QM> {
-    pub fn new(typ: TypeShape, query: Query<QM>) -> Self {
+impl<M: Matcher> Variable<M> {
+    pub fn new(typ: TypeShape, query: Query<M>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -68,7 +68,7 @@ impl<QM: QueryMatcher> Variable<QM> {
     }
 }
 
-impl<QM: QueryMatcher> fmt::Display for Variable<QM> {
+impl<M: Matcher> fmt::Display for Variable<M> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
@@ -170,7 +170,7 @@ mod fn_container {
         deserialize_signature,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         signature::Signature,
-        CURRENT_SIGNATURE,
+        DESERIALIZATION_SIGNATURE,
     };
 
     const NAME: &str = "name";
