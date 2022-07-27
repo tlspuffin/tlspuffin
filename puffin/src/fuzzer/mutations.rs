@@ -12,7 +12,6 @@ use util::{Choosable, *};
 use crate::{
     algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
-    mutator,
     trace::Trace,
 };
 
@@ -45,13 +44,34 @@ where
     )
 }
 
-mutator! {
-    /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
-    /// (such that types match).
-    <>,
-    SwapMutator,
-    <M: Matcher>,
-    Trace<M>,
+/// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
+
+/// (such that types match).
+pub struct SwapMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> SwapMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for SwapMutator<S>
+where
+    S: HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -59,7 +79,6 @@ mutator! {
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
@@ -68,42 +87,63 @@ mutator! {
                 rand,
             ) {
                 let term_a_cloned = term_a.clone();
-
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
                     let term_b_cloned = term_b_mut.clone();
                     term_b_mut.mutate(term_a_cloned);
-
                     if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
                         trace_a_mut.mutate(term_b_cloned);
                     }
-
                     return Ok(MutationResult::Mutated);
                 }
             }
         }
-
         Ok(MutationResult::Skipped)
-    },
-    constraints: TermConstraints
+    }
+}
+impl<S> libafl::bolts::tuples::Named for SwapMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<SwapMutator<S>>()
+    }
 }
 
-mutator! {
-    /// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
-    /// (such that types match). This only works if there is only a single child.
-    <>,
-    RemoveAndLiftMutator,
-    <M: Matcher>,
-    Trace<M>,
-     fn mutate(
+/// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
+
+/// (such that types match). This only works if there is only a single child.
+pub struct RemoveAndLiftMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> RemoveAndLiftMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for RemoveAndLiftMutator<S>
+where
+    S: HasRand,
+{
+    fn mutate(
         &mut self,
         state: &mut S,
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-
-        // Check whether there are grand_subterms with the same shape as a subterm.
-        // If we find such a term, then we can remove the subterm and lift the children to the `term`.
         let filter = |term: &Term<M>| match term {
             Term::Variable(_) => false,
             Term::Application(_, subterms) => subterms
@@ -115,12 +155,10 @@ mutator! {
                 })
                 .is_some(),
         };
-        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand) {
+        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
+        {
             match &mut to_mutate {
-                Term::Variable(_) => {
-                    // never reached as `filter` returns false for variables
-                    Ok(MutationResult::Skipped)
-                }
+                Term::Variable(_) => Ok(MutationResult::Skipped),
                 Term::Application(_, ref mut subterms) => {
                     if let Some(((subterm_index, _), grand_subterm)) = choose_iter(
                         subterms.filter_grand_subterms(|subterm, grand_subterm| {
@@ -130,30 +168,61 @@ mutator! {
                     ) {
                         let grand_subterm_cloned = grand_subterm.clone();
                         subterms.push(grand_subterm_cloned);
-                        // move last item to the position of the item we removed
                         subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }
-
                     Ok(MutationResult::Skipped)
                 }
             }
         } else {
             Ok(MutationResult::Skipped)
         }
-    },
-    constraints: TermConstraints
+    }
 }
 
-mutator! {
-    /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-    /// An example would be to replace a constant with another constant or the binary function
-    /// fn_add with fn_sub.
-    /// It can also replace any variable with a constant.
-    <>,
-    ReplaceMatchMutator,
-    <M: Matcher>,
-    Trace<M>,
+impl<S> libafl::bolts::tuples::Named for RemoveAndLiftMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<RemoveAndLiftMutator<S>>()
+    }
+}
+
+/// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
+
+/// An example would be to replace a constant with another constant or the binary function
+
+/// fn_add with fn_sub.
+
+/// It can also replace any variable with a constant.
+pub struct ReplaceMatchMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    signature: &'static Signature,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ReplaceMatchMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints, signature: &'static Signature) -> Self {
+        Self {
+            constraints,
+            signature,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for ReplaceMatchMutator<S>
+where
+    S: HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -161,19 +230,17 @@ mutator! {
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-
         if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             match &mut to_mutate {
                 Term::Variable(variable) => {
-                    // Replace variable with constant
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
-                        |(shape, _)| {
-                            variable.typ == shape.return_type && shape.is_constant()
-                        },
+                        |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
                         rand,
                     ) {
                         to_mutate.mutate(Term::Application(
-                            Function::new(shape.clone(), dynamic_fn.clone()), vec![]));
+                            Function::new(shape.clone(), dynamic_fn.clone()),
+                            Vec::new(),
+                        ));
                         Ok(MutationResult::Mutated)
                     } else {
                         Ok(MutationResult::Skipped)
@@ -182,7 +249,7 @@ mutator! {
                 Term::Application(func_mut, _) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| {
-                            func_mut.shape() != shape // do not mutate if we change the same function
+                            func_mut.shape() != shape
                                 && func_mut.shape().return_type == shape.return_type
                                 && func_mut.shape().argument_types == shape.argument_types
                         },
@@ -198,19 +265,46 @@ mutator! {
         } else {
             Ok(MutationResult::Skipped)
         }
-    },
-    constraints: TermConstraints,
-    signature: &'static Signature
+    }
 }
 
-mutator! {
-    /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
-    /// (such that types match). The new sub-term could come from another step which has a different recipe term.
-    <>,
-    ReplaceReuseMutator,
-    <M: Matcher>,
-    Trace<M>,
-    // TODO make sure that we do not replace a term with itself (performance improvement)
+impl<S> libafl::bolts::tuples::Named for ReplaceMatchMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ReplaceMatchMutator<S>>()
+    }
+}
+
+/// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
+
+/// (such that types match). The new sub-term could come from another step which has a different recipe term.
+pub struct ReplaceReuseMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> ReplaceReuseMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for ReplaceReuseMutator<S>
+where
+    S: HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -219,25 +313,54 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(trace, |term: &Term<M>| {
-                term.get_type_shape() == replacement.get_type_shape()
-            }, self.constraints, rand) {
+            if let Some(to_replace) = choose_term_filtered_mut(
+                trace,
+                |term: &Term<M>| term.get_type_shape() == replacement.get_type_shape(),
+                self.constraints,
+                rand,
+            ) {
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
         }
-
         Ok(MutationResult::Skipped)
-    },
-    constraints: TermConstraints
+    }
 }
 
-mutator! {
-    /// SKIP:  Removes an input step
-    <>,
-    SkipMutator,
-    <M: Matcher>,
-    Trace<M>,
+impl<S> libafl::bolts::tuples::Named for ReplaceReuseMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<ReplaceReuseMutator<S>>()
+    }
+}
+
+/// SKIP:  Removes an input step
+pub struct SkipMutator<S>
+where
+    S: HasRand,
+{
+    min_trace_length: usize,
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> SkipMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(min_trace_length: usize) -> Self {
+        Self {
+            min_trace_length,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for SkipMutator<S>
+where
+    S: HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -246,28 +369,50 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let steps = &mut trace.steps;
         let length = steps.len();
-
         if length <= self.min_trace_length {
-            // reached min step length
             return Ok(MutationResult::Skipped);
         }
-
         if length == 0 {
             return Ok(MutationResult::Skipped);
         }
         let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
-    },
-    min_trace_length: usize
+    }
+}
+impl<S> libafl::bolts::tuples::Named for SkipMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<SkipMutator<S>>()
+    }
 }
 
-mutator! {
-    /// REPEAT: Repeats an input which is already part of the trace
-    <>,
-    RepeatMutator,
-    <M: Matcher>,
-    Trace<M>,
+/// REPEAT: Repeats an input which is already part of the trace
+pub struct RepeatMutator<S>
+where
+    S: HasRand,
+{
+    max_trace_length: usize,
+    phantom_s: std::marker::PhantomData<S>,
+}
+impl<S> RepeatMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(max_trace_length: usize) -> Self {
+        Self {
+            max_trace_length,
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for RepeatMutator<S>
+where
+    S: HasRand,
+{
     fn mutate(
         &mut self,
         state: &mut S,
@@ -276,27 +421,31 @@ mutator! {
     ) -> Result<MutationResult, Error> {
         let steps = &trace.steps;
         let length = steps.len();
-
         if length >= self.max_trace_length {
-            // reached max step length
             return Ok(MutationResult::Skipped);
         }
-
         if length == 0 {
             return Ok(MutationResult::Skipped);
         }
-
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
         (&mut trace.steps).insert(insert_index, step);
         Ok(MutationResult::Mutated)
-    },
-    max_trace_length: usize
+    }
 }
+impl<S> libafl::bolts::tuples::Named for RepeatMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<RepeatMutator<S>>()
+    }
+}
+
 /// GENERATE: Generates a previously-unseen term using a term zoo
 pub struct GenerateMutator<S, M: Matcher>
 where
-    S: libafl::state::HasRand,
+    S: HasRand,
 {
     mutation_counter: u64,
     refresh_zoo_after: u64,
@@ -307,7 +456,7 @@ where
 }
 impl<S, M: Matcher> GenerateMutator<S, M>
 where
-    S: libafl::state::HasRand,
+    S: HasRand,
 {
     #[must_use]
     pub fn new(
@@ -329,7 +478,7 @@ where
 }
 impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for GenerateMutator<S, M>
 where
-    S: libafl::state::HasRand,
+    S: HasRand,
 {
     fn mutate(
         &mut self,

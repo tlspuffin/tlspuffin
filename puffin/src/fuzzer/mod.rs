@@ -7,7 +7,6 @@ use crate::trace::Trace;
 
 mod harness;
 mod libafl_setup;
-mod macros;
 pub mod sanitizer;
 mod stages;
 mod stats_monitor;
