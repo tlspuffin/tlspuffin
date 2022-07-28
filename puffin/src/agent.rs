@@ -5,12 +5,6 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
-use std::{
-    borrow::Borrow,
-    cell::{Ref, RefCell},
-    ops::Deref,
-    rc::Rc,
-};
 
 use serde::{Deserialize, Serialize};
 
@@ -184,7 +178,7 @@ impl<PB: ProtocolBehavior> Agent<PB> {
                 ))
             })?;
 
-        let mut stream = factory.create(context, descriptor)?;
+        let stream = factory.create(context, descriptor)?;
         let agent = Agent {
             name: descriptor.name,
             typ: descriptor.typ,

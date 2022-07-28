@@ -1,7 +1,6 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use itertools::Itertools;
 use puffin::algebra::error::FnError;
 
 use crate::tls::{
@@ -13,10 +12,7 @@ use crate::tls::{
         msgs::{
             codec::{Codec, Reader},
             enums::{CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion},
-            handshake::{
-                ClientExtension, HasServerExtensions, Random, ServerECDHParams, ServerExtension,
-                SessionID,
-            },
+            handshake::{ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID},
         },
     },
 };

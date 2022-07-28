@@ -215,7 +215,7 @@ impl KeyScheduleHandshake {
         hkdf::Prk,
         hkdf::Prk,
     ) {
-        let traffic = KeyScheduleTraffic::new(self.ks, hs_hash.as_ref(), key_log, client_random);
+        let traffic = KeyScheduleTraffic::new(self.ks, hs_hash, key_log, client_random);
 
         let client_secret = traffic.current_client_traffic_secret.clone();
         let server_secret = traffic.current_server_traffic_secret.clone();

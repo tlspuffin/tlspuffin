@@ -1,10 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use puffin::{
-    agent::{AgentDescriptor, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
-    claims::{Claim, GlobalClaimList},
-    put::PutDescriptor,
+    agent::AgentDescriptor, algebra::dynamic_function::TypeShape, claims::GlobalClaimList,
 };
 
 use crate::claims::TlsClaim;

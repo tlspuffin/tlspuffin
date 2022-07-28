@@ -8,13 +8,11 @@ use puffin::{
     put::PutDescriptor,
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
-    variable_data::VariableData,
 };
 
 use crate::{
     put_registry::{current_put, TLSProtocolBehavior, TLS_PUT_REGISTRY},
     query::TlsQueryMatcher,
-    static_certs::BOB_PRIVATE_KEY,
     tls::{
         fn_impl::*,
         rustls::msgs::{
@@ -2596,7 +2594,7 @@ pub mod tests {
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::put_registry::{CURRENT_PUT_NAME, TLS_PUT_REGISTRY};
+    use crate::put_registry::TLS_PUT_REGISTRY;
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2644,7 +2642,7 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
         if !TLS_PUT_REGISTRY
-            .find_factory(CURRENT_PUT_NAME)
+            .find_factory(crate::put_registry::CURRENT_PUT_NAME)
             .unwrap()
             .put_version()
             .contains("1.1.1j")
@@ -2841,9 +2839,8 @@ pub mod tests {
 
     pub mod serialization {
         use puffin::{
-            agent::AgentName,
             algebra::{set_deserialize_signature, Matcher},
-            trace::{Trace, TraceContext},
+            trace::Trace,
         };
         use test_log::test;
 
@@ -2944,18 +2941,14 @@ pub mod tests {
 
         use test_log::test;
 
-        use crate::tls::rustls::{
-            self,
-            msgs::{
-                base::Payload,
-                codec::Reader,
-                enums::{ContentType, HandshakeType, ProtocolVersion},
-                handshake::{
-                    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
-                    SessionID,
-                },
-                message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
+        use crate::tls::rustls::msgs::{
+            base::Payload,
+            codec::Reader,
+            enums::{ContentType, HandshakeType, ProtocolVersion},
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
             },
+            message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
         };
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {

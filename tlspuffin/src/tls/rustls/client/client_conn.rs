@@ -1,24 +1,6 @@
-use std::{
-    convert::TryFrom,
-    error::Error as StdError,
-    fmt, io,
-    marker::PhantomData,
-    mem,
-    ops::{Deref, DerefMut},
-    sync::Arc,
-};
+use std::{convert::TryFrom, error::Error as StdError, fmt};
 
-use crate::tls::rustls::{
-    error::Error,
-    kx::SupportedKxGroup,
-    msgs::{
-        enums::{CipherSuite, ProtocolVersion, SignatureScheme},
-        handshake::ClientExtension,
-    },
-    sign,
-    suites::SupportedCipherSuite,
-    verify,
-};
+use crate::tls::rustls::verify;
 
 /// Encodes ways a client can know the expected name of the server.
 ///

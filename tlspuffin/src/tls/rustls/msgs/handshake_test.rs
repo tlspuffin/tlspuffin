@@ -19,7 +19,7 @@ fn rejects_short_random() {
 fn reads_random() {
     let bytes = [0x01; 32];
     let mut rd = Reader::init(&bytes);
-    let rnd = Random::read(&mut rd).unwrap();
+    let _rnd = Random::read(&mut rd).unwrap();
     // println!("{:?}", rnd);
 
     assert!(!rd.any_left());
@@ -255,7 +255,7 @@ fn can_roundtrip_psk_offer() {
 
 #[test]
 fn can_roundtrip_certstatusreq_for_ocsp() {
-    let ext = ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp());
+    let _ext = ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp());
     // println!("{:?}", ext);
 
     let bytes = [
@@ -966,7 +966,7 @@ fn get_all_tls12_handshake_payloads() -> Vec<HandshakeMessagePayload> {
 
 #[test]
 fn can_roundtrip_all_tls12_handshake_payloads() {
-    for ref hm in get_all_tls12_handshake_payloads().iter() {
+    for hm in get_all_tls12_handshake_payloads().iter() {
         // println!("{:?}", hm.typ);
         let bytes = hm.get_encoding();
         let mut rd = Reader::init(&bytes);
@@ -1105,7 +1105,7 @@ fn get_all_tls13_handshake_payloads() -> Vec<HandshakeMessagePayload> {
 
 #[test]
 fn can_roundtrip_all_tls13_handshake_payloads() {
-    for ref hm in get_all_tls13_handshake_payloads().iter() {
+    for hm in get_all_tls13_handshake_payloads().iter() {
         // println!("{:?}", hm.typ);
         let bytes = hm.get_encoding();
         let mut rd = Reader::init(&bytes);

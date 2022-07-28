@@ -6,22 +6,19 @@ use ring::test::rand::FixedByteRandom;
 use crate::tls::rustls::{
     conn::ConnectionRandoms,
     kx::{KeyExchange, SupportedKxGroup, ALL_KX_GROUPS},
-    msgs::{
-        enums::{CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, NamedGroup},
-        handshake::{Random, ServerECDHParams},
-    },
-    suites, tls12,
+    msgs::{enums::NamedGroup, handshake::Random},
+    tls12,
     tls12::ConnectionSecrets,
 };
 
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };
     let ours = ring::agreement::EphemeralPrivateKey::generate(skxg.agreement_algorithm, &random)
-        .map_err(|err| FnError::Crypto("Failed to generate ephemeral key".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to generate ephemeral key".to_string()))?;
 
     let pubkey = ours
         .compute_public_key()
-        .map_err(|err| FnError::Crypto("Failed to compute public key".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to compute public key".to_string()))?;
 
     Ok(KeyExchange {
         skxg,
@@ -48,17 +45,17 @@ pub fn tls13_key_exchange(
     group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     // Shared Secret
-    let skxg = KeyExchange::choose(group.clone(), &ALL_KX_GROUPS)
+    let skxg = KeyExchange::choose(*group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared_secret = kx
         .complete(server_key_share, |secret| Ok(Vec::from(secret)))
-        .map_err(|err| FnError::Crypto("Failed to compute shared secret".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to compute shared secret".to_string()))?;
     Ok(shared_secret)
 }
 
 pub fn tls12_key_exchange(group: &NamedGroup) -> Result<KeyExchange, FnError> {
-    let skxg = KeyExchange::choose(group.clone(), &ALL_KX_GROUPS)
+    let skxg = KeyExchange::choose(*group, &ALL_KX_GROUPS)
         .ok_or_else(|| "Failed to find key exchange group".to_string())?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     Ok(kx)
@@ -87,8 +84,8 @@ pub fn tls12_new_secrets(
         .tls12()
         .ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
     let secrets =
-        ConnectionSecrets::from_key_exchange(kx, &server_ecdh_pubkey, None, randoms, suite)
-            .map_err(|err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;
+        ConnectionSecrets::from_key_exchange(kx, server_ecdh_pubkey, None, randoms, suite)
+            .map_err(|_err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;
     // master_secret is: 01 40 26 dd 53 3c 0a...
     Ok(secrets)
 }

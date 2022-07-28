@@ -1,14 +1,9 @@
-use std::{
-    convert::TryFrom,
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::{convert::TryFrom, io::Read};
 
 use super::{
     codec::Reader,
     enums::{AlertDescription, AlertLevel, HandshakeType},
-    message::{Message, OpaqueMessage, PlainMessage},
+    message::{Message, OpaqueMessage},
 };
 
 #[test]
@@ -35,7 +30,7 @@ fn construct_all_types() {
     for &bytes in samples.iter() {
         let m = OpaqueMessage::read(&mut Reader::init(bytes)).unwrap();
         // println!("m = {:?}", m);
-        let m = Message::try_from(m.into_plain_message());
+        let _m = Message::try_from(m.into_plain_message());
         // println!("m' = {:?}", m);
     }
 }

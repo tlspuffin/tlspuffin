@@ -1,18 +1,14 @@
-use crate::tls::rustls::tls12::{
-    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-    // TLS1.2 suites
-    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-    TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-    TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-};
 use crate::tls::rustls::{
     msgs::{
         enums::{CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme},
         handshake::DecomposedSignatureScheme,
     },
-    tls12::Tls12CipherSuite,
+    tls12::{
+        Tls12CipherSuite, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+    },
     tls13::{
         Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
         TLS13_CHACHA20_POLY1305_SHA256,
@@ -88,7 +84,7 @@ impl SupportedCipherSuite {
     pub fn tls12(&self) -> Option<&'static Tls12CipherSuite> {
         match self {
             SupportedCipherSuite::Tls12(inner) => Some(inner),
-            SupportedCipherSuite::Tls13(inner) => None,
+            SupportedCipherSuite::Tls13(_inner) => None,
         }
     }
 

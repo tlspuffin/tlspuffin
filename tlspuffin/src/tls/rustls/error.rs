@@ -215,7 +215,7 @@ mod tests {
 
         use crate::tls::rustls::msgs::enums::{AlertDescription, ContentType, HandshakeType};
 
-        let all = vec![
+        let _all = vec![
             Error::InappropriateMessage {
                 expect_types: vec![ContentType::Alert],
                 got_type: ContentType::Handshake,

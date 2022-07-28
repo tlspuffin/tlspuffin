@@ -1,10 +1,6 @@
 use std::{fmt, fmt::Formatter, io};
 
-use crate::{
-    agent::AgentName,
-    algebra::error::FnError,
-    claims::{Claim, ClaimList},
-};
+use crate::algebra::error::FnError;
 
 #[derive(Debug, Clone)]
 pub enum Error {

@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, fmt::Debug, marker::PhantomData, path::PathBuf};
+use std::{fmt, path::PathBuf};
 
 use libafl::{
     bolts::{
@@ -7,7 +7,7 @@ use libafl::{
         rands::{Rand, StdRand},
         shmem::{ShMemProvider, StdShMemProvider},
         tuples::tuple_list,
-        AsRefIterator, HasLen,
+        HasLen,
     },
     corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
     events::{
@@ -22,16 +22,15 @@ use libafl::{
     },
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::Input,
-    monitors::{tui::TuiMonitor, MultiMonitor},
+    monitors::tui::TuiMonitor,
     mutators::MutatorsTuple,
-    observers::{HitcountsMapObserver, MapObserver, ObserversTuple, StdMapObserver, TimeObserver},
+    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    state::{HasClientPerfMonitor, HasCorpus, HasExecutions, HasNamedMetadata, HasRand, StdState},
+    state::{HasCorpus, HasRand, StdState},
     Error, Evaluator,
 };
 use log::{info, warn};
 use log4rs::Handle;
-use serde::{de::DeserializeOwned, Serialize};
 
 use super::harness;
 use crate::{
@@ -43,7 +42,6 @@ use crate::{
     },
     log::create_file_config,
     protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
     trace::Trace,
 };
 

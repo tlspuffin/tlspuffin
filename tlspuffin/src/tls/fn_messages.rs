@@ -17,7 +17,6 @@ use crate::{
         alert::AlertMessagePayload,
         base::{Payload, PayloadU16, PayloadU24, PayloadU8},
         ccs::ChangeCipherSpecPayload,
-        codec::Codec,
         enums::*,
         handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
         heartbeat::HeartbeatPayload,
@@ -359,7 +358,7 @@ pub fn fn_certificate_verify(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: scheme.clone(),
+                scheme: *scheme,
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),

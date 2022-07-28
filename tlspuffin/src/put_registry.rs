@@ -1,11 +1,10 @@
 use puffin::{
-    agent::{AgentDescriptor, AgentName},
     algebra::{signature::Signature, Matcher},
     error::Error,
     io::MessageResult,
     protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
-    put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, PutRegistry},
+    put::{PutDescriptor, PutName},
+    put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -16,8 +15,7 @@ use crate::{
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
     tls::{
-        rustls, rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy,
-        TLS_SIGNATURE,
+        rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE,
     },
 };
 
@@ -59,7 +57,7 @@ impl OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
     fn into_message(self) -> Result<msgs::message::Message, Error> {
         use std::convert::TryFrom;
         crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
-            .map_err(|err| Error::Stream("Failed to create message".to_string()))
+            .map_err(|_err| Error::Stream("Failed to create message".to_string()))
     }
 
     fn debug(&self, info: &str) {
@@ -102,7 +100,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
-        Vec::from(create_corpus())
+        create_corpus()
     }
 
     fn extract_query_matcher(

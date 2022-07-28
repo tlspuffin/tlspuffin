@@ -194,7 +194,7 @@ nyi_fn!();
 nyi_fn!();
 /// EllipticCurves => 0x000a,
 pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![group.clone()]))
+    Ok(ClientExtension::NamedGroups(vec![*group]))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
@@ -488,7 +488,7 @@ pub fn fn_key_share_extension(
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: group.clone(),
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }]))
 }
@@ -502,14 +502,14 @@ pub fn fn_key_share_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
-        group: group.clone(),
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }))
 }
 pub fn fn_key_share_hello_retry_extension(
     group: &NamedGroup,
 ) -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(group.clone()))
+    Ok(HelloRetryExtension::KeyShare(*group))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();

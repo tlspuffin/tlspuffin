@@ -4,20 +4,14 @@
 //!
 //! And specific implementations of PUT for the different PUTs.
 use std::{
-    any::TypeId,
-    cell::RefCell,
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    ops::DerefMut,
-    rc::Rc,
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
-    claims::{Claim, GlobalClaimList},
+    agent::{AgentDescriptor, AgentName},
     error::Error,
     io::Stream,
     protocol::ProtocolBehavior,

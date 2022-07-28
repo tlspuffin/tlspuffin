@@ -1,5 +1,3 @@
-use std::{any::Any, fmt::Debug, hash::Hash};
-
 use itertools::Itertools;
 use puffin::{
     agent::{AgentType, TLSVersion},
@@ -67,7 +65,8 @@ impl SecurityViolationPolicy<TlsClaim> for TlsSecurityViolationPolicy {
                             return Some("Mismatching session ids");
                         }
 
-                        if client.available_ciphers.len() > 0 && server.available_ciphers.len() > 0
+                        if !client.available_ciphers.is_empty()
+                            && !server.available_ciphers.is_empty()
                         {
                             let best_cipher = {
                                 let mut cipher = None;

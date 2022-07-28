@@ -8,7 +8,7 @@ use crate::tls::rustls::{
     kx,
     msgs::{
         codec::{Codec, Reader},
-        enums::{AlertDescription, CipherSuite, ContentType, SignatureScheme},
+        enums::{CipherSuite, SignatureScheme},
         handshake::KeyExchangeAlgorithm,
     },
     suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite},

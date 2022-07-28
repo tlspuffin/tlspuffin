@@ -11,21 +11,18 @@ use crate::tls::{
     rustls::{
         conn::Side,
         hash_hs::HandshakeHash,
-        key,
         key::Certificate,
         msgs::{
             base::PayloadU8,
             codec::{Codec, Reader},
-            enums::{
-                CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, HandshakeType, NamedGroup,
-            },
+            enums::{HandshakeType, NamedGroup},
             handshake::{
                 CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
                 Random, ServerECDHParams,
             },
             message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
         },
-        suites, tls12,
+        tls12,
         tls13::key_schedule::KeyScheduleEarly,
     },
 };
@@ -75,9 +72,9 @@ pub fn fn_decrypt_handshake(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
     Message::try_from(message)
-        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -115,11 +112,11 @@ pub fn fn_decrypt_application(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|err| {
+        .map_err(|_err| {
             FnError::Crypto("Failed to decrypt it fn_decrypt_application".to_string())
         })?;
     Message::try_from(message)
-        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_encrypt_handshake(
@@ -139,7 +136,7 @@ pub fn fn_encrypt_handshake(
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
     Ok(application_data)
 }
 
@@ -166,7 +163,7 @@ pub fn fn_encrypt_application(
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
-        .map_err(|err| {
+        .map_err(|_err| {
             FnError::Crypto("Failed to encrypt it fn_encrypt_application".to_string())
         })?;
     Ok(application_data)
@@ -325,7 +322,7 @@ pub fn fn_encrypt12(
     });
     let encrypted = encrypter
         .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
 }
 

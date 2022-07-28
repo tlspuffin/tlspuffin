@@ -89,7 +89,7 @@ pub struct HandshakeHash {
 
 impl HandshakeHash {
     pub fn new(alg: &'static digest::Algorithm) -> HandshakeHash {
-        let mut ctx = digest::Context::new(alg);
+        let ctx = digest::Context::new(alg);
         HandshakeHash {
             ctx,
             client_auth: None,
@@ -99,7 +99,7 @@ impl HandshakeHash {
 
     /// Creates a Handshake hash which return the same override hash always
     pub fn new_override(static_buffer: Vec<u8>, alg: &'static digest::Algorithm) -> HandshakeHash {
-        let mut ctx = digest::Context::new(alg);
+        let ctx = digest::Context::new(alg);
         HandshakeHash {
             ctx,
             client_auth: None,
@@ -173,7 +173,7 @@ impl HandshakeHash {
 
     pub fn get_current_hash_raw(&self) -> Vec<u8> {
         if let Some(static_buffer) = &self.override_buffer {
-            return (*static_buffer).clone();
+            (*static_buffer).clone()
         } else {
             Vec::from(self.get_current_hash().as_ref())
         }

@@ -16,18 +16,11 @@
 use core::fmt;
 use std::{
     any::{Any, TypeId},
-    borrow::{Borrow, BorrowMut},
-    cell::{Ref, RefCell, RefMut},
-    convert::TryFrom,
-    fmt::{Debug, Display, Formatter},
+    fmt::Debug,
     hash::Hash,
     marker::PhantomData,
-    ops::{Deref, DerefMut},
-    rc::Rc,
-    slice::Iter,
 };
 
-use itertools::Itertools;
 use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 

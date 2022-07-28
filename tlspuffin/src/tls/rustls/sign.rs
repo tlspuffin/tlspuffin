@@ -2,7 +2,6 @@ use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
 
 use ring::{
     io::der,
-    rand,
     rand::SecureRandom,
     signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
 };
@@ -427,7 +426,7 @@ impl SigningKey for Ed25519SigningKey {
     fn choose_scheme(
         &self,
         offered: &[SignatureScheme],
-        rng: Box<dyn SecureRandom + Send + Sync>,
+        _rng: Box<dyn SecureRandom + Send + Sync>,
     ) -> Option<Box<dyn Signer>> {
         if offered.contains(&self.scheme) {
             Some(Box::new(Ed25519Signer {

@@ -1,19 +1,9 @@
-use std::{
-    fmt::{Debug, Display},
-    slice::Iter,
-};
-
 use crate::{
-    agent::{AgentDescriptor, AgentName},
-    algebra::{signature::Signature, Matcher},
-    claims::Claim,
+    agent::AgentDescriptor,
     error::Error,
-    io,
-    io::MessageResult,
     protocol::ProtocolBehavior,
-    put::{Put, PutDescriptor, PutName},
-    trace::{Trace, TraceContext},
-    variable_data::VariableData,
+    put::{Put, PutName},
+    trace::TraceContext,
 };
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
