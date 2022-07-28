@@ -2,7 +2,13 @@
 name = "sshpuffin"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 
-tlspuffin = { path = "../tlspuffin", default-features = false }
+puffin = { path = "../puffin" }
+
+
+[build-dependencies]
+cmake = "0.1.48"
+bindgen = "0.60.1"

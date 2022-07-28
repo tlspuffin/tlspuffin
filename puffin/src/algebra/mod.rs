@@ -28,9 +28,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{fmt::Debug, hash::Hash};
+use std::{
+    fmt::{Debug, Formatter},
+    hash::{Hash, Hasher},
+};
 
 use once_cell::sync::OnceCell;
+use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use self::term::*;
 use crate::algebra::signature::Signature;
@@ -86,6 +90,19 @@ pub trait Matcher:
     fn specificity(&self) -> u32;
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize)]
+pub struct AnyMatcher;
+
+impl Matcher for AnyMatcher {
+    fn matches(&self, matcher: &Self) -> bool {
+        true
+    }
+
+    fn specificity(&self) -> u32 {
+        0
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
@@ -99,7 +116,7 @@ pub mod test_signature {
 
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, Matcher, Term},
+        algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Matcher, Term},
         claims::{Claim, SecurityViolationPolicy},
         define_signature,
         error::Error,
@@ -335,27 +352,8 @@ pub mod test_signature {
         fn_seq_1
     );
 
-    #[derive(Debug, Clone, Hash, Serialize, Deserialize, PartialEq)]
-    pub struct TestQueryMatcher;
-
-    impl Display for TestQueryMatcher {
-        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-            panic!("Not implemented for test stub");
-        }
-    }
-
-    impl Matcher for TestQueryMatcher {
-        fn matches(&self, _matcher: &Self) -> bool {
-            panic!("Not implemented for test stub");
-        }
-
-        fn specificity(&self) -> u32 {
-            panic!("Not implemented for test stub");
-        }
-    }
-
-    pub type TestTrace = Trace<TestQueryMatcher>;
-    pub type TestTerm = Term<TestQueryMatcher>;
+    pub type TestTrace = Trace<AnyMatcher>;
+    pub type TestTerm = Term<AnyMatcher>;
 
     pub struct TestClaim;
 
