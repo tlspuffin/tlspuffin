@@ -241,7 +241,7 @@ mod test {
 
     #[test]
     fn test_scs_is_debug() {
-        println!("{:?}", ALL_CIPHER_SUITES);
+        // println!("{:?}", ALL_CIPHER_SUITES);
     }
 
     #[test]

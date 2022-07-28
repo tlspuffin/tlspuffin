@@ -85,10 +85,6 @@ impl SslMethod {
     }
 }
 
-enum AcceptState {
-    TLS13_ACCEPT_SECOND_REPLY_DONE = 1,
-}
-
 pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {
     SslContextRef::from_ptr(ctx)
         .drop_ex_data::<ExtraUserDataRegistry>(EXTRA_USER_DATA_REGISTRY_INDEX);

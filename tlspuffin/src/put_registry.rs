@@ -1,9 +1,9 @@
 use puffin::{
     agent::{AgentDescriptor, AgentName},
-    algebra::signature::Signature,
+    algebra::{signature::Signature, Matcher},
     error::Error,
     io::MessageResult,
-    protocol::{MessageDeframer, ProtocolBehavior},
+    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
     put::{Put, PutDescriptor, PutName},
     put_registry::{Factory, PutRegistry},
     trace::Trace,
@@ -12,6 +12,7 @@ use puffin::{
 
 use crate::{
     claims::TlsClaim,
+    debug::{debug_message_with_info, debug_opaque_message_with_info},
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
     tls::{
@@ -20,12 +21,12 @@ use crate::{
     },
 };
 
-impl puffin::protocol::Message<msgs::message::OpaqueMessage> for msgs::message::Message {
+impl Message<msgs::message::OpaqueMessage> for msgs::message::Message {
     fn create_opaque(&self) -> msgs::message::OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
     fn debug(&self, info: &str) {
-        // TODO
+        debug_message_with_info(info, self);
     }
 }
 
@@ -33,7 +34,7 @@ impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
     for msgs::deframer::MessageDeframer
 {
     fn new() -> Self {
-        MessageDeframer::new()
+        msgs::deframer::MessageDeframer::new()
     }
     fn pop_frame(&mut self) -> Option<msgs::message::OpaqueMessage> {
         self.frames.pop_front()
@@ -50,23 +51,23 @@ impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
     }
 }
 
-impl puffin::protocol::OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
+impl OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
     fn encode(&self) -> Vec<u8> {
         self.clone().encode()
     }
 
-    fn into_message(self) -> Result<msgs::message::Message, puffin::error::Error> {
+    fn into_message(self) -> Result<msgs::message::Message, Error> {
         use std::convert::TryFrom;
         crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
-            .map_err(|err| puffin::error::Error::Stream("Failed to create message".to_string()))
+            .map_err(|err| Error::Stream("Failed to create message".to_string()))
     }
 
     fn debug(&self, info: &str) {
-        // TODO
+        debug_opaque_message_with_info(info, self);
     }
 }
 
-impl puffin::algebra::Matcher for msgs::enums::HandshakeType {
+impl Matcher for msgs::enums::HandshakeType {
     fn matches(&self, matcher: &Self) -> bool {
         matcher == self
     }
@@ -82,9 +83,9 @@ pub struct TLSProtocolBehavior;
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
-    type Message = rustls::msgs::message::Message;
-    type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
-    type MessageDeframer = rustls::msgs::deframer::MessageDeframer;
+    type Message = msgs::message::Message;
+    type OpaqueMessage = msgs::message::OpaqueMessage;
+    type MessageDeframer = msgs::deframer::MessageDeframer;
 
     type Matcher = TlsQueryMatcher;
 

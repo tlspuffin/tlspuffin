@@ -34,8 +34,8 @@ fn construct_all_types() {
     ];
     for &bytes in samples.iter() {
         let m = OpaqueMessage::read(&mut Reader::init(bytes)).unwrap();
-        println!("m = {:?}", m);
+        // println!("m = {:?}", m);
         let m = Message::try_from(m.into_plain_message());
-        println!("m' = {:?}", m);
+        // println!("m' = {:?}", m);
     }
 }
