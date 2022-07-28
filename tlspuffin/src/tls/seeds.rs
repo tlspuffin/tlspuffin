@@ -11,7 +11,7 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::{current_put, TLSProtocolBehavior, TLS_PUT_REGISTRY},
+    put_registry::{TLSProtocolBehavior, TLS_PUT_REGISTRY},
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -23,7 +23,6 @@ use crate::{
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace<TlsQueryMatcher>;
     fn build_trace(self) -> Trace<TlsQueryMatcher>;
     fn fn_name(&self) -> &'static str;
 }
@@ -41,17 +40,12 @@ impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
 
 impl<F> SeedHelper<(AgentName, AgentName)> for F
 where
-    F: Fn(AgentName, AgentName, PutDescriptor, PutDescriptor) -> Trace<TlsQueryMatcher>,
+    F: Fn(AgentName, AgentName) -> Trace<TlsQueryMatcher>,
 {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace<TlsQueryMatcher> {
+    fn build_trace(self) -> Trace<TlsQueryMatcher> {
         let agent_a = AgentName::first();
         let agent_b = agent_a.next();
-
-        (self)(agent_a, agent_b, puts[0].clone(), puts[1].clone())
-    }
-
-    fn build_trace(self) -> Trace<TlsQueryMatcher> {
-        self.build_trace_with_puts(&[current_put(), current_put()])
+        (self)(agent_a, agent_b)
     }
 
     fn fn_name(&self) -> &'static str {
@@ -61,16 +55,12 @@ where
 
 impl<F> SeedHelper<AgentName> for F
 where
-    F: Fn(AgentName, PutDescriptor) -> Trace<TlsQueryMatcher>,
+    F: Fn(AgentName) -> Trace<TlsQueryMatcher>,
 {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace<TlsQueryMatcher> {
+    fn build_trace(self) -> Trace<TlsQueryMatcher> {
         let agent_a = AgentName::first();
 
-        (self)(agent_a, puts[0].clone())
-    }
-
-    fn build_trace(self) -> Trace<TlsQueryMatcher> {
-        self.build_trace_with_puts(&[current_put()])
+        (self)(agent_a)
     }
 
     fn fn_name(&self) -> &'static str {
@@ -78,12 +68,7 @@ where
     }
 }
 
-pub fn seed_successful_client_auth(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -91,7 +76,6 @@ pub fn seed_successful_client_auth(
                 name: client,
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Client,
-                put_descriptor: client_put,
                 client_authentication: true,
                 ..AgentDescriptor::default()
             },
@@ -99,7 +83,6 @@ pub fn seed_successful_client_auth(
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
-                put_descriptor: server_put,
                 client_authentication: true,
                 ..AgentDescriptor::default()
             },
@@ -230,17 +213,12 @@ pub fn seed_successful_client_auth(
     }
 }
 
-pub fn seed_successful(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -336,17 +314,12 @@ pub fn seed_successful(
 }
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
-pub fn seed_successful_mitm(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -447,10 +420,8 @@ pub fn seed_successful_mitm(
 pub fn seed_successful12_with_tickets(
     client: AgentName,
     server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
 ) -> Trace<TlsQueryMatcher> {
-    let mut trace = seed_successful12(client, server, client_put, server_put);
+    let mut trace = seed_successful12(client, server);
     // NewSessionTicket, Server -> Client
     // wolfSSL 4.4.0 does not support tickets in TLS 1.2
     trace.steps.insert(
@@ -482,17 +453,12 @@ pub fn seed_successful12_with_tickets(
     trace
 }
 
-pub fn seed_successful12(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -613,13 +579,8 @@ pub fn seed_successful12(
     }
 }
 
-pub fn seed_successful_with_ccs(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
-    let mut trace = seed_successful(client, server, client_put, server_put);
+pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+    let mut trace = seed_successful(client, server);
 
     // CCS Server -> Client
     trace.steps.insert(
@@ -652,10 +613,8 @@ pub fn seed_successful_with_ccs(
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
 ) -> Trace<TlsQueryMatcher> {
-    let mut trace = seed_successful_with_ccs(client, server, client_put, server_put);
+    let mut trace = seed_successful_with_ccs(client, server);
 
     trace.steps.push(OutputAction::new_step(server));
     // Ticket
@@ -685,10 +644,7 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
-pub fn seed_server_attacker_full(
-    client: AgentName,
-    client_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     let curve = term! {
         fn_get_any_client_curve(
             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
@@ -791,7 +747,6 @@ pub fn seed_server_attacker_full(
             name: client,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Client,
-            put_descriptor: client_put,
             ..AgentDescriptor::default()
         }],
         steps: vec![
@@ -872,10 +827,7 @@ pub fn seed_server_attacker_full(
     trace
 }
 
-pub fn seed_client_attacker_auth(
-    server: AgentName,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -968,7 +920,6 @@ pub fn seed_client_attacker_auth(
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1036,7 +987,7 @@ pub fn seed_client_attacker_auth(
 }
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
-pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1124,7 +1075,6 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1192,7 +1142,7 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
 }
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
-pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1262,7 +1212,6 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1314,10 +1263,7 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
 }
 
 /// A simplified version of [`seed_cve_2022_25640`]
-pub fn seed_cve_2022_25640_simple(
-    server: AgentName,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1362,7 +1308,6 @@ pub fn seed_cve_2022_25640_simple(
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1397,10 +1342,7 @@ pub fn seed_cve_2022_25640_simple(
     trace
 }
 
-pub fn seed_client_attacker(
-    server: AgentName,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1441,11 +1383,7 @@ pub fn seed_client_attacker(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1478,17 +1416,11 @@ pub fn seed_client_attacker(
     trace
 }
 
-pub fn seed_client_attacker12(
-    server: AgentName,
-    client_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
-    _seed_client_attacker12(server, client_put).0
+pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
+    _seed_client_attacker12(server).0
 }
 
-fn _seed_client_attacker12(
-    server: AgentName,
-    server_put: PutDescriptor,
-) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
+fn _seed_client_attacker12(server: AgentName) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1583,11 +1515,7 @@ fn _seed_client_attacker12(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_2,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
         steps: vec![
             Step {
                 agent: server,
@@ -1630,8 +1558,8 @@ fn _seed_client_attacker12(
     (trace, client_verify_data)
 }
 
-pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace<TlsQueryMatcher> {
-    let (mut trace, client_verify_data) = _seed_client_attacker12(server, server_put);
+pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
     let renegotiation_client_hello = term! {
           fn_client_hello(
@@ -1704,12 +1632,7 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
     trace
 }
 
-pub fn seed_heartbleed(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1737,8 +1660,8 @@ pub fn seed_heartbleed(
     let trace = Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             Step {
@@ -1762,17 +1685,12 @@ pub fn seed_heartbleed(
     trace
 }
 
-pub fn seed_freak(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
+pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -1866,10 +1784,8 @@ pub fn seed_freak(
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
 ) -> Trace<TlsQueryMatcher> {
-    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -1959,11 +1875,7 @@ pub fn seed_session_resumption_dhe(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1998,10 +1910,8 @@ pub fn seed_session_resumption_dhe(
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
 ) -> Trace<TlsQueryMatcher> {
-    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -2091,11 +2001,7 @@ pub fn seed_session_resumption_ke(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -2127,17 +2033,13 @@ pub fn seed_session_resumption_ke(
     trace
 }
 
-pub fn seed_client_attacker_full(
-    server: AgentName,
-    put_descriptor: PutDescriptor,
-) -> Trace<TlsQueryMatcher> {
-    _seed_client_attacker_full(server, put_descriptor).0
+pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
+    _seed_client_attacker_full(server).0
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 fn _seed_client_attacker_full(
     server: AgentName,
-    put_descriptor: PutDescriptor,
 ) -> (
     Trace<TlsQueryMatcher>,
     Term<TlsQueryMatcher>,
@@ -2279,11 +2181,7 @@ fn _seed_client_attacker_full(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            put_descriptor,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -2346,15 +2244,13 @@ fn _seed_client_attacker_full(
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
 ) -> Trace<TlsQueryMatcher> {
     let (
         initial_handshake,
         server_hello_transcript,
         server_finished_transcript,
         client_finished_transcript,
-    ) = _seed_client_attacker_full(initial_server, initial_server_put);
+    ) = _seed_client_attacker_full(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
@@ -2492,11 +2388,7 @@ pub fn seed_session_resumption_dhe_full(
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -2594,7 +2486,7 @@ pub mod tests {
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::put_registry::TLS_PUT_REGISTRY;
+    use crate::put_registry::{DEFAULT_PUT_FACTORY, TLS_PUT_REGISTRY};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2642,8 +2534,7 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
         if !TLS_PUT_REGISTRY
-            .find_factory(crate::put_registry::CURRENT_PUT_NAME)
-            .unwrap()
+            .default_factory()
             .put_version()
             .contains("1.1.1j")
         {
