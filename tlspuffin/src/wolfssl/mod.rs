@@ -257,7 +257,7 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
     }
 
     fn shutdown(&mut self) -> String {
-        panic!("Unsupported with OpenSSL PUT")
+        panic!("Unsupported with WolfSSL PUT")
     }
 
     fn descriptor(&self) -> &AgentDescriptor {

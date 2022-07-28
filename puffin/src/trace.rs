@@ -18,6 +18,7 @@ use std::{
     any::{Any, TypeId},
     borrow::{Borrow, BorrowMut},
     cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
     convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     hash::Hash,
@@ -40,7 +41,8 @@ use crate::{
     error::Error,
     io::MessageResult,
     protocol::{Message, OpaqueMessage, ProtocolBehavior},
-    put_registry::PutRegistry,
+    put::PutDescriptor,
+    put_registry::{Factory, PutRegistry},
     variable_data::VariableData,
 };
 
@@ -92,6 +94,7 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     knowledge: Vec<Knowledge<PB::Matcher>>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
+    put_descriptors: HashMap<AgentName, PutDescriptor>,
     put_registry: &'static PutRegistry<PB>,
     phantom: PhantomData<PB>,
 }
@@ -106,6 +109,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge: vec![],
             agents: vec![],
             claims,
+            put_descriptors: Default::default(),
             put_registry,
             phantom: Default::default(),
         }
@@ -254,6 +258,29 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         })
     }
 
+    /// Gets the PUT which should be used for all agents
+    pub fn put_descriptor(&self, agent_descriptor: &AgentDescriptor) -> PutDescriptor {
+        self.put_descriptors
+            .get(&agent_descriptor.name)
+            .cloned()
+            .unwrap_or_else(|| {
+                let factory = (self.put_registry.default)();
+                PutDescriptor {
+                    name: factory.put_name(),
+                    options: Default::default(),
+                }
+            })
+    }
+
+    /// Makes agents use the non-default PUT
+    pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
+        self.put_descriptors.insert(agent_name, put_descriptor);
+    }
+
+    pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
+        self.put_descriptors.extend(descriptors.iter().cloned());
+    }
+
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
             agent.reset(agent.name)?;
@@ -269,6 +296,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
 
         true
+    }
+
+    pub fn default_put(&self) -> Box<dyn Factory<PB>> {
+        self.put_registry.default_factory()
     }
 }
 
@@ -342,6 +373,22 @@ impl<M: Matcher> Trace<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut ctx = TraceContext::new(put_registry);
+        self.execute(&mut ctx).unwrap();
+        ctx
+    }
+
+    pub fn execute_with_puts<PB>(
+        &self,
+        put_registry: &'static PutRegistry<PB>,
+        descriptors: &[(AgentName, PutDescriptor)],
+    ) -> TraceContext<PB>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        let mut ctx = TraceContext::new(put_registry);
+
+        ctx.set_non_default_puts(descriptors);
+
         self.execute(&mut ctx).unwrap();
         ctx
     }

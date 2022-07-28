@@ -20,8 +20,6 @@
 //! use tlspuffin::put_registry::TLS_PUT_REGISTRY;
 //! use tlspuffin::query::TlsQueryMatcher;
 //!
-//! # let client_put = tlspuffin::put_registry::current_put();
-//! # let server_put = tlspuffin::put_registry::current_put();
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -29,8 +27,8 @@
 //! let trace = Trace {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3, client_put),
-//!         AgentDescriptor::new_server(server, V1_3, server_put),
+//!         AgentDescriptor::new_client(client, V1_3),
+//!         AgentDescriptor::new_server(server, V1_3),
 //!     ],
 //!     steps: vec![
 //!             OutputAction::new_step(client),

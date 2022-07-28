@@ -22,6 +22,7 @@ pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB: 'static> {
     pub factories: &'static [fn() -> Box<dyn Factory<PB>>],
+    pub default: fn() -> Box<dyn Factory<PB>>,
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
@@ -42,6 +43,10 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             let factory = func();
             factory.make_deterministic();
         }
+    }
+
+    pub fn default_factory(&self) -> Box<dyn Factory<PB>> {
+        (self.default)()
     }
 
     pub fn find_factory(&self, put_name: PutName) -> Option<Box<dyn Factory<PB>>> {

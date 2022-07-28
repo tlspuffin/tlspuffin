@@ -105,10 +105,10 @@ pub mod test_signature {
         error::Error,
         io::MessageResult,
         protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
-        put::{PutDescriptor, PutName, PutOptions},
+        put::{Put, PutDescriptor, PutName, PutOptions},
         put_registry::{Factory, PutRegistry, DUMMY_PUT},
         term,
-        trace::{Action, InputAction, Step, Trace},
+        trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
     };
 
@@ -278,14 +278,7 @@ pub mod test_signature {
 
         Trace {
             prior_traces: vec![],
-            descriptors: vec![AgentDescriptor::new_server(
-                server,
-                TLSVersion::V1_2,
-                PutDescriptor {
-                    name: DUMMY_PUT,
-                    options: PutOptions::default(),
-                },
-            )],
+            descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
             steps: vec![
                 Step {
                     agent: server,
@@ -515,6 +508,30 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
     }
+
+    pub struct TestFactory;
+
+    impl Factory<TestProtocolBehavior> for TestFactory {
+        fn create(
+            &self,
+            context: &TraceContext<TestProtocolBehavior>,
+            agent_descriptor: &AgentDescriptor,
+        ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
+            panic!("Not implemented for test stub");
+        }
+
+        fn put_name(&self) -> PutName {
+            panic!("Not implemented for test stub");
+        }
+
+        fn put_version(&self) -> &'static str {
+            panic!("Not implemented for test stub");
+        }
+
+        fn make_deterministic(&self) {
+            panic!("Not implemented for test stub");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -530,7 +547,7 @@ mod tests {
             atoms::Variable, dynamic_function::TypeShape, error::FnError, signature::Signature,
             Term,
         },
-        put_registry::PutRegistry,
+        put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},
     };
@@ -603,8 +620,15 @@ mod tests {
         );
 
         //println!("{}", generated_term);
-        let mut context =
-            TraceContext::new(&PutRegistry::<TestProtocolBehavior> { factories: &[] });
+
+        fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory)
+        }
+
+        let mut context = TraceContext::new(&PutRegistry::<TestProtocolBehavior> {
+            factories: &[dummy_factory],
+            default: dummy_factory,
+        });
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),
             matcher: None,
