@@ -1,9 +1,10 @@
 use puffin::{algebra::Matcher, error::Error, io::MessageResult};
-use rustls::msgs::{
+use serde::{Deserialize, Serialize};
+
+use crate::tls::rustls::msgs::{
     enums::{ContentType, HandshakeType},
     message::{Message, MessagePayload, OpaqueMessage},
 };
-use serde::{Deserialize, Serialize};
 
 /// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].

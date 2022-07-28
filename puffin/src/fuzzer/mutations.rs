@@ -769,10 +769,7 @@ pub mod util {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::{HashMap, HashSet},
-        fmt::{Display, Formatter},
-    };
+    use std::collections::{HashMap, HashSet};
 
     use libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -780,21 +777,17 @@ mod tests {
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
-    use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{
-        agent::{AgentDescriptor, AgentName, TLSVersion},
+        agent::AgentName,
         algebra::{
             dynamic_function::DescribableFunction,
             test_signature::{TestQueryMatcher, TestTrace, *},
             Term,
         },
         graphviz::write_graphviz,
-        put::{PutDescriptor, PutOptions},
-        put_registry::DUMMY_PUT,
-        term,
-        trace::{Action, InputAction, Step, Trace},
+        trace::{Action, Step, Trace},
     };
 
     fn create_state(
@@ -1027,7 +1020,7 @@ mod tests {
             }
         }
 
-        let mut trace = setup_simple_trace();
+        let trace = setup_simple_trace();
         let term_size = trace.count_functions();
 
         let mut rand = StdRand::with_seed(45);

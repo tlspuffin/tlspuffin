@@ -18,7 +18,6 @@
 //! *outbound channel* of Bob.
 
 use std::{
-    convert::TryFrom,
     io,
     io::{Read, Write},
     marker::PhantomData,
@@ -90,7 +89,7 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
         {
             let first_message = deframer.pop_frame();
 
-            let mut rest_buffer: Vec<u8> = deframer.encode();
+            let rest_buffer: Vec<u8> = deframer.encode();
 
             self.outbound.set_position(0);
             self.outbound.get_mut().clear();

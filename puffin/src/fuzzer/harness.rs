@@ -1,13 +1,11 @@
 use libafl::executors::ExitKind;
 use log::{info, trace, warn};
-use once_cell::sync::Lazy;
 use rand::Rng;
 
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
 

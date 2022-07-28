@@ -1,10 +1,9 @@
 use puffin::{
-    agent::{AgentDescriptor, AgentName},
-    algebra::signature::Signature,
+    algebra::{signature::Signature, Matcher},
     error::Error,
     io::MessageResult,
-    protocol::{MessageDeframer, ProtocolBehavior},
-    put::{Put, PutDescriptor, PutName},
+    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    put::{PutDescriptor, PutName},
     put_registry::{Factory, PutRegistry},
     trace::Trace,
     variable_data::VariableData,
@@ -12,10 +11,69 @@ use puffin::{
 
 use crate::{
     claims::TlsClaim,
+    debug::{debug_message_with_info, debug_opaque_message_with_info},
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
-    tls::{seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
+    tls::{
+        rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE,
+    },
 };
+
+impl Message<msgs::message::OpaqueMessage> for msgs::message::Message {
+    fn create_opaque(&self) -> msgs::message::OpaqueMessage {
+        msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
+    }
+    fn debug(&self, info: &str) {
+        debug_message_with_info(info, self);
+    }
+}
+
+impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
+    for msgs::deframer::MessageDeframer
+{
+    fn new() -> Self {
+        msgs::deframer::MessageDeframer::new()
+    }
+    fn pop_frame(&mut self) -> Option<msgs::message::OpaqueMessage> {
+        self.frames.pop_front()
+    }
+    fn encode(&self) -> Vec<u8> {
+        let mut buffer: Vec<u8> = Vec::new();
+        for message in &self.frames {
+            buffer.append(&mut message.clone().encode());
+        }
+        buffer
+    }
+    fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {
+        self.read(rd)
+    }
+}
+
+impl OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
+    fn encode(&self) -> Vec<u8> {
+        self.clone().encode()
+    }
+
+    fn into_message(self) -> Result<msgs::message::Message, Error> {
+        use std::convert::TryFrom;
+        crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
+            .map_err(|_err| Error::Stream("Failed to create message".to_string()))
+    }
+
+    fn debug(&self, info: &str) {
+        debug_opaque_message_with_info(info, self);
+    }
+}
+
+impl Matcher for msgs::enums::HandshakeType {
+    fn matches(&self, matcher: &Self) -> bool {
+        matcher == self
+    }
+
+    fn specificity(&self) -> u32 {
+        1
+    }
+}
 
 #[derive(Clone)]
 pub struct TLSProtocolBehavior;
@@ -23,9 +81,9 @@ pub struct TLSProtocolBehavior;
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
-    type Message = rustls::msgs::message::Message;
-    type OpaqueMessage = rustls::msgs::message::OpaqueMessage;
-    type MessageDeframer = rustls::msgs::deframer::MessageDeframer;
+    type Message = msgs::message::Message;
+    type OpaqueMessage = msgs::message::OpaqueMessage;
+    type MessageDeframer = msgs::deframer::MessageDeframer;
 
     type Matcher = TlsQueryMatcher;
 
@@ -38,7 +96,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
-        Vec::from(create_corpus())
+        create_corpus()
     }
 
     fn extract_query_matcher(

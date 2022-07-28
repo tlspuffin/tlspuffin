@@ -1,16 +1,5 @@
-use std::{
-    any,
-    any::{Any, TypeId},
-    cell::{Ref, RefCell, RefMut},
-    fmt::{Debug, Display},
-    ops::Deref,
-    rc::Rc,
-    slice::Iter,
-    sync::Arc,
-};
+use std::{any::Any, fmt::Debug};
 
-use itertools::Itertools;
-use log::{debug, trace};
 use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,

@@ -147,14 +147,10 @@ cfg-if = "1.0.0"
 hex = "0.4.3"
 serde = { version = "1.0.137", features = ["derive"] }
 
-# TLS
-# Custom work because:
-#   * Message is cloneable
-#   * Disabled logical checks during parsing of messages
-#   * All modules exposed
-rustls = { path = "../deps/rust-rustls/rustls" }
-webpki = { version = "0.22.0", features = ["alloc", "std"] }
 ring = { version = "0.16.20", features = ["std"] }
+webpki = { version = "0.22.0", features = ["alloc", "std"] }
+sct = "0.7.0"
+
 
 # OpenSSL
 # Uses build scripts from './openssl-src'

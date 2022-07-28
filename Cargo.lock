@@ -1549,18 +1549,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls"
-version = "0.20.4"
-dependencies = [
- "log",
- "puffin",
- "ring",
- "sct",
- "serde",
- "webpki",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1916,7 +1904,7 @@ dependencies = [
  "openssl",
  "puffin",
  "ring",
- "rustls",
+ "sct",
  "security-claims",
  "serde",
  "serde_json",

@@ -9,27 +9,20 @@
 //!
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    internal::msgs::{
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        handshake::*,
-        heartbeat::HeartbeatPayload,
-        message::{Message, MessagePayload},
-    },
-    msgs::{
-        alert::AlertMessagePayload,
-        base::{PayloadU16, PayloadU24, PayloadU8},
-        codec::Codec,
-        enums::*,
-        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-        message::OpaqueMessage,
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
-};
 use HandshakePayload::EncryptedExtensions;
 
-use crate::nyi_fn;
+use crate::{
+    nyi_fn,
+    tls::rustls::msgs::{
+        alert::AlertMessagePayload,
+        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        ccs::ChangeCipherSpecPayload,
+        enums::*,
+        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+        heartbeat::HeartbeatPayload,
+        message::{Message, MessagePayload, OpaqueMessage},
+    },
+};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())
@@ -365,7 +358,7 @@ pub fn fn_certificate_verify(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: scheme.clone(),
+                scheme: *scheme,
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),

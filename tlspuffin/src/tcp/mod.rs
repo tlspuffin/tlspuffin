@@ -1,21 +1,17 @@
 use std::{
-    any::Any,
-    cell::RefCell,
     ffi::OsStr,
     io,
     io::{ErrorKind, Read, Write},
     net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
-    ops::DerefMut,
     path::Path,
     process::{Child, Command, Stdio},
-    rc::Rc,
     str::FromStr,
-    sync::{mpsc, mpsc::channel, Arc, Mutex},
+    sync::{mpsc, mpsc::channel},
     thread,
     time::Duration,
 };
 
-use log::{error, info};
+use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
@@ -24,12 +20,14 @@ use puffin::{
     put_registry::Factory,
     trace::TraceContext,
 };
-use rustls::msgs::{
-    deframer::MessageDeframer,
-    message::{Message, OpaqueMessage},
-};
 
-use crate::put_registry::{TLSProtocolBehavior, TCP_PUT};
+use crate::{
+    put_registry::{TLSProtocolBehavior, TCP_PUT},
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
+};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -110,7 +108,7 @@ impl TcpPut for TcpClientPut {
         &mut self.deframer
     }
 
-    fn write_to_stream(&mut self, mut buf: &[u8]) -> io::Result<()> {
+    fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.stream.write_all(buf)?;
         self.stream.flush()
     }
@@ -233,7 +231,7 @@ impl TcpPut for TcpServerPut {
         &mut self.deframer
     }
 
-    fn write_to_stream(&mut self, mut buf: &[u8]) -> io::Result<()> {
+    fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.receive_stream();
         let stream = &mut self.stream.as_mut().unwrap().0;
         stream.write_all(buf)?;
@@ -332,7 +330,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         Ok(())
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 
@@ -385,7 +383,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -443,7 +441,7 @@ pub struct TLSProcess {
 impl TLSProcess {
     pub fn new<P: AsRef<Path>>(prog: &str, args: &str, cwd: Option<P>) -> Self {
         Self {
-            child: Some(execute_command(prog, args.split(" "), cwd)),
+            child: Some(execute_command(prog, args.split(' '), cwd)),
             output: None,
         }
     }
@@ -499,11 +497,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        ffi::OsStr,
-        io::{stderr, Read, Write},
-        process::{Child, Command, Stdio},
-    };
 
     use log::info;
     use puffin::{
@@ -515,14 +508,14 @@ mod tests {
 
     use crate::{
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-        tcp::{collect_output, execute_command, TLSProcess},
+        tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12,
+            seed_client_attacker_full, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
 
-    const OPENSSL_PROG: &'static str = "openssl";
+    const OPENSSL_PROG: &str = "openssl";
 
     /// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.
     struct ParametersGuard {
@@ -582,7 +575,7 @@ mod tests {
     }
 
     fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
-        let (key, cert, temp_dir) = gen_certificate();
+        let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
@@ -610,10 +603,10 @@ mod tests {
     }
 
     fn wolfssl_server(port: u16) -> ParametersGuard {
-        let (key, cert, temp_dir) = gen_certificate();
+        let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let mut args = vec!["-p", &port_string, "-x", "-d"];
+        let args = vec!["-p", &port_string, "-x", "-d"];
         let prog = "./examples/server/server";
         let cwd = "/home/max/projects/wolfssl";
 

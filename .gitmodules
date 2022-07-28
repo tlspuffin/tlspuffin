@@ -13,11 +13,6 @@
 	url = git@github.com:tlspuffin/libressl-src.git
 	branch = fuzz
 	update = rebase
-[submodule "rust-rustls"]
-	path = deps/rust-rustls
-	url = git@github.com:tlspuffin/rustls.git
-	branch = fuzz
-	update = rebase
 [submodule "wolfssl-sys"]
 	path = deps/wolfssl-sys
 	url = git@github.com:tlspuffin/wolfssl-sys.git

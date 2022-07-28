@@ -1,6 +1,6 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use std::{any::Any, env::var, fmt, fmt::Formatter};
+use std::{any::Any, fmt, fmt::Formatter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

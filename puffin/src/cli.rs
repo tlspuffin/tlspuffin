@@ -7,8 +7,7 @@ use std::{
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
-use log::{error, info, SetLoggerError};
-use log4rs::Handle;
+use log::{error, info};
 
 use crate::{
     algebra::set_deserialize_signature,
@@ -86,7 +85,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     asan_info();
     setup_asan_env();
 
-    if let Err(_) = set_deserialize_signature(PB::signature()) {
+    if set_deserialize_signature(PB::signature()).is_err() {
         error!("Failed to initialize deserialization");
     }
 
@@ -235,7 +234,7 @@ fn plot<PB: ProtocolBehavior>(
 }
 
 fn seed<PB: ProtocolBehavior>(
-    put_registry: &PutRegistry<PB>,
+    _put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {

@@ -4,28 +4,27 @@
 use std::convert::TryFrom;
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    conn::Side,
-    hash_hs::HandshakeHash,
-    internal::msgs::enums::HandshakeType,
-    key,
-    msgs::{
-        base::PayloadU8,
-        codec::{Codec, Reader},
-        enums::NamedGroup,
-        handshake::{
-            CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
-            Random, ServerECDHParams,
-        },
-        message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
-    },
-    tls13::key_schedule::KeyScheduleEarly,
-    Certificate,
-};
 
 use crate::tls::{
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
+    rustls::{
+        conn::Side,
+        hash_hs::HandshakeHash,
+        key::Certificate,
+        msgs::{
+            base::PayloadU8,
+            codec::{Codec, Reader},
+            enums::{HandshakeType, NamedGroup},
+            handshake::{
+                CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
+                Random, ServerECDHParams,
+            },
+            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+        },
+        tls12,
+        tls13::key_schedule::KeyScheduleEarly,
+    },
 };
 
 // ----
@@ -33,7 +32,7 @@ use crate::tls::{
 // ----
 
 pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256;
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
@@ -73,9 +72,9 @@ pub fn fn_decrypt_handshake(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
     Message::try_from(message)
-        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -113,11 +112,11 @@ pub fn fn_decrypt_application(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|err| {
+        .map_err(|_err| {
             FnError::Crypto("Failed to decrypt it fn_decrypt_application".to_string())
         })?;
     Message::try_from(message)
-        .map_err(|err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_encrypt_handshake(
@@ -137,7 +136,7 @@ pub fn fn_encrypt_handshake(
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
     Ok(application_data)
 }
 
@@ -164,7 +163,7 @@ pub fn fn_encrypt_application(
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
-        .map_err(|err| {
+        .map_err(|_err| {
             FnError::Crypto("Failed to encrypt it fn_encrypt_application".to_string())
         })?;
     Ok(application_data)
@@ -199,7 +198,7 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
     let hkdf_alg = suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
@@ -281,7 +280,7 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 // ----
 
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
@@ -323,11 +322,11 @@ pub fn fn_encrypt12(
     });
     let encrypted = encrypter
         .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
-        .map_err(|err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
 }
 
-pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
+pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     let der_cert = hex::decode(
         "308203473082022fa003020102021406f7fb1d20\
     b39f71b9a222e8f03a0ab0a79ec54d300d060\
@@ -354,13 +353,13 @@ pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
     })?))
 }
 
-pub fn fn_new_certificates() -> Result<Vec<key::Certificate>, FnError> {
+pub fn fn_new_certificates() -> Result<Vec<Certificate>, FnError> {
     Ok(vec![])
 }
 
 pub fn fn_append_certificate(
-    certs: &Vec<key::Certificate>,
-    cert: &key::Certificate,
+    certs: &Vec<Certificate>,
+    cert: &Certificate,
 ) -> Result<Vec<Certificate>, FnError> {
     let mut new_certs = certs.clone();
     new_certs.push(cert.clone());
@@ -374,7 +373,7 @@ pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
 
 pub fn fn_append_certificate_entry(
     certs: &Vec<CertificateEntry>,
-    cert: &key::Certificate,
+    cert: &Certificate,
     extensions: &Vec<CertificateExtension>,
 ) -> Result<Vec<CertificateEntry>, FnError> {
     let mut new_certs = certs.clone();

@@ -28,9 +28,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{fmt::Debug, hash::Hash, ops::DerefMut, sync::Mutex};
+use std::{fmt::Debug, hash::Hash};
 
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 
 pub use self::term::*;
 use crate::algebra::signature::Signature;
@@ -52,7 +52,7 @@ pub fn deserialize_signature() -> &'static Signature {
 }
 
 pub fn set_deserialize_signature(signature: &'static Signature) -> Result<(), ()> {
-    DESERIALIZATION_SIGNATURE.set(signature).map_err(|err| ())
+    DESERIALIZATION_SIGNATURE.set(signature).map_err(|_err| ())
 }
 
 impl<T> Matcher for Option<T>
@@ -130,17 +130,17 @@ pub mod test_signature {
         Ok(HmacKey)
     }
 
-    pub fn fn_hmac256(key: &HmacKey, msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    pub fn fn_hmac256(_key: &HmacKey, _msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
         Ok(Vec::new())
     }
 
     pub fn fn_client_hello(
-        version: &ProtocolVersion,
-        random: &Random,
-        id: &SessionID,
-        suites: &CipherSuites,
-        compressions: &Compressions,
-        extensions: &ClientExtensions,
+        _version: &ProtocolVersion,
+        _random: &Random,
+        _id: &SessionID,
+        _suites: &CipherSuites,
+        _compressions: &Compressions,
+        _extensions: &ClientExtensions,
     ) -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
@@ -161,8 +161,8 @@ pub mod test_signature {
     }
 
     pub fn fn_client_extensions_append(
-        extensions: &ClientExtensions,
-        extension: &ClientExtension,
+        _extensions: &ClientExtensions,
+        _extension: &ClientExtension,
     ) -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
@@ -170,7 +170,7 @@ pub mod test_signature {
     pub fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
-    pub fn fn_support_group_extension(group: &Group) -> Result<ClientExtension, FnError> {
+    pub fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
 
@@ -183,7 +183,7 @@ pub mod test_signature {
     pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub fn fn_renegotiation_info_extension(info: &Vec<u8>) -> Result<ClientExtension, FnError> {
+    pub fn fn_renegotiation_info_extension(_info: &Vec<u8>) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
     pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
@@ -207,8 +207,8 @@ pub mod test_signature {
     }
 
     pub fn fn_append_cipher_suite(
-        suites: &CipherSuites,
-        suite: &CipherSuite,
+        _suites: &CipherSuites,
+        _suite: &CipherSuite,
     ) -> Result<CipherSuites, FnError> {
         Ok(CipherSuites)
     }
@@ -220,7 +220,7 @@ pub mod test_signature {
         Ok(Compressions)
     }
 
-    pub fn fn_encrypt12(finished: &HandshakeMessage, seq: &u32) -> Result<Encrypted, FnError> {
+    pub fn fn_encrypt12(_finished: &HandshakeMessage, _seq: &u32) -> Result<Encrypted, FnError> {
         Ok(Encrypted)
     }
 
@@ -339,13 +339,13 @@ pub mod test_signature {
     pub struct TestQueryMatcher;
 
     impl Display for TestQueryMatcher {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
 
     impl Matcher for TestQueryMatcher {
-        fn matches(&self, matcher: &Self) -> bool {
+        fn matches(&self, _matcher: &Self) -> bool {
             panic!("Not implemented for test stub");
         }
 
@@ -378,7 +378,7 @@ pub mod test_signature {
     }
 
     impl Debug for TestClaim {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -406,7 +406,7 @@ pub mod test_signature {
     }
 
     impl Debug for TestOpaqueMessage {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -420,7 +420,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn debug(&self, info: &str) {
+        fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
     }
@@ -434,7 +434,7 @@ pub mod test_signature {
     }
 
     impl Debug for TestMessage {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -444,7 +444,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn debug(&self, info: &str) {
+        fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
     }
@@ -464,14 +464,14 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn read(&mut self, rd: &mut dyn Read) -> std::io::Result<usize> {
+        fn read(&mut self, _rd: &mut dyn Read) -> std::io::Result<usize> {
             panic!("Not implemented for test stub");
         }
     }
 
     pub struct TestSecurityViolationPolicy;
     impl SecurityViolationPolicy<TestClaim> for TestSecurityViolationPolicy {
-        fn check_violation(claims: &[TestClaim]) -> Option<&'static str> {
+        fn check_violation(_claims: &[TestClaim]) -> Option<&'static str> {
             panic!("Not implemented for test stub");
         }
     }
@@ -486,7 +486,9 @@ pub mod test_signature {
         type MessageDeframer = TestMessageDeframer;
         type Matcher = TestQueryMatcher;
 
-        fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        fn extract_knowledge(
+            _message: &Self::Message,
+        ) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
         }
 
@@ -503,7 +505,7 @@ pub mod test_signature {
         }
 
         fn extract_query_matcher(
-            message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+            _message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
         ) -> Self::Matcher {
             panic!("Not implemented for test stub");
         }
@@ -536,17 +538,11 @@ pub mod test_signature {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
-    use itertools::Itertools;
 
     use super::test_signature::*;
     use crate::{
         agent::AgentName,
-        algebra::{
-            atoms::Variable, dynamic_function::TypeShape, error::FnError, signature::Signature,
-            Term,
-        },
+        algebra::{atoms::Variable, dynamic_function::TypeShape, signature::Signature, Term},
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},

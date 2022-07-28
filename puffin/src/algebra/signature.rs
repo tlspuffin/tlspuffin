@@ -33,7 +33,7 @@ pub struct Signature {
 
 impl Debug for Signature {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "functions; {:?}\n", self.functions)
+        writeln!(f, "functions; {:?}", self.functions)
     }
 }
 

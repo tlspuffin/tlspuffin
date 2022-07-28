@@ -1,11 +1,9 @@
 use puffin::{error::Error, variable_data::VariableData};
-use rustls::{
-    msgs::{
-        enums::Compression,
-        handshake::{ClientExtension, HandshakePayload, ServerExtension, ServerKeyExchangePayload},
-        message::{Message, MessagePayload},
-    },
-    CipherSuite,
+
+use crate::tls::rustls::msgs::{
+    enums::{CipherSuite, Compression},
+    handshake::{ClientExtension, HandshakePayload, ServerExtension, ServerKeyExchangePayload},
+    message::{Message, MessagePayload},
 };
 
 /// Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more

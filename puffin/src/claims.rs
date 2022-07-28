@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId},
+    any::Any,
     cell::{Ref, RefCell, RefMut},
     fmt::Debug,
     ops::Deref,
@@ -76,7 +76,7 @@ impl<C: Claim> ClaimList<C> {
             &self
                 .claims
                 .iter()
-                .map(|claim| format!("{}", claim.type_name()))
+                .map(|claim| claim.type_name().to_string())
                 .join(", ")
         );
         for claim in &self.claims {

@@ -161,7 +161,7 @@ mod fn_container {
 
     use serde::{
         de,
-        de::{DeserializeSeed, MapAccess, SeqAccess, Visitor},
+        de::{MapAccess, SeqAccess, Visitor},
         ser::SerializeStruct,
         Deserialize, Deserializer, Serialize, Serializer,
     };
@@ -170,7 +170,6 @@ mod fn_container {
         deserialize_signature,
         dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
         signature::Signature,
-        DESERIALIZATION_SIGNATURE,
     };
 
     const NAME: &str = "name";

@@ -1,23 +1,25 @@
 use std::sync::Arc;
 
 use puffin::algebra::error::FnError;
-use ring::signature::{EcdsaKeyPair, RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
-use rustls::{
-    hash_hs::HandshakeHash,
-    msgs::{
-        handshake::{CertReqExtension, CertificateEntry, HandshakePayload},
-        message::{Message, MessagePayload},
-    },
-    sign::{EcdsaSigner, EcdsaSigningKey, RsaSigner, Signer, SigningKey},
-    verify::{
-        construct_tls13_client_verify_message, construct_tls13_client_verify_message_raw,
-        construct_tls13_server_verify_message, construct_tls13_server_verify_message_raw,
-    },
-    Certificate, PrivateKey, SignatureScheme,
-};
+use ring::signature::{RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 
-use crate::static_certs::{
-    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+use crate::{
+    static_certs::{
+        ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+    },
+    tls::rustls::{
+        hash_hs::HandshakeHash,
+        key::{Certificate, PrivateKey},
+        msgs::{
+            enums::SignatureScheme,
+            handshake::{CertificateEntry, HandshakePayload},
+            message::{Message, MessagePayload},
+        },
+        sign::{EcdsaSigningKey, RsaSigner, Signer, SigningKey},
+        verify::{
+            construct_tls13_client_verify_message_raw, construct_tls13_server_verify_message_raw,
+        },
+    },
 };
 
 pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {
@@ -144,8 +146,8 @@ fn _fn_rsa_sign(
         Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
     );
     signer
-        .sign(&message)
-        .map_err(|err| FnError::Crypto("Failed to sign using RSA key".to_string()))
+        .sign(message)
+        .map_err(|_err| FnError::Crypto("Failed to sign using RSA key".to_string()))
 }
 
 pub fn fn_ecdsa_sign_client(
@@ -180,8 +182,8 @@ fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnEr
         .ok_or_else(|| FnError::Crypto("Failed to find signature scheme.".to_string()))?;
 
     signer
-        .sign(&message)
-        .map_err(|err| FnError::Crypto("Failed to sign using ECDHE key".to_string()))
+        .sign(message)
+        .map_err(|_err| FnError::Crypto("Failed to sign using ECDHE key".to_string()))
 }
 
 pub fn fn_rsa_pss_signature_algorithm() -> Result<SignatureScheme, FnError> {

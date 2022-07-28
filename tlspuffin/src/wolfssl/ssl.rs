@@ -16,12 +16,12 @@ use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_uchar, c_void};
 use log::LevelFilter;
 use puffin::agent::TLSVersion;
-use rustls::msgs::enums::HandshakeType;
 use smallvec::SmallVec;
 use wolfssl_sys as wolf;
 
 use crate::{
     static_certs::ALICE_PRIVATE_KEY,
+    tls::rustls::msgs::enums::HandshakeType,
     wolfssl::{
         bio,
         callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
@@ -83,10 +83,6 @@ impl SslMethod {
     pub fn as_ptr(&self) -> *mut wolf::WOLFSSL_METHOD {
         self.0
     }
-}
-
-enum AcceptState {
-    TLS13_ACCEPT_SECOND_REPLY_DONE = 1,
 }
 
 pub unsafe fn drop_ssl_context(ctx: *mut wolf::WOLFSSL_CTX) {

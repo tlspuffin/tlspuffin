@@ -8,22 +8,23 @@
 //!
 
 use puffin::algebra::error::FnError;
-use rustls::{
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::*,
-        message::Message,
-    },
-    x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
-};
 use webpki::DnsNameRef;
 
 use crate::{
     nyi_fn,
     tls::{
-        fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        fn_impl::fn_get_ticket_age_add,
+        fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
+        rustls::{
+            msgs::{
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                enums::*,
+                handshake::*,
+                message::Message,
+            },
+            x509,
+        },
     },
 };
 
@@ -193,7 +194,7 @@ nyi_fn!();
 nyi_fn!();
 /// EllipticCurves => 0x000a,
 pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![group.clone()]))
+    Ok(ClientExtension::NamedGroups(vec![*group]))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
@@ -366,7 +367,7 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
     let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
-    let resuming_suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let resuming_suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let binder_len = resuming_suite.hash_algorithm().output_len;
     let binder = vec![0u8; binder_len];
 
@@ -487,7 +488,7 @@ pub fn fn_key_share_extension(
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: group.clone(),
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }]))
 }
@@ -501,14 +502,14 @@ pub fn fn_key_share_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
-        group: group.clone(),
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }))
 }
 pub fn fn_key_share_hello_retry_extension(
     group: &NamedGroup,
 ) -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(group.clone()))
+    Ok(HelloRetryExtension::KeyShare(*group))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();
