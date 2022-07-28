@@ -13,10 +13,12 @@
 // limitations under the License.
 //
 
-use russh_cryptovec::CryptoVec;
-use russh_keys::encoding;
-use russh_keys::key;
 use std::sync::Arc;
+
+use bitflags::bitflags;
+use russh_cryptovec::CryptoVec;
+use russh_keys::{encoding, key};
+use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 bitflags! {
@@ -61,7 +63,7 @@ impl Iterator for MethodSet {
 }
 
 pub trait Signer: Sized {
-    type Error: From<crate::SendError>;
+    type Error: From<crate::ssh::russh::SendError>;
     type Future: futures::Future<Output = (Self, Result<CryptoVec, Self::Error>)> + Send;
 
     fn auth_publickey_sign(self, key: &key::PublicKey, to_sign: CryptoVec) -> Self::Future;
@@ -70,7 +72,7 @@ pub trait Signer: Sized {
 #[derive(Debug, Error)]
 pub enum AgentAuthError {
     #[error(transparent)]
-    Send(#[from] crate::SendError),
+    Send(#[from] crate::ssh::russh::SendError),
     #[error(transparent)]
     Key(#[from] russh_keys::Error),
 }
@@ -92,7 +94,7 @@ impl<R: AsyncRead + AsyncWrite + Unpin + Send + 'static> Signer
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Method {
     // None,
     Password { password: String },

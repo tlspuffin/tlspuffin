@@ -13,15 +13,17 @@
 // limitations under the License.
 //
 
-use crate::sshbuffer::SSHBuffer;
-use crate::{auth, cipher, kex, msg, negotiation};
-use crate::{Channel, ChannelId, Disconnect, Limits};
+use std::{collections::HashMap, num::Wrapping, sync::Arc};
+
 use byteorder::{BigEndian, ByteOrder};
+use log::debug;
 use russh_cryptovec::CryptoVec;
 use russh_keys::encoding::Encoding;
-use std::collections::HashMap;
-use std::num::Wrapping;
-use std::sync::Arc;
+
+use crate::ssh::russh::{
+    auth, cipher, kex, msg, negotiation, sshbuffer::SSHBuffer, Channel, ChannelId, Disconnect,
+    Limits,
+};
 
 #[derive(Debug)]
 pub(crate) struct Encrypted {
@@ -32,17 +34,17 @@ pub(crate) struct Encrypted {
     pub kex: kex::Algorithm,
     pub key: usize,
     pub mac: Option<&'static str>,
-    pub session_id: crate::Sha256Hash,
+    pub session_id: crate::ssh::russh::Sha256Hash,
     pub rekey: Option<Kex>,
     pub channels: HashMap<ChannelId, Channel>,
     pub last_channel_id: Wrapping<u32>,
     pub write: CryptoVec,
     pub write_cursor: usize,
     pub last_rekey: std::time::Instant,
-    pub server_compression: crate::compression::Compression,
-    pub client_compression: crate::compression::Compression,
-    pub compress: crate::compression::Compress,
-    pub decompress: crate::compression::Decompress,
+    pub server_compression: crate::ssh::russh::compression::Compression,
+    pub client_compression: crate::ssh::russh::compression::Compression,
+    pub compress: crate::ssh::russh::compression::Compress,
+    pub decompress: crate::ssh::russh::compression::Decompress,
     pub compress_buffer: CryptoVec,
 }
 
@@ -86,9 +88,9 @@ impl<C> CommonSession<C> {
             last_rekey: std::time::Instant::now(),
             server_compression: newkeys.names.server_compression,
             client_compression: newkeys.names.client_compression,
-            compress: crate::compression::Compress::None,
+            compress: crate::ssh::russh::compression::Compress::None,
             compress_buffer: CryptoVec::new(),
-            decompress: crate::compression::Decompress::None,
+            decompress: crate::ssh::russh::compression::Decompress::None,
         });
         self.cipher = Arc::new(newkeys.cipher);
     }
@@ -315,7 +317,7 @@ impl Encrypted {
         limits: &Limits,
         cipher: &cipher::CipherPair,
         write_buffer: &mut SSHBuffer,
-    ) -> Result<bool, crate::Error> {
+    ) -> Result<bool, crate::ssh::russh::Error> {
         // If there are pending packets (and we've not started to rekey), flush them.
         {
             while self.write_cursor < self.write.len() {
@@ -425,7 +427,7 @@ pub enum Kex {
 pub struct KexInit {
     pub algo: Option<negotiation::Names>,
     pub exchange: Exchange,
-    pub session_id: Option<crate::Sha256Hash>,
+    pub session_id: Option<crate::ssh::russh::Sha256Hash>,
     pub sent: bool,
 }
 
@@ -433,7 +435,7 @@ impl KexInit {
     pub fn received_rekey(
         ex: Exchange,
         algo: negotiation::Names,
-        session_id: &crate::Sha256Hash,
+        session_id: &crate::ssh::russh::Sha256Hash,
     ) -> Self {
         let mut kexinit = KexInit {
             exchange: ex,
@@ -448,7 +450,7 @@ impl KexInit {
         kexinit
     }
 
-    pub fn initiate_rekey(ex: Exchange, session_id: &crate::Sha256Hash) -> Self {
+    pub fn initiate_rekey(ex: Exchange, session_id: &crate::ssh::russh::Sha256Hash) -> Self {
         let mut kexinit = KexInit {
             exchange: ex,
             algo: None,
@@ -468,7 +470,7 @@ pub struct KexDh {
     pub exchange: Exchange,
     pub names: negotiation::Names,
     pub key: usize,
-    pub session_id: Option<crate::Sha256Hash>,
+    pub session_id: Option<crate::ssh::russh::Sha256Hash>,
 }
 
 #[derive(Debug)]
@@ -476,16 +478,16 @@ pub struct KexDhDone {
     pub exchange: Exchange,
     pub kex: kex::Algorithm,
     pub key: usize,
-    pub session_id: Option<crate::Sha256Hash>,
+    pub session_id: Option<crate::ssh::russh::Sha256Hash>,
     pub names: negotiation::Names,
 }
 
 impl KexDhDone {
     pub fn compute_keys(
         self,
-        hash: crate::Sha256Hash,
+        hash: crate::ssh::russh::Sha256Hash,
         is_server: bool,
-    ) -> Result<NewKeys, crate::Error> {
+    ) -> Result<NewKeys, crate::ssh::russh::Error> {
         let session_id = if let Some(session_id) = self.session_id {
             session_id
         } else {
@@ -515,7 +517,7 @@ pub struct NewKeys {
     pub kex: kex::Algorithm,
     pub key: usize,
     pub cipher: cipher::CipherPair,
-    pub session_id: crate::Sha256Hash,
+    pub session_id: crate::ssh::russh::Sha256Hash,
     pub received: bool,
     pub sent: bool,
 }

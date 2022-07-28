@@ -15,10 +15,10 @@
 
 // http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.chacha20poly1305?annotate=HEAD
 
-use super::super::Error;
 use byteorder::{BigEndian, ByteOrder};
-use sodium::aes256gcm::*;
-use sodium::random::randombytes;
+use russh_libsodium::{aes256gcm::*, random::randombytes};
+
+use super::super::Error;
 
 pub struct OpeningKey {
     key: Key,

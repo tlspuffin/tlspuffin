@@ -1,25 +1,23 @@
+use crate::ssh::russh::Error;
+
 #[derive(Debug)]
 pub enum Compression {
     None,
-    #[cfg(feature = "flate2")]
     Zlib,
 }
 
 #[derive(Debug)]
 pub enum Compress {
     None,
-    #[cfg(feature = "flate2")]
     Zlib(flate2::Compress),
 }
 
 #[derive(Debug)]
 pub enum Decompress {
     None,
-    #[cfg(feature = "flate2")]
     Zlib(flate2::Decompress),
 }
 
-#[cfg(feature = "flate2")]
 impl Compression {
     pub fn from_string(s: &str) -> Self {
         if s == "zlib" || s == "zlib@openssh.com" {
@@ -54,46 +52,12 @@ impl Compression {
     }
 }
 
-#[cfg(not(feature = "flate2"))]
-impl Compression {
-    pub fn from_string(_: &str) -> Self {
-        Compression::None
-    }
-
-    pub fn init_compress(&self, _: &mut Compress) {}
-
-    pub fn init_decompress(&self, _: &mut Decompress) {}
-}
-
-#[cfg(not(feature = "flate2"))]
-impl Compress {
-    pub fn compress<'a>(
-        &mut self,
-        input: &'a [u8],
-        _: &'a mut russh_cryptovec::CryptoVec,
-    ) -> Result<&'a [u8], Error> {
-        Ok(input)
-    }
-}
-
-#[cfg(not(feature = "flate2"))]
-impl Decompress {
-    pub fn decompress<'a>(
-        &mut self,
-        input: &'a [u8],
-        _: &'a mut russh_cryptovec::CryptoVec,
-    ) -> Result<&'a [u8], Error> {
-        Ok(input)
-    }
-}
-
-#[cfg(feature = "flate2")]
 impl Compress {
     pub fn compress<'a>(
         &mut self,
         input: &'a [u8],
         output: &'a mut russh_cryptovec::CryptoVec,
-    ) -> Result<&'a [u8], crate::Error> {
+    ) -> Result<&'a [u8], crate::ssh::russh::Error> {
         match *self {
             Compress::None => Ok(input),
             Compress::Zlib(ref mut z) => {
@@ -122,13 +86,12 @@ impl Compress {
     }
 }
 
-#[cfg(feature = "flate2")]
 impl Decompress {
     pub fn decompress<'a>(
         &mut self,
         input: &'a [u8],
         output: &'a mut russh_cryptovec::CryptoVec,
-    ) -> Result<&'a [u8], crate::Error> {
+    ) -> Result<&'a [u8], crate::ssh::russh::Error> {
         match *self {
             Decompress::None => Ok(input),
             Decompress::Zlib(ref mut z) => {

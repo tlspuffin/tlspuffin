@@ -1,3 +1,5 @@
+pub mod russh;
+
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;

@@ -13,25 +13,21 @@
 // limitations under the License.
 //
 
-use std;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{self, net::SocketAddr, sync::Arc};
 
 use futures::future::Future;
 use russh_keys::key;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::net::TcpListener;
-use tokio::pin;
+use tokio::{
+    io::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    net::TcpListener,
+    pin,
+};
 
-use crate::session::*;
-use crate::ssh_read::*;
-use crate::sshbuffer::*;
-use crate::*;
+use crate::ssh::russh::{session::*, ssh_read::*, sshbuffer::*, *};
 
 mod kex;
 mod session;
-pub use self::kex::*;
-pub use self::session::*;
+pub use self::{kex::*, session::*};
 mod encrypted;
 
 #[derive(Debug)]
@@ -131,7 +127,7 @@ pub enum Auth {
 
 /// Server handler. Each client will have their own handler.
 pub trait Handler: Sized {
-    type Error: From<crate::Error> + Send;
+    type Error: From<crate::ssh::russh::Error> + Send;
     /// The type of authentications, which can be a future ultimately
     /// resolving to
     type FutureAuth: Future<Output = Result<(Self, Auth), Self::Error>> + Send;
@@ -422,6 +418,8 @@ pub async fn run<H: Server + Send + 'static>(
 }
 
 use std::cell::RefCell;
+
+use log::{debug, error};
 thread_local! {
     static B1: RefCell<CryptoVec> = RefCell::new(CryptoVec::new());
     static B2: RefCell<CryptoVec> = RefCell::new(CryptoVec::new());
@@ -438,7 +436,7 @@ pub async fn timeout(delay: Option<std::time::Duration>) {
 async fn start_reading<R: AsyncRead + Unpin>(
     mut stream_read: R,
     mut buffer: SSHBuffer,
-    cipher: Arc<crate::cipher::CipherPair>,
+    cipher: Arc<crate::ssh::russh::cipher::CipherPair>,
 ) -> Result<(usize, R, SSHBuffer), Error> {
     buffer.buffer.clear();
     let n = cipher::read(&mut stream_read, &mut buffer, &cipher).await?;
@@ -461,7 +459,7 @@ where
     stream
         .write_all(&write_buffer.buffer[..])
         .await
-        .map_err(crate::Error::from)?;
+        .map_err(crate::ssh::russh::Error::from)?;
 
     // Reading SSH id and allocating a session.
     let mut stream = SshRead::new(&mut stream);
@@ -479,7 +477,7 @@ where
     stream
         .write_all(&session.common.write_buffer.buffer)
         .await
-        .map_err(crate::Error::from)?;
+        .map_err(crate::ssh::russh::Error::from)?;
     session.common.write_buffer.buffer.clear();
 
     let (stream_read, mut stream_write) = stream.split();
@@ -518,7 +516,7 @@ where
                 };
                 if !buf.is_empty() {
                     #[allow(clippy::indexing_slicing)] // length checked
-                    if buf[0] == crate::msg::DISCONNECT {
+                    if buf[0] == crate::ssh::russh::msg::DISCONNECT {
                         debug!("break");
                         is_reading = Some((stream_read, buffer));
                         break;
@@ -577,12 +575,15 @@ where
         stream_write
             .write_all(&session.common.write_buffer.buffer)
             .await
-            .map_err(crate::Error::from)?;
+            .map_err(crate::ssh::russh::Error::from)?;
         session.common.write_buffer.buffer.clear();
     }
     debug!("disconnected");
     // Shutdown
-    stream_write.shutdown().await.map_err(crate::Error::from)?;
+    stream_write
+        .shutdown()
+        .await
+        .map_err(crate::ssh::russh::Error::from)?;
     loop {
         if let Some((stream_read, buffer)) = is_reading.take() {
             reading.set(start_reading(

@@ -15,9 +15,10 @@
 
 // http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.chacha20poly1305?annotate=HEAD
 
-use super::super::Error;
 use byteorder::{BigEndian, ByteOrder};
-use sodium::chacha20::*;
+use russh_libsodium::chacha20::*;
+
+use super::super::Error;
 
 pub struct OpeningKey {
     k1: Key,
@@ -90,7 +91,7 @@ impl super::OpeningKey for OpeningKey {
     ) -> Result<&'a [u8], Error> {
         let nonce = make_counter(sequence_number);
         {
-            use sodium::poly1305::*;
+            use russh_libsodium::poly1305::*;
             let mut poly_key = Key([0; 32]);
             chacha20_xor(&mut poly_key.0, &nonce, &self.k2);
             // let mut tag_ = Tag([0; 16]);
@@ -148,7 +149,7 @@ impl super::SealingKey for SealingKey {
             chacha20_xor_ic(b, &nonce, 1, &self.k2);
         }
         nonce.0[0] = 0;
-        use sodium::poly1305::*;
+        use russh_libsodium::poly1305::*;
         let mut poly_key = Key([0; 32]);
         chacha20_xor(&mut poly_key.0, &nonce, &self.k2);
         let tag = poly1305_auth(plaintext_in_ciphertext_out, &poly_key);

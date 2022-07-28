@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use super::{Msg, Reply};
-use crate::auth;
-use crate::key::PubKey;
-use crate::msg;
-use crate::negotiation;
-use crate::negotiation::Named;
-use crate::negotiation::Select;
-use crate::session::*;
-use crate::{ChannelId, ChannelOpenFailure, Error, Sig};
+use std::cell::RefCell;
+
+use log::{debug, error, info, trace};
 use russh_cryptovec::CryptoVec;
 use russh_keys::encoding::{Encoding, Reader};
-use std::cell::RefCell;
+
+use super::{Msg, Reply};
+use crate::ssh::russh::{
+    auth,
+    key::PubKey,
+    msg, negotiation,
+    negotiation::{Named, Select},
+    session::*,
+    ChannelId, ChannelOpenFailure, Error, Sig,
+};
 
 thread_local! {
     static SIGNATURE_BUFFER: RefCell<CryptoVec> = RefCell::new(CryptoVec::new());
@@ -153,7 +156,9 @@ impl super::Session {
                     );
                     if buf.get(0) == Some(&msg::SERVICE_ACCEPT) {
                         let mut r = buf.reader(1);
-                        if r.read_string().map_err(crate::Error::from)? == b"ssh-userauth" {
+                        if r.read_string().map_err(crate::ssh::russh::Error::from)?
+                            == b"ssh-userauth"
+                        {
                             *accepted = true;
                             if let Some(ref meth) = self.common.auth_method {
                                 let auth_request = auth::AuthRequest {
@@ -188,7 +193,7 @@ impl super::Session {
                         return Ok((client, self));
                     } else if buf.get(0) == Some(&msg::USERAUTH_BANNER) {
                         let mut r = buf.reader(1);
-                        let banner = r.read_string().map_err(crate::Error::from)?;
+                        let banner = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                         if let Ok(banner) = std::str::from_utf8(banner) {
                             let (h, s) = client.auth_banner(banner, self).await?;
                             return Ok((h, s));
@@ -199,7 +204,8 @@ impl super::Session {
                         debug!("userauth_failure");
 
                         let mut r = buf.reader(1);
-                        let remaining_methods = r.read_string().map_err(crate::Error::from)?;
+                        let remaining_methods =
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?;
                         debug!(
                             "remaining methods {:?}",
                             std::str::from_utf8(remaining_methods)
@@ -294,10 +300,10 @@ impl super::Session {
             Some(&msg::CHANNEL_OPEN_CONFIRMATION) => {
                 debug!("channel_open_confirmation");
                 let mut reader = buf.reader(1);
-                let id_send = ChannelId(reader.read_u32().map_err(crate::Error::from)?);
-                let id_recv = reader.read_u32().map_err(crate::Error::from)?;
-                let window = reader.read_u32().map_err(crate::Error::from)?;
-                let max_packet = reader.read_u32().map_err(crate::Error::from)?;
+                let id_send = ChannelId(reader.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let id_recv = reader.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                let window = reader.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                let max_packet = reader.read_u32().map_err(crate::ssh::russh::Error::from)?;
 
                 if let Some(ref mut enc) = self.common.encrypted {
                     if let Some(parameters) = enc.channels.get_mut(&id_send) {
@@ -319,7 +325,7 @@ impl super::Session {
             Some(&msg::CHANNEL_CLOSE) => {
                 debug!("channel_close");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
                 if let Some(ref mut enc) = self.common.encrypted {
                     enc.channels.remove(&channel_num);
                 }
@@ -328,20 +334,23 @@ impl super::Session {
             Some(&msg::CHANNEL_EOF) => {
                 debug!("channel_eof");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
                 client.channel_eof(channel_num, self).await
             }
             Some(&msg::CHANNEL_OPEN_FAILURE) => {
                 debug!("channel_open_failure");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let reason_code =
-                    ChannelOpenFailure::from_u32(r.read_u32().map_err(crate::Error::from)?)
-                        .unwrap_or(ChannelOpenFailure::Unknown);
-                let descr = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
-                let language = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let reason_code = ChannelOpenFailure::from_u32(
+                    r.read_u32().map_err(crate::ssh::russh::Error::from)?,
+                )
+                .unwrap_or(ChannelOpenFailure::Unknown);
+                let descr =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
+                let language =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
                 if let Some(ref mut enc) = self.common.encrypted {
                     enc.channels.remove(&channel_num);
                 }
@@ -352,8 +361,8 @@ impl super::Session {
             Some(&msg::CHANNEL_DATA) => {
                 debug!("channel_data");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let data = r.read_string().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let data = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                 let target = self.common.config.window_size;
                 if let Some(ref mut enc) = self.common.encrypted {
                     if enc.adjust_window_size(channel_num, data, target) {
@@ -369,9 +378,9 @@ impl super::Session {
             Some(&msg::CHANNEL_EXTENDED_DATA) => {
                 debug!("channel_extended_data");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let extended_code = r.read_u32().map_err(crate::Error::from)?;
-                let data = r.read_string().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let extended_code = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                let data = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                 let target = self.common.config.window_size;
                 if let Some(ref mut enc) = self.common.encrypted {
                     if enc.adjust_window_size(channel_num, data, target) {
@@ -388,8 +397,8 @@ impl super::Session {
             }
             Some(&msg::CHANNEL_REQUEST) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let req = r.read_string().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let req = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                 debug!(
                     "channel_request: {:?} {:?}",
                     channel_num,
@@ -397,37 +406,45 @@ impl super::Session {
                 );
                 match req {
                     b"forwarded_tcpip" => {
-                        let a = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                            .map_err(crate::Error::from)?;
-                        let b = r.read_u32().map_err(crate::Error::from)?;
-                        let c = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                            .map_err(crate::Error::from)?;
-                        let d = r.read_u32().map_err(crate::Error::from)?;
+                        let a = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let b = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let c = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let d = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         client
                             .channel_open_forwarded_tcpip(channel_num, a, b, c, d, self)
                             .await
                     }
                     b"xon-xoff" => {
-                        r.read_byte().map_err(crate::Error::from)?; // should be 0.
-                        let client_can_do = r.read_byte().map_err(crate::Error::from)?;
+                        r.read_byte().map_err(crate::ssh::russh::Error::from)?; // should be 0.
+                        let client_can_do =
+                            r.read_byte().map_err(crate::ssh::russh::Error::from)?;
                         client.xon_xoff(channel_num, client_can_do != 0, self).await
                     }
                     b"exit-status" => {
-                        r.read_byte().map_err(crate::Error::from)?; // should be 0.
-                        let exit_status = r.read_u32().map_err(crate::Error::from)?;
+                        r.read_byte().map_err(crate::ssh::russh::Error::from)?; // should be 0.
+                        let exit_status = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         client.exit_status(channel_num, exit_status, self).await
                     }
                     b"exit-signal" => {
-                        r.read_byte().map_err(crate::Error::from)?; // should be 0.
-                        let signal_name =
-                            Sig::from_name(r.read_string().map_err(crate::Error::from)?)?;
-                        let core_dumped = r.read_byte().map_err(crate::Error::from)?;
-                        let error_message =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let lang_tag =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
+                        r.read_byte().map_err(crate::ssh::russh::Error::from)?; // should be 0.
+                        let signal_name = Sig::from_name(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )?;
+                        let core_dumped = r.read_byte().map_err(crate::ssh::russh::Error::from)?;
+                        let error_message = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let lang_tag = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
                         client
                             .exit_signal(
                                 channel_num,
@@ -440,7 +457,7 @@ impl super::Session {
                             .await
                     }
                     _ => {
-                        let wants_reply = r.read_byte().map_err(crate::Error::from)?;
+                        let wants_reply = r.read_byte().map_err(crate::ssh::russh::Error::from)?;
                         if wants_reply == 1 {
                             if let Some(ref mut enc) = self.common.encrypted {
                                 self.common.wants_reply = false;
@@ -462,8 +479,8 @@ impl super::Session {
             Some(&msg::CHANNEL_WINDOW_ADJUST) => {
                 debug!("channel_window_adjust");
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let amount = r.read_u32().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let amount = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                 let mut new_value = 0;
                 debug!("amount: {:?}", amount);
                 if let Some(ref mut enc) = self.common.encrypted {
@@ -478,8 +495,8 @@ impl super::Session {
             }
             Some(&msg::GLOBAL_REQUEST) => {
                 let mut r = buf.reader(1);
-                let req = r.read_string().map_err(crate::Error::from)?;
-                let wants_reply = r.read_byte().map_err(crate::Error::from)?;
+                let req = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+                let wants_reply = r.read_byte().map_err(crate::ssh::russh::Error::from)?;
                 if let Some(ref mut enc) = self.common.encrypted {
                     self.common.wants_reply = false;
                     push_packet!(enc.write, enc.write.push(msg::REQUEST_FAILURE))
@@ -493,7 +510,7 @@ impl super::Session {
             }
             Some(&msg::CHANNEL_SUCCESS) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
                 client.channel_success(channel_num, self).await
             }
             _ => {

@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 
-use crate::Error;
+use crate::ssh::russh::Error;
 
 #[derive(Debug)]
 pub struct Key;

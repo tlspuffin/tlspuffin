@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use super::super::*;
-use super::*;
+use std::cell::RefCell;
+
 use auth::*;
 use byteorder::{BigEndian, ByteOrder};
+use log::{debug, info, warn};
 use msg;
-use negotiation;
-use negotiation::Select;
-use russh_keys::encoding::{Encoding, Position, Reader};
-use russh_keys::key;
-use russh_keys::key::Verify;
-use std::cell::RefCell;
+use negotiation::{self, Select};
+use russh_keys::{
+    encoding::{Encoding, Position, Reader},
+    key,
+    key::Verify,
+};
 use tokio::time::Instant;
+
+use super::{super::*, *};
 
 impl Session {
     /// Returns false iff a request was rejected.
-    pub(in crate) async fn server_read_encrypted<H: Handler>(
+    pub(crate) async fn server_read_encrypted<H: Handler>(
         mut self,
         mut handler: H,
         buf: &[u8],
@@ -133,7 +136,7 @@ impl Session {
                 ref mut accepted, ..
             } if buf.get(0) == Some(&msg::SERVICE_REQUEST) => {
                 let mut r = buf.reader(1);
-                let request = r.read_string().map_err(crate::Error::from)?;
+                let request = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                 debug!("request: {:?}", std::str::from_utf8(request));
                 if request == b"ssh-userauth" {
                     let auth_request = server_accept_service(
@@ -222,10 +225,10 @@ impl Encrypted {
     ) -> Result<H, H::Error> {
         // https://tools.ietf.org/html/rfc4252#section-5
         let mut r = buf.reader(1);
-        let user = r.read_string().map_err(crate::Error::from)?;
-        let user = std::str::from_utf8(user).map_err(crate::Error::from)?;
-        let service_name = r.read_string().map_err(crate::Error::from)?;
-        let method = r.read_string().map_err(crate::Error::from)?;
+        let user = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+        let user = std::str::from_utf8(user).map_err(crate::ssh::russh::Error::from)?;
+        let service_name = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+        let method = r.read_string().map_err(crate::ssh::russh::Error::from)?;
         debug!(
             "name: {:?} {:?} {:?}",
             user,
@@ -243,9 +246,10 @@ impl Encrypted {
                 };
                 auth_user.clear();
                 auth_user.push_str(user);
-                r.read_byte().map_err(crate::Error::from)?;
-                let password = r.read_string().map_err(crate::Error::from)?;
-                let password = std::str::from_utf8(password).map_err(crate::Error::from)?;
+                r.read_byte().map_err(crate::ssh::russh::Error::from)?;
+                let password = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+                let password =
+                    std::str::from_utf8(password).map_err(crate::ssh::russh::Error::from)?;
                 let (handler, auth) = handler.auth_password(user, password).await?;
                 if let Auth::Accept = auth {
                     server_auth_request_success(&mut self.write);
@@ -269,9 +273,10 @@ impl Encrypted {
                 };
                 auth_user.clear();
                 auth_user.push_str(user);
-                let _ = r.read_string().map_err(crate::Error::from)?; // language_tag, deprecated.
-                let submethods = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
+                let _ = r.read_string().map_err(crate::ssh::russh::Error::from)?; // language_tag, deprecated.
+                let submethods =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
                 debug!("{:?}", submethods);
                 auth_request.current = Some(CurrentRequest::KeyboardInteractive {
                     submethods: submethods.to_string(),
@@ -321,9 +326,9 @@ impl Encrypted {
         } else {
             unreachable!()
         };
-        let is_real = r.read_byte().map_err(crate::Error::from)?;
-        let pubkey_algo = r.read_string().map_err(crate::Error::from)?;
-        let pubkey_key = r.read_string().map_err(crate::Error::from)?;
+        let is_real = r.read_byte().map_err(crate::ssh::russh::Error::from)?;
+        let pubkey_algo = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+        let pubkey_key = r.read_string().map_err(crate::ssh::russh::Error::from)?;
         debug!("algo: {:?}, key: {:?}", pubkey_algo, pubkey_key);
         match key::PublicKey::parse(pubkey_algo, pubkey_key) {
             Ok(mut pubkey) => {
@@ -339,13 +344,13 @@ impl Encrypted {
                         false
                     };
 
-                    let signature = r.read_string().map_err(crate::Error::from)?;
+                    let signature = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                     debug!("signature = {:?}", signature);
                     let mut s = signature.reader(0);
-                    let algo_ = s.read_string().map_err(crate::Error::from)?;
+                    let algo_ = s.read_string().map_err(crate::ssh::russh::Error::from)?;
                     pubkey.set_algorithm(algo_);
                     debug!("algo_: {:?}", algo_);
-                    let sig = s.read_string().map_err(crate::Error::from)?;
+                    let sig = s.read_string().map_err(crate::ssh::russh::Error::from)?;
                     #[allow(clippy::indexing_slicing)] // length checked
                     let init = &buf[0..pos0];
 
@@ -419,7 +424,7 @@ impl Encrypted {
                     reject_auth_request(until, &mut self.write, auth_request).await;
                     Ok(handler)
                 } else {
-                    Err(crate::Error::from(e).into())
+                    Err(crate::ssh::russh::Error::from(e).into())
                 }
             }
         }
@@ -459,7 +464,7 @@ async fn read_userauth_info_response<H: Handler>(
 ) -> Result<(H, bool), H::Error> {
     if let Some(CurrentRequest::KeyboardInteractive { ref submethods }) = auth_request.current {
         let mut r = b.reader(1);
-        let n = r.read_u32().map_err(crate::Error::from)?;
+        let n = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
         let response = Response { pos: r, n };
         let (h, auth) = handler
             .auth_keyboard_interactive(user, submethods, Some(response))
@@ -530,7 +535,7 @@ impl Session {
             Some(&msg::CHANNEL_OPEN) => self.server_handle_channel_open(handler, buf).await,
             Some(&msg::CHANNEL_CLOSE) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
                 if let Some(ref mut enc) = self.common.encrypted {
                     enc.channels.remove(&channel_num);
                 }
@@ -539,21 +544,21 @@ impl Session {
             }
             Some(&msg::CHANNEL_EOF) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
                 debug!("handler.channel_eof {:?}", channel_num);
                 handler.channel_eof(channel_num, self).await
             }
             Some(&msg::CHANNEL_EXTENDED_DATA) | Some(&msg::CHANNEL_DATA) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
 
                 let ext = if buf.get(0) == Some(&msg::CHANNEL_DATA) {
                     None
                 } else {
-                    Some(r.read_u32().map_err(crate::Error::from)?)
+                    Some(r.read_u32().map_err(crate::ssh::russh::Error::from)?)
                 };
                 debug!("handler.data {:?} {:?}", ext, channel_num);
-                let data = r.read_string().map_err(crate::Error::from)?;
+                let data = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                 let target = self.target_window_size;
 
                 if let Some(ref mut enc) = self.common.encrypted {
@@ -574,8 +579,8 @@ impl Session {
 
             Some(&msg::CHANNEL_WINDOW_ADJUST) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let amount = r.read_u32().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let amount = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                 let mut new_value = 0;
                 if let Some(ref mut enc) = self.common.encrypted {
                     if let Some(channel) = enc.channels.get_mut(&channel_num) {
@@ -593,9 +598,9 @@ impl Session {
 
             Some(&msg::CHANNEL_REQUEST) => {
                 let mut r = buf.reader(1);
-                let channel_num = ChannelId(r.read_u32().map_err(crate::Error::from)?);
-                let req_type = r.read_string().map_err(crate::Error::from)?;
-                let wants_reply = r.read_byte().map_err(crate::Error::from)?;
+                let channel_num = ChannelId(r.read_u32().map_err(crate::ssh::russh::Error::from)?);
+                let req_type = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+                let wants_reply = r.read_byte().map_err(crate::ssh::russh::Error::from)?;
                 if let Some(ref mut enc) = self.common.encrypted {
                     if let Some(channel) = enc.channels.get_mut(&channel_num) {
                         channel.wants_reply = wants_reply != 0;
@@ -603,17 +608,19 @@ impl Session {
                 }
                 match req_type {
                     b"pty-req" => {
-                        let term =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let col_width = r.read_u32().map_err(crate::Error::from)?;
-                        let row_height = r.read_u32().map_err(crate::Error::from)?;
-                        let pix_width = r.read_u32().map_err(crate::Error::from)?;
-                        let pix_height = r.read_u32().map_err(crate::Error::from)?;
+                        let term = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let col_width = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let row_height = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let pix_width = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let pix_height = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         let mut modes = [(Pty::TTY_OP_END, 0); 130];
                         let mut i = 0;
                         {
-                            let mode_string = r.read_string().map_err(crate::Error::from)?;
+                            let mode_string =
+                                r.read_string().map_err(crate::ssh::russh::Error::from)?;
                             while 5 * i < mode_string.len() {
                                 #[allow(clippy::indexing_slicing)] // length checked
                                 let code = mode_string[5 * i];
@@ -652,14 +659,18 @@ impl Session {
                             .await
                     }
                     b"x11-req" => {
-                        let single_connection = r.read_byte().map_err(crate::Error::from)? != 0;
-                        let x11_auth_protocol =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let x11_auth_cookie =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let x11_screen_number = r.read_u32().map_err(crate::Error::from)?;
+                        let single_connection =
+                            r.read_byte().map_err(crate::ssh::russh::Error::from)? != 0;
+                        let x11_auth_protocol = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let x11_auth_cookie = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let x11_screen_number =
+                            r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.x11_request {:?}", channel_num);
                         handler
                             .x11_request(
@@ -673,12 +684,14 @@ impl Session {
                             .await
                     }
                     b"env" => {
-                        let env_variable =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let env_value =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
+                        let env_variable = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let env_value = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.env_request {:?}", channel_num);
                         handler
                             .env_request(channel_num, env_variable, env_value, self)
@@ -689,22 +702,23 @@ impl Session {
                         handler.shell_request(channel_num, self).await
                     }
                     b"exec" => {
-                        let req = r.read_string().map_err(crate::Error::from)?;
+                        let req = r.read_string().map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.exec_request {:?}", channel_num);
                         handler.exec_request(channel_num, req, self).await
                     }
                     b"subsystem" => {
-                        let name =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
+                        let name = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.subsystem_request {:?}", channel_num);
                         handler.subsystem_request(channel_num, name, self).await
                     }
                     b"window-change" => {
-                        let col_width = r.read_u32().map_err(crate::Error::from)?;
-                        let row_height = r.read_u32().map_err(crate::Error::from)?;
-                        let pix_width = r.read_u32().map_err(crate::Error::from)?;
-                        let pix_height = r.read_u32().map_err(crate::Error::from)?;
+                        let col_width = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let row_height = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let pix_width = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                        let pix_height = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.window_change {:?}", channel_num);
                         handler
                             .window_change_request(
@@ -718,8 +732,9 @@ impl Session {
                             .await
                     }
                     b"signal" => {
-                        let signal_name =
-                            Sig::from_name(r.read_string().map_err(crate::Error::from)?)?;
+                        let signal_name = Sig::from_name(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )?;
                         debug!("handler.signal {:?} {:?}", channel_num, signal_name);
                         handler.signal(channel_num, signal_name, self).await
                     }
@@ -732,14 +747,16 @@ impl Session {
             }
             Some(&msg::GLOBAL_REQUEST) => {
                 let mut r = buf.reader(1);
-                let req_type = r.read_string().map_err(crate::Error::from)?;
-                self.common.wants_reply = r.read_byte().map_err(crate::Error::from)? != 0;
+                let req_type = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+                self.common.wants_reply =
+                    r.read_byte().map_err(crate::ssh::russh::Error::from)? != 0;
                 match req_type {
                     b"tcpip-forward" => {
-                        let address =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let port = r.read_u32().map_err(crate::Error::from)?;
+                        let address = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let port = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.tcpip_forward {:?} {:?}", address, port);
                         let (h, mut s, result) = handler.tcpip_forward(address, port, self).await?;
                         if let Some(ref mut enc) = s.common.encrypted {
@@ -752,10 +769,11 @@ impl Session {
                         Ok((h, s))
                     }
                     b"cancel-tcpip-forward" => {
-                        let address =
-                            std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                                .map_err(crate::Error::from)?;
-                        let port = r.read_u32().map_err(crate::Error::from)?;
+                        let address = std::str::from_utf8(
+                            r.read_string().map_err(crate::ssh::russh::Error::from)?,
+                        )
+                        .map_err(crate::ssh::russh::Error::from)?;
+                        let port = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                         debug!("handler.cancel_tcpip_forward {:?} {:?}", address, port);
                         let (h, mut s, result) =
                             handler.cancel_tcpip_forward(address, port, self).await?;
@@ -792,10 +810,10 @@ impl Session {
     ) -> Result<(H, Self), H::Error> {
         // https://tools.ietf.org/html/rfc4254#section-5.1
         let mut r = buf.reader(1);
-        let typ = r.read_string().map_err(crate::Error::from)?;
-        let sender = r.read_u32().map_err(crate::Error::from)?;
-        let window = r.read_u32().map_err(crate::Error::from)?;
-        let maxpacket = r.read_u32().map_err(crate::Error::from)?;
+        let typ = r.read_string().map_err(crate::ssh::russh::Error::from)?;
+        let sender = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+        let window = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+        let maxpacket = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
 
         let sender_channel = if let Some(ref mut enc) = self.common.encrypted {
             enc.new_channel_id()
@@ -823,19 +841,22 @@ impl Session {
             }
             b"x11" => {
                 self.confirm_channel_open(channel);
-                let a = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
-                let b = r.read_u32().map_err(crate::Error::from)?;
+                let a =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
+                let b = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                 handler.channel_open_x11(sender_channel, a, b, self).await
             }
             b"direct-tcpip" => {
                 self.confirm_channel_open(channel);
-                let a = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
-                let b = r.read_u32().map_err(crate::Error::from)?;
-                let c = std::str::from_utf8(r.read_string().map_err(crate::Error::from)?)
-                    .map_err(crate::Error::from)?;
-                let d = r.read_u32().map_err(crate::Error::from)?;
+                let a =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
+                let b = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
+                let c =
+                    std::str::from_utf8(r.read_string().map_err(crate::ssh::russh::Error::from)?)
+                        .map_err(crate::ssh::russh::Error::from)?;
+                let d = r.read_u32().map_err(crate::ssh::russh::Error::from)?;
                 handler
                     .channel_open_direct_tcpip(sender_channel, a, b, c, d, self)
                     .await

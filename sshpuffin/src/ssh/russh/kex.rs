@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-use crate::{cipher, key, msg};
-use byteorder::{BigEndian, ByteOrder};
-
-use crate::session::Exchange;
-use russh_cryptovec::CryptoVec;
-
-use rand::RngCore;
-use russh_keys::encoding::Encoding;
 use std::cell::RefCell;
+
+use byteorder::{BigEndian, ByteOrder};
+use log::debug;
+use rand::RngCore;
+use russh_cryptovec::CryptoVec;
+use russh_keys::encoding::Encoding;
+
+use crate::ssh::russh::{cipher, key, msg, session::Exchange};
 
 #[doc(hidden)]
 pub struct Algorithm {
-    local_secret: Option<sodium::scalarmult::Scalar>,
-    shared_secret: Option<sodium::scalarmult::GroupElement>,
+    local_secret: Option<russh_libsodium::scalarmult::Scalar>,
+    shared_secret: Option<russh_libsodium::scalarmult::GroupElement>,
 }
 
 impl std::fmt::Debug for Algorithm {
@@ -62,20 +62,20 @@ impl Algorithm {
         _name: Name,
         exchange: &mut Exchange,
         payload: &[u8],
-    ) -> Result<Algorithm, crate::Error> {
+    ) -> Result<Algorithm, crate::ssh::russh::Error> {
         debug!("server_dh");
 
         let mut client_pubkey = GroupElement([0; 32]);
         {
             if payload.get(0) != Some(&msg::KEX_ECDH_INIT) {
-                return Err(crate::Error::Inconsistent);
+                return Err(crate::ssh::russh::Error::Inconsistent);
             }
 
             #[allow(clippy::indexing_slicing)] // length checked
             let pubkey_len = BigEndian::read_u32(&payload[1..]) as usize;
 
             if payload.len() < 5 + pubkey_len {
-                return Err(crate::Error::Inconsistent);
+                return Err(crate::ssh::russh::Error::Inconsistent);
             }
 
             #[allow(clippy::indexing_slicing)] // length checked
@@ -84,7 +84,7 @@ impl Algorithm {
                 .clone_from_slice(&payload[5..(5 + pubkey_len)])
         };
         debug!("client_pubkey: {:?}", client_pubkey);
-        use sodium::scalarmult::*;
+        use russh_libsodium::scalarmult::*;
         let mut server_secret = Scalar([0; 32]);
         rand::thread_rng().fill_bytes(&mut server_secret.0);
         let server_pubkey = scalarmult_base(&server_secret);
@@ -104,8 +104,8 @@ impl Algorithm {
         _name: Name,
         client_ephemeral: &mut CryptoVec,
         buf: &mut CryptoVec,
-    ) -> Result<Algorithm, crate::Error> {
-        use sodium::scalarmult::*;
+    ) -> Result<Algorithm, crate::ssh::russh::Error> {
+        use russh_libsodium::scalarmult::*;
         let mut client_secret = Scalar([0; 32]);
         rand::thread_rng().fill_bytes(&mut client_secret.0);
         let client_pubkey = scalarmult_base(&client_secret);
@@ -123,11 +123,14 @@ impl Algorithm {
         })
     }
 
-    pub fn compute_shared_secret(&mut self, remote_pubkey_: &[u8]) -> Result<(), crate::Error> {
-        let local_secret =
-            std::mem::replace(&mut self.local_secret, None).ok_or(crate::Error::KexInit)?;
+    pub fn compute_shared_secret(
+        &mut self,
+        remote_pubkey_: &[u8],
+    ) -> Result<(), crate::ssh::russh::Error> {
+        let local_secret = std::mem::replace(&mut self.local_secret, None)
+            .ok_or(crate::ssh::russh::Error::KexInit)?;
 
-        use sodium::scalarmult::*;
+        use russh_libsodium::scalarmult::*;
         let mut remote_pubkey = GroupElement([0; 32]);
         remote_pubkey.0.clone_from_slice(remote_pubkey_);
         let shared = scalarmult(&local_secret, &remote_pubkey);
@@ -140,7 +143,7 @@ impl Algorithm {
         key: &K,
         exchange: &Exchange,
         buffer: &mut CryptoVec,
-    ) -> Result<crate::Sha256Hash, crate::Error> {
+    ) -> Result<crate::ssh::russh::Sha256Hash, crate::ssh::russh::Error> {
         // Computing the exchange hash, see page 7 of RFC 5656.
         buffer.clear();
         buffer.extend_ssh_string(&exchange.client_id);
@@ -164,11 +167,11 @@ impl Algorithm {
 
     pub fn compute_keys(
         &self,
-        session_id: &crate::Sha256Hash,
-        exchange_hash: &crate::Sha256Hash,
+        session_id: &crate::ssh::russh::Sha256Hash,
+        exchange_hash: &crate::ssh::russh::Sha256Hash,
         cipher: cipher::Name,
         is_server: bool,
-    ) -> Result<super::cipher::CipherPair, crate::Error> {
+    ) -> Result<super::cipher::CipherPair, crate::ssh::russh::Error> {
         let cipher = match cipher {
             super::cipher::chacha20poly1305::NAME => &super::cipher::chacha20poly1305::CIPHER,
             super::cipher::aes256gcm::NAME => &super::cipher::aes256gcm::CIPHER,
@@ -179,34 +182,19 @@ impl Algorithm {
         BUFFER.with(|buffer| {
             KEY_BUF.with(|key| {
                 NONCE_BUF.with(|nonce| {
-                    let compute_key = |c, key: &mut CryptoVec, len| -> Result<(), crate::Error> {
-                        let mut buffer = buffer.borrow_mut();
-                        buffer.clear();
-                        key.clear();
-
-                        if let Some(ref shared) = self.shared_secret {
-                            buffer.extend_ssh_mpint(&shared.0);
-                        }
-
-                        buffer.extend(exchange_hash.as_ref());
-                        buffer.push(c);
-                        buffer.extend(session_id.as_ref());
-                        let hash = {
-                            use sha2::Digest;
-                            let mut hasher = sha2::Sha256::new();
-                            hasher.update(&buffer[..]);
-                            hasher.finalize()
-                        };
-                        key.extend(hash.as_ref());
-
-                        while key.len() < len {
-                            // extend.
+                    let compute_key =
+                        |c, key: &mut CryptoVec, len| -> Result<(), crate::ssh::russh::Error> {
+                            let mut buffer = buffer.borrow_mut();
                             buffer.clear();
+                            key.clear();
+
                             if let Some(ref shared) = self.shared_secret {
                                 buffer.extend_ssh_mpint(&shared.0);
                             }
+
                             buffer.extend(exchange_hash.as_ref());
-                            buffer.extend(key);
+                            buffer.push(c);
+                            buffer.extend(session_id.as_ref());
                             let hash = {
                                 use sha2::Digest;
                                 let mut hasher = sha2::Sha256::new();
@@ -214,11 +202,27 @@ impl Algorithm {
                                 hasher.finalize()
                             };
                             key.extend(hash.as_ref());
-                        }
 
-                        key.resize(len);
-                        Ok(())
-                    };
+                            while key.len() < len {
+                                // extend.
+                                buffer.clear();
+                                if let Some(ref shared) = self.shared_secret {
+                                    buffer.extend_ssh_mpint(&shared.0);
+                                }
+                                buffer.extend(exchange_hash.as_ref());
+                                buffer.extend(key);
+                                let hash = {
+                                    use sha2::Digest;
+                                    let mut hasher = sha2::Sha256::new();
+                                    hasher.update(&buffer[..]);
+                                    hasher.finalize()
+                                };
+                                key.extend(hash.as_ref());
+                            }
+
+                            key.resize(len);
+                            Ok(())
+                        };
 
                     let (local_to_remote, remote_to_local) = if is_server {
                         (b'D', b'C')

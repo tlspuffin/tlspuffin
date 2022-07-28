@@ -13,31 +13,31 @@
 // limitations under the License.
 //
 
-use crate::auth;
-use crate::negotiation;
-use crate::pty::Pty;
-use crate::session::*;
-use crate::ssh_read::SshRead;
-use crate::sshbuffer::*;
-use crate::{ChannelId, ChannelMsg, ChannelOpenFailure, Disconnect, Limits, Sig};
-use futures::task::{Context, Poll};
-use futures::Future;
+use std::{cell::RefCell, collections::HashMap, pin::Pin, sync::Arc};
+
+use futures::{
+    task::{Context, Poll},
+    Future,
+};
 use russh_cryptovec::CryptoVec;
-use russh_keys::encoding::{Encoding, Reader};
-use russh_keys::key::{self, SignatureHash};
-use russh_keys::key::parse_public_key;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::pin::Pin;
-use std::sync::Arc;
-use tokio;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::net::TcpStream;
-use tokio::pin;
+use russh_keys::{
+    encoding::{Encoding, Reader},
+    key::{self, parse_public_key, SignatureHash},
+};
+use tokio::{
+    self,
+    io::{AsyncRead, AsyncWrite, AsyncWriteExt},
+    net::TcpStream,
+    pin,
+};
+
+use crate::ssh::russh::{
+    auth, negotiation, pty::Pty, session::*, ssh_read::SshRead, sshbuffer::*, ChannelId,
+    ChannelMsg, ChannelOpenFailure, Disconnect, Limits, Sig,
+};
 
 mod kex;
-use crate::cipher;
-use crate::{msg, Error};
+use crate::ssh::russh::{cipher, msg, Error};
 mod encrypted;
 mod session;
 
@@ -70,8 +70,8 @@ enum Reply {
     },
 }
 
-#[derive(Debug)]
-enum Msg {
+#[derive(Debug, Clone)]
+pub enum Msg {
     Authenticate {
         user: String,
         method: auth::Method,
@@ -173,7 +173,7 @@ enum Msg {
 }
 
 #[derive(Debug)]
-enum OpenChannelMsg {
+pub enum OpenChannelMsg {
     Open {
         id: ChannelId,
         max_packet_size: u32,
@@ -278,7 +278,7 @@ impl<H: Handler> Handle<H> {
             .await
             .is_err()
         {
-            return (future, Err((crate::SendError {}).into()));
+            return (future, Err((crate::ssh::russh::SendError {}).into()));
         }
         loop {
             let reply = self.receiver.recv().await;
@@ -293,7 +293,7 @@ impl<H: Handler> Handle<H> {
                         Err(e) => return (future, Err(e)),
                     };
                     if self.sender.send(Msg::Signed { data }).await.is_err() {
-                        return (future, Err((crate::SendError {}).into()));
+                        return (future, Err((crate::ssh::russh::SendError {}).into()));
                     }
                 }
                 None => return (future, Ok(false)),
@@ -742,7 +742,7 @@ impl<H: Handler> Future for Handle<H> {
         match Future::poll(Pin::new(&mut self.join), cx) {
             Poll::Ready(r) => Poll::Ready(match r {
                 Ok(Ok(x)) => Ok(x),
-                Err(e) => Err(crate::Error::from(e).into()),
+                Err(e) => Err(crate::ssh::russh::Error::from(e).into()),
                 Ok(Err(e)) => Err(e),
             }),
             Poll::Pending => Poll::Pending,
@@ -751,12 +751,17 @@ impl<H: Handler> Future for Handle<H> {
 }
 
 use std::net::SocketAddr;
+
+use log::{debug, error, info};
+
 pub async fn connect<H: Handler + Send + 'static>(
     config: Arc<Config>,
     addr: SocketAddr,
     handler: H,
 ) -> Result<Handle<H>, H::Error> {
-    let socket = TcpStream::connect(addr).await.map_err(crate::Error::from)?;
+    let socket = TcpStream::connect(addr)
+        .await
+        .map_err(crate::ssh::russh::Error::from)?;
     connect_stream(config, socket, handler).await
 }
 
@@ -775,7 +780,7 @@ where
     stream
         .write_all(&write_buffer.buffer)
         .await
-        .map_err(crate::Error::from)?;
+        .map_err(crate::ssh::russh::Error::from)?;
 
     // Reading SSH id and allocating a session if correct.
     let mut stream = SshRead::new(stream);
@@ -813,8 +818,9 @@ where
     let join = tokio::spawn(session.run(stream, handler, Some(encrypted_signal)));
 
     if let Err(_) = encrypted_recv.await {
-        join.await.map_err(|e| crate::Error::Join(e))??;
-        return Err(H::Error::from(crate::Error::Disconnect));
+        join.await
+            .map_err(|e| crate::ssh::russh::Error::Join(e))??;
+        return Err(H::Error::from(crate::ssh::russh::Error::Disconnect));
     }
 
     Ok(Handle {
@@ -827,7 +833,7 @@ where
 async fn start_reading<R: AsyncRead + Unpin>(
     mut stream_read: R,
     mut buffer: SSHBuffer,
-    cipher: Arc<crate::cipher::CipherPair>,
+    cipher: Arc<crate::ssh::russh::cipher::CipherPair>,
 ) -> Result<(usize, R, SSHBuffer), Error> {
     buffer.buffer.clear();
     let n = cipher::read(&mut stream_read, &mut buffer, &cipher).await?;
@@ -847,8 +853,11 @@ impl Session {
             stream
                 .write_all(&self.common.write_buffer.buffer)
                 .await
-                .map_err(crate::Error::from)?;
-            stream.flush().await.map_err(crate::Error::from)?;
+                .map_err(crate::ssh::russh::Error::from)?;
+            stream
+                .flush()
+                .await
+                .map_err(crate::ssh::russh::Error::from)?;
         }
         self.common.write_buffer.buffer.clear();
         let mut decomp = CryptoVec::new();
@@ -885,7 +894,7 @@ impl Session {
                     };
                     if !buf.is_empty() {
                         #[allow(clippy::indexing_slicing)] // length checked
-                        if buf[0] == crate::msg::DISCONNECT {
+                        if buf[0] == crate::ssh::russh::msg::DISCONNECT {
                             break;
                         } else if buf[0] > 4 {
                             let (h, s) = reply(self, handler, &mut encrypted_signal, buf).await?;
@@ -965,8 +974,11 @@ impl Session {
                 stream_write
                     .write_all(&self.common.write_buffer.buffer)
                     .await
-                    .map_err(crate::Error::from)?;
-                stream_write.flush().await.map_err(crate::Error::from)?;
+                    .map_err(crate::ssh::russh::Error::from)?;
+                stream_write
+                    .flush()
+                    .await
+                    .map_err(crate::ssh::russh::Error::from)?;
             }
             self.common.write_buffer.buffer.clear();
             if let Some(ref mut enc) = self.common.encrypted {
@@ -978,7 +990,10 @@ impl Session {
         }
         debug!("disconnected");
         if self.common.disconnected {
-            stream_write.shutdown().await.map_err(crate::Error::from)?;
+            stream_write
+                .shutdown()
+                .await
+                .map_err(crate::ssh::russh::Error::from)?;
         }
         Ok(())
     }
@@ -1063,12 +1078,14 @@ impl KexDhDone {
         buf: &[u8],
     ) -> Result<(Kex, H), H::Error> {
         let mut reader = buf.reader(1);
-        let pubkey = reader.read_string().map_err(crate::Error::from)?; // server public key.
+        let pubkey = reader
+            .read_string()
+            .map_err(crate::ssh::russh::Error::from)?; // server public key.
         let pubkey = parse_public_key(
             pubkey,
             SignatureHash::from_rsa_hostkey_algo(self.names.key.0.as_bytes()),
         )
-        .map_err(crate::Error::from)?;
+        .map_err(crate::ssh::russh::Error::from)?;
         debug!("server_public_Key: {:?}", pubkey);
         if !rekey {
             let ret = handler.check_server_key(&pubkey).await?;
@@ -1082,9 +1099,13 @@ impl KexDhDone {
             let mut buffer = buffer.borrow_mut();
             buffer.clear();
             let hash = {
-                let server_ephemeral = reader.read_string().map_err(crate::Error::from)?;
+                let server_ephemeral = reader
+                    .read_string()
+                    .map_err(crate::ssh::russh::Error::from)?;
                 self.exchange.server_ephemeral.extend(server_ephemeral);
-                let signature = reader.read_string().map_err(crate::Error::from)?;
+                let signature = reader
+                    .read_string()
+                    .map_err(crate::ssh::russh::Error::from)?;
 
                 self.kex
                     .compute_shared_secret(&self.exchange.server_ephemeral)?;
@@ -1095,9 +1116,13 @@ impl KexDhDone {
                 debug!("exchange hash: {:?}", hash);
                 let signature = {
                     let mut sig_reader = signature.reader(0);
-                    let sig_type = sig_reader.read_string().map_err(crate::Error::from)?;
+                    let sig_type = sig_reader
+                        .read_string()
+                        .map_err(crate::ssh::russh::Error::from)?;
                     debug!("sig_type: {:?}", sig_type);
-                    sig_reader.read_string().map_err(crate::Error::from)?
+                    sig_reader
+                        .read_string()
+                        .map_err(crate::ssh::russh::Error::from)?
                 };
                 use russh_keys::key::Verify;
                 debug!("signature: {:?}", signature);
@@ -1220,7 +1245,7 @@ impl Default for Config {
 /// A client handler. Note that messages can be received from the
 /// server at any time during a session.
 pub trait Handler: Sized {
-    type Error: From<crate::Error> + Send;
+    type Error: From<crate::ssh::russh::Error> + Send;
     /// A future ultimately resolving into a boolean, which can be
     /// returned by some parts of this handler.
     type FutureBool: Future<Output = Result<(Self, bool), Self::Error>> + Send;

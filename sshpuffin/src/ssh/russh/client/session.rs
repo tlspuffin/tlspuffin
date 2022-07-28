@@ -1,3 +1,5 @@
+use log::error;
+
 use super::*;
 
 impl Session {

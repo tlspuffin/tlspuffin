@@ -21,6 +21,6 @@ impl Claim for SshClaim {
     }
 
     fn inner(&self) -> Box<dyn Any> {
-        self.inner
+        Box::new(self.inner.clone())
     }
 }
