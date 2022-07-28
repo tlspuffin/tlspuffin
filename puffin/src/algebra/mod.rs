@@ -482,13 +482,7 @@ pub mod test_signature {
         type Message = TestMessage;
         type OpaqueMessage = TestOpaqueMessage;
         type MessageDeframer = TestMessageDeframer;
-        type Matcher = TestQueryMatcher;
-
-        fn extract_knowledge(
-            _message: &Self::Message,
-        ) -> Result<Vec<Box<dyn VariableData>>, Error> {
-            panic!("Not implemented for test stub");
-        }
+        type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature {
             panic!("Not implemented for test stub");
@@ -505,6 +499,12 @@ pub mod test_signature {
         fn extract_query_matcher(
             _message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
         ) -> Self::Matcher {
+            panic!("Not implemented for test stub");
+        }
+
+        fn extract_knowledge(
+            _message: &Self::Message,
+        ) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
         }
     }
@@ -540,7 +540,9 @@ mod tests {
     use super::test_signature::*;
     use crate::{
         agent::AgentName,
-        algebra::{atoms::Variable, dynamic_function::TypeShape, signature::Signature, Term},
+        algebra::{
+            atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
+        },
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},
@@ -602,7 +604,7 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable: Variable<TestQueryMatcher> =
+        let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
         let generated_term = Term::Application(
@@ -666,21 +668,20 @@ mod tests {
                             Signature::new_function(&example_op_c),
                             vec![
                                 Term::Application(Signature::new_function(&example_op_c), vec![]),
-                                Term::Variable(Signature::new_var_with_type::<
-                                    SessionID,
-                                    TestQueryMatcher,
-                                >(
-                                    AgentName::first(), None, 0
-                                )),
+                                Term::Variable(
+                                    Signature::new_var_with_type::<SessionID, AnyMatcher>(
+                                        AgentName::first(),
+                                        None,
+                                        0,
+                                    ),
+                                ),
                             ],
                         ),
-                        Term::Variable(
-                            Signature::new_var_with_type::<SessionID, TestQueryMatcher>(
-                                AgentName::first(),
-                                None,
-                                0,
-                            ),
-                        ),
+                        Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
+                            AgentName::first(),
+                            None,
+                            0,
+                        )),
                     ],
                 ),
                 Term::Application(
