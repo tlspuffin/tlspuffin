@@ -17,13 +17,9 @@ use crate::{
     static_certs::BOB_PRIVATE_KEY,
     tls::{
         fn_impl::*,
-        rustls::{
-            internal::msgs::{
-                enums::{Compression, HandshakeType},
-                handshake::ServerExtension,
-            },
-            msgs::handshake::{Random, SessionID},
-            CipherSuite, ProtocolVersion,
+        rustls::msgs::{
+            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
+            handshake::{Random, ServerExtension, SessionID},
         },
     },
 };
@@ -2950,20 +2946,16 @@ pub mod tests {
 
         use crate::tls::rustls::{
             self,
-            internal::msgs::{
-                enums::{ContentType, HandshakeType},
+            msgs::{
+                base::Payload,
+                codec::Reader,
+                enums::{ContentType, HandshakeType, ProtocolVersion},
                 handshake::{
                     ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
                     SessionID,
                 },
-                message::{Message, MessagePayload::Handshake},
+                message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
             },
-            msgs::{
-                base::Payload,
-                codec::Reader,
-                message::{OpaqueMessage, PlainMessage},
-            },
-            ProtocolVersion,
         };
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {

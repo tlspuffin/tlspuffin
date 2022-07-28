@@ -13,23 +13,15 @@ use HandshakePayload::EncryptedExtensions;
 
 use crate::{
     nyi_fn,
-    tls::rustls::{
-        internal::msgs::{
-            base::Payload,
-            ccs::ChangeCipherSpecPayload,
-            handshake::*,
-            heartbeat::HeartbeatPayload,
-            message::{Message, MessagePayload},
-        },
-        msgs::{
-            alert::AlertMessagePayload,
-            base::{PayloadU16, PayloadU24, PayloadU8},
-            codec::Codec,
-            enums::*,
-            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-            message::OpaqueMessage,
-        },
-        CipherSuite, ProtocolVersion, SignatureScheme,
+    tls::rustls::msgs::{
+        alert::AlertMessagePayload,
+        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        ccs::ChangeCipherSpecPayload,
+        codec::Codec,
+        enums::*,
+        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+        heartbeat::HeartbeatPayload,
+        message::{Message, MessagePayload, OpaqueMessage},
     },
 };
 

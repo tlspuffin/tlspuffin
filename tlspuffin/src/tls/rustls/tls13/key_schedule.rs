@@ -9,8 +9,8 @@ use ring::{
 use crate::tls::rustls::{
     cipher::{Iv, IvLen},
     error::Error,
+    key_log::KeyLog,
     msgs::base::PayloadU8,
-    KeyLog,
 };
 
 /// The kinds of secret we can extract from `KeySchedule`.
@@ -565,7 +565,7 @@ mod test {
     use ring::{aead, hkdf};
 
     use super::{derive_traffic_iv, derive_traffic_key, KeySchedule, SecretKind};
-    use crate::tls::rustls::KeyLog;
+    use crate::tls::rustls::key_log::KeyLog;
 
     #[test]
     fn test_vectors() {

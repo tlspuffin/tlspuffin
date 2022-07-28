@@ -11,20 +11,22 @@ use crate::tls::{
     rustls::{
         conn::Side,
         hash_hs::HandshakeHash,
-        internal::msgs::enums::HandshakeType,
         key,
+        key::Certificate,
         msgs::{
             base::PayloadU8,
             codec::{Codec, Reader},
-            enums::NamedGroup,
+            enums::{
+                CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, HandshakeType, NamedGroup,
+            },
             handshake::{
                 CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
                 Random, ServerECDHParams,
             },
             message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
         },
+        suites, tls12,
         tls13::key_schedule::KeyScheduleEarly,
-        Certificate,
     },
 };
 
@@ -281,7 +283,7 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 // ----
 
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
-    let suite = &crate::tls::rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
@@ -327,7 +329,7 @@ pub fn fn_encrypt12(
     Ok(encrypted)
 }
 
-pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
+pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     let der_cert = hex::decode(
         "308203473082022fa003020102021406f7fb1d20\
     b39f71b9a222e8f03a0ab0a79ec54d300d060\
@@ -354,13 +356,13 @@ pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
     })?))
 }
 
-pub fn fn_new_certificates() -> Result<Vec<key::Certificate>, FnError> {
+pub fn fn_new_certificates() -> Result<Vec<Certificate>, FnError> {
     Ok(vec![])
 }
 
 pub fn fn_append_certificate(
-    certs: &Vec<key::Certificate>,
-    cert: &key::Certificate,
+    certs: &Vec<Certificate>,
+    cert: &Certificate,
 ) -> Result<Vec<Certificate>, FnError> {
     let mut new_certs = certs.clone();
     new_certs.push(cert.clone());
@@ -374,7 +376,7 @@ pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
 
 pub fn fn_append_certificate_entry(
     certs: &Vec<CertificateEntry>,
-    cert: &key::Certificate,
+    cert: &Certificate,
     extensions: &Vec<CertificateExtension>,
 ) -> Result<Vec<CertificateEntry>, FnError> {
     let mut new_certs = certs.clone();

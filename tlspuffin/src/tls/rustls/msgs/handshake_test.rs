@@ -983,7 +983,7 @@ fn can_roundtrip_all_tls12_handshake_payloads() {
 fn can_detect_truncation_of_all_tls12_handshake_payloads() {
     for hm in get_all_tls12_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        println!("test {:?} enc {:?}", hm, enc);
+        //println!("test {:?} enc {:?}", hm, enc);
 
         // outer truncation
         for l in 0..enc.len() {
@@ -993,7 +993,7 @@ fn can_detect_truncation_of_all_tls12_handshake_payloads() {
         // inner truncation
         for l in 0..enc.len() - 4 {
             put_u24(l as u32, &mut enc[1..]);
-            println!("  check len {:?} enc {:?}", l, enc);
+            //println!("  check len {:?} enc {:?}", l, enc);
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)
@@ -1130,7 +1130,7 @@ fn put_u24(u: u32, b: &mut [u8]) {
 fn can_detect_truncation_of_all_tls13_handshake_payloads() {
     for hm in get_all_tls13_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        println!("test {:?} enc {:?}", hm, enc);
+        //println!("test {:?} enc {:?}", hm, enc);
 
         // outer truncation
         for l in 0..enc.len() {
@@ -1140,7 +1140,7 @@ fn can_detect_truncation_of_all_tls13_handshake_payloads() {
         // inner truncation
         for l in 0..enc.len() - 4 {
             put_u24(l as u32, &mut enc[1..]);
-            println!("  check len {:?} enc {:?}", l, enc);
+            //println!("  check len {:?} enc {:?}", l, enc);
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)

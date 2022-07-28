@@ -6,7 +6,7 @@ use std::{
 
 use ring::aead;
 
-use crate::tls::rustls::{rand, server::ProducesTickets, Error};
+use crate::tls::rustls::{error::Error, rand, server::server_conn::ProducesTickets};
 
 /// The timebase for expiring and rolling tickets and ticketing
 /// keys.  This is UNIX wall time in seconds.

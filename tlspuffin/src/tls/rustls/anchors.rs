@@ -1,5 +1,3 @@
-#[cfg(feature = "logging")]
-use crate::tls::rustls::log::{debug, trace};
 use crate::tls::rustls::{
     key,
     msgs::handshake::{DistinguishedName, DistinguishedNames},
@@ -116,21 +114,20 @@ impl RootCertStore {
         let mut invalid_count = 0;
 
         for der_cert in der_certs {
-            #[cfg_attr(not(feature = "logging"), allow(unused_variables))]
             match self.add(&key::Certificate(der_cert.clone())) {
                 Ok(_) => valid_count += 1,
                 Err(err) => {
-                    trace!("invalid cert der {:?}", der_cert);
-                    debug!("certificate parsing failed: {:?}", err);
+                    //trace!("invalid cert der {:?}", der_cert);
+                    //debug!("certificate parsing failed: {:?}", err);
                     invalid_count += 1
                 }
             }
         }
 
-        debug!(
+        /*debug!(
             "add_parsable_certificates processed {} valid and {} invalid certs",
             valid_count, invalid_count
-        );
+        );*/
 
         (valid_count, invalid_count)
     }

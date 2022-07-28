@@ -1,12 +1,12 @@
 use std::collections::VecDeque;
 
 use crate::tls::rustls::{
+    error::Error,
     msgs::{
         base::Payload,
         enums::{ContentType, ProtocolVersion},
         message::{BorrowedPlainMessage, PlainMessage},
     },
-    Error,
 };
 
 pub const MAX_FRAGMENT_LEN: usize = 16384;

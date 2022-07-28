@@ -5,13 +5,13 @@ use ring::test::rand::FixedByteRandom;
 
 use crate::tls::rustls::{
     conn::ConnectionRandoms,
-    kx::KeyExchange,
+    kx::{KeyExchange, SupportedKxGroup, ALL_KX_GROUPS},
     msgs::{
-        enums::NamedGroup,
+        enums::{CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, NamedGroup},
         handshake::{Random, ServerECDHParams},
     },
+    suites, tls12,
     tls12::ConnectionSecrets,
-    SupportedKxGroup, ALL_KX_GROUPS,
 };
 
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
@@ -69,7 +69,7 @@ pub fn tls12_new_secrets(
     server_ecdh_pubkey: &Vec<u8>,
     group: &NamedGroup,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &crate::tls::rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
 
     let mut server_random_bytes = vec![0; 32];
 
@@ -97,7 +97,7 @@ pub fn tls12_new_secrets(
 mod tests {
     use test_log::test;
 
-    use crate::tls::{key_exchange::deterministic_key_exchange, rustls::kx_group::SECP384R1};
+    use crate::tls::{key_exchange::deterministic_key_exchange, rustls::kx::SECP384R1};
 
     #[test]
     fn test_deterministic_key() {

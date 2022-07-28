@@ -9,7 +9,9 @@ use crate::{
     },
     tls::rustls::{
         hash_hs::HandshakeHash,
+        key::{Certificate, PrivateKey},
         msgs::{
+            enums::SignatureScheme,
             handshake::{CertReqExtension, CertificateEntry, HandshakePayload},
             message::{Message, MessagePayload},
         },
@@ -18,7 +20,6 @@ use crate::{
             construct_tls13_client_verify_message, construct_tls13_client_verify_message_raw,
             construct_tls13_server_verify_message, construct_tls13_server_verify_message_raw,
         },
-        Certificate, PrivateKey, SignatureScheme,
     },
 };
 

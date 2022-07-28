@@ -2,9 +2,7 @@ use ring::{aead, hkdf};
 
 /// This module contains optional APIs for implementing QUIC TLS.
 use crate::tls::rustls::cipher::{Iv, IvLen};
-pub use crate::tls::rustls::{client::ClientQuicExt, server::ServerQuicExt};
 use crate::tls::rustls::{
-    conn::CommonState,
     error::Error,
     msgs::enums::AlertDescription,
     suites::BulkAlgorithm,
@@ -391,38 +389,6 @@ impl Keys {
             remote: DirectionalKeys::new(secrets.suite, remote),
         }
     }
-}
-
-pub fn write_hs(this: &mut CommonState, buf: &mut Vec<u8>) -> Option<KeyChange> {
-    while let Some((_, msg)) = this.quic.hs_queue.pop_front() {
-        buf.extend_from_slice(&msg);
-        if let Some(&(true, _)) = this.quic.hs_queue.front() {
-            if this.quic.hs_secrets.is_some() {
-                // Allow the caller to switch keys before proceeding.
-                break;
-            }
-        }
-    }
-
-    if let Some(secrets) = this.quic.hs_secrets.take() {
-        return Some(KeyChange::Handshake {
-            keys: Keys::new(&secrets),
-        });
-    }
-
-    if let Some(mut secrets) = this.quic.traffic_secrets.take() {
-        if !this.quic.returned_traffic_keys {
-            this.quic.returned_traffic_keys = true;
-            let keys = Keys::new(&secrets);
-            secrets.update();
-            return Some(KeyChange::OneRtt {
-                keys,
-                next: secrets,
-            });
-        }
-    }
-
-    None
 }
 
 /// Key material for use in QUIC packet spaces

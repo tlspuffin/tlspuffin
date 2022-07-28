@@ -1,12 +1,11 @@
 use std::{convert::TryFrom, sync::Arc, time::SystemTime};
 
+use log::{debug, trace, warn};
 use ring::digest::Digest;
 
-#[cfg(feature = "logging")]
-use crate::tls::rustls::log::{debug, trace, warn};
 use crate::tls::rustls::{
     anchors::{OwnedTrustAnchor, RootCertStore},
-    client::ServerName,
+    client::client_conn::ServerName,
     error::Error,
     key::Certificate,
     msgs::{
@@ -409,7 +408,6 @@ impl CertificateTransparencyPolicy {
         let now = unix_time_millis(now)?;
         let mut last_sct_error = None;
         for sct in scts {
-            #[cfg_attr(not(feature = "logging"), allow(unused_variables))]
             match sct::verify_sct(&cert.0, sct, now, self.logs) {
                 Ok(index) => {
                     debug!(

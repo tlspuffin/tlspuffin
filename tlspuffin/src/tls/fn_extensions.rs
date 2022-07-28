@@ -23,7 +23,7 @@ use crate::{
                 handshake::*,
                 message::Message,
             },
-            x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
+            x509,
         },
     },
 };

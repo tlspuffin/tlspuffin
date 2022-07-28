@@ -1,6 +1,3 @@
-#[cfg(feature = "tls12")]
-use crate::tls::rustls::tls12::Tls12CipherSuite;
-#[cfg(feature = "tls12")]
 use crate::tls::rustls::tls12::{
     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
     // TLS1.2 suites
@@ -10,18 +7,17 @@ use crate::tls::rustls::tls12::{
     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 };
-#[cfg(feature = "tls12")]
-use crate::tls::rustls::versions::TLS12;
 use crate::tls::rustls::{
     msgs::{
         enums::{CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme},
         handshake::DecomposedSignatureScheme,
     },
+    tls12::Tls12CipherSuite,
     tls13::{
         Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
         TLS13_CHACHA20_POLY1305_SHA256,
     },
-    versions::{SupportedProtocolVersion, TLS13},
+    versions::{SupportedProtocolVersion, TLS12, TLS13},
 };
 
 /// Bulk symmetric encryption scheme used by a cipher suite.
@@ -56,7 +52,6 @@ pub struct CipherSuiteCommon {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SupportedCipherSuite {
     /// A TLS 1.2 cipher suite
-    #[cfg(feature = "tls12")]
     Tls12(&'static Tls12CipherSuite),
     /// A TLS 1.3 cipher suite
     Tls13(&'static Tls13CipherSuite),
@@ -66,7 +61,6 @@ impl SupportedCipherSuite {
     /// Which hash function to use with this suite.
     pub fn hash_algorithm(&self) -> &'static ring::digest::Algorithm {
         match self {
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(inner) => inner.hash_algorithm(),
             SupportedCipherSuite::Tls13(inner) => inner.hash_algorithm(),
         }
@@ -79,7 +73,6 @@ impl SupportedCipherSuite {
 
     pub fn common(&self) -> &CipherSuiteCommon {
         match self {
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(inner) => &inner.common,
             SupportedCipherSuite::Tls13(inner) => &inner.common,
         }
@@ -87,16 +80,13 @@ impl SupportedCipherSuite {
 
     pub fn tls13(&self) -> Option<&'static Tls13CipherSuite> {
         match self {
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(_) => None,
             SupportedCipherSuite::Tls13(inner) => Some(inner),
         }
     }
 
-    #[cfg(feature = "tls12")]
     pub fn tls12(&self) -> Option<&'static Tls12CipherSuite> {
         match self {
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(inner) => Some(inner),
             SupportedCipherSuite::Tls13(inner) => None,
         }
@@ -105,7 +95,6 @@ impl SupportedCipherSuite {
     /// Return supported protocol version for the cipher suite.
     pub fn version(&self) -> &'static SupportedProtocolVersion {
         match self {
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(_) => &TLS12,
             SupportedCipherSuite::Tls13(_) => &TLS13,
         }
@@ -116,7 +105,6 @@ impl SupportedCipherSuite {
     pub fn usable_for_signature_algorithm(&self, _sig_alg: SignatureAlgorithm) -> bool {
         match self {
             SupportedCipherSuite::Tls13(_) => true, // no constraint expressed by ciphersuite (e.g., TLS1.3)
-            #[cfg(feature = "tls12")]
             SupportedCipherSuite::Tls12(inner) => {
                 inner.sign.iter().any(|scheme| scheme.sign() == _sig_alg)
             }
@@ -131,17 +119,11 @@ pub static ALL_CIPHER_SUITES: &[SupportedCipherSuite] = &[
     TLS13_AES_128_GCM_SHA256,
     TLS13_CHACHA20_POLY1305_SHA256,
     // TLS1.2 suites
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-    #[cfg(feature = "tls12")]
     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 ];
 

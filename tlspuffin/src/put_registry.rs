@@ -14,8 +14,67 @@ use crate::{
     claims::TlsClaim,
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
-    tls::{rustls, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE},
+    tls::{
+        rustls, rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy,
+        TLS_SIGNATURE,
+    },
 };
+
+impl puffin::protocol::Message<msgs::message::OpaqueMessage> for msgs::message::Message {
+    fn create_opaque(&self) -> msgs::message::OpaqueMessage {
+        msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
+    }
+    fn debug(&self, info: &str) {
+        // TODO
+    }
+}
+
+impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
+    for msgs::deframer::MessageDeframer
+{
+    fn new() -> Self {
+        MessageDeframer::new()
+    }
+    fn pop_frame(&mut self) -> Option<msgs::message::OpaqueMessage> {
+        self.frames.pop_front()
+    }
+    fn encode(&self) -> Vec<u8> {
+        let mut buffer: Vec<u8> = Vec::new();
+        for message in &self.frames {
+            buffer.append(&mut message.clone().encode());
+        }
+        buffer
+    }
+    fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {
+        self.read(rd)
+    }
+}
+
+impl puffin::protocol::OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
+    fn encode(&self) -> Vec<u8> {
+        self.clone().encode()
+    }
+
+    fn into_message(self) -> Result<msgs::message::Message, puffin::error::Error> {
+        use std::convert::TryFrom;
+        crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
+            .map_err(|err| puffin::error::Error::Stream("Failed to create message".to_string()))
+    }
+
+    fn debug(&self, info: &str) {
+        // TODO
+    }
+}
+
+impl puffin::algebra::Matcher for msgs::enums::HandshakeType {
+    fn matches(&self, matcher: &Self) -> bool {
+        matcher == self
+    }
+
+    fn specificity(&self) -> u32 {
+        1
+    }
+}
 
 #[derive(Clone)]
 pub struct TLSProtocolBehavior;

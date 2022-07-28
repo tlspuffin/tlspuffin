@@ -1,7 +1,5 @@
 use std::{collections, fmt};
 
-use log::warn;
-
 use crate::tls::rustls::{
     key,
     msgs::{
@@ -267,7 +265,7 @@ impl ServerNamePayload {
             match webpki::DnsNameRef::try_from_ascii(&raw.0) {
                 Ok(dns_name) => dns_name.into(),
                 Err(_) => {
-                    log::warn!("Illegal SNI hostname received {:?}", raw.0);
+                    //log::warn!("Illegal SNI hostname received {:?}", raw.0);
                     return None;
                 }
             }
