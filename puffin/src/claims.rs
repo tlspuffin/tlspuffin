@@ -18,26 +18,6 @@ pub trait Claim: VariableData {
     fn inner(&self) -> Box<dyn Any>;
 }
 
-impl Clone for Box<dyn Claim> {
-    fn clone(&self) -> Self {
-        Box::new(self.clone())
-    }
-}
-
-impl Claim for Box<dyn Claim> {
-    fn agent_name(&self) -> AgentName {
-        self.agent_name()
-    }
-
-    fn id(&self) -> TypeShape {
-        self.id()
-    }
-
-    fn inner(&self) -> Box<dyn Any> {
-        self.inner()
-    }
-}
-
 pub trait SecurityViolationPolicy<C: Claim> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
