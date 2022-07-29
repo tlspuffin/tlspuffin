@@ -97,9 +97,10 @@ fn main() -> std::io::Result<()> {
         .write_to_file(PathBuf::from(&out_dir).join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
+    println!("cargo:rustc-link-lib=crypto");
+    println!("cargo:rustc-link-lib=z");
+
     // Tell cargo to tell rustc to link
-    println!("cargo:rustc-link-lib=static=crypto");
-    //println!("cargo:rustc-link-lib=static=z");
     println!("cargo:rustc-link-lib=static=ssh");
     println!(
         "cargo:rustc-link-search=native={}",
@@ -107,9 +108,6 @@ fn main() -> std::io::Result<()> {
     );
 
     println!("cargo:include={}", out_dir);
-
-    // Invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=wrapper.h");
 
     // That should do it...
     Ok(())

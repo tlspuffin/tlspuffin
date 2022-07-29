@@ -1,3 +1,5 @@
+#![feature(unix_socket_abstract)]
+
 mod claim;
 mod libssh;
 mod protocol;

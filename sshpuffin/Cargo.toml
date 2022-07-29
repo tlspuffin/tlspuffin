@@ -2,9 +2,13 @@
 name = "sshpuffin"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
+
+[features]
+# Current put supports claims
+claims = ['puffin/claims']
 
 [dependencies]
+libssh-sys = { path = "../deps/libssh-sys" }
 puffin = { path = "../puffin" }
 
 log = "0.4"
@@ -16,7 +20,6 @@ russh-cryptovec = "0.7.0-beta.1"
 russh-keys = "0.22.0-beta.3"
 russh-libsodium = "0.3.0-beta.1"
 
-bitflags = "1.2"
 byteorder = "1.3"
 digest = "0.10.3"
 flate2 = {version = "1.0"}
@@ -26,6 +29,10 @@ sha2 = "0.10.2"
 
 futures = "0.3"
 tokio = {version = "1.17.0", features = ["io-util", "rt-multi-thread", "time", "net", "sync", "macros", "process"]}
+
+# libssh
+foreign-types = { version = "0.5.0" }
+bitflags = { version = "1.3.2" }
 
 [dev-dependencies]
 env_logger = "0.9.0"
