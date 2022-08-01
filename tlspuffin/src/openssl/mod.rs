@@ -73,11 +73,11 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             })?))
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             OPENSSL111_PUT
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> &'static str {
             OpenSSL::version()
         }
 

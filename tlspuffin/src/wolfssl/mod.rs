@@ -81,11 +81,11 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             Ok(Box::new(WolfSSL::new(config)?))
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             WOLFSSL520_PUT
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> &'static str {
             WolfSSL::version()
         }
 

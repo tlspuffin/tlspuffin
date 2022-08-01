@@ -21,8 +21,8 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         for func in self.factories {
             let factory = func();
 
-            let name = factory.put_name();
-            let version = factory.put_version();
+            let name = factory.name();
+            let version = factory.version();
             put_versions.push(format!("{}: {}", name, version));
         }
         put_versions
@@ -43,7 +43,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         self.factories
             .iter()
             .map(|func| func())
-            .find(|factory: &Box<dyn Factory<PB>>| factory.put_name() == put_name)
+            .find(|factory: &Box<dyn Factory<PB>>| factory.name() == put_name)
     }
 }
 
@@ -54,7 +54,7 @@ pub trait Factory<PB: ProtocolBehavior> {
         context: &TraceContext<PB>,
         agent_descriptor: &AgentDescriptor,
     ) -> Result<Box<dyn Put<PB>>, Error>;
-    fn put_name(&self) -> PutName;
-    fn put_version(&self) -> &'static str;
+    fn name(&self) -> PutName;
+    fn version(&self) -> String;
     fn make_deterministic(&self);
 }

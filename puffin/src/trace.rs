@@ -118,7 +118,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn extract_knowledge(
         &self,
-        message: &PB::Message,
+        message: &MessageResult<PB::Message, PB::OpaqueMessage>,
     ) -> Result<Vec<Box<dyn VariableData>>, Error> {
         PB::extract_knowledge(message)
     }
@@ -259,7 +259,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .unwrap_or_else(|| {
                 let factory = (self.put_registry.default)();
                 PutDescriptor {
-                    name: factory.put_name(),
+                    name: factory.name(),
                     options: Default::default(),
                 }
             })
@@ -486,33 +486,27 @@ impl<M: Matcher> OutputAction<M> {
             let MessageResult(message, opaque_message) = &message_result;
             let matcher = Some(PB::extract_query_matcher(&message_result));
 
-            match &message {
-                Some(message) => {
-                    let knowledge = ctx.extract_knowledge(message)?;
+            let knowledge = ctx.extract_knowledge(&message_result)?;
 
-                    debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+            debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 
-                    for variable in knowledge {
-                        let data_type_id = variable.as_ref().type_id();
+            for variable in knowledge {
+                let data_type_id = variable.as_ref().type_id();
 
-                        let counter =
-                            ctx.number_matching_message(step.agent, data_type_id, &matcher);
-                        let knowledge = Knowledge::<M> {
-                            agent_name: step.agent,
-                            matcher: matcher.clone(),
-                            data: variable,
-                        };
-                        debug!(
-                            "New knowledge {}: {}  (counter: {})",
-                            &knowledge,
-                            remove_prefix(knowledge.data.type_name()),
-                            counter
-                        );
-                        trace!("Knowledge data: {:?}", knowledge.data);
-                        ctx.add_knowledge(knowledge)
-                    }
-                }
-                None => {}
+                let counter = ctx.number_matching_message(step.agent, data_type_id, &matcher);
+                let knowledge = Knowledge::<M> {
+                    agent_name: step.agent,
+                    matcher: matcher.clone(),
+                    data: variable,
+                };
+                debug!(
+                    "New knowledge {}: {}  (counter: {})",
+                    &knowledge,
+                    remove_prefix(knowledge.data.type_name()),
+                    counter
+                );
+                trace!("Knowledge data: {:?}", knowledge.data);
+                ctx.add_knowledge(knowledge)
             }
 
             let type_id = std::any::Any::type_id(opaque_message);

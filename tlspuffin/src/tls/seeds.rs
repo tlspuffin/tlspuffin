@@ -2535,7 +2535,7 @@ pub mod tests {
     fn test_seed_cve_2021_3449() {
         if !TLS_PUT_REGISTRY
             .default_factory()
-            .put_version()
+            .version()
             .contains("1.1.1j")
         {
             return;

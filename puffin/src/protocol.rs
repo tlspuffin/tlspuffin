@@ -72,5 +72,7 @@ pub trait ProtocolBehavior: 'static {
 
     /// Extracts as much data from the message as possible. Depending on the protocol,
     /// the extraction can be more fine-grained to more coarse.
-    fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error>;
+    fn extract_knowledge(
+        message: &MessageResult<Self::Message, Self::OpaqueMessage>,
+    ) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }

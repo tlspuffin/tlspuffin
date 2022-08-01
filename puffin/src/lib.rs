@@ -7,6 +7,7 @@ pub mod agent;
 pub mod algebra;
 pub mod claims;
 pub mod cli;
+pub mod codec;
 pub mod error;
 pub mod experiment;
 pub mod fuzzer;

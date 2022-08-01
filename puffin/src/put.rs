@@ -94,7 +94,7 @@ pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
     fn is_state_successful(&self) -> bool;
 
     /// Returns a textual representation of the version of the PUT used by self
-    fn version() -> &'static str
+    fn version() -> String
     where
         Self: Sized;
 

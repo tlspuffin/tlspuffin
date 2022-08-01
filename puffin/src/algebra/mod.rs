@@ -520,11 +520,11 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             panic!("Not implemented for test stub");
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> &'static str {
             panic!("Not implemented for test stub");
         }
 
