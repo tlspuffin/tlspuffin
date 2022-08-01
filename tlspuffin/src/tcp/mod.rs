@@ -70,7 +70,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             TCP_PUT
         }
 
-        fn version(&self) -> &'static str {
+        fn version(&self) -> String {
             TcpClientPut::version()
         }
 
@@ -360,11 +360,11 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         false
     }
 
-    fn version() -> &'static str
+    fn version() -> String
     where
         Self: Sized,
     {
-        "Undefined"
+        "Undefined".to_string()
     }
 
     fn make_deterministic()
@@ -415,11 +415,11 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         false
     }
 
-    fn version() -> &'static str
+    fn version() -> String
     where
         Self: Sized,
     {
-        "Undefined"
+        "Undefined".to_string()
     }
 
     fn make_deterministic()

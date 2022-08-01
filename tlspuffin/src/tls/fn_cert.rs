@@ -12,7 +12,7 @@ use crate::{
         key::{Certificate, PrivateKey},
         msgs::{
             enums::SignatureScheme,
-            handshake::{CertificateEntry, HandshakePayload},
+            handshake::{CertificateEntry, CertificateExtensions, HandshakePayload},
             message::{Message, MessagePayload},
         },
         sign::{EcdsaSigningKey, RsaSigner, Signer, SigningKey},
@@ -49,7 +49,7 @@ pub fn fn_random_ec_cert() -> Result<Vec<u8>, FnError> {
 pub fn fn_certificate_entry(cert: &Vec<u8>) -> Result<CertificateEntry, FnError> {
     Ok(CertificateEntry {
         cert: Certificate(cert.clone()),
-        exts: vec![],
+        exts: CertificateExtensions(vec![]),
     })
 }
 

@@ -79,7 +79,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         .collect::<Vec<Box<dyn VariableData>>>()
                 }
                 HandshakePayload::Certificate(c) => {
-                    vec![Box::new(message.clone()), Box::new(c.clone())]
+                    vec![Box::new(message.clone()), Box::new(c.0.clone())]
                 }
                 HandshakePayload::ServerKeyExchange(ske) => match ske {
                     ServerKeyExchangePayload::ECDHE(ecdhe) => {

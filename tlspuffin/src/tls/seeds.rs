@@ -2830,11 +2830,11 @@ pub mod tests {
     pub mod rustls {
         use std::convert::TryFrom;
 
+        use puffin::codec::Reader;
         use test_log::test;
 
         use crate::tls::rustls::msgs::{
             base::Payload,
-            codec::Reader,
             enums::{ContentType, HandshakeType, ProtocolVersion},
             handshake::{
                 ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,

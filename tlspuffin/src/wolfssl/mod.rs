@@ -85,7 +85,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             WOLFSSL520_PUT
         }
 
-        fn version(&self) -> &'static str {
+        fn version(&self) -> String {
             WolfSSL::version()
         }
 
@@ -248,8 +248,8 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         self.stream.is_handshake_done()
     }
 
-    fn version() -> &'static str {
-        unsafe { version() }
+    fn version() -> String {
+        unsafe { version().to_string() }
     }
 
     fn make_deterministic() {

@@ -1,8 +1,6 @@
-use crate::tls::rustls::msgs::{
-    base::PayloadU16,
-    codec::{Codec, Reader},
-    enums::HeartbeatMessageType,
-};
+use puffin::codec::{Codec, Reader};
+
+use crate::tls::rustls::msgs::{base::PayloadU16, enums::HeartbeatMessageType};
 
 #[derive(Debug, Clone)]
 pub struct HeartbeatPayload {

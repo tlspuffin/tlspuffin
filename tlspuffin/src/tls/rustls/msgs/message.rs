@@ -1,12 +1,13 @@
 use std::convert::TryFrom;
 
+use puffin::codec::{Codec, Reader};
+
 use crate::tls::rustls::{
     error::Error,
     msgs::{
         alert::AlertMessagePayload,
         base::Payload,
         ccs::ChangeCipherSpecPayload,
-        codec::{Codec, Reader},
         enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
         handshake::HandshakeMessagePayload,
         heartbeat::HeartbeatPayload,

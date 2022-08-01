@@ -105,8 +105,14 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         TlsQueryMatcher::try_from(message_result).unwrap()
     }
 
-    fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        extract_knowledge(message)
+    fn extract_knowledge(
+        message: &MessageResult<Self::Message, Self::OpaqueMessage>,
+    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        if let Some(message) = &message.0 {
+            extract_knowledge(message)
+        } else {
+            Ok(vec![])
+        }
     }
 }
 

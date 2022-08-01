@@ -1,7 +1,10 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use puffin::algebra::error::FnError;
+use puffin::{
+    algebra::error::FnError,
+    codec::{Codec, Reader},
+};
 
 use crate::tls::{
     key_exchange::tls12_new_secrets,
@@ -10,7 +13,6 @@ use crate::tls::{
         hash_hs::HandshakeHash,
         key_log::NoKeyLog,
         msgs::{
-            codec::{Codec, Reader},
             enums::{CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion},
             handshake::{ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID},
         },
@@ -82,6 +84,7 @@ pub fn fn_get_client_key_share(
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         let keyshare = keyshares
+            .0
             .iter()
             .find(|keyshare| keyshare.group == *group)
             .ok_or(FnError::Unknown("Keyshare not found".to_string()))?;
@@ -101,6 +104,7 @@ pub fn fn_get_any_client_curve(
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         Ok(keyshares
+            .0
             .get(0)
             .ok_or(FnError::Unknown("Keyshare not found".to_string()))?
             .group)
