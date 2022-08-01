@@ -1,16 +1,23 @@
-mod deframe;
-pub mod russh;
+pub mod deframe;
+mod fn_message;
+pub mod message;
+mod russh;
 mod seeds;
 
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
+    pub mod fn_message;
 
     pub use fn_constants::*;
+    pub use fn_message::*;
 }
+
+use std::fmt::Debug;
 
 use fn_impl::*;
 use puffin::define_signature;
+use russh_keys::encoding::Reader;
 
 define_signature!(
     SSH_SIGNATURE,
