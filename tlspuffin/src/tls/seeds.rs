@@ -2590,6 +2590,8 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
+    use std::{fs::File, io::Write};
+
     use nix::{
         sys::{
             signal::Signal,
@@ -2652,6 +2654,15 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
     fn test_seed_12_finding_8() {
+        /*        let mut file = File::create(format!("./finding8.trace")).unwrap();
+        file.write_all(
+            &seed_12_finding_8
+                .build_trace()
+                .serialize_postcard()
+                .unwrap(),
+        )
+        .unwrap();*/
+
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
         }
