@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Tests (LibreSSL)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test -p tlspuffin --lib --features libressl" />
+    <option name="command" value="test --features libressl" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

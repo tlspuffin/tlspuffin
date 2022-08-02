@@ -2,60 +2,50 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use rustls::{
-    internal::msgs::{
-        enums::{Compression, HandshakeType},
-        handshake::ServerExtension,
-    },
-    msgs::handshake::{Random, SessionID},
-    CipherSuite, ProtocolVersion,
-};
-
-use crate::{
+use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::Term,
     put::PutDescriptor,
-    put_registry::{current_put, PUT_REGISTRY},
-    static_certs::BOB_PRIVATE_KEY,
     term,
-    tls::{error::FnError, fn_impl::*},
-    trace::{
-        Action, InputAction, OutputAction, Step, TlsMessageType, TlsMessageType::Handshake, Trace,
-        TraceContext,
+    trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
+};
+
+use crate::{
+    put_registry::{TLSProtocolBehavior, TLS_PUT_REGISTRY},
+    query::TlsQueryMatcher,
+    tls::{
+        fn_impl::*,
+        rustls::msgs::{
+            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
+            handshake::{Random, ServerExtension, SessionID},
+        },
     },
-    variable_data::VariableData,
 };
 
 pub trait SeedHelper<A>: SeedExecutor<A> {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace;
-    fn build_trace(self) -> Trace;
+    fn build_trace(self) -> Trace<TlsQueryMatcher>;
     fn fn_name(&self) -> &'static str;
 }
 
 pub trait SeedExecutor<A> {
-    fn execute_trace(self) -> TraceContext;
+    fn execute_trace(self) -> TraceContext<TLSProtocolBehavior>;
 }
 
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
-    fn execute_trace(self) -> TraceContext {
-        PUT_REGISTRY.make_deterministic();
-        self.build_trace().execute_default()
+    fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
+        TLS_PUT_REGISTRY.make_deterministic();
+        self.build_trace().execute_default(&TLS_PUT_REGISTRY)
     }
 }
 
 impl<F> SeedHelper<(AgentName, AgentName)> for F
 where
-    F: Fn(AgentName, AgentName, PutDescriptor, PutDescriptor) -> Trace,
+    F: Fn(AgentName, AgentName) -> Trace<TlsQueryMatcher>,
 {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace {
+    fn build_trace(self) -> Trace<TlsQueryMatcher> {
         let agent_a = AgentName::first();
         let agent_b = agent_a.next();
-
-        (self)(agent_a, agent_b, puts[0].clone(), puts[1].clone())
-    }
-
-    fn build_trace(self) -> Trace {
-        self.build_trace_with_puts(&[current_put(), current_put()])
+        (self)(agent_a, agent_b)
     }
 
     fn fn_name(&self) -> &'static str {
@@ -65,16 +55,12 @@ where
 
 impl<F> SeedHelper<AgentName> for F
 where
-    F: Fn(AgentName, PutDescriptor) -> Trace,
+    F: Fn(AgentName) -> Trace<TlsQueryMatcher>,
 {
-    fn build_trace_with_puts(self, puts: &[PutDescriptor]) -> Trace {
+    fn build_trace(self) -> Trace<TlsQueryMatcher> {
         let agent_a = AgentName::first();
 
-        (self)(agent_a, puts[0].clone())
-    }
-
-    fn build_trace(self) -> Trace {
-        self.build_trace_with_puts(&[current_put()])
+        (self)(agent_a)
     }
 
     fn fn_name(&self) -> &'static str {
@@ -82,12 +68,7 @@ where
     }
 }
 
-pub fn seed_successful_client_auth(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -95,7 +76,6 @@ pub fn seed_successful_client_auth(
                 name: client,
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Client,
-                put_descriptor: client_put,
                 client_authentication: true,
                 ..AgentDescriptor::default()
             },
@@ -103,7 +83,6 @@ pub fn seed_successful_client_auth(
                 name: server,
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
-                put_descriptor: server_put,
                 client_authentication: true,
                 ..AgentDescriptor::default()
             },
@@ -132,12 +111,12 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_hello(
-                            ((server, 0)[Some(Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
                         )
                     },
                 }),
@@ -148,7 +127,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -159,7 +138,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 1)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -170,7 +149,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 2)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -181,7 +160,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 3)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -192,7 +171,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 4)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -203,7 +182,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -214,7 +193,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 1)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((client, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -225,7 +204,7 @@ pub fn seed_successful_client_auth(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 2)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((client, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -234,17 +213,12 @@ pub fn seed_successful_client_auth(
     }
 }
 
-pub fn seed_successful(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -270,12 +244,12 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_hello(
-                            ((server, 0)[Some(Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
                         )
                     },
                 }),
@@ -286,7 +260,7 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -297,7 +271,7 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 1)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -308,7 +282,7 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 2)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -319,7 +293,7 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 3)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -330,7 +304,7 @@ pub fn seed_successful(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -340,17 +314,12 @@ pub fn seed_successful(
 }
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
-pub fn seed_successful_mitm(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_3, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_3, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -395,7 +364,7 @@ pub fn seed_successful_mitm(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -406,7 +375,7 @@ pub fn seed_successful_mitm(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 1)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -417,7 +386,7 @@ pub fn seed_successful_mitm(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 2)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -428,7 +397,7 @@ pub fn seed_successful_mitm(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((server, 3)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -439,7 +408,7 @@ pub fn seed_successful_mitm(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_application_data(
-                            ((client, 0)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
                     },
                 }),
@@ -448,17 +417,48 @@ pub fn seed_successful_mitm(
     }
 }
 
-pub fn seed_successful12(
+pub fn seed_successful12_with_tickets(
     client: AgentName,
     server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+) -> Trace<TlsQueryMatcher> {
+    let mut trace = seed_successful12(client, server);
+    // NewSessionTicket, Server -> Client
+    // wolfSSL 4.4.0 does not support tickets in TLS 1.2
+    trace.steps.insert(
+        9,
+        Step {
+            agent: client,
+            action: Action::Input(InputAction {
+                recipe: term! {
+                    fn_new_session_ticket(
+                        ((server, 0)/u64),
+                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
+                    )
+                },
+            }),
+        },
+    );
+
+    trace.steps[11] = Step {
+        agent: client,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_opaque_message(
+                    ((server, 6)[None])
+                )
+            },
+        }),
+    };
+
+    trace
+}
+
+pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -507,7 +507,7 @@ pub fn seed_successful12(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -527,7 +527,7 @@ pub fn seed_successful12(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -555,20 +555,6 @@ pub fn seed_successful12(
                     },
                 }),
             },
-            // NewSessionTicket, Server -> Client
-            // wolfSSL 4.4.0 does not support tickets in TLS 1.2
-            #[cfg(feature = "tls12-session-resumption")]
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_new_session_ticket(
-                            ((server, 0)/u64),
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
             // Server Change Cipher Spec, Server -> Client
             Step {
                 agent: client,
@@ -582,13 +568,6 @@ pub fn seed_successful12(
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
-                    #[cfg(feature = "tls12-session-resumption")]
-                    recipe: term! {
-                        fn_opaque_message(
-                            ((server, 6)[None])
-                        )
-                    },
-                    #[cfg(not(feature = "tls12-session-resumption"))]
                     recipe: term! {
                         fn_opaque_message(
                             ((server, 5)[None])
@@ -599,6 +578,7 @@ pub fn seed_successful12(
         ],
     }
 }
+
 
 pub fn seed_12_finding_8(
     client: AgentName,
@@ -723,13 +703,8 @@ pub fn seed_12_finding_8(
     }
 }
 
-pub fn seed_successful_with_ccs(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
-    let mut trace = seed_successful(client, server, client_put, server_put);
+pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+    let mut trace = seed_successful(client, server);
 
     // CCS Server -> Client
     trace.steps.insert(
@@ -762,22 +737,17 @@ pub fn seed_successful_with_ccs(
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
-    let mut trace = seed_successful_with_ccs(client, server, client_put, server_put);
+) -> Trace<TlsQueryMatcher> {
+    let mut trace = seed_successful_with_ccs(client, server);
 
-    trace.steps.push(Step {
-        agent: server,
-        action: Action::Output(OutputAction {}),
-    });
+    trace.steps.push(OutputAction::new_step(server));
     // Ticket
     trace.steps.push(Step {
         agent: client,
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 4)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                    ((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                 )
             },
         }),
@@ -789,7 +759,7 @@ pub fn seed_successful_with_tickets(
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_application_data(
-                    ((server, 5)[Some(TlsMessageType::ApplicationData)]/Vec<u8>)
+                    ((server, 5)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                 )
             },
         }),
@@ -798,7 +768,190 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
-pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -> Trace {
+pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_append(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_key_share_deterministic_server_extension((@curve)))
+                )),
+                fn_supported_versions13_server_extension
+            ))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_empty_bytes_vec),
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_alice_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_rsa_sign_server(
+                (@certificate_transcript),
+                fn_alice_key,
+                fn_rsa_pss_signature_algorithm
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: client,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Client,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: server_hello,
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 0)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3  // sequence 3
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -814,11 +967,11 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -827,10 +980,12 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
 
     /*let encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0
         )
     };*/
@@ -838,10 +993,12 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -875,7 +1032,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -886,7 +1044,6 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -908,6 +1065,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -922,6 +1081,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -936,6 +1097,8 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_2  // sequence 2
                         )
                     },
@@ -948,7 +1111,7 @@ pub fn seed_client_attacker_auth(server: AgentName, server_put: PutDescriptor) -
 }
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
-pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trace {
+pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -964,11 +1127,11 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -978,10 +1141,12 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -989,24 +1154,24 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
     let certificate_rsa = term! {
         fn_certificate13(
             (fn_get_context((@certificate_request_message))),
-            fn_empty_certificate_chain
+            //fn_empty_certificate_chain
             // Or append eve cert
-            /*(fn_append_certificate_entry(
+            (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))*/
+            ))
         )
     };
 
     let certificate_verify_rsa = term! {
         fn_certificate_verify(
             (fn_invalid_signature_algorithm),
-            // Option 1 (something random, only possible because of fn_empty_certificate_chain):
-            fn_eve_cert // or fn_new_pubkey12, fn_empty_bytes_vec
+            // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
+            //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
-            // fn_eve_pkcs1_signature
+            fn_eve_pkcs1_signature
             // Option 3 (for testing):
             /* (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
@@ -1022,7 +1187,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1033,7 +1199,6 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1055,6 +1220,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1069,6 +1236,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -1083,6 +1252,8 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_2  // sequence 2
                         )
                     },
@@ -1095,7 +1266,7 @@ pub fn seed_cve_2022_25638(server: AgentName, server_put: PutDescriptor) -> Trac
 }
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
-pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trace {
+pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1111,11 +1282,11 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1125,10 +1296,12 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]),
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]),
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1
         )
     };
@@ -1151,7 +1324,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                 (fn_certificate_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1162,7 +1336,6 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1184,6 +1357,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1198,6 +1373,8 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_1  // sequence 1
                         )
                     },
@@ -1210,7 +1387,7 @@ pub fn seed_cve_2022_25640(server: AgentName, server_put: PutDescriptor) -> Trac
 }
 
 /// A simplified version of [`seed_cve_2022_25640`]
-pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) -> Trace {
+pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1226,11 +1403,11 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1243,7 +1420,8 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -1254,7 +1432,6 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
             name: server,
             tls_version: TLSVersion::V1_3,
             typ: AgentType::Server,
-            put_descriptor: server_put,
             client_authentication: true,
             ..AgentDescriptor::default()
         }],
@@ -1276,6 +1453,8 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1287,7 +1466,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName, server_put: PutDescriptor) 
     trace
 }
 
-pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Trace {
+pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1303,11 +1482,11 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1320,18 +1499,15 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1350,26 +1526,25 @@ pub fn seed_client_attacker(server: AgentName, server_put: PutDescriptor) -> Tra
                             (fn_server_hello_transcript(((server, 0)))),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
                 }),
             },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction {}),
-            },
+            OutputAction::new_step(server),
         ],
     };
 
     trace
 }
 
-pub fn seed_client_attacker12(server: AgentName, client_put: PutDescriptor) -> Trace {
-    _seed_client_attacker12(server, client_put).0
+pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
+    _seed_client_attacker12(server).0
 }
 
-fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Trace, Term) {
+fn _seed_client_attacker12(server: AgentName) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1388,7 +1563,7 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
@@ -1411,34 +1586,36 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                 fn_new_transcript12,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript = term! {
         fn_append_transcript(
             (@server_hello_transcript),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript = term! {
       fn_append_transcript(
             (@certificate_transcript),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript = term! {
       fn_append_transcript(
             (@server_key_exchange_transcript),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
     let client_key_exchange = term! {
         fn_client_key_exchange(
-            (fn_new_pubkey12())
+            (fn_encode_ec_pubkey12(
+                (fn_new_pubkey12(fn_named_group_secp384r1))
+            ))
         )
     };
 
@@ -1452,20 +1629,17 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
     let client_verify_data = term! {
         fn_sign_transcript(
             ((server, 0)),
-            (fn_decode_ecdh_params(
-                ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+            (fn_decode_ecdh_pubkey(
+                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
-            (@client_key_exchange_transcript)
+            (@client_key_exchange_transcript),
+            fn_named_group_secp384r1
         )
     };
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_2,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
         steps: vec![
             Step {
                 agent: server,
@@ -1492,9 +1666,11 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
-                            (fn_decode_ecdh_params(
-                                ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                            (fn_decode_ecdh_pubkey(
+                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                             )),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0
                         )
                     },
@@ -1506,8 +1682,8 @@ fn _seed_client_attacker12(server: AgentName, server_put: PutDescriptor) -> (Tra
     (trace, client_verify_data)
 }
 
-pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace {
-    let (mut trace, client_verify_data) = _seed_client_attacker12(server, server_put);
+pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
     let renegotiation_client_hello = term! {
           fn_client_hello(
@@ -1526,7 +1702,7 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 fn_client_extensions_new,
-                                fn_secp384r1_support_group_extension
+                                (fn_support_group_extension(fn_named_group_secp384r1))
                             )),
                             fn_ec_point_formats_extension
                         )),
@@ -1548,9 +1724,11 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                 fn_encrypt12(
                     (@renegotiation_client_hello),
                     ((server, 0)),
-                    (fn_decode_ecdh_params(
+                    (fn_decode_ecdh_pubkey(
                         ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
+                    fn_named_group_secp384r1,
+                    fn_true,
                     fn_seq_1
                 )
             },
@@ -1567,6 +1745,8 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
                     (fn_decode_ecdh_params(
                         ((server, 2)/Vec<u8>) // ServerECDHParams
                     )),
+                    fn_named_group_secp384r1,
+                    fn_true,
                     fn_seq_1
                 )
             },
@@ -1576,12 +1756,7 @@ pub fn seed_cve_2021_3449(server: AgentName, server_put: PutDescriptor) -> Trace
     trace
 }
 
-pub fn seed_heartbleed(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1597,7 +1772,7 @@ pub fn seed_heartbleed(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         fn_client_extensions_new,
-                        fn_secp384r1_support_group_extension
+                        (fn_support_group_extension(fn_named_group_secp384r1))
                     )),
                     fn_ec_point_formats_extension
                 )),
@@ -1609,8 +1784,8 @@ pub fn seed_heartbleed(
     let trace = Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             Step {
@@ -1634,23 +1809,15 @@ pub fn seed_heartbleed(
     trace
 }
 
-pub fn seed_freak(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
-            Step {
-                agent: client,
-                action: Action::Output(OutputAction {}),
-            },
+            OutputAction::new_step(client),
             // Client Hello, Client -> Server
             InputAction::new_step(
                 server,
@@ -1672,14 +1839,14 @@ pub fn seed_freak(
             InputAction::new_step(
                 client,
                 term! {
-                        fn_server_hello(
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            (fn_secure_rsa_cipher_suite12),
-                            ((server, 0)),
-                            ((server, 0))
-                        )
+                    fn_server_hello(
+                        ((server, 0)),
+                        ((server, 0)),
+                        ((server, 0)),
+                        (fn_secure_rsa_cipher_suite12),
+                        ((server, 0)),
+                        ((server, 0))
+                    )
                 },
             ),
             // Server Certificate, Server -> Client
@@ -1700,7 +1867,7 @@ pub fn seed_freak(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(  // check whether the client rejects this if it does not support export
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -1720,7 +1887,7 @@ pub fn seed_freak(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                             ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -1741,18 +1908,18 @@ pub fn seed_freak(
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
+) -> Trace<TlsQueryMatcher> {
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -1774,13 +1941,13 @@ pub fn seed_session_resumption_dhe(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1798,8 +1965,9 @@ pub fn seed_session_resumption_dhe(
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_client_finished_transcript(((initial_server, 0)))),
-            (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-            (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -1822,19 +1990,16 @@ pub fn seed_session_resumption_dhe(
             (fn_verify_data(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_psk((@psk)))
+                (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1851,8 +2016,10 @@ pub fn seed_session_resumption_dhe(
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
-                            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1867,18 +2034,18 @@ pub fn seed_session_resumption_dhe(
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
-    let initial_handshake = seed_client_attacker(initial_server, initial_server_put);
+) -> Trace<TlsQueryMatcher> {
+    let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket from last session
+            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -1900,13 +2067,13 @@ pub fn seed_session_resumption_ke(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_ke_extension
                 )),
@@ -1924,8 +2091,9 @@ pub fn seed_session_resumption_ke(
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_client_finished_transcript(((initial_server, 0)))),
-            (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-            (fn_get_ticket_nonce((@new_ticket_message)))
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -1949,18 +2117,15 @@ pub fn seed_session_resumption_ke(
                 (fn_server_finished_transcript(((server, 0)))),
                 (fn_server_hello_transcript(((server, 0)))),
                 fn_no_key_share,
-                (fn_psk((@psk)))
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1979,6 +2144,8 @@ pub fn seed_session_resumption_ke(
                             (fn_server_hello_transcript(((server, 0)))),
                             fn_no_key_share,
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -1990,15 +2157,19 @@ pub fn seed_session_resumption_ke(
     trace
 }
 
-pub fn seed_client_attacker_full(server: AgentName, put_descriptor: PutDescriptor) -> Trace {
-    _seed_client_attacker_full(server, put_descriptor).0
+pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
+    _seed_client_attacker_full(server).0
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 fn _seed_client_attacker_full(
     server: AgentName,
-    put_descriptor: PutDescriptor,
-) -> (Trace, Term, Term, Term) {
+) -> (
+    Trace<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -2014,11 +2185,11 @@ fn _seed_client_attacker_full(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            fn_secp384r1_support_group_extension
+                            (fn_support_group_extension(fn_named_group_secp384r1))
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    fn_key_share_deterministic_extension
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -2031,7 +2202,7 @@ fn _seed_client_attacker_full(
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
@@ -2039,10 +2210,12 @@ fn _seed_client_attacker_full(
 
     let encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Encrypted Extensions
+            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
             (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0  // sequence 0
         )
     };
@@ -2056,10 +2229,12 @@ fn _seed_client_attacker_full(
 
     let server_certificate = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]),// Server Certificate
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]),// Server Certificate
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1 // sequence 1
         )
     };
@@ -2073,10 +2248,12 @@ fn _seed_client_attacker_full(
 
     let server_certificate_verify = term! {
         fn_decrypt_handshake(
-            ((server, 2)[Some(TlsMessageType::ApplicationData)]), // Server Certificate Verify
+            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]), // Server Certificate Verify
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_2 // sequence 2
         )
     };
@@ -2090,10 +2267,12 @@ fn _seed_client_attacker_full(
 
     let server_finished = term! {
         fn_decrypt_handshake(
-            ((server, 3)[Some(TlsMessageType::ApplicationData)]), // Server Handshake Finished
+            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]), // Server Handshake Finished
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_3 // sequence 3
         )
     };
@@ -2111,7 +2290,8 @@ fn _seed_client_attacker_full(
                 (@server_finished_transcript),
                 (@server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk
+                fn_no_psk,
+                fn_named_group_secp384r1
             ))
         )
     };
@@ -2125,11 +2305,7 @@ fn _seed_client_attacker_full(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            put_descriptor,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -2139,10 +2315,7 @@ fn _seed_client_attacker_full(
                     },
                 }),
             },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction {}),
-            },
+            OutputAction::new_step(server),
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -2152,15 +2325,14 @@ fn _seed_client_attacker_full(
                             (@server_hello_transcript),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
                 }),
             },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction {}),
-            },
+            OutputAction::new_step(server),
             /*Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -2196,23 +2368,23 @@ fn _seed_client_attacker_full(
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
-    initial_server_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+) -> Trace<TlsQueryMatcher> {
     let (
         initial_handshake,
         server_hello_transcript,
         server_finished_transcript,
         client_finished_transcript,
-    ) = _seed_client_attacker_full(initial_server, initial_server_put);
+    ) = _seed_client_attacker_full(initial_server);
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsMessageType::ApplicationData)]), // Ticket?
+            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket?
             (@server_hello_transcript),
             (@server_finished_transcript),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
@@ -2234,13 +2406,13 @@ pub fn seed_session_resumption_dhe_full(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    fn_secp384r1_support_group_extension
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
-                        fn_key_share_deterministic_extension
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -2255,11 +2427,12 @@ pub fn seed_session_resumption_dhe_full(
 
     let psk = term! {
         fn_derive_psk(
-                (@server_hello_transcript),
-                (@server_finished_transcript),
-                (@client_finished_transcript),
-                (fn_get_server_key_share(((initial_server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_get_ticket_nonce((@new_ticket_message)))
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (@client_finished_transcript),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
         )
     };
 
@@ -2283,16 +2456,18 @@ pub fn seed_session_resumption_dhe_full(
                 fn_new_transcript,
                 (@full_client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let resumption_encrypted_extensions = term! {
         fn_decrypt_handshake(
-            ((server, 0)[Some(TlsMessageType::ApplicationData)]), // Encrypted Extensions
+            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_0  // sequence 0
         )
     };
@@ -2306,10 +2481,12 @@ pub fn seed_session_resumption_dhe_full(
 
     let resumption_server_finished = term! {
         fn_decrypt_handshake(
-            ((server, 1)[Some(TlsMessageType::ApplicationData)]), // Server Handshake Finished
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Server Handshake Finished
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
             (fn_psk((@psk))),
+            fn_named_group_secp384r1,
+            fn_true,
             fn_seq_1 // sequence 1
         )
     };
@@ -2326,19 +2503,16 @@ pub fn seed_session_resumption_dhe_full(
             (fn_verify_data(
                 (@resumption_server_finished_transcript),
                 (@resumption_server_hello_transcript),
-                (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
-                (fn_psk((@psk)))
+                (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                (fn_psk((@psk))),
+                fn_named_group_secp384r1
             ))
         )
     };
 
     let trace = Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![AgentDescriptor::new_server(
-            server,
-            TLSVersion::V1_3,
-            server_put,
-        )],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -2355,8 +2529,10 @@ pub fn seed_session_resumption_dhe_full(
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (@resumption_server_hello_transcript),
-                            (fn_get_server_key_share(((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerHello)))]))),
+                            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
                             (fn_psk((@psk))),
+                            fn_named_group_secp384r1,
+                            fn_true,
                             fn_seq_0  // sequence 0
                         )
                     },
@@ -2398,20 +2574,23 @@ macro_rules! corpus {
     };
 }
 
-pub fn create_corpus() -> Vec<(Trace, &'static str)> {
+pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
         seed_successful_with_tickets: cfg(feature = "tls13"),
-        seed_successful12,
+        seed_successful12: cfg(not(feature = "tls12-session-resumption")),
+        seed_successful12_with_tickets: cfg(feature = "tls12-session-resumption"),
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
         seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
         seed_client_attacker12: cfg(feature = "tls13"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
-        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption"))
+        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        // Server Attackers
+        seed_server_attacker_full: cfg(feature = "tls13")
     )
 }
 
@@ -2427,14 +2606,11 @@ pub mod tests {
         },
         unistd::{fork, ForkResult},
     };
+    use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::{
-        agent::AgentName,
-        put_registry::{CURRENT_PUT_NAME, PUT_REGISTRY},
-        trace::Action,
-    };
+    use crate::put_registry::{DEFAULT_PUT_FACTORY, TLS_PUT_REGISTRY};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2463,12 +2639,14 @@ pub mod tests {
             Err(_) => panic!("Fork failed"),
         }
     }
+
     #[test]
     fn test_version() {
-        PUT_REGISTRY.version_strings();
+        TLS_PUT_REGISTRY.version_strings();
     }
 
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_hearbeat() {
         expect_crash(|| {
@@ -2477,10 +2655,10 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        if !PUT_REGISTRY
-            .find_factory(CURRENT_PUT_NAME)
-            .unwrap()
+        if !TLS_PUT_REGISTRY
+            .default_factory()
             .put_version()
             .contains("1.1.1j")
         {
@@ -2492,6 +2670,7 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
         let ctx = seed_client_attacker12.execute_trace();
         assert!(ctx.agents_successful());
@@ -2559,6 +2738,13 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_server_attacker_full() {
+        let ctx = seed_server_attacker_full.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
@@ -2622,13 +2808,18 @@ pub mod tests {
     }
 
     #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_successful12() {
+        #[cfg(feature = "tls12-session-resumption")]
+        let ctx = seed_successful12_with_tickets.execute_trace();
+        #[cfg(not(feature = "tls12-session-resumption"))]
         let ctx = seed_successful12.execute_trace();
         assert!(ctx.agents_successful());
     }
 
     // Vulnerable up until OpenSSL 1.0.1j
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(feature = "tls12")]
     #[test]
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
@@ -2662,142 +2853,118 @@ pub mod tests {
     }
 
     pub mod serialization {
+        use puffin::{
+            algebra::{set_deserialize_signature, Matcher},
+            trace::Trace,
+        };
         use test_log::test;
 
-        use crate::{
-            agent::AgentName,
-            tls::seeds::*,
-            trace::{Trace, TraceContext},
-        };
+        use crate::tls::{seeds::*, TLS_SIGNATURE};
+
+        fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
+            let _ = set_deserialize_signature(&TLS_SIGNATURE);
+
+            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let deserialized_trace =
+                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
+            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+            assert_eq!(serialized1, serialized2);
+        }
+
+        fn test_json_serialization<M: Matcher>(trace: Trace<M>) {
+            let _ = set_deserialize_signature(&TLS_SIGNATURE);
+
+            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let deserialized_trace =
+                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
+            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+
+            assert_eq!(serialized1, serialized2);
+        }
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {
             let trace = seed_session_resumption_dhe.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_seed_session_resumption_ke_json() {
             let trace = seed_session_resumption_ke.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker12_json() {
             let trace = seed_client_attacker12.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful_json() {
             let trace = seed_successful.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful_postcard() {
             let trace = seed_successful.build_trace();
-
-            let serialized1 = postcard::to_allocvec(&trace).unwrap();
-
-            let deserialized_trace = postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap();
-            let serialized2 = postcard::to_allocvec(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_postcard_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_successful12_json() {
             let trace = seed_successful12.build_trace();
-
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
-        fn test_serialisation_seed_heartbleed() {
+        fn test_serialisation_seed_heartbleed_json() {
             let trace = seed_heartbleed.build_trace();
 
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-
-            let deserialized_trace = serde_json::from_str::<Trace>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
-
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_json() {
             let trace = seed_client_attacker_auth.build_trace();
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
-            let serialized2 = serde_json::to_string_pretty(
-                &serde_json::from_str::<Trace>(serialized1.as_str()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_json_serialization(trace);
         }
 
         #[test]
         fn test_serialisation_seed_client_attacker_auth_postcard() {
             let trace = seed_client_attacker_auth.build_trace();
-            let serialized1 = postcard::to_allocvec(&trace).unwrap();
-            let serialized2 = postcard::to_allocvec(
-                &postcard::from_bytes::<Trace>(serialized1.as_slice()).unwrap(),
-            )
-            .unwrap();
-            assert_eq!(serialized1, serialized2);
+            test_postcard_serialization(trace);
+        }
+
+        #[test]
+        fn test_serialisation_seed_server_attacker_full_json() {
+            let trace = seed_server_attacker_full.build_trace();
+            test_json_serialization(trace);
+        }
+
+        #[test]
+        fn test_serialisation_seed_server_attacker_full_postcard() {
+            let trace = seed_server_attacker_full.build_trace();
+            test_postcard_serialization(trace);
         }
     }
 
     pub mod rustls {
         use std::convert::TryFrom;
 
-        use rustls::{
-            self,
-            internal::msgs::{
-                enums::{ContentType, HandshakeType},
-                handshake::{
-                    ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random,
-                    SessionID,
-                },
-                message::{Message, MessagePayload::Handshake},
-            },
-            msgs::{
-                base::Payload,
-                codec::Reader,
-                message::{OpaqueMessage, PlainMessage},
-            },
-            ProtocolVersion,
-        };
         use test_log::test;
+
+        use crate::tls::rustls::msgs::{
+            base::Payload,
+            codec::Reader,
+            enums::{ContentType, HandshakeType, ProtocolVersion},
+            handshake::{
+                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+            },
+            message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
+        };
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {
             Message::try_from(opaque_message.into_plain_message()).unwrap()

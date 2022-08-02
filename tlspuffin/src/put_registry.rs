@@ -1,76 +1,138 @@
-use crate::{
-    agent::{AgentDescriptor, AgentName},
+use puffin::{
+    algebra::{signature::Signature, Matcher},
     error::Error,
-    put::{Put, PutConfig, PutDescriptor, PutName},
+    io::MessageResult,
+    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    put::{PutDescriptor, PutName},
+    put_registry::{Factory, PutRegistry},
+    trace::Trace,
+    variable_data::VariableData,
 };
 
-pub struct PutRegistry(&'static [fn() -> Box<dyn Factory>]);
+use crate::{
+    claims::TlsClaim,
+    debug::{debug_message_with_info, debug_opaque_message_with_info},
+    extraction::extract_knowledge,
+    query::TlsQueryMatcher,
+    tls::{
+        rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE,
+    },
+};
 
-impl PutRegistry {
-    pub fn version_strings(&self) -> Vec<String> {
-        let mut put_versions = Vec::new();
-        for func in self.0 {
-            let factory = func();
-
-            let name = factory.put_name();
-            let version = factory.put_version();
-            put_versions.push(format!("{}: {}", name, version));
-        }
-        put_versions
+impl Message<msgs::message::OpaqueMessage> for msgs::message::Message {
+    fn create_opaque(&self) -> msgs::message::OpaqueMessage {
+        msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
-
-    pub fn make_deterministic(&self) {
-        for func in self.0 {
-            let factory = func();
-            factory.make_deterministic();
-        }
-    }
-
-    pub fn find_factory(&self, put_name: PutName) -> Option<Box<dyn Factory>> {
-        self.0
-            .iter()
-            .map(|func| func())
-            .find(|factory: &Box<dyn Factory>| factory.put_name() == put_name)
+    fn debug(&self, info: &str) {
+        debug_message_with_info(info, self);
     }
 }
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
+    for msgs::deframer::MessageDeframer
+{
+    fn new() -> Self {
+        msgs::deframer::MessageDeframer::new()
+    }
+    fn pop_frame(&mut self) -> Option<msgs::message::OpaqueMessage> {
+        self.frames.pop_front()
+    }
+    fn encode(&self) -> Vec<u8> {
+        let mut buffer: Vec<u8> = Vec::new();
+        for message in &self.frames {
+            buffer.append(&mut message.clone().encode());
+        }
+        buffer
+    }
+    fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {
+        self.read(rd)
+    }
+}
+
+impl OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
+    fn encode(&self) -> Vec<u8> {
+        self.clone().encode()
+    }
+
+    fn into_message(self) -> Result<msgs::message::Message, Error> {
+        use std::convert::TryFrom;
+        crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
+            .map_err(|_err| Error::Stream("Failed to create message".to_string()))
+    }
+
+    fn debug(&self, info: &str) {
+        debug_opaque_message_with_info(info, self);
+    }
+}
+
+impl Matcher for msgs::enums::HandshakeType {
+    fn matches(&self, matcher: &Self) -> bool {
+        matcher == self
+    }
+
+    fn specificity(&self) -> u32 {
+        1
+    }
+}
+
+#[derive(Clone)]
+pub struct TLSProtocolBehavior;
+
+impl ProtocolBehavior for TLSProtocolBehavior {
+    type Claim = TlsClaim;
+    type SecurityViolationPolicy = TlsSecurityViolationPolicy;
+    type Message = msgs::message::Message;
+    type OpaqueMessage = msgs::message::OpaqueMessage;
+    type MessageDeframer = msgs::deframer::MessageDeframer;
+
+    type Matcher = TlsQueryMatcher;
+
+    fn signature() -> &'static Signature {
+        &TLS_SIGNATURE
+    }
+
+    fn registry() -> &'static PutRegistry<Self> {
+        &TLS_PUT_REGISTRY
+    }
+
+    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        create_corpus()
+    }
+
+    fn extract_query_matcher(
+        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+    ) -> Self::Matcher {
+        TlsQueryMatcher::try_from(message_result).unwrap()
+    }
+
+    fn extract_knowledge(message: &Self::Message) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        extract_knowledge(message)
+    }
+}
+
 pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
 pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
-pub const TCP_CLIENT_PUT: PutName = PutName(['T', 'C', 'P', 'C', 'L', 'I', 'E', 'N', 'T', '_']);
-pub const TCP_SERVER_PUT: PutName = PutName(['T', 'C', 'P', 'S', 'E', 'R', 'V', 'E', 'R', '_']);
+pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
 
-pub const PUT_REGISTRY: PutRegistry = PutRegistry(&[
-    crate::tcp::new_tcp_client_factory,
-    crate::tcp::new_tcp_server_factory,
-    #[cfg(feature = "openssl-binding")]
-    crate::openssl::new_openssl_factory,
-    #[cfg(feature = "wolfssl-binding")]
-    crate::wolfssl::new_wolfssl_factory,
-]);
+pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
+    factories: &[
+        crate::tcp::new_tcp_factory,
+        #[cfg(feature = "openssl-binding")]
+        crate::openssl::new_openssl_factory,
+        #[cfg(feature = "wolfssl-binding")]
+        crate::wolfssl::new_wolfssl_factory,
+    ],
+    default: DEFAULT_PUT_FACTORY,
+};
 
-pub trait Factory {
-    fn create(&self, agent: &AgentDescriptor, config: PutConfig) -> Result<Box<dyn Put>, Error>;
-    fn put_name(&self) -> PutName;
-    fn put_version(&self) -> &'static str;
-    fn make_deterministic(&self);
-}
-
-pub const CURRENT_PUT_NAME: PutName = {
+pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
     cfg_if::cfg_if! {
         if #[cfg(feature = "openssl-binding")] {
-            OPENSSL111_PUT
+            crate::openssl::new_openssl_factory
         } else if #[cfg(feature = "wolfssl-binding")] {
-            WOLFSSL520_PUT
+            crate::wolfssl::new_wolfssl_factory
         } else {
-            DUMMY_PUT
+             crate::tcp::new_tcp_factory
         }
     }
 };
-
-pub fn current_put() -> PutDescriptor {
-    PutDescriptor {
-        name: CURRENT_PUT_NAME,
-        ..PutDescriptor::default()
-    }
-}

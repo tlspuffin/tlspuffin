@@ -12,6 +12,8 @@
       <sourceFolder url="file://$MODULE_DIR$/tlspuffin/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/tlspuffin/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tlspuffin/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/puffin/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/sshpuffin/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/deps" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

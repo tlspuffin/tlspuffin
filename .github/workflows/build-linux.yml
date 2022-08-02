@@ -23,6 +23,7 @@ jobs:
           - wolfssl520_asan
           - wolfssl530
           - wolfssl530_asan
+          - wolfssl540
           - no_default_features
         include:
           - name: openssl111
@@ -49,10 +50,11 @@ jobs:
             features: wolfssl530
           - name: wolfssl530_asan
             features: wolfssl530,asan
+          - name: wolfssl540
+            features: wolfssl540
           - name: no_default_features
             features: ""
             cargo-flags: "--no-default-features"
-            skip-tests: true
     name: Build "${{ matrix.name }}"
     steps:
       - uses: actions/checkout@v2
@@ -85,10 +87,15 @@ jobs:
         with:
           name: tlspuffin-${{ matrix.name }}
           path: target/x86_64-unknown-linux-gnu/release/tlspuffin
+      - name: Check puffin
+        shell: bash
+        run: just check puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
       - name: Check
         shell: bash
         run: just check tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
+      - name: Test puffin
+        shell: bash
+        run: just test puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
       - name: Test
-        if: "!matrix.skip-tests"
         shell: bash
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"

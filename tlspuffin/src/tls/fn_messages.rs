@@ -8,26 +8,21 @@
 //! Return type is `Message`
 //!
 
-use rustls::{
-    internal::msgs::{
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        handshake::*,
-        heartbeat::HeartbeatPayload,
-        message::{Message, MessagePayload},
-    },
-    msgs::{
-        alert::AlertMessagePayload,
-        base::{PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-        message::OpaqueMessage,
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
-};
+use puffin::algebra::error::FnError;
 use HandshakePayload::EncryptedExtensions;
 
-use crate::{nyi_fn, tls::error::FnError};
+use crate::{
+    nyi_fn,
+    tls::rustls::msgs::{
+        alert::AlertMessagePayload,
+        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+        ccs::ChangeCipherSpecPayload,
+        enums::*,
+        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+        heartbeat::HeartbeatPayload,
+        message::{Message, MessagePayload, OpaqueMessage},
+    },
+};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())
@@ -363,19 +358,19 @@ pub fn fn_certificate_verify(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: scheme.clone(),
+                scheme: *scheme,
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),
     })
 }
 /// ClientKeyExchange => 0x10,
-pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_client_key_exchange(encoded_pubkey_data: &Vec<u8>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ClientKeyExchange,
-            payload: HandshakePayload::ClientKeyExchange(Payload::new(data.clone())),
+            payload: HandshakePayload::ClientKeyExchange(Payload::new(encoded_pubkey_data.clone())),
         }),
     })
 }

@@ -7,23 +7,24 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
-use rustls::{
-    kx_group::SECP384R1,
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::*,
-        message::Message,
-    },
-    x509, ProtocolVersion, SignatureScheme,
-};
+use puffin::algebra::error::FnError;
 use webpki::DnsNameRef;
 
 use crate::{
     nyi_fn,
     tls::{
-        error::FnError, fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        fn_impl::fn_get_ticket_age_add,
+        fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
+        rustls::{
+            msgs::{
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                enums::*,
+                handshake::*,
+                message::Message,
+            },
+            x509,
+        },
     },
 };
 
@@ -192,8 +193,8 @@ nyi_fn!();
 /// CertificateType => 0x0009,
 nyi_fn!();
 /// EllipticCurves => 0x000a,
-pub fn fn_secp384r1_support_group_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![NamedGroup::secp384r1]))
+pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::NamedGroups(vec![*group]))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
@@ -366,7 +367,7 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
     let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
-    let resuming_suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let resuming_suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let binder_len = resuming_suite.hash_algorithm().output_len;
     let binder = vec![0u8; binder_len];
 
@@ -477,26 +478,38 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
     ]))
 }
 /// KeyShare => 0x0033,
-pub fn fn_key_share_deterministic_extension() -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(&deterministic_key_share(&SECP384R1)?)
+pub fn fn_key_share_deterministic_extension(
+    group: &NamedGroup,
+) -> Result<ClientExtension, FnError> {
+    fn_key_share_extension(&deterministic_key_share(group)?, group)
 }
-pub fn fn_key_share_extension(key_share: &Vec<u8>) -> Result<ClientExtension, FnError> {
+pub fn fn_key_share_extension(
+    key_share: &Vec<u8>,
+    group: &NamedGroup,
+) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: NamedGroup::secp384r1,
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }]))
 }
-pub fn fn_key_share_deterministic_server_extension() -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(&deterministic_key_share(&SECP384R1)?)
+pub fn fn_key_share_deterministic_server_extension(
+    group: &NamedGroup,
+) -> Result<ServerExtension, FnError> {
+    fn_key_share_server_extension(&deterministic_key_share(group)?, group)
 }
-pub fn fn_key_share_server_extension(key_share: &Vec<u8>) -> Result<ServerExtension, FnError> {
+pub fn fn_key_share_server_extension(
+    key_share: &Vec<u8>,
+    group: &NamedGroup,
+) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
-        group: NamedGroup::secp384r1,
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }))
 }
-pub fn fn_key_share_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(NamedGroup::secp384r1))
+pub fn fn_key_share_hello_retry_extension(
+    group: &NamedGroup,
+) -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::KeyShare(*group))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();

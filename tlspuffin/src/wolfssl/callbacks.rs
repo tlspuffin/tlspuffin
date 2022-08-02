@@ -8,10 +8,12 @@ use std::{
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
-use rustls::msgs::enums::HandshakeType;
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::ssl::{SslContextRef, SslRef};
+use crate::{
+    tls::rustls::msgs::enums::HandshakeType,
+    wolfssl::ssl::{SslContextRef, SslRef},
+};
 
 ///
 /// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does
@@ -86,7 +88,7 @@ pub struct UserData {
 pub unsafe extern "C" fn ctx_msg_callback<F>(
     write_p: c_int,
     _version: c_int,
-    _content_type: c_int,
+    content_type: c_int,
     buf: *const c_void,
     _len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
@@ -106,14 +108,19 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
 
     let ssl = SslRef::from_ptr_mut(ssl);
 
-    let typ = HandshakeType::from(*(buf as *mut u8));
+    let typ = if content_type == 22 {
+        HandshakeType::from(*(buf as *mut u8))
+    } else {
+        HandshakeType::Unknown(0)
+    };
+
     (*callback)(ssl, typ, write_p == 1);
 }
 
 pub unsafe extern "C" fn ssl_msg_callback<F>(
     write_p: c_int,
     _version: c_int,
-    _content_type: c_int,
+    content_type: c_int,
     buf: *const c_void,
     _len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
@@ -131,6 +138,11 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
         callback.deref() as *const F
     };
 
-    let typ = HandshakeType::from(*(buf as *mut u8));
+    let typ = if content_type == 22 {
+        HandshakeType::from(*(buf as *mut u8))
+    } else {
+        HandshakeType::Unknown(0)
+    };
+
     (*callback)(ssl, typ, write_p == 1);
 }

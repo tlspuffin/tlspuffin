@@ -3,11 +3,13 @@
 resolver = "2"
 
 members = [
+    "puffin",
     "tlspuffin",
+    "sshpuffin",
     "tlspuffin-claims",
 ]
 
-exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/rust-rustls" ]
+exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/rust-rustls", "deps/wolfssl-sys" ]
 
 [profile.release]
 panic = "abort"

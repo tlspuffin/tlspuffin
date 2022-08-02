@@ -1,13 +1,10 @@
-use rustls::{
-    msgs::{
-        enums::Compression,
-        handshake::{ClientExtension, HandshakePayload, ServerExtension, ServerKeyExchangePayload},
-        message::{Message, MessagePayload},
-    },
-    CipherSuite,
-};
+use puffin::{error::Error, variable_data::VariableData};
 
-use crate::{error::Error, variable_data::VariableData};
+use crate::tls::rustls::msgs::{
+    enums::{CipherSuite, Compression},
+    handshake::{ClientExtension, HandshakePayload, ServerExtension, ServerKeyExchangePayload},
+    message::{Message, MessagePayload},
+};
 
 /// Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more
 /// knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted
@@ -107,7 +104,7 @@ pub fn extract_knowledge(message: &Message) -> Result<Vec<Box<dyn VariableData>>
                         Box::new(ticket.ticket.0.clone()),
                     ]
                 }
-                _ => return Err(Error::Extraction(message.payload.content_type())),
+                _ => return Err(Error::Extraction()),
             }
         }
         MessagePayload::ChangeCipherSpec(_ccs) => {
