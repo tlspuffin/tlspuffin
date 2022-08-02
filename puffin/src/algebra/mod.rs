@@ -503,7 +503,7 @@ pub mod test_signature {
         }
 
         fn extract_knowledge(
-            _message: &Self::Message,
+            _message: &MessageResult<TestMessage, TestOpaqueMessage>,
         ) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
         }
@@ -524,7 +524,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn version(&self) -> &'static str {
+        fn version(&self) -> String {
             panic!("Not implemented for test stub");
         }
 

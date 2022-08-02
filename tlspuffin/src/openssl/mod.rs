@@ -77,7 +77,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             OPENSSL111_PUT
         }
 
-        fn version(&self) -> &'static str {
+        fn version(&self) -> String {
             OpenSSL::version()
         }
 
@@ -294,8 +294,8 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn version() -> &'static str {
-        openssl::version::version()
+    fn version() -> String {
+        openssl::version::version().to_string()
     }
 
     fn make_deterministic() {
