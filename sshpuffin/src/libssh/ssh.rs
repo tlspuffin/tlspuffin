@@ -517,48 +517,10 @@ mod tests {
     use crate::libssh::ssh::{set_log_level, SessionOption, SshBind, SshBindOption, SshSession};
 
     #[test]
-    fn test_only_server() {
-        set_log_level(100);
-
-        let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
-        let listener = UnixListener::bind_addr(&addr).unwrap();
-        listener.set_nonblocking(true).unwrap();
-
-        let mut client_stream = UnixStream::connect_addr(&addr).unwrap();
-        client_stream.set_nonblocking(true).unwrap();
-        let server_stream = listener.incoming().next().unwrap().unwrap();
-
-        // ---- Initialize client session
-
-        let mut client = SshSession::new().unwrap();
-        client.set_blocking(false);
-        client
-            .set_options_str(SessionOption::HOST, "dummy")
-            .unwrap();
-        client
-            .set_options_int(SessionOption::FD, client_stream.into_raw_fd())
-            .unwrap();
-        client
-            .set_options_int(SessionOption::PROCESS_CONFIG, 0)
-            .unwrap();
-
-        // Initialize
-        client.connect().unwrap();
-        //server.handle_key_exchange().unwrap();
-
-        assert!(client.is_connected());
-
-        // Starting handshake
-
-        // Server: Send SSH_MSG_KEXINIT
-        //server.handle_key_exchange().unwrap();
-    }
-
-    #[test]
     fn test() {
         set_log_level(100);
 
-        let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
+        let addr = SocketAddr::from_abstract_namespace(b"\0socket_test").unwrap();
         let listener = UnixListener::bind_addr(&addr).unwrap();
         listener.set_nonblocking(true).unwrap();
 
