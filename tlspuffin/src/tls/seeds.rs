@@ -579,18 +579,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
     }
 }
 
-
-pub fn seed_12_finding_8(
-    client: AgentName,
-    server: AgentName,
-    client_put: PutDescriptor,
-    server_put: PutDescriptor,
-) -> Trace {
+pub fn seed_12_finding_8(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2, client_put),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2, server_put),
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -639,7 +633,7 @@ pub fn seed_12_finding_8(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_server_key_exchange(
-                            ((server, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -659,7 +653,7 @@ pub fn seed_12_finding_8(
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_client_key_exchange(
-                            ((client, 0)[Some(TlsMessageType::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
                     },
                 }),
@@ -2656,6 +2650,19 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
+    #[cfg(feature = "tls12-session-resumption")]
+    fn test_seed_12_finding_8() {
+        for i in 0..50 {
+            seed_successful12_with_tickets.execute_trace();
+        }
+
+        expect_crash(|| {
+            seed_12_finding_8.execute_trace();
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
         if !TLS_PUT_REGISTRY
             .default_factory()
@@ -2723,7 +2730,7 @@ pub mod tests {
     #[test]
     #[cfg_attr(
         feature = "wolfssl510",
-        should_panic(expected = "Authentication bypass")
+        should_panicg(expected = "Authentication bypass")
     )]
     #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
     fn test_seed_cve_2022_25638() {

@@ -510,7 +510,7 @@ mod tests {
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full,
+            seed_12_finding_8, seed_client_attacker_full, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
@@ -574,7 +574,7 @@ mod tests {
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
 
-    fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
+    fn wolfssl_client(port: u16, version: TLSVersion, warmups: Option<u32>) -> ParametersGuard {
         let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
@@ -591,6 +591,13 @@ mod tests {
                 args.push("-v");
                 args.push("3");
             }
+        }
+
+        let warmups = warmups.map(|warmups| warmups.to_string());
+
+        if let Some(warmups) = &warmups {
+            args.push("-b");
+            args.push(warmups);
         }
 
         ParametersGuard {
@@ -770,7 +777,7 @@ mod tests {
 
         let port = 55337;
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2);
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {
             name: TCP_PUT,
             options: client_guard.build_options(),
@@ -794,5 +801,38 @@ mod tests {
         let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
+    }
+
+    #[test]
+    fn test_wolfssl_openssl_seed_12_finding_8() {
+        let port = 44334;
+
+        let server_guard = openssl_server(port, TLSVersion::V1_2);
+        let server = PutDescriptor {
+            name: TCP_PUT,
+            options: server_guard.build_options(),
+        };
+
+        let port = 44335;
+
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
+        let client = PutDescriptor {
+            name: TCP_PUT,
+            options: client_guard.build_options(),
+        };
+
+        let trace = seed_12_finding_8.build_trace();
+        let descriptors = &trace.descriptors;
+        let client_name = descriptors[0].name;
+        let server_name = descriptors[1].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(client_name, client.clone()), (server_name, server.clone())],
+        );
+
+        let client = AgentName::first();
+        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        info!("{}", shutdown);
+        assert!(shutdown.contains("free(): invalid pointer"));
     }
 }
