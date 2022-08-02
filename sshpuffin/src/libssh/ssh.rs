@@ -1,6 +1,8 @@
 use std::{
     ffi::{c_char, c_void, CStr, CString},
+    mem,
     os::{raw::c_int, unix::io::RawFd},
+    ptr,
     ptr::null,
     time::Duration,
 };
@@ -277,6 +279,26 @@ impl SshBindRef {
         }
     }
 
+    /// `ssh_bind_options_set`
+    pub fn set_options_key(&mut self, typ: SshBindOption, value: SshKey) -> Result<(), String> {
+        unsafe {
+            let result = cvt_n(
+                libssh_sys::ssh_bind_options_set(
+                    self.as_ptr(),
+                    typ as ssh_options_e,
+                    value.as_ptr() as *const c_void,
+                ),
+                self,
+            )
+            .map(|_| {
+                mem::forget(value);
+                ()
+            });
+
+            result
+        }
+    }
+
     /// `ssh_bind_set_blocking`
     pub fn set_blocking(&mut self, blocking: bool) {
         unsafe { libssh_sys::ssh_bind_set_blocking(self.as_ptr(), blocking as c_int) }
@@ -372,7 +394,6 @@ foreign_type! {
     }
 }
 
-impl SshMessage {}
 impl SshMessageRef {
     /// `ssh_message_reply_default`
     pub fn reply_default(&mut self) -> Result<(), String> {
@@ -427,6 +448,41 @@ impl Fallible for SshMessageRef {
         "Error with ssh message".to_string()
     }
 }
+
+foreign_type! {
+    pub unsafe type SshKey: Sync + Send {
+        type CType = libssh_sys::ssh_key_struct;
+        fn drop = libssh_sys::ssh_key_free;
+    }
+}
+
+impl SshKey {
+    pub fn from_base64(base64: &str) -> Result<Self, String> {
+        unsafe {
+            let mut ssh_key: libssh_sys::ssh_key = ptr::null_mut();
+
+            let base64 = CString::new(base64).unwrap();
+
+            let output: *mut libssh_sys::ssh_key = &mut ssh_key as *mut libssh_sys::ssh_key;
+
+            let r = libssh_sys::ssh_pki_import_privkey_base64(
+                base64.as_ptr(),
+                ptr::null(),
+                None,
+                ptr::null_mut(),
+                output,
+            );
+
+            if r < 0 {
+                Err("Failed to import key".to_string())
+            } else {
+                Ok(SshKey::from_ptr(ssh_key))
+            }
+        }
+    }
+}
+
+impl SshKeyRef {}
 
 /// `ssh_set_log_level`
 pub fn set_log_level(level: i32) {
@@ -514,7 +570,48 @@ mod tests {
         net::{SocketAddr, UnixListener, UnixStream},
     };
 
-    use crate::libssh::ssh::{set_log_level, SessionOption, SshBind, SshBindOption, SshSession};
+    use crate::libssh::ssh::{
+        set_log_level, SessionOption, SshBind, SshBindOption, SshKey, SshSession,
+    };
+    const OPENSSH_RSA_PRIVATE_KEY: &'static str = "-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----
+";
 
     #[test]
     fn test() {
@@ -536,11 +633,16 @@ mod tests {
 
         let mut bind = SshBind::new().unwrap();
 
-        bind.set_options_str(
+        /*bind.set_options_str(
             SshBindOption::RSAKEY,
             "/home/max/projects/tlspuffin/ssh_host_rsa_key",
         )
-        .unwrap();
+        .unwrap();*/
+
+        let key = SshKey::from_base64(OPENSSH_RSA_PRIVATE_KEY).unwrap();
+        bind.set_options_key(SshBindOption::IMPORT_KEY, key)
+            .unwrap();
+
         bind.set_blocking(false);
 
         bind.accept_fd(&server, server_stream.into_raw_fd())
