@@ -217,13 +217,15 @@ impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
-    let split: Option<(&str, &str)> = str.split_inclusive('<').collect_tuple();
+    let split: Option<(&str, &str)> = str.split('<').collect_tuple();
 
     if let Some((non_generic, generic)) = split {
+        let generic = &generic[0..generic.len() - 1];
+
         if let Some(pos) = non_generic.rfind("::") {
-            non_generic[pos + 2..].to_string() + generic
+            non_generic[pos + 2..].to_string() + "<" + &remove_prefix(generic) + ">"
         } else {
-            non_generic.to_string() + generic
+            non_generic.to_string() + "<" + &remove_prefix(generic) + ">"
         }
     } else if let Some(pos) = str.rfind("::") {
         str[pos + 2..].to_string()
@@ -234,4 +236,24 @@ pub(crate) fn remove_prefix(str: &str) -> String {
 
 pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::algebra::remove_prefix;
+
+    #[test]
+    fn test_normal() {
+        assert_eq!(remove_prefix("test::test::Test"), "Test");
+    }
+
+    #[test]
+    fn test_generic() {
+        assert_eq!(remove_prefix("test::test::Test<Asdf>"), "Test<Asdf>");
+    }
+
+    #[test]
+    fn test_generic_recursive() {
+        assert_eq!(remove_prefix("test::test::Test<asdf::Asdf>"), "Test<Asdf>");
+    }
 }
