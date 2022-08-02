@@ -2602,11 +2602,11 @@ pub mod tests {
         },
         unistd::{fork, ForkResult},
     };
-    use puffin::{agent::AgentName, trace::Action};
+    use puffin::{agent::AgentName, put::PutOptions, put_registry::PutRegistry, trace::Action};
     use test_log::test;
 
     use super::{SeedHelper, *};
-    use crate::put_registry::{DEFAULT_PUT_FACTORY, TLS_PUT_REGISTRY};
+    use crate::put_registry::{DEFAULT_PUT_FACTORY, TLS_PUT_REGISTRY, WOLFSSL520_PUT};
 
     fn expect_crash<R>(mut func: R)
     where
@@ -2648,6 +2648,35 @@ pub mod tests {
         expect_crash(|| {
             seed_heartbleed.execute_trace();
         })
+    }
+
+    #[test]
+    #[cfg(feature = "tls12")]
+    #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
+    fn test_seed_12_finding_1() {
+        let put = PutDescriptor {
+            name: WOLFSSL520_PUT,
+            options: PutOptions::new(vec![("clear", "true")]),
+        };
+
+        let trace = seed_session_resumption_dhe_full.build_trace();
+        let initial_server = trace.descriptors[0].name;
+        let server = trace.prior_traces[0].descriptors[0].name;
+
+        trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(initial_server, put.clone()), (server, put)],
+        );
+        expect_crash(|| {});
+    }
+
+    #[test]
+    #[cfg(feature = "tls12")]
+    #[cfg(feature = "wolfssl-binding")] // only breaks on wolfssl
+    #[should_panic]
+    fn test_seed_12_finding_2() {
+        seed_client_attacker_full.execute_trace();
+        seed_client_attacker12.execute_trace();
     }
 
     #[test]

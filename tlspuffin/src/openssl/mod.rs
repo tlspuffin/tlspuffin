@@ -229,7 +229,12 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.stream.clear();
+        if self.config.use_clear {
+            self.stream.clear();
+        } else {
+            self.stream.clear(); // FIXME: Add non-clear method like in wolfssl
+        }
+
         Ok(())
     }
 
