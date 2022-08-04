@@ -9,9 +9,6 @@ use std::{
 
 use cmake::Config;
 
-/**
- * Work around for bindgen creating duplicate values.
- */
 #[derive(Debug)]
 struct IgnoreMacros(HashSet<String>);
 
@@ -74,19 +71,26 @@ fn main() -> std::io::Result<()> {
     // Configure and build
     let dst = build(&out_dir);
 
-    // We want to block some macros as they are incorrectly creating duplicate values
+    // We want to ignore some macros because of duplicates:
     // https://github.com/rust-lang/rust-bindgen/issues/687
-    let mut hash_ignored_macros = HashSet::new();
+    let mut ignored_macros = HashSet::new();
     for i in &["IPPORT_RESERVED"] {
-        hash_ignored_macros.insert(i.to_string());
+        ignored_macros.insert(i.to_string());
     }
-    let ignored_macros = IgnoreMacros(hash_ignored_macros);
+    let ignored_macros = IgnoreMacros(ignored_macros);
 
     // Build the Rust binding
     let bindings = bindgen::Builder::default()
-        .header(format!("{}/include/libssh/libssh.h", out_dir))
-        .header(format!("{}/include/libssh/server.h", out_dir))
+        .header("wrapper.h")
         .clang_arg(format!("-I{}/include/", out_dir))
+        .clang_arg(format!("-DHAVE_LIBCRYPTO"))
+        .clang_arg(format!("-DHAVE_COMPILER__FUNC__=1"))
+        .clang_arg(format!("-DHAVE_STRTOULL"))
+        .rustified_enum("ssh_auth_state_e")
+        .rustified_enum("ssh_session_state_e")
+        .rustified_enum("ssh_options_e")
+        .rustified_enum("ssh_bind_options_e")
+        .rustified_enum("ssh_requests_e")
         .parse_callbacks(Box::new(ignored_macros))
         .rustfmt_bindings(true)
         .generate()

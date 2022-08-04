@@ -26,6 +26,9 @@ pub enum SshAuthResult {
     Unknown(c_int),
 }
 
+pub type AuthState = libssh_sys::ssh_auth_state_e;
+pub type SessionState = libssh_sys::ssh_session_state_e;
+
 foreign_type! {
     pub unsafe type SshSession: Sync + Send {
         type CType = libssh_sys::ssh_session_struct;
@@ -56,16 +59,20 @@ impl SshSessionRef {
         }
     }
 
+    /// TODO
+    pub fn session_state(&self) -> SessionState {
+        unsafe { (*self.as_ptr()).session_state }
+    }
+    pub fn auth_state(&self) -> AuthState {
+        unsafe { (*self.as_ptr()).auth.state }
+    }
+
     /// `ssh_options_set`
     pub fn set_options_str(&mut self, typ: SessionOption, value: &str) -> Result<(), String> {
         unsafe {
             let value = CString::new(value).map_err(|err| err.to_string())?;
             cvt_n(
-                libssh_sys::ssh_options_set(
-                    self.as_ptr(),
-                    typ as ssh_options_e,
-                    value.as_ptr() as *const c_void,
-                ),
+                libssh_sys::ssh_options_set(self.as_ptr(), typ, value.as_ptr() as *const c_void),
                 self,
             )
             .map(|_| ())
@@ -176,53 +183,7 @@ impl Fallible for SshSessionRef {
     }
 }
 
-pub enum SessionOption {
-    HOST = libssh_sys::ssh_options_e_SSH_OPTIONS_HOST as isize,
-    PORT = libssh_sys::ssh_options_e_SSH_OPTIONS_PORT as isize,
-    PORT_STR = libssh_sys::ssh_options_e_SSH_OPTIONS_PORT_STR as isize,
-    FD = libssh_sys::ssh_options_e_SSH_OPTIONS_FD as isize,
-    USER = libssh_sys::ssh_options_e_SSH_OPTIONS_USER as isize,
-    SSH_DIR = libssh_sys::ssh_options_e_SSH_OPTIONS_SSH_DIR as isize,
-    IDENTITY = libssh_sys::ssh_options_e_SSH_OPTIONS_IDENTITY as isize,
-    ADD_IDENTITY = libssh_sys::ssh_options_e_SSH_OPTIONS_ADD_IDENTITY as isize,
-    KNOWNHOSTS = libssh_sys::ssh_options_e_SSH_OPTIONS_KNOWNHOSTS as isize,
-    TIMEOUT = libssh_sys::ssh_options_e_SSH_OPTIONS_TIMEOUT as isize,
-    TIMEOUT_USEC = libssh_sys::ssh_options_e_SSH_OPTIONS_TIMEOUT_USEC as isize,
-    SSH1 = libssh_sys::ssh_options_e_SSH_OPTIONS_SSH1 as isize,
-    SSH2 = libssh_sys::ssh_options_e_SSH_OPTIONS_SSH2 as isize,
-    LOG_VERBOSITY = libssh_sys::ssh_options_e_SSH_OPTIONS_LOG_VERBOSITY as isize,
-    LOG_VERBOSITY_STR = libssh_sys::ssh_options_e_SSH_OPTIONS_LOG_VERBOSITY_STR as isize,
-    CIPHERS_C_S = libssh_sys::ssh_options_e_SSH_OPTIONS_CIPHERS_C_S as isize,
-    CIPHERS_S_C = libssh_sys::ssh_options_e_SSH_OPTIONS_CIPHERS_S_C as isize,
-    COMPRESSION_C_S = libssh_sys::ssh_options_e_SSH_OPTIONS_COMPRESSION_C_S as isize,
-    COMPRESSION_S_C = libssh_sys::ssh_options_e_SSH_OPTIONS_COMPRESSION_S_C as isize,
-    PROXYCOMMAND = libssh_sys::ssh_options_e_SSH_OPTIONS_PROXYCOMMAND as isize,
-    BINDADDR = libssh_sys::ssh_options_e_SSH_OPTIONS_BINDADDR as isize,
-    STRICTHOSTKEYCHECK = libssh_sys::ssh_options_e_SSH_OPTIONS_STRICTHOSTKEYCHECK as isize,
-    COMPRESSION = libssh_sys::ssh_options_e_SSH_OPTIONS_COMPRESSION as isize,
-    COMPRESSION_LEVEL = libssh_sys::ssh_options_e_SSH_OPTIONS_COMPRESSION_LEVEL as isize,
-    KEY_EXCHANGE = libssh_sys::ssh_options_e_SSH_OPTIONS_KEY_EXCHANGE as isize,
-    HOSTKEYS = libssh_sys::ssh_options_e_SSH_OPTIONS_HOSTKEYS as isize,
-    GSSAPI_SERVER_IDENTITY = libssh_sys::ssh_options_e_SSH_OPTIONS_GSSAPI_SERVER_IDENTITY as isize,
-    GSSAPI_CLIENT_IDENTITY = libssh_sys::ssh_options_e_SSH_OPTIONS_GSSAPI_CLIENT_IDENTITY as isize,
-    GSSAPI_DELEGATE_CREDENTIALS =
-        libssh_sys::ssh_options_e_SSH_OPTIONS_GSSAPI_DELEGATE_CREDENTIALS as isize,
-    HMAC_C_S = libssh_sys::ssh_options_e_SSH_OPTIONS_HMAC_C_S as isize,
-    HMAC_S_C = libssh_sys::ssh_options_e_SSH_OPTIONS_HMAC_S_C as isize,
-    PASSWORD_AUTH = libssh_sys::ssh_options_e_SSH_OPTIONS_PASSWORD_AUTH as isize,
-    PUBKEY_AUTH = libssh_sys::ssh_options_e_SSH_OPTIONS_PUBKEY_AUTH as isize,
-    KBDINT_AUTH = libssh_sys::ssh_options_e_SSH_OPTIONS_KBDINT_AUTH as isize,
-    GSSAPI_AUTH = libssh_sys::ssh_options_e_SSH_OPTIONS_GSSAPI_AUTH as isize,
-    GLOBAL_KNOWNHOSTS = libssh_sys::ssh_options_e_SSH_OPTIONS_GLOBAL_KNOWNHOSTS as isize,
-    NODELAY = libssh_sys::ssh_options_e_SSH_OPTIONS_NODELAY as isize,
-    PUBLICKEY_ACCEPTED_TYPES =
-        libssh_sys::ssh_options_e_SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES as isize,
-    PROCESS_CONFIG = libssh_sys::ssh_options_e_SSH_OPTIONS_PROCESS_CONFIG as isize,
-    REKEY_DATA = libssh_sys::ssh_options_e_SSH_OPTIONS_REKEY_DATA as isize,
-    REKEY_TIME = libssh_sys::ssh_options_e_SSH_OPTIONS_REKEY_TIME as isize,
-    RSA_MIN_SIZE = libssh_sys::ssh_options_e_SSH_OPTIONS_RSA_MIN_SIZE as isize,
-    IDENTITY_AGENT = libssh_sys::ssh_options_e_SSH_OPTIONS_IDENTITY_AGENT as isize,
-}
+pub type SessionOption = libssh_sys::ssh_options_e;
 
 foreign_type! {
     pub unsafe type SshBind: Sync + Send {
@@ -254,7 +215,7 @@ impl SshBindRef {
             cvt_n(
                 libssh_sys::ssh_bind_options_set(
                     self.as_ptr(),
-                    typ as ssh_options_e,
+                    typ,
                     value.as_ptr() as *const c_void,
                 ),
                 self,
@@ -268,11 +229,7 @@ impl SshBindRef {
         unsafe {
             let value: *const i32 = &value;
             cvt_n(
-                libssh_sys::ssh_bind_options_set(
-                    self.as_ptr(),
-                    typ as ssh_options_e,
-                    value as *const c_void,
-                ),
+                libssh_sys::ssh_bind_options_set(self.as_ptr(), typ, value as *const c_void),
                 self,
             )
             .map(|_| ())
@@ -285,7 +242,7 @@ impl SshBindRef {
             let result = cvt_n(
                 libssh_sys::ssh_bind_options_set(
                     self.as_ptr(),
-                    typ as ssh_options_e,
+                    typ,
                     value.as_ptr() as *const c_void,
                 ),
                 self,
@@ -337,55 +294,25 @@ impl Fallible for SshBindRef {
     }
 }
 
-pub enum SshRequest {
-    REQUEST_AUTH = libssh_sys::ssh_requests_e_SSH_REQUEST_AUTH as isize,
-    REQUEST_CHANNEL_OPEN = libssh_sys::ssh_requests_e_SSH_REQUEST_CHANNEL_OPEN as isize,
-    REQUEST_CHANNEL = libssh_sys::ssh_requests_e_SSH_REQUEST_CHANNEL as isize,
-    REQUEST_SERVICE = libssh_sys::ssh_requests_e_SSH_REQUEST_SERVICE as isize,
-    REQUEST_GLOBAL = libssh_sys::ssh_requests_e_SSH_REQUEST_GLOBAL as isize,
-}
+pub type SshRequest = libssh_sys::ssh_requests_e;
 
-impl SshRequest {
-    fn from_raw(value: u32) -> Option<Self> {
-        match value {
-            libssh_sys::ssh_requests_e_SSH_REQUEST_AUTH => Some(SshRequest::REQUEST_AUTH),
-            libssh_sys::ssh_requests_e_SSH_REQUEST_CHANNEL_OPEN => {
-                Some(SshRequest::REQUEST_CHANNEL_OPEN)
-            }
-            libssh_sys::ssh_requests_e_SSH_REQUEST_CHANNEL => Some(SshRequest::REQUEST_CHANNEL),
-            libssh_sys::ssh_requests_e_SSH_REQUEST_SERVICE => Some(SshRequest::REQUEST_SERVICE),
-            libssh_sys::ssh_requests_e_SSH_REQUEST_GLOBAL => Some(SshRequest::REQUEST_GLOBAL),
-            _ => None,
-        }
+fn from_raw(value: u32) -> Option<SshRequest> {
+    const AUTH: u32 = SshRequest::SSH_REQUEST_AUTH as u32;
+    const CHANNEL_OPEN: u32 = SshRequest::SSH_REQUEST_CHANNEL_OPEN as u32;
+    const CHANNEL: u32 = SshRequest::SSH_REQUEST_CHANNEL as u32;
+    const SERVICE: u32 = SshRequest::SSH_REQUEST_SERVICE as u32;
+    const GLOBAL: u32 = SshRequest::SSH_REQUEST_GLOBAL as u32;
+    match value {
+        AUTH => Some(SshRequest::SSH_REQUEST_AUTH),
+        CHANNEL_OPEN => Some(SshRequest::SSH_REQUEST_CHANNEL_OPEN),
+        CHANNEL => Some(SshRequest::SSH_REQUEST_CHANNEL),
+        SERVICE => Some(SshRequest::SSH_REQUEST_SERVICE),
+        GLOBAL => Some(SshRequest::SSH_REQUEST_GLOBAL),
+        _ => None,
     }
 }
 
-pub enum SshBindOption {
-    BINDADDR = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_BINDADDR as isize,
-    BINDPORT = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_BINDPORT as isize,
-    BINDPORT_STR = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_BINDPORT_STR as isize,
-    HOSTKEY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_HOSTKEY as isize,
-    DSAKEY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_DSAKEY as isize,
-    RSAKEY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_RSAKEY as isize,
-    BANNER = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_BANNER as isize,
-    LOG_VERBOSITY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_LOG_VERBOSITY as isize,
-    LOG_VERBOSITY_STR = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_LOG_VERBOSITY_STR as isize,
-    ECDSAKEY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_ECDSAKEY as isize,
-    IMPORT_KEY = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_IMPORT_KEY as isize,
-    KEY_EXCHANGE = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_KEY_EXCHANGE as isize,
-    CIPHERS_C_S = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_CIPHERS_C_S as isize,
-    CIPHERS_S_C = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_CIPHERS_S_C as isize,
-    HMAC_C_S = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_HMAC_C_S as isize,
-    HMAC_S_C = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_HMAC_S_C as isize,
-    CONFIG_DIR = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_CONFIG_DIR as isize,
-    PUBKEY_ACCEPTED_KEY_TYPES =
-        libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_PUBKEY_ACCEPTED_KEY_TYPES as isize,
-    HOSTKEY_ALGORITHMS =
-        libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_HOSTKEY_ALGORITHMS as isize,
-    PROCESS_CONFIG = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_PROCESS_CONFIG as isize,
-    MODULI = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_MODULI as isize,
-    RSA_MIN_SIZE = libssh_sys::ssh_bind_options_e_SSH_BIND_OPTIONS_RSA_MIN_SIZE as isize,
-}
+pub type SshBindOption = libssh_sys::ssh_bind_options_e;
 
 foreign_type! {
     pub unsafe type SshMessage: Sync + Send {
@@ -414,7 +341,7 @@ impl SshMessageRef {
     /// `ssh_message_type`
     pub fn typ(&self) -> Result<Option<SshRequest>, String> {
         unsafe {
-            Ok(SshRequest::from_raw(
+            Ok(from_raw(
                 cvt_n(libssh_sys::ssh_message_type(self.as_ptr()), self)? as u32,
             ))
         }
@@ -628,7 +555,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
         let mut server = SshSession::new().unwrap();
         server.set_blocking(false);
         server
-            .set_options_int(SessionOption::PROCESS_CONFIG, 0)
+            .set_options_int(SessionOption::SSH_OPTIONS_PROCESS_CONFIG, 0)
             .unwrap();
 
         let mut bind = SshBind::new().unwrap();
@@ -640,7 +567,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
         .unwrap();*/
 
         let key = SshKey::from_base64(OPENSSH_RSA_PRIVATE_KEY).unwrap();
-        bind.set_options_key(SshBindOption::IMPORT_KEY, key)
+        bind.set_options_key(SshBindOption::SSH_BIND_OPTIONS_IMPORT_KEY, key)
             .unwrap();
 
         bind.set_blocking(false);
@@ -653,13 +580,13 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
         let mut client = SshSession::new().unwrap();
         client.set_blocking(false);
         client
-            .set_options_str(SessionOption::HOST, "dummy")
+            .set_options_str(SessionOption::SSH_OPTIONS_HOST, "dummy")
             .unwrap();
         client
-            .set_options_int(SessionOption::FD, client_stream.into_raw_fd())
+            .set_options_int(SessionOption::SSH_OPTIONS_FD, client_stream.into_raw_fd())
             .unwrap();
         client
-            .set_options_int(SessionOption::PROCESS_CONFIG, 0)
+            .set_options_int(SessionOption::SSH_OPTIONS_PROCESS_CONFIG, 0)
             .unwrap();
 
         // ------

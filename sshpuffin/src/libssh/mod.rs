@@ -24,8 +24,8 @@ use tokio::io::AsyncWriteExt;
 
 use crate::{
     libssh::ssh::{
-        SessionOption, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest, SshResult,
-        SshSession,
+        SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
+        SshResult, SshSession,
     },
     protocol::SshProtocolBehavior,
     put_registry::LIBSSH_PUT,
@@ -98,7 +98,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             let mut session = SshSession::new().unwrap();
             session.set_blocking(false);
             session
-                .set_options_int(SessionOption::PROCESS_CONFIG, 0)
+                .set_options_int(SessionOption::SSH_OPTIONS_PROCESS_CONFIG, 0)
                 .unwrap();
 
             let put_fd = put_stream.into_raw_fd();
@@ -108,7 +108,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
                     let mut bind = SshBind::new().unwrap();
 
                     let key = SshKey::from_base64(OPENSSH_RSA_PRIVATE_KEY).unwrap();
-                    bind.set_options_key(SshBindOption::IMPORT_KEY, key)
+                    bind.set_options_key(SshBindOption::SSH_BIND_OPTIONS_IMPORT_KEY, key)
                         .unwrap();
                     bind.set_blocking(false);
 
@@ -116,9 +116,11 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
                 }
                 AgentType::Client => {
                     session
-                        .set_options_str(SessionOption::HOST, "dummy")
+                        .set_options_str(SessionOption::SSH_OPTIONS_HOST, "dummy")
                         .unwrap();
-                    session.set_options_int(SessionOption::FD, put_fd).unwrap();
+                    session
+                        .set_options_int(SessionOption::SSH_OPTIONS_FD, put_fd)
+                        .unwrap();
                 }
             }
 
@@ -257,7 +259,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
                 PutState::Authenticating => {
                     if let Some(mut message) = session.get_message() {
                         match message.typ().unwrap() {
-                            Some(SshRequest::REQUEST_AUTH) => {
+                            Some(SshRequest::SSH_REQUEST_AUTH) => {
                                 message.auth_reply_success(0).unwrap();
                                 self.state = PutState::Done;
                             }
@@ -328,7 +330,8 @@ impl Put<SshProtocolBehavior> for LibSSL {
     }
 
     fn is_state_successful(&self) -> bool {
-        self.state == PutState::Done
+        //self.state == PutState::Done
+        self.session.session_state() == SessionState::SSH_SESSION_STATE_AUTHENTICATED
     }
 
     fn version() -> String
