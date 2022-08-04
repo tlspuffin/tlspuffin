@@ -5,6 +5,7 @@ use log::debug;
 use puffin::{
     codec::{Codec, Reader},
     error::Error,
+    libafl::mutators::str_decode,
     protocol::{Message, MessageDeframer, OpaqueMessage},
 };
 
@@ -23,8 +24,11 @@ pub struct BinaryPacket {
 
 impl Codec for BinaryPacket {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.payload.len() as u32).encode(bytes);
-        (self.random_padding.len() as u8).encode(bytes);
+        let padding_length = self.random_padding.len();
+        let payload_length = self.payload.len();
+        let packet_length = payload_length + padding_length + 1;
+        (packet_length as u32).encode(bytes);
+        (padding_length as u8).encode(bytes);
         bytes.extend_from_slice(&self.payload);
         bytes.extend_from_slice(&self.random_padding);
         bytes.extend_from_slice(&self.mac);
@@ -33,7 +37,8 @@ impl Codec for BinaryPacket {
     fn read(reader: &mut Reader) -> Option<Self> {
         let packet_length = u32::read(reader)?;
         let padding_length = u8::read(reader)?;
-        let payload = Vec::from(reader.take(packet_length as usize - padding_length as usize - 1)?);
+        let payload_length = packet_length as usize - padding_length as usize - 1;
+        let payload = Vec::from(reader.take(payload_length)?);
         let random_padding = Vec::from(reader.take(padding_length as usize)?);
         let mac = Vec::from(reader.take(0 as usize)?); // TODO: parse non-zero
 
@@ -47,40 +52,81 @@ impl Codec for BinaryPacket {
 
 #[derive(Clone, Debug)]
 pub struct NameList {
-    names: Vec<u8>,
+    names: Vec<String>,
+}
+
+impl NameList {
+    pub fn empty() -> NameList {
+        Self { names: vec![] }
+    }
 }
 
 impl Codec for NameList {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.names.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.names);
+        let names = self.names.join(",").to_string();
+        let names_bytes = names.as_bytes(); // ASCII is valid UTF-8
+        (names_bytes.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&names_bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         let length = u32::read(reader)?;
-        let names = Vec::from(reader.take(length as usize)?);
+        let names = if length > 0 {
+            let names = std::str::from_utf8(reader.take(length as usize)?).ok()?;
+            names
+                .split(",")
+                //.filter(|name| !name.is_empty())
+                .map(str::to_string)
+                .collect()
+        } else {
+            Vec::new()
+        };
         Some(NameList { names })
     }
 }
+
+macro_rules! declare_name_list (
+  ($name:ident) => {
+    #[derive(Debug, Clone)]
+    pub struct $name(pub NameList);
+
+    impl puffin::codec::Codec for $name {
+      fn encode(&self, bytes: &mut Vec<u8>) {
+        NameList::encode(&self.0, bytes);
+      }
+
+      fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
+        Some($name(NameList::read(r)?))
+      }
+    }
+  }
+);
 
 #[derive(Clone, Debug)]
 pub enum SshMessage {
     KexInit(KexInitMessage),
     KexEcdhInit(KexEcdhInitMessage),
     KexEcdhReply(KexEcdhReplyMessage),
+    NewKeys,
 }
+
+declare_name_list!(KexAlgorithms);
+declare_name_list!(SignatureSchemes);
+declare_name_list!(EncryptionAlgorithms);
+declare_name_list!(MacAlgorithms);
+declare_name_list!(CompressionAlgorithms);
 
 #[derive(Clone, Debug)]
 pub struct KexInitMessage {
     pub cookie: [u8; 16],
-    pub kex_algorithms: NameList,
-    pub server_host_key_algorithms: NameList,
-    pub encryption_algorithms_server_to_client: NameList,
-    pub encryption_algorithms_client_to_server: NameList,
-    pub mac_algorithms_client_to_server: NameList,
-    pub mac_algorithms_server_to_client: NameList,
-    pub compression_algorithms_client_to_server: NameList,
-    pub compression_algorithms_server_to_client: NameList,
+    pub kex_algorithms: KexAlgorithms,
+    pub server_host_key_algorithms: SignatureSchemes,
+    pub encryption_algorithms_server_to_client: EncryptionAlgorithms,
+    pub encryption_algorithms_client_to_server: EncryptionAlgorithms,
+    pub mac_algorithms_client_to_server: MacAlgorithms,
+    pub mac_algorithms_server_to_client: MacAlgorithms,
+    pub compression_algorithms_client_to_server: CompressionAlgorithms,
+    pub compression_algorithms_server_to_client: CompressionAlgorithms,
     pub languages_client_to_server: NameList,
     pub languages_server_to_client: NameList,
     pub first_kex_packet_follows: bool,
@@ -108,20 +154,23 @@ impl Codec for KexInitMessage {
     fn read(reader: &mut Reader) -> Option<Self> {
         let mut cookie = [0; 16];
         cookie[..].clone_from_slice(reader.take(16)?);
-        Some(KexInitMessage {
+        let message = KexInitMessage {
             cookie,
-            kex_algorithms: NameList::read(reader)?,
-            server_host_key_algorithms: NameList::read(reader)?,
-            encryption_algorithms_server_to_client: NameList::read(reader)?,
-            encryption_algorithms_client_to_server: NameList::read(reader)?,
-            mac_algorithms_client_to_server: NameList::read(reader)?,
-            mac_algorithms_server_to_client: NameList::read(reader)?,
-            compression_algorithms_client_to_server: NameList::read(reader)?,
-            compression_algorithms_server_to_client: NameList::read(reader)?,
+            kex_algorithms: KexAlgorithms::read(reader)?,
+            server_host_key_algorithms: SignatureSchemes::read(reader)?,
+            encryption_algorithms_server_to_client: EncryptionAlgorithms::read(reader)?,
+            encryption_algorithms_client_to_server: EncryptionAlgorithms::read(reader)?,
+            mac_algorithms_client_to_server: MacAlgorithms::read(reader)?,
+            mac_algorithms_server_to_client: MacAlgorithms::read(reader)?,
+            compression_algorithms_client_to_server: CompressionAlgorithms::read(reader)?,
+            compression_algorithms_server_to_client: CompressionAlgorithms::read(reader)?,
             languages_client_to_server: NameList::read(reader)?,
             languages_server_to_client: NameList::read(reader)?,
             first_kex_packet_follows: u8::read(reader)? != 0,
-        })
+        };
+
+        u32::read(reader)?; // read reserved
+        Some(message)
     }
 }
 #[derive(Clone, Debug)]
@@ -183,6 +232,9 @@ impl Codec for SshMessage {
                 20u8.encode(bytes);
                 inner.encode(bytes);
             }
+            SshMessage::NewKeys => {
+                21u8.encode(bytes);
+            }
             SshMessage::KexEcdhInit(inner) => {
                 30u8.encode(bytes);
                 inner.encode(bytes);
@@ -199,6 +251,7 @@ impl Codec for SshMessage {
 
         match typ {
             20u8 => Some(SshMessage::KexInit(KexInitMessage::read(reader)?)),
+            21u8 => Some(SshMessage::NewKeys),
             30u8 => Some(SshMessage::KexEcdhInit(KexEcdhInitMessage::read(reader)?)),
             31u8 => Some(SshMessage::KexEcdhReply(KexEcdhReplyMessage::read(reader)?)),
             _ => None,
@@ -206,22 +259,26 @@ impl Codec for SshMessage {
     }
 }
 
-impl TryFrom<&RawMessage> for SshMessage {
+impl TryFrom<&BinaryPacket> for SshMessage {
     type Error = String;
 
-    fn try_from(value: &RawMessage) -> Result<Self, Self::Error> {
-        match value {
-            RawMessage::Banner(_) => Err("Can not parse on banner".to_string()),
-            RawMessage::Packet(packet) => {
-                let mut reader = Reader::init(&packet.payload);
-                SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
-            }
-        }
+    fn try_from(packet: &BinaryPacket) -> Result<Self, Self::Error> {
+        let mut reader = Reader::init(&packet.payload);
+        SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
 impl Message<RawMessage> for SshMessage {
     fn create_opaque(&self) -> RawMessage {
-        todo!()
+        let mut payload = Vec::new();
+        self.encode(&mut payload);
+
+        let mut random_padding = Vec::from([0; 7]); // todo: calc proper padding
+
+        RawMessage::Packet(BinaryPacket {
+            payload,
+            random_padding,
+            mac: vec![], // todo: calc proper mac
+        })
     }
 
     fn debug(&self, info: &str) {
@@ -249,7 +306,7 @@ impl Codec for RawMessage {
             RawMessage::Banner(banner) => {
                 bytes.extend_from_slice(banner.as_bytes());
             }
-            RawMessage::Packet(_) => {}
+            RawMessage::Packet(packet) => packet.encode(bytes),
         }
     }
 
@@ -257,7 +314,11 @@ impl Codec for RawMessage {
         let banner = "SSH-2.0-libssh_0.10.90\r\n";
         let banner_bytes = banner.as_bytes();
 
-        let is_banner = reader.peek(banner_bytes.len())? == banner_bytes;
+        let is_banner = if let Some(received) = reader.peek(banner_bytes.len()) {
+            received == banner_bytes
+        } else {
+            false
+        };
 
         if is_banner {
             reader.take(banner_bytes.len())?;

@@ -5,7 +5,7 @@ use puffin::{
     trace::{InputAction, OutputAction, Trace},
 };
 
-use crate::ssh::fn_impl::*;
+use crate::ssh::{fn_impl::*, message::*};
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher> {
     Trace {
@@ -30,6 +30,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
         ],
         steps: vec![
             OutputAction::new_step(client),
+            // Client -> Server: Banner
             InputAction::new_step(
                 server,
                 term! {
@@ -38,11 +39,84 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
                     )
                 },
             ),
+            // Server -> Client: Banner
             InputAction::new_step(
                 client,
                 term! {
                     fn_banner(
                         ((server, 0))
+                    )
+                },
+            ),
+            // Client -> Server: KexInit
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_kex_init(
+                        ((client, 0)[None]/[u8; 16]),
+                        ((client, 0)[None]/KexAlgorithms),
+                        ((client, 0)[None]/SignatureSchemes),
+                        ((client, 0)[None]/EncryptionAlgorithms),
+                        ((client, 1)[None]/EncryptionAlgorithms),
+                        ((client, 0)[None]/MacAlgorithms),
+                        ((client, 1)[None]/MacAlgorithms),
+                        ((client, 0)[None]/CompressionAlgorithms),
+                        ((client, 1)[None]/CompressionAlgorithms)
+                    )
+                },
+            ),
+            // Server -> Client: KexInit
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_kex_init(
+                        ((server, 0)[None]/[u8; 16]),
+                        ((server, 0)[None]/KexAlgorithms),
+                        ((server, 0)[None]/SignatureSchemes),
+                        ((server, 0)[None]/EncryptionAlgorithms),
+                        ((server, 1)[None]/EncryptionAlgorithms),
+                        ((server, 0)[None]/MacAlgorithms),
+                        ((server, 1)[None]/MacAlgorithms),
+                        ((server, 0)[None]/CompressionAlgorithms),
+                        ((server, 1)[None]/CompressionAlgorithms)
+                    )
+                },
+            ),
+            // Client -> Server: ECDH Init
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_raw_message(
+                        ((client, 2)[None]/RawMessage)  // ECDH Init
+                    )
+                },
+            ),
+            // Server -> Client: ECDH Reply
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_kex_ecdh_reply(
+                        ((server, 0)[None]/Vec<u8>),
+                        ((server, 1)[None]/Vec<u8>),
+                        ((server, 2)[None]/Vec<u8>)
+                    )
+                },
+            ),
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_raw_message(
+                        ((client, 3)[None]/RawMessage)  // SSH_MSG_NEWKEYS??
+                    )
+                },
+            ),
+            // auth finished in this input step
+            // in auto-output step the client auth is called
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_raw_message(
+                        ((server, 3)[None]/RawMessage)  // SSH_MSG_NEWKEYS??
                     )
                 },
             ),

@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Tests (NO PUT)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test" />
+  <configuration default="false" name="Run Tests (puffin)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="test -p puffin" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

@@ -171,6 +171,7 @@ impl Stream<SshProtocolBehavior> for LibSSL {
     fn add_to_inbound(&mut self, result: &RawMessage) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);
+
         self.fuzz_stream.write_all(&mut buffer).unwrap();
     }
 
@@ -218,12 +219,16 @@ impl Stream<SshProtocolBehavior> for LibSSL {
         };
 
         if let Some(opaque_message) = opaque_message {
-            let message = match SshMessage::try_from(&opaque_message) {
-                Ok(message) => Some(message),
-                Err(err) => {
-                    error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
-                    None
+            let message = if let RawMessage::Packet(packet) = &opaque_message {
+                match SshMessage::try_from(packet) {
+                    Ok(message) => Some(message),
+                    Err(err) => {
+                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                        None
+                    }
                 }
+            } else {
+                None
             };
 
             Ok(Some(MessageResult(message, opaque_message)))
@@ -239,13 +244,16 @@ impl Put<SshProtocolBehavior> for LibSSL {
         let session = &mut self.session;
         match &self.agent_descriptor.typ {
             AgentType::Server => match &self.state {
-                PutState::ExchangingKeys => {
-                    if let Ok(kex) = session.handle_key_exchange() {
+                PutState::ExchangingKeys => match session.handle_key_exchange() {
+                    Ok(kex) => {
                         if kex == SshResult::Ok {
                             self.state = PutState::Authenticating;
                         }
                     }
-                }
+                    Err(err) => {
+                        panic!("{}", err)
+                    }
+                },
                 PutState::Authenticating => {
                     if let Some(mut message) = session.get_message() {
                         match message.typ().unwrap() {
@@ -262,20 +270,26 @@ impl Put<SshProtocolBehavior> for LibSSL {
                 PutState::Done => {}
             },
             AgentType::Client => match &self.state {
-                PutState::ExchangingKeys => {
-                    if let Ok(kex) = session.connect() {
+                PutState::ExchangingKeys => match session.connect() {
+                    Ok(kex) => {
                         if kex == SshResult::Ok {
                             self.state = PutState::Authenticating;
                         }
                     }
-                }
-                PutState::Authenticating => {
-                    if let Ok(auth) = session.userauth_password(None, "test") {
+                    Err(err) => {
+                        panic!("{}", err)
+                    }
+                },
+                PutState::Authenticating => match session.userauth_password(None, "test") {
+                    Ok(auth) => {
                         if auth == SshAuthResult::Success {
                             self.state = PutState::Done;
                         }
                     }
-                }
+                    Err(err) => {
+                        panic!("{}", err)
+                    }
+                },
                 PutState::Done => {}
             },
         }

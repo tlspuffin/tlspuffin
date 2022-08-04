@@ -667,7 +667,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
         assert!(!client.is_connected());
         assert!(!server.is_connected());
 
-        // Initialize
+        // Banner exchange
         client.connect().unwrap();
         server.handle_key_exchange().unwrap();
 

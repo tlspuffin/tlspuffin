@@ -106,6 +106,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
                     Box::new(ephemeral_public_key.clone()),
                     Box::new(signature.clone()),
                 ],
+                SshMessage::NewKeys => vec![],
             },
         };
 

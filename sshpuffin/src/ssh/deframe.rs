@@ -68,8 +68,13 @@ impl SshMessageDeframer {
         self.used += new_bytes;
 
         loop {
+            if self.used == 0 {
+                break;
+            }
+
             match self.try_deframe_one() {
                 BufferContents::Invalid => {
+                    println!("ufferContents::Invalid");
                     self.desynced = true;
                     break;
                 }
