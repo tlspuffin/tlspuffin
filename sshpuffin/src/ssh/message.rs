@@ -10,9 +10,13 @@ use puffin::{
 };
 
 #[derive(Clone, Debug)]
+pub struct OnWireData(pub Vec<u8>);
+
+#[derive(Clone, Debug)]
 pub enum RawMessage {
     Banner(String),
     Packet(BinaryPacket),
+    OnWire(OnWireData),
 }
 
 #[derive(Clone, Debug)]
@@ -307,6 +311,7 @@ impl Codec for RawMessage {
                 bytes.extend_from_slice(banner.as_bytes());
             }
             RawMessage::Packet(packet) => packet.encode(bytes),
+            RawMessage::OnWire(data) => bytes.extend_from_slice(&data.0),
         }
     }
 

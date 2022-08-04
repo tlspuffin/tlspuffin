@@ -120,6 +120,46 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
                     )
                 },
             ),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_onwire_message(
+                        ((server, 0)[None]/OnWireData)  // option data??
+                    )
+                },
+            ),
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_onwire_message(
+                        ((client, 0)[None]/OnWireData)  // Auth request??
+                    )
+                },
+            ),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_onwire_message(
+                        ((server, 1)[None]/OnWireData)  // Auth response??
+                    )
+                },
+            ),
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_onwire_message(
+                        ((client, 1)[None]/OnWireData)  // ?
+                    )
+                },
+            ),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_onwire_message(
+                        ((server, 2)[None]/OnWireData)  // ??
+                    )
+                },
+            ),
         ],
     }
 }
@@ -136,6 +176,12 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        trace.execute_default(&SSH_PUT_REGISTRY);
+        let context = trace.execute_default(&SSH_PUT_REGISTRY);
+
+        assert!(context
+            .find_agent(client)
+            .unwrap()
+            .put
+            .is_state_successful())
     }
 }

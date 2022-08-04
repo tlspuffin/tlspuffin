@@ -2,11 +2,15 @@ use puffin::{algebra::error::FnError, protocol::Message};
 
 use crate::ssh::message::{
     CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, KexEcdhReplyMessage,
-    KexInitMessage, MacAlgorithms, NameList, RawMessage, SignatureSchemes, SshMessage,
+    KexInitMessage, MacAlgorithms, NameList, OnWireData, RawMessage, SignatureSchemes, SshMessage,
 };
 
 pub fn fn_raw_message(message: &RawMessage) -> Result<RawMessage, FnError> {
     Ok(message.clone())
+}
+
+pub fn fn_onwire_message(data: &OnWireData) -> Result<RawMessage, FnError> {
+    Ok(RawMessage::OnWire(data.clone()))
 }
 
 pub fn fn_banner(banner: &String) -> Result<RawMessage, FnError> {

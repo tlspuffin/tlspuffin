@@ -16,7 +16,6 @@ use crate::{
         deframe::SshMessageDeframer,
         message::{
             KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, RawMessage, SshMessage,
-            SshMessage::KexEcdhReply,
         },
         SSH_SIGNATURE,
     },
@@ -63,6 +62,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
             MessageResult(None, opaque_message) => match opaque_message {
                 RawMessage::Banner(banner) => vec![Box::new(banner.clone())],
                 RawMessage::Packet(packet) => vec![],
+                RawMessage::OnWire(onwire) => vec![Box::new(onwire.clone())],
             },
             MessageResult(Some(message), _) => match message {
                 SshMessage::KexInit(KexInitMessage {

@@ -2,7 +2,7 @@ use std::{collections::VecDeque, io, io::Read};
 
 use puffin::{codec, codec::Codec, protocol::MessageDeframer};
 
-use crate::ssh::message::{RawMessage, SshMessage};
+use crate::ssh::message::{OnWireData, RawMessage, SshMessage};
 
 const MAX_WIRE_SIZE: usize = 35000;
 
@@ -107,7 +107,15 @@ impl SshMessageDeframer {
                 self.buf_consume(used);
                 BufferContents::Valid
             }
-            None => BufferContents::Invalid,
+            None => {
+                self.frames
+                    .push_back(RawMessage::OnWire(OnWireData(Vec::from(
+                        &self.buf[..self.used],
+                    ))));
+                self.buf_consume(self.used);
+                BufferContents::Valid
+                //BufferContents::Invalid
+            }
         }
     }
 
