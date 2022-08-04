@@ -80,13 +80,9 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("keygen", None) // Support for RSA certs
         .enable("certgen", None) // Support x509 decoding
         .enable("tls13", None)
-        .enable("aesni", None)
         .enable("dtls", None)
-        .enable("sp", None) // FIXME: Fixes a memory leak?
-        .enable("sp-asm", None)
         .enable("dtls-mtu", None)
         .disable("sha3", None)
-        .enable("intelasm", None)
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
         .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
@@ -96,6 +92,14 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         //.cflag("-g")// FIXME: Reenable?
         .cflag("-fPIC");
+
+    if !(cfg!(feature = "M1")) { // only enabled when Mac M1 chip-specific build is not used
+        config
+            .enable("aesni", None)
+            .enable("sp", None) // FIXME: Fixes a memory leak?
+            .enable("sp-asm", None)
+            .enable("intelasm", None);
+    }
 
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");

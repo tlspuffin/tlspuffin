@@ -576,7 +576,7 @@ mod tests {
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
         let prog = "./examples/client/client";
-        let cwd = "/home/max/projects/wolfssl";
+        let cwd = "/Users/ehrenamtskarte/projects/wolfssl";
 
         match version {
             TLSVersion::V1_3 => {
@@ -604,7 +604,7 @@ mod tests {
         let port_string = port.to_string();
         let args = vec!["-p", &port_string, "-x", "-d"];
         let prog = "./examples/server/server";
-        let cwd = "/home/max/projects/wolfssl";
+        let cwd = "/Users/ehrenamtskarte/projects/wolfssl";
 
         ParametersGuard {
             port,
@@ -754,41 +754,58 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // wolfssl example server and client are not available in CI
+    //#[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
         let port = 44336;
 
-        let server_guard = openssl_server(port, TLSVersion::V1_2);
+        let server_guard = wolfssl_server(port);
         let server = PutDescriptor {
             name: TCP_PUT,
             options: server_guard.build_options(),
         };
 
-        let port = 55337;
+        let mut input_file = std::fs::File::open("/Users/ehrenamtskarte/Downloads/HEAP-buffer.trace").unwrap();
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2);
-        let client = PutDescriptor {
-            name: TCP_PUT,
-            options: client_guard.build_options(),
-        };
+        if cfg!(M1) {
+            // Read trace file
+            let mut buffer = Vec::new();
+            input_file.read_to_end(&mut buffer).unwrap();
+            let trace = postcard::from_bytes::<crate::trace::Trace>(&buffer).unwrap();
 
-        let trace = seed_successful12_with_tickets.build_trace();
-        let descriptors = &trace.descriptors;
-        let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
+            //trace.descriptors.
 
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+            //info!("Agents: {:?}", &trace.descriptors);
+
+            //let trace =
+            //    seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
+            let mut context = trace.execute_default();
+
+            let server = AgentName::first();
+            let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        } else {
+            let client_guard = wolfssl_client(port, TLSVersion::V1_2);
+            let client = PutDescriptor {
+                name: TCP_PUT,
+                options: client_guard.build_options(),
+            };
+
+            let trace = seed_successful12_with_tickets.build_trace();
+            let descriptors = &trace.descriptors;
+            let client_name = descriptors[0].name;
+            let server_name = descriptors[1].name;
+            let mut context = trace.execute_with_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client.clone()), (server_name, server.clone())],
+            );
+
+            let client = AgentName::first();
+            let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+            info!("{}", shutdown);
+            assert!(!shutdown.contains("fail"));
+
+            let server = client.next();
+            let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        }
         info!("{}", shutdown);
-        assert!(!shutdown.contains("fail"));
-
-        let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
-        assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 }

@@ -4,18 +4,6 @@ use std::{env, ffi::CStr, ptr};
 
 use log::info;
 
-unsafe extern "C" fn iter_libs(
-    info: *mut libc::dl_phdr_info,
-    _size: libc::size_t,
-    _data: *mut libc::c_void,
-) -> libc::c_int {
-    let library_name = CStr::from_ptr((*info).dlpi_name).to_str().unwrap();
-    if library_name.contains("libasan") {
-        1
-    } else {
-        0
-    }
-}
 
 extern "C" {
     fn __asan_default_options() -> *mut libc::c_char;
@@ -39,11 +27,7 @@ pub fn setup_asan_env() {
 
 pub fn asan_info() {
     let defaults = unsafe {
-        if libc::dl_iterate_phdr(Some(iter_libs), ptr::null_mut()) > 0 {
-            info!("Running with ASAN support.",)
-        } else {
-            info!("Running WITHOUT ASAN support.")
-        }
+
 
         CStr::from_ptr(__asan_default_options()).to_str().unwrap()
     };

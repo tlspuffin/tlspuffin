@@ -1,0 +1,22 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run on M1 (WolfSSL540)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" editBeforeRun="true" singleton="false">
+    <option name="command" value="run --target aarch64-apple-darwin --bin tlspuffin -p tlspuffin --features wolfssl540,M1 --no-default-features" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+    <option name="channel" value="NIGHTLY" />
+    <option name="requiredFeatures" value="true" />
+    <option name="allFeatures" value="false" />
+    <option name="emulateTerminal" value="false" />
+    <option name="withSudo" value="false" />
+    <option name="buildTarget" value="REMOTE" />
+    <option name="backtrace" value="FULL" />
+    <envs>
+      <env name="RUST_LOG" value="trace" />
+    </envs>
+    <option name="isRedirectInput" value="false" />
+    <option name="redirectInputPath" value="" />
+    <method v="2">
+      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Run Tests (puffin)" run_configuration_type="CargoCommandRunConfiguration" />
+    </method>
+  </configuration>
+</component>

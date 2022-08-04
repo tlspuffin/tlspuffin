@@ -148,6 +148,9 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+# enable M1-specific build
+M1 = ["wolfssl-sys/M1"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }
@@ -170,7 +173,7 @@ sct = "0.7.0"
 
 # Up to verison 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
-openssl-sys = { version = "*", features = ["vendored"] }
+openssl-sys = { version = "*", features = ["vendored"], optional = true }
 
 # For openssl 305
 #openssl = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
