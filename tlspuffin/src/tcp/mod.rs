@@ -15,14 +15,16 @@ use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
+    protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
-    stream::{MessageResult, Stream},
+    stream::Stream,
     trace::TraceContext,
 };
 
 use crate::{
-    put_registry::{TLSProtocolBehavior, TCP_PUT},
+    protocol::TLSProtocolBehavior,
+    put_registry::TCP_PUT,
     tls::rustls::msgs::{
         deframer::MessageDeframer,
         message::{Message, OpaqueMessage},

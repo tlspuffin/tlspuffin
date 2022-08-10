@@ -1,4 +1,4 @@
-use puffin::{algebra::Matcher, error::Error, stream::MessageResult};
+use puffin::{algebra::Matcher, error::Error, protocol::MessageResult};
 use serde::{Deserialize, Serialize};
 
 use crate::tls::rustls::msgs::{

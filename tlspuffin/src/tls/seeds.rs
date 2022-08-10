@@ -11,7 +11,8 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::{TLSProtocolBehavior, TLS_PUT_REGISTRY},
+    protocol::TLSProtocolBehavior,
+    put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,

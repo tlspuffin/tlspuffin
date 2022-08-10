@@ -28,7 +28,10 @@ use log::error;
 use crate::{
     codec::Codec,
     error::Error,
-    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{
+        MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+        ProtocolMessageDeframer,
+    },
 };
 
 pub trait Stream<PB: ProtocolBehavior> {
@@ -60,8 +63,6 @@ pub struct MemoryStream<PB> {
     phantom: PhantomData<PB>,
 }
 
-pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
-
 impl<PB: ProtocolBehavior> MemoryStream<PB> {
     pub fn new() -> Self {
         Self {
@@ -85,7 +86,7 @@ where
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
-        let mut deframer = PB::MessageDeframer::new();
+        let mut deframer = PB::ProtocolMessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())
             .is_ok()

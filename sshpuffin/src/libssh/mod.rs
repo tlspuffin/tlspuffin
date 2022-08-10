@@ -14,10 +14,10 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    protocol::OpaqueProtocolMessage,
+    protocol::{MessageResult, OpaqueProtocolMessage},
     put::{Put, PutName},
     put_registry::Factory,
-    stream::{MessageResult, Stream},
+    stream::Stream,
     trace::TraceContext,
 };
 use tokio::io::AsyncWriteExt;

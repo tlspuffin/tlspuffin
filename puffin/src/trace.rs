@@ -32,10 +32,9 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::PutDescriptor,
     put_registry::{Factory, PutRegistry},
-    stream::MessageResult,
     variable_data::VariableData,
 };
 
@@ -114,13 +113,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
         &self.claims
-    }
-
-    pub fn extract_knowledge(
-        &self,
-        message: &MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>,
-    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        PB::extract_knowledge(message)
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
@@ -483,10 +475,12 @@ impl<M: Matcher> OutputAction<M> {
             ctx.take_message_from_outbound(step.agent)?
         {
             let message_result = MessageResult(message_o, opaque_message);
-            let MessageResult(message, opaque_message) = &message_result;
-            let matcher = Some(PB::extract_query_matcher(&message_result));
 
-            let knowledge = ctx.extract_knowledge(&message_result)?;
+            let matcher = message_result.create_matcher::<PB>();
+
+            let MessageResult(message, opaque_message) = &message_result;
+
+            let knowledge = message_result.extract_knowledge()?;
 
             debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
 

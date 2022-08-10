@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, io, io::Read};
 
-use puffin::{codec, codec::Codec, protocol::MessageDeframer};
+use puffin::{codec, codec::Codec, protocol::ProtocolMessageDeframer};
 
 use crate::ssh::message::{OnWireData, RawMessage, SshMessage};
 
@@ -143,7 +143,7 @@ impl SshMessageDeframer {
     }
 }
 
-impl MessageDeframer<SshMessage, RawMessage> for SshMessageDeframer {
+impl ProtocolMessageDeframer<SshMessage, RawMessage> for SshMessageDeframer {
     fn new() -> Self {
         Self::new()
     }

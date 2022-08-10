@@ -37,7 +37,11 @@ use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use self::term::*;
-use crate::algebra::signature::Signature;
+use crate::{
+    algebra::signature::Signature,
+    error::Error,
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+};
 
 pub mod atoms;
 pub mod dynamic_function;
@@ -82,9 +86,7 @@ where
 }
 
 /// Determines whether two instances match. We can also ask it how specific it is.
-pub trait Matcher:
-    Debug + Clone + Hash + serde::Serialize + serde::de::DeserializeOwned + std::cmp::PartialEq
-{
+pub trait Matcher: Debug + Clone + Hash + serde::Serialize + DeserializeOwned + PartialEq {
     fn matches(&self, matcher: &Self) -> bool;
 
     fn specificity(&self) -> u32;
@@ -103,6 +105,14 @@ impl Matcher for AnyMatcher {
     }
 }
 
+impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> TryFrom<&MessageResult<M, O>> for AnyMatcher {
+    type Error = Error;
+
+    fn try_from(_: &MessageResult<M, O>) -> Result<Self, Self::Error> {
+        Ok(AnyMatcher)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
@@ -118,12 +128,15 @@ pub mod test_signature {
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Matcher, Term},
         claims::{Claim, SecurityViolationPolicy},
+        codec::{Codec, Reader},
         define_signature,
         error::Error,
-        protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+        protocol::{
+            MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+            ProtocolMessageDeframer,
+        },
         put::{Put, PutDescriptor, PutName, PutOptions},
         put_registry::{Factory, PutRegistry, DUMMY_PUT},
-        stream::MessageResult,
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
@@ -409,15 +422,17 @@ pub mod test_signature {
         }
     }
 
-    impl OpaqueProtocolMessage<TestMessage> for TestOpaqueMessage {
-        fn encode(&self) -> Vec<u8> {
+    impl Codec for TestOpaqueMessage {
+        fn encode(&self, bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
 
-        fn into_message(self) -> Result<TestMessage, Error> {
+        fn read(_: &mut Reader) -> Option<Self> {
             panic!("Not implemented for test stub");
         }
+    }
 
+    impl OpaqueProtocolMessage for TestOpaqueMessage {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
@@ -437,6 +452,16 @@ pub mod test_signature {
         }
     }
 
+    impl Codec for TestMessage {
+        fn encode(&self, bytes: &mut Vec<u8>) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
     impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
@@ -445,11 +470,15 @@ pub mod test_signature {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
+
+        fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestMessageDeframer;
 
-    impl MessageDeframer<TestMessage, TestOpaqueMessage> for TestMessageDeframer {
+    impl ProtocolMessageDeframer<TestMessage, TestOpaqueMessage> for TestMessageDeframer {
         fn new() -> Self {
             panic!("Not implemented for test stub");
         }
@@ -481,7 +510,7 @@ pub mod test_signature {
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
         type ProtocolMessage = TestMessage;
         type OpaqueProtocolMessage = TestOpaqueMessage;
-        type MessageDeframer = TestMessageDeframer;
+        type ProtocolMessageDeframer = TestMessageDeframer;
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature {
@@ -493,18 +522,6 @@ pub mod test_signature {
         }
 
         fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn extract_query_matcher(
-            _message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
-        ) -> Self::Matcher {
-            panic!("Not implemented for test stub");
-        }
-
-        fn extract_knowledge(
-            _message: &MessageResult<TestMessage, TestOpaqueMessage>,
-        ) -> Result<Vec<Box<dyn VariableData>>, Error> {
             panic!("Not implemented for test stub");
         }
     }

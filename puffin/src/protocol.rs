@@ -6,7 +6,6 @@ use crate::{
     codec::Codec,
     error::Error,
     put_registry::PutRegistry,
-    stream::MessageResult,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -16,18 +15,21 @@ use crate::{
 pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
+    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
 pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
     fn debug(&self, info: &str);
+
+    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
 
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
-pub trait MessageDeframer<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
+pub trait ProtocolMessageDeframer<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
     fn new() -> Self;
     fn pop_frame(&mut self) -> Option<O>;
     fn encode(&self) -> Vec<u8>;
@@ -49,9 +51,13 @@ pub trait ProtocolBehavior: 'static {
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage;
-    type MessageDeframer: MessageDeframer<Self::ProtocolMessage, Self::OpaqueProtocolMessage>;
+    type ProtocolMessageDeframer: ProtocolMessageDeframer<
+        Self::ProtocolMessage,
+        Self::OpaqueProtocolMessage,
+    >;
 
-    type Matcher: Matcher;
+    type Matcher: Matcher
+        + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
 
     /// Get the signature which is used in the protocol
     fn signature() -> &'static Signature;
@@ -63,15 +69,35 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+}
 
-    /// Creates a [`M̀atcher`] which matches the supplied [`MessageResult`].
-    fn extract_query_matcher(
-        message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
-    ) -> Self::Matcher;
+pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
 
+impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageResult<M, O> {
     /// Extracts as much data from the message as possible. Depending on the protocol,
     /// the extraction can be more fine-grained to more coarse.
-    fn extract_knowledge(
-        message: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
-    ) -> Result<Vec<Box<dyn VariableData>>, Error>;
+    pub fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        let opaque_knowledge = self.1.extract_knowledge();
+
+        if let Some(message) = &self.0 {
+            if let Ok(opaque_knowledge) = opaque_knowledge {
+                message.extract_knowledge().map(|mut knowledge| {
+                    knowledge.extend(opaque_knowledge);
+                    knowledge
+                })
+            } else {
+                message.extract_knowledge()
+            }
+        } else {
+            opaque_knowledge
+        }
+    }
+
+    pub fn create_matcher<PB: ProtocolBehavior>(&self) -> Option<PB::Matcher>
+    where
+        PB: ProtocolBehavior<OpaqueProtocolMessage = O, ProtocolMessage = M>,
+    {
+        // TODO: Should we return here or use None?
+        <<PB as ProtocolBehavior>::Matcher as TryFrom<&MessageResult<M, O>>>::try_from(self).ok()
+    }
 }

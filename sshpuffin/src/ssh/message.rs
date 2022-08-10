@@ -6,7 +6,8 @@ use puffin::{
     codec::{Codec, Reader},
     error::Error,
     libafl::mutators::str_decode,
-    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolMessage},
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage, ProtocolMessageDeframer},
+    variable_data::VariableData,
 };
 
 #[derive(Clone, Debug)]
@@ -288,11 +289,68 @@ impl ProtocolMessage<RawMessage> for SshMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
     }
+
+    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        let knowledge: Vec<Box<dyn VariableData>> = match &self {
+            SshMessage::KexInit(KexInitMessage {
+                cookie,
+                kex_algorithms,
+                server_host_key_algorithms,
+                encryption_algorithms_server_to_client,
+                encryption_algorithms_client_to_server,
+                mac_algorithms_client_to_server,
+                mac_algorithms_server_to_client,
+                compression_algorithms_client_to_server,
+                compression_algorithms_server_to_client,
+                languages_client_to_server,
+                languages_server_to_client,
+                first_kex_packet_follows,
+            }) => {
+                vec![
+                    Box::new(cookie.clone()),
+                    Box::new(kex_algorithms.clone()),
+                    Box::new(server_host_key_algorithms.clone()),
+                    Box::new(encryption_algorithms_server_to_client.clone()),
+                    Box::new(encryption_algorithms_client_to_server.clone()),
+                    Box::new(mac_algorithms_client_to_server.clone()),
+                    Box::new(mac_algorithms_server_to_client.clone()),
+                    Box::new(compression_algorithms_client_to_server.clone()),
+                    Box::new(compression_algorithms_server_to_client.clone()),
+                    Box::new(languages_client_to_server.clone()),
+                    Box::new(languages_server_to_client.clone()),
+                    Box::new(first_kex_packet_follows.clone()),
+                ]
+            }
+            SshMessage::KexEcdhInit(KexEcdhInitMessage {
+                ephemeral_public_key,
+            }) => vec![Box::new(ephemeral_public_key.clone())],
+            SshMessage::KexEcdhReply(KexEcdhReplyMessage {
+                public_host_key,
+                ephemeral_public_key,
+                signature,
+            }) => vec![
+                Box::new(public_host_key.clone()),
+                Box::new(ephemeral_public_key.clone()),
+                Box::new(signature.clone()),
+            ],
+            SshMessage::NewKeys => vec![],
+        };
+
+        Ok(knowledge)
+    }
 }
 
 impl OpaqueProtocolMessage for RawMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
+    }
+
+    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+        Ok(match &self {
+            RawMessage::Banner(banner) => vec![Box::new(banner.clone())],
+            RawMessage::Packet(packet) => vec![],
+            RawMessage::OnWire(onwire) => vec![Box::new(onwire.clone())],
+        })
     }
 }
 

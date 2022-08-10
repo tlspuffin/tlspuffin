@@ -20,9 +20,10 @@ use openssl::{
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
+    protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
-    stream::{MemoryStream, MessageResult, Stream},
+    stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
 use smallvec::SmallVec;
@@ -34,8 +35,9 @@ use crate::{
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
     openssl::util::{set_max_protocol_version, static_rsa_cert},
+    protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
-    put_registry::{TLSProtocolBehavior, OPENSSL111_PUT},
+    put_registry::OPENSSL111_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
