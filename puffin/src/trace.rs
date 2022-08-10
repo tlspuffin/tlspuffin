@@ -26,16 +26,16 @@ use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
-use crate::io::Channel;
+use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    io::MessageResult,
-    protocol::{Message, OpaqueMessage, ProtocolBehavior},
+    protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::PutDescriptor,
     put_registry::{Factory, PutRegistry},
+    stream::MessageResult,
     variable_data::VariableData,
 };
 
@@ -118,7 +118,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn extract_knowledge(
         &self,
-        message: &MessageResult<PB::Message, PB::OpaqueMessage>,
+        message: &MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>,
     ) -> Result<Vec<Box<dyn VariableData>>, Error> {
         PB::extract_knowledge(message)
     }
@@ -198,7 +198,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueMessage,
+        message: &PB::OpaqueProtocolMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put.add_to_inbound(message))
@@ -214,7 +214,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
+    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
         agent.put.take_message_from_outbound()
     }
@@ -565,11 +565,13 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::Message>() {
+        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
             ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
-        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<PB::OpaqueMessage>()
+        } else if let Some(opaque_message) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
             ctx.add_to_inbound(step.agent, opaque_message)?;

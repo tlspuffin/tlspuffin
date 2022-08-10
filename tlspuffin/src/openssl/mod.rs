@@ -20,9 +20,9 @@ use openssl::{
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
-    io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
+    stream::{MemoryStream, MessageResult, Stream},
     trace::TraceContext,
 };
 use smallvec::SmallVec;

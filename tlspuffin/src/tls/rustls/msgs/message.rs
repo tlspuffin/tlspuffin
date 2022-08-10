@@ -88,6 +88,16 @@ pub struct OpaqueMessage {
     pub payload: Payload,
 }
 
+impl Codec for OpaqueMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Self::read(reader).ok()
+    }
+}
+
 impl OpaqueMessage {
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
@@ -220,6 +230,16 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
+impl Codec for Message {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Self::read(reader)
+    }
+}
+
 impl Message {
     pub fn is_handshake_type(&self, hstyp: HandshakeType) -> bool {
         // Bit of a layering violation, but OK.
@@ -260,6 +280,14 @@ impl TryFrom<PlainMessage> for Message {
             version: plain.version,
             payload: MessagePayload::new(plain.typ, plain.version, plain.payload)?,
         })
+    }
+}
+
+impl TryFrom<OpaqueMessage> for Message {
+    type Error = Error;
+
+    fn try_from(value: OpaqueMessage) -> Result<Self, Self::Error> {
+        Message::try_from(value.into_plain_message())
     }
 }
 

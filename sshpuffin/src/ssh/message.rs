@@ -6,7 +6,7 @@ use puffin::{
     codec::{Codec, Reader},
     error::Error,
     libafl::mutators::str_decode,
-    protocol::{Message, MessageDeframer, OpaqueMessage},
+    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolMessage},
 };
 
 #[derive(Clone, Debug)]
@@ -271,7 +271,7 @@ impl TryFrom<&BinaryPacket> for SshMessage {
         SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
-impl Message<RawMessage> for SshMessage {
+impl ProtocolMessage<RawMessage> for SshMessage {
     fn create_opaque(&self) -> RawMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
@@ -290,15 +290,7 @@ impl Message<RawMessage> for SshMessage {
     }
 }
 
-impl OpaqueMessage<SshMessage> for RawMessage {
-    fn encode(&self) -> Vec<u8> {
-        todo!() // TODO: replace with codec
-    }
-
-    fn into_message(self) -> Result<SshMessage, Error> {
-        todo!() // FIXME: does not necessarily make sense
-    }
-
+impl OpaqueProtocolMessage for RawMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
     }

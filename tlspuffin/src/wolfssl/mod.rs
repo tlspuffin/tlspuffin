@@ -16,9 +16,9 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     error::Error,
-    io::{MemoryStream, MessageResult, Stream},
     put::{Put, PutName},
     put_registry::Factory,
+    stream::{MemoryStream, MessageResult, Stream},
     trace::TraceContext,
 };
 use smallvec::SmallVec;
@@ -32,6 +32,7 @@ use crate::{
     put::TlsPutConfig,
     put_registry::{TLSProtocolBehavior, WOLFSSL520_PUT},
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+    tls,
     tls::rustls::msgs::{
         enums::HandshakeType,
         message::{Message, OpaqueMessage},

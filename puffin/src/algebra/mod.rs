@@ -120,10 +120,10 @@ pub mod test_signature {
         claims::{Claim, SecurityViolationPolicy},
         define_signature,
         error::Error,
-        io::MessageResult,
-        protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+        protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
         put::{Put, PutDescriptor, PutName, PutOptions},
         put_registry::{Factory, PutRegistry, DUMMY_PUT},
+        stream::MessageResult,
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
@@ -409,7 +409,7 @@ pub mod test_signature {
         }
     }
 
-    impl OpaqueMessage<TestMessage> for TestOpaqueMessage {
+    impl OpaqueProtocolMessage<TestMessage> for TestOpaqueMessage {
         fn encode(&self) -> Vec<u8> {
             panic!("Not implemented for test stub");
         }
@@ -437,7 +437,7 @@ pub mod test_signature {
         }
     }
 
-    impl Message<TestOpaqueMessage> for TestMessage {
+    impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
         }
@@ -479,8 +479,8 @@ pub mod test_signature {
     impl ProtocolBehavior for TestProtocolBehavior {
         type Claim = TestClaim;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
-        type Message = TestMessage;
-        type OpaqueMessage = TestOpaqueMessage;
+        type ProtocolMessage = TestMessage;
+        type OpaqueProtocolMessage = TestOpaqueMessage;
         type MessageDeframer = TestMessageDeframer;
         type Matcher = AnyMatcher;
 
@@ -497,7 +497,7 @@ pub mod test_signature {
         }
 
         fn extract_query_matcher(
-            _message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+            _message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
         ) -> Self::Matcher {
             panic!("Not implemented for test stub");
         }

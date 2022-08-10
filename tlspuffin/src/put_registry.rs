@@ -1,10 +1,10 @@
 use puffin::{
     algebra::{signature::Signature, Matcher},
     error::Error,
-    io::MessageResult,
-    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutName},
     put_registry::{Factory, PutRegistry},
+    stream::MessageResult,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -15,11 +15,17 @@ use crate::{
     extraction::extract_knowledge,
     query::TlsQueryMatcher,
     tls::{
-        rustls::msgs, seeds::create_corpus, violation::TlsSecurityViolationPolicy, TLS_SIGNATURE,
+        rustls::{
+            msgs,
+            msgs::message::{Message, OpaqueMessage},
+        },
+        seeds::create_corpus,
+        violation::TlsSecurityViolationPolicy,
+        TLS_SIGNATURE,
     },
 };
 
-impl Message<msgs::message::OpaqueMessage> for msgs::message::Message {
+impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> msgs::message::OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
@@ -49,17 +55,7 @@ impl MessageDeframer<msgs::message::Message, msgs::message::OpaqueMessage>
     }
 }
 
-impl OpaqueMessage<msgs::message::Message> for msgs::message::OpaqueMessage {
-    fn encode(&self) -> Vec<u8> {
-        self.clone().encode()
-    }
-
-    fn into_message(self) -> Result<msgs::message::Message, Error> {
-        use std::convert::TryFrom;
-        crate::tls::rustls::msgs::message::Message::try_from(self.into_plain_message())
-            .map_err(|_err| Error::Stream("Failed to create message".to_string()))
-    }
-
+impl OpaqueProtocolMessage for msgs::message::OpaqueMessage {
     fn debug(&self, info: &str) {
         debug_opaque_message_with_info(info, self);
     }
@@ -81,8 +77,8 @@ pub struct TLSProtocolBehavior;
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
-    type Message = msgs::message::Message;
-    type OpaqueMessage = msgs::message::OpaqueMessage;
+    type ProtocolMessage = msgs::message::Message;
+    type OpaqueProtocolMessage = msgs::message::OpaqueMessage;
     type MessageDeframer = msgs::deframer::MessageDeframer;
 
     type Matcher = TlsQueryMatcher;
@@ -100,13 +96,13 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn extract_query_matcher(
-        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Self::Matcher {
         TlsQueryMatcher::try_from(message_result).unwrap()
     }
 
     fn extract_knowledge(
-        message: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Result<Vec<Box<dyn VariableData>>, Error> {
         if let Some(message) = &message.0 {
             extract_knowledge(message)

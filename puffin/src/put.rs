@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     agent::{AgentDescriptor, AgentName},
     error::Error,
-    io::Stream,
     protocol::ProtocolBehavior,
     put_registry::DUMMY_PUT,
+    stream::Stream,
 };
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]

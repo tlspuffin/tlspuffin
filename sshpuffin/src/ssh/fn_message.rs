@@ -1,4 +1,4 @@
-use puffin::{algebra::error::FnError, protocol::Message};
+use puffin::{algebra::error::FnError, protocol::ProtocolMessage};
 
 use crate::ssh::message::{
     CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, KexEcdhReplyMessage,

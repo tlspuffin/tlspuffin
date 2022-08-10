@@ -3,32 +3,31 @@ use std::fmt::Debug;
 use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
+    codec::Codec,
     error::Error,
-    io::MessageResult,
     put_registry::PutRegistry,
+    stream::MessageResult,
     trace::Trace,
     variable_data::VariableData,
 };
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait Message<O: OpaqueMessage<Self>>: Clone + Debug {
+pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
 }
 
-/// A non-structured version of [`Message`]. This can be used for example for encrypted messages
+/// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
-pub trait OpaqueMessage<M: Message<Self>>: Clone + Debug {
-    fn encode(&self) -> Vec<u8>;
-    fn into_message(self) -> Result<M, Error>;
+pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
     fn debug(&self, info: &str);
 }
 
-/// Deframes a stream of bytes into distinct [OpaqueMessages](OpaqueMessage).
+/// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
-pub trait MessageDeframer<M: Message<O>, O: OpaqueMessage<M>> {
+pub trait MessageDeframer<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
     fn new() -> Self;
     fn pop_frame(&mut self) -> Option<O>;
     fn encode(&self) -> Vec<u8>;
@@ -48,9 +47,9 @@ pub trait ProtocolBehavior: 'static {
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
-    type Message: Message<Self::OpaqueMessage>;
-    type OpaqueMessage: OpaqueMessage<Self::Message>;
-    type MessageDeframer: MessageDeframer<Self::Message, Self::OpaqueMessage>;
+    type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type MessageDeframer: MessageDeframer<Self::ProtocolMessage, Self::OpaqueProtocolMessage>;
 
     type Matcher: Matcher;
 
@@ -67,12 +66,12 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a [`M̀atcher`] which matches the supplied [`MessageResult`].
     fn extract_query_matcher(
-        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Self::Matcher;
 
     /// Extracts as much data from the message as possible. Depending on the protocol,
     /// the extraction can be more fine-grained to more coarse.
     fn extract_knowledge(
-        message: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }

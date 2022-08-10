@@ -26,17 +26,18 @@ use std::{
 use log::error;
 
 use crate::{
+    codec::Codec,
     error::Error,
-    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
 };
 
 pub trait Stream<PB: ProtocolBehavior> {
-    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage);
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueProtocolMessage);
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error>;
+    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
@@ -59,7 +60,7 @@ pub struct MemoryStream<PB> {
     phantom: PhantomData<PB>,
 }
 
-pub struct MessageResult<M: Message<O>, O: OpaqueMessage<M>>(pub Option<M>, pub O);
+pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
 
 impl<PB: ProtocolBehavior> MemoryStream<PB> {
     pub fn new() -> Self {
@@ -71,17 +72,19 @@ impl<PB: ProtocolBehavior> MemoryStream<PB> {
     }
 }
 
-impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
-    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueMessage) {
-        self.inbound
-            .get_mut()
-            .extend_from_slice(&opaque_message.encode());
+impl<PB: ProtocolBehavior, E> Stream<PB> for MemoryStream<PB>
+where
+    PB::OpaqueProtocolMessage: TryInto<PB::ProtocolMessage, Error = E>,
+    E: Into<Error>,
+{
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueProtocolMessage) {
+        opaque_message.encode(self.inbound.get_mut());
     }
 
     // TODO: Refactor like in tcp module to avoid rest_buffer
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
+    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
         let mut deframer = PB::MessageDeframer::new();
         if deframer
             .read(&mut self.outbound.get_ref().as_slice())
@@ -98,10 +101,10 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream<PB> {
             })?;
 
             if let Some(opaque_message) = first_message {
-                let message = match opaque_message.clone().into_message() {
+                let message = match opaque_message.clone().try_into() {
                     Ok(message) => Some(message),
                     Err(err) => {
-                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err.into());
                         None
                     }
                 };

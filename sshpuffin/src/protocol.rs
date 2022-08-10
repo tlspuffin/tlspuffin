@@ -3,9 +3,9 @@ use std::io::Read;
 use puffin::{
     algebra::{signature::Signature, AnyMatcher},
     error::Error,
-    io::MessageResult,
-    protocol::{Message, MessageDeframer, OpaqueMessage, ProtocolBehavior},
+    protocol::{MessageDeframer, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put_registry::PutRegistry,
+    stream::MessageResult,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -29,8 +29,8 @@ pub struct SshProtocolBehavior {}
 impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
-    type Message = SshMessage;
-    type OpaqueMessage = RawMessage;
+    type ProtocolMessage = SshMessage;
+    type OpaqueProtocolMessage = RawMessage;
     type MessageDeframer = SshMessageDeframer; // fixme: probably only needed for memory buffer -> remove
     type Matcher = AnyMatcher;
 
@@ -50,13 +50,13 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn extract_query_matcher(
-        message_result: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message_result: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Self::Matcher {
         AnyMatcher // TODO
     }
 
     fn extract_knowledge(
-        message: &MessageResult<Self::Message, Self::OpaqueMessage>,
+        message: &MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>,
     ) -> Result<Vec<Box<dyn VariableData>>, Error> {
         let knowledge: Vec<Box<dyn VariableData>> = match message {
             MessageResult(None, opaque_message) => match opaque_message {

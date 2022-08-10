@@ -15,9 +15,9 @@ use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
-    io::{MessageResult, Stream},
     put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
+    stream::{MessageResult, Stream},
     trace::TraceContext,
 };
 
