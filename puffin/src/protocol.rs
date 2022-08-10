@@ -29,10 +29,10 @@ pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
-pub trait ProtocolMessageDeframer<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
-    fn new() -> Self;
-    fn pop_frame(&mut self) -> Option<O>;
-    fn encode(&self) -> Vec<u8>;
+pub trait ProtocolMessageDeframer {
+    type OpaqueProtocolMessage: OpaqueProtocolMessage;
+
+    fn pop_frame(&mut self) -> Option<Self::OpaqueProtocolMessage>;
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize>;
 }
 
@@ -51,10 +51,6 @@ pub trait ProtocolBehavior: 'static {
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage;
-    type ProtocolMessageDeframer: ProtocolMessageDeframer<
-        Self::ProtocolMessage,
-        Self::OpaqueProtocolMessage,
-    >;
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;

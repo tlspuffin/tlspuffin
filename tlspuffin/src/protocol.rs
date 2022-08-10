@@ -19,6 +19,7 @@ use crate::{
         rustls::{
             msgs,
             msgs::{
+                deframer::MessageDeframer,
                 handshake::{HandshakePayload, ServerKeyExchangePayload},
                 message::{Message, MessagePayload, OpaqueMessage},
             },
@@ -152,19 +153,11 @@ impl ProtocolMessage<OpaqueMessage> for Message {
     }
 }
 
-impl ProtocolMessageDeframer<Message, OpaqueMessage> for msgs::deframer::MessageDeframer {
-    fn new() -> Self {
-        msgs::deframer::MessageDeframer::new()
-    }
-    fn pop_frame(&mut self) -> Option<msgs::message::OpaqueMessage> {
+impl ProtocolMessageDeframer for MessageDeframer {
+    type OpaqueProtocolMessage = OpaqueMessage;
+
+    fn pop_frame(&mut self) -> Option<OpaqueMessage> {
         self.frames.pop_front()
-    }
-    fn encode(&self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = Vec::new();
-        for message in &self.frames {
-            buffer.append(&mut message.clone().encode());
-        }
-        buffer
     }
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {
         self.read(rd)
@@ -199,7 +192,6 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
     type ProtocolMessage = Message;
     type OpaqueProtocolMessage = OpaqueMessage;
-    type ProtocolMessageDeframer = msgs::deframer::MessageDeframer;
     type Matcher = TlsQueryMatcher;
 
     fn signature() -> &'static Signature {

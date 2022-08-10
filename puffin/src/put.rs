@@ -67,7 +67,9 @@ pub struct PutDescriptor {
 
 /// Defines the interface which all programs-under-test need to implement.
 /// They need a way to progress, reset and describe their state.
-pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
+pub trait Put<PB: ProtocolBehavior>:
+    Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
+{
     /// Process incoming buffer, internal progress, can fill in output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
 

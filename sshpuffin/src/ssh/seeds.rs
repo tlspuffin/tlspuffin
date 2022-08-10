@@ -87,7 +87,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
                 server,
                 term! {
                     fn_raw_message(
-                        ((client, 2)[None]/RawMessage)  // ECDH Init
+                        ((client, 2)[None]/RawSshMessage)  // ECDH Init
                     )
                 },
             ),
@@ -106,7 +106,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
                 server,
                 term! {
                     fn_raw_message(
-                        ((client, 3)[None]/RawMessage)  // SSH_MSG_NEWKEYS??
+                        ((client, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
                     )
                 },
             ),
@@ -116,7 +116,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
                 client,
                 term! {
                     fn_raw_message(
-                        ((server, 3)[None]/RawMessage)  // SSH_MSG_NEWKEYS??
+                        ((server, 3)[None]/RawSshMessage)  // SSH_MSG_NEWKEYS??
                     )
                 },
             ),

@@ -17,7 +17,7 @@ use crate::{
     ssh::{
         deframe::SshMessageDeframer,
         message::{
-            KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, RawMessage, SshMessage,
+            KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, RawSshMessage, SshMessage,
         },
         SSH_SIGNATURE,
     },
@@ -32,8 +32,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
     type ProtocolMessage = SshMessage;
-    type OpaqueProtocolMessage = RawMessage;
-    type ProtocolMessageDeframer = SshMessageDeframer; // fixme: probably only needed for memory buffer -> remove
+    type OpaqueProtocolMessage = RawSshMessage;
     type Matcher = AnyMatcher;
 
     fn signature() -> &'static Signature {

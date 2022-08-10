@@ -31,7 +31,7 @@ use crate::{
     put_registry::LIBSSH_PUT,
     ssh::{
         deframe::SshMessageDeframer,
-        message::{RawMessage, SshMessage},
+        message::{RawSshMessage, SshMessage},
     },
 };
 
@@ -169,8 +169,8 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshProtocolBehavior> for LibSSL {
-    fn add_to_inbound(&mut self, result: &RawMessage) {
+impl Stream<SshMessage, RawSshMessage> for LibSSL {
+    fn add_to_inbound(&mut self, result: &RawSshMessage) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);
 
@@ -179,24 +179,7 @@ impl Stream<SshProtocolBehavior> for LibSSL {
 
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<
-        Option<MessageResult<super::ssh::message::SshMessage, super::ssh::message::RawMessage>>,
-        Error,
-    > {
-        /*self.session.blocking_flush(Duration::from_secs(10)).unwrap();*/
-
-        /*        let mut buffer: Vec<u8> = Vec::with_capacity(256);
-
-        match self.fuzz_stream.read_to_end(&mut buffer) {
-            Ok(_) => {}
-            Err(err) => match err.kind() {
-                ErrorKind::WouldBlock => {}
-                _ => {
-                    panic!("{}", err)
-                }
-            },
-        }*/
-
+    ) -> Result<Option<MessageResult<SshMessage, RawSshMessage>>, Error> {
         // Retry to read if no more frames in the deframer buffer
         let opaque_message = loop {
             if let Some(opaque_message) = self.deframer.frames.pop_front() {
@@ -221,7 +204,7 @@ impl Stream<SshProtocolBehavior> for LibSSL {
         };
 
         if let Some(opaque_message) = opaque_message {
-            let message = if let RawMessage::Packet(packet) = &opaque_message {
+            let message = if let RawSshMessage::Packet(packet) = &opaque_message {
                 match SshMessage::try_from(packet) {
                     Ok(message) => Some(message),
                     Err(err) => {
@@ -322,6 +305,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
     }
 
     fn describe_state(&self) -> &str {
+        // TODO: We can use internal state
         match self.state {
             PutState::ExchangingKeys => "ExchangingKeys",
             PutState::Authenticating => "Authenticating",

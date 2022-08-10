@@ -36,6 +36,7 @@ use crate::{
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls,
     tls::rustls::msgs::{
+        deframer::MessageDeframer,
         enums::HandshakeType,
         message::{Message, OpaqueMessage},
     },
@@ -108,14 +109,18 @@ impl From<ErrorStack> for Error {
 
 pub struct WolfSSL {
     ctx: SslContext,
-    stream: SslStream<MemoryStream<TLSProtocolBehavior>>,
+    stream: SslStream<MemoryStream<MessageDeframer>>,
     config: TlsPutConfig,
 }
 
-impl Stream<TLSProtocolBehavior> for WolfSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
+impl Stream<Message, OpaqueMessage> for WolfSSL {
+    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         let raw_stream = self.stream.get_mut();
-        raw_stream.add_to_inbound(result)
+        //raw_stream.add_to_inbound(opaque_message)
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+            raw_stream,
+            opaque_message,
+        )
     }
 
     fn take_message_from_outbound(
@@ -166,13 +171,16 @@ impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<TLSProtocolBehavior>>, Error> {
+    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, Error> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
 
-        Ok(SslStream::new(ssl, MemoryStream::new())?)
+        Ok(SslStream::new(
+            ssl,
+            MemoryStream::new(MessageDeframer::new()),
+        )?)
     }
 }
 

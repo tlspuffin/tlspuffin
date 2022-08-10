@@ -248,7 +248,7 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream<TLSProtocolBehavior> for TcpServerPut {
+impl Stream<Message, OpaqueMessage> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
@@ -261,7 +261,7 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
     }
 }
 
-impl Stream<TLSProtocolBehavior> for TcpClientPut {
+impl Stream<Message, OpaqueMessage> for TcpClientPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();

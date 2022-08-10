@@ -2,7 +2,7 @@ use std::{collections::VecDeque, io, io::Read};
 
 use puffin::{codec, codec::Codec, protocol::ProtocolMessageDeframer};
 
-use crate::ssh::message::{OnWireData, RawMessage, SshMessage};
+use crate::ssh::message::{OnWireData, RawSshMessage, SshMessage};
 
 const MAX_WIRE_SIZE: usize = 35000;
 
@@ -11,7 +11,7 @@ const MAX_WIRE_SIZE: usize = 35000;
 /// The input is `read()`, the output is the `frames` deque.
 pub struct SshMessageDeframer {
     /// Completed frames for output.
-    pub frames: VecDeque<RawMessage>,
+    pub frames: VecDeque<RawSshMessage>,
 
     /// Set to true if the peer is not talking SSH, but some other
     /// protocol.  The caller should abort the connection, because
@@ -100,7 +100,7 @@ impl SshMessageDeframer {
         // Try to decode a message off the front of buf.
         let mut rd = codec::Reader::init(&self.buf[..self.used]);
 
-        match RawMessage::read(&mut rd) {
+        match RawSshMessage::read(&mut rd) {
             Some(m) => {
                 let used = rd.used();
                 self.frames.push_back(m);
@@ -109,7 +109,7 @@ impl SshMessageDeframer {
             }
             None => {
                 self.frames
-                    .push_back(RawMessage::OnWire(OnWireData(Vec::from(
+                    .push_back(RawSshMessage::OnWire(OnWireData(Vec::from(
                         &self.buf[..self.used],
                     ))));
                 self.buf_consume(self.used);
@@ -143,21 +143,9 @@ impl SshMessageDeframer {
     }
 }
 
-impl ProtocolMessageDeframer<SshMessage, RawMessage> for SshMessageDeframer {
-    fn new() -> Self {
-        Self::new()
-    }
-
-    fn pop_frame(&mut self) -> Option<RawMessage> {
+impl ProtocolMessageDeframer<SshMessage, RawSshMessage> for SshMessageDeframer {
+    fn pop_frame(&mut self) -> Option<RawSshMessage> {
         self.frames.pop_front()
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        let mut buffer: Vec<u8> = Vec::new();
-        for message in &self.frames {
-            RawMessage::encode(&message, &mut buffer);
-        }
-        buffer
     }
 
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {

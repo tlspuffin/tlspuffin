@@ -14,7 +14,7 @@ use puffin::{
 pub struct OnWireData(pub Vec<u8>);
 
 #[derive(Clone, Debug)]
-pub enum RawMessage {
+pub enum RawSshMessage {
     Banner(String),
     Packet(BinaryPacket),
     OnWire(OnWireData),
@@ -272,14 +272,14 @@ impl TryFrom<&BinaryPacket> for SshMessage {
         SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
-impl ProtocolMessage<RawMessage> for SshMessage {
-    fn create_opaque(&self) -> RawMessage {
+impl ProtocolMessage<RawSshMessage> for SshMessage {
+    fn create_opaque(&self) -> RawSshMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
 
         let mut random_padding = Vec::from([0; 7]); // todo: calc proper padding
 
-        RawMessage::Packet(BinaryPacket {
+        RawSshMessage::Packet(BinaryPacket {
             payload,
             random_padding,
             mac: vec![], // todo: calc proper mac
@@ -340,28 +340,28 @@ impl ProtocolMessage<RawMessage> for SshMessage {
     }
 }
 
-impl OpaqueProtocolMessage for RawMessage {
+impl OpaqueProtocolMessage for RawSshMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
     }
 
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(match &self {
-            RawMessage::Banner(banner) => vec![Box::new(banner.clone())],
-            RawMessage::Packet(packet) => vec![],
-            RawMessage::OnWire(onwire) => vec![Box::new(onwire.clone())],
+            RawSshMessage::Banner(banner) => vec![Box::new(banner.clone())],
+            RawSshMessage::Packet(packet) => vec![],
+            RawSshMessage::OnWire(onwire) => vec![Box::new(onwire.clone())],
         })
     }
 }
 
-impl Codec for RawMessage {
+impl Codec for RawSshMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
-            RawMessage::Banner(banner) => {
+            RawSshMessage::Banner(banner) => {
                 bytes.extend_from_slice(banner.as_bytes());
             }
-            RawMessage::Packet(packet) => packet.encode(bytes),
-            RawMessage::OnWire(data) => bytes.extend_from_slice(&data.0),
+            RawSshMessage::Packet(packet) => packet.encode(bytes),
+            RawSshMessage::OnWire(data) => bytes.extend_from_slice(&data.0),
         }
     }
 
@@ -377,9 +377,9 @@ impl Codec for RawMessage {
 
         if is_banner {
             reader.take(banner_bytes.len())?;
-            Some(RawMessage::Banner(banner.to_string()))
+            Some(RawSshMessage::Banner(banner.to_string()))
         } else {
-            Some(RawMessage::Packet(BinaryPacket::read(reader)?))
+            Some(RawSshMessage::Packet(BinaryPacket::read(reader)?))
         }
     }
 }
