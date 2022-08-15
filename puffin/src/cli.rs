@@ -7,6 +7,7 @@ use std::{
 };
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
+use libafl::inputs::Input;
 use log::{error, info};
 
 use crate::{
@@ -238,9 +239,8 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
-        let mut file = File::create(format!("./seeds/{}.trace", name))?;
-        let buffer = postcard::to_allocvec(&trace)?;
-        file.write_all(&buffer)?;
+        let trace = trace.to_file(format!("./seeds/{}.trace", name))?;
+
         info!("Generated seed traces into the directory ./corpus")
     }
     Ok(())
@@ -250,12 +250,7 @@ fn execute<PB: ProtocolBehavior>(
     input: &str,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut input_file = File::open(input)?;
-
-    // Read trace file
-    let mut buffer = Vec::new();
-    input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
+    let trace = Trace::<PB::Matcher>::from_file(input)?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
