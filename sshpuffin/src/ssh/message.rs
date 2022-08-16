@@ -347,9 +347,9 @@ impl OpaqueProtocolMessage for RawSshMessage {
 
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(match &self {
-            RawSshMessage::Banner(banner) => vec![Box::new(banner.clone())],
-            RawSshMessage::Packet(packet) => vec![],
-            RawSshMessage::OnWire(onwire) => vec![Box::new(onwire.clone())],
+            RawSshMessage::Banner(banner) => vec![Box::new(self.clone()), Box::new(banner.clone())],
+            RawSshMessage::Packet(packet) => vec![Box::new(self.clone())],
+            RawSshMessage::OnWire(onwire) => vec![Box::new(self.clone()), Box::new(onwire.clone())],
         })
     }
 }
