@@ -147,15 +147,15 @@ impl WolfSSL {
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
 
-        /*        #[cfg(not(feature = "wolfssl430"))]
-        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;*/
+        #[cfg(not(feature = "wolfssl430"))]
+        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
 
         let mut stream = Self::new_stream(&ctx, &config)?;
 
-        /*        #[cfg(feature = "wolfssl430")]
+        #[cfg(feature = "wolfssl430")]
         stream
             .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;*/
+            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
 
         let mut wolfssl = WolfSSL {
             ctx,
@@ -335,7 +335,7 @@ impl WolfSSL {
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
-        //ctx.disable_session_cache()?;
+        ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -355,13 +355,13 @@ impl WolfSSL {
             ctx.set_private_key_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
         }
 
-        /*        if descriptor.client_authentication {
+        if descriptor.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
             ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
         } else {
             ctx.set_verify(SslVerifyMode::NONE);
-        }*/
+        }
 
         // Callbacks for experiements
         //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
@@ -370,8 +370,8 @@ impl WolfSSL {
         //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
 
         // We expect two tickets like in OpenSSL
-        /*        #[cfg(not(feature = "wolfssl430"))]
-        ctx.set_num_tickets(2)?;*/
+        #[cfg(not(feature = "wolfssl430"))]
+        ctx.set_num_tickets(2)?;
         Ok(ctx)
     }
 
