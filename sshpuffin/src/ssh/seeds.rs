@@ -176,12 +176,12 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        let context = trace.execute_default(&SSH_PUT_REGISTRY);
+        let context = trace.execute_deterministic(&SSH_PUT_REGISTRY);
 
         assert!(context
             .find_agent(client)
             .unwrap()
-            .put
+            .put()
             .is_state_successful())
     }
 }

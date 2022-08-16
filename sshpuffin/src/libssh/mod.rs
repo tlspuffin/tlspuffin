@@ -141,10 +141,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
         fn version(&self) -> String {
             LibSSL::version()
         }
-
-        fn make_deterministic(&self) {
-            LibSSL::make_deterministic()
-        }
     }
 
     Box::new(LibSSLFactory)
@@ -325,14 +321,12 @@ impl Put<SshProtocolBehavior> for LibSSL {
         ssh::version()
     }
 
-    fn make_deterministic()
-    where
-        Self: Sized,
-    {
-        panic!("Not supported")
-    }
-
     fn shutdown(&mut self) -> String {
         panic!("Not supported")
+    }
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Put(
+            "libssh does not support determinism".to_string(),
+        ))
     }
 }

@@ -34,8 +34,7 @@ pub trait SeedExecutor<A> {
 
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
-        TLS_PUT_REGISTRY.make_deterministic();
-        self.build_trace().execute_default(&TLS_PUT_REGISTRY)
+        self.build_trace().execute_deterministic(&TLS_PUT_REGISTRY)
     }
 }
 
@@ -2574,7 +2573,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
@@ -2587,7 +2586,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640_simple() {
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
@@ -2600,7 +2599,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
@@ -2739,10 +2738,10 @@ pub mod tests {
         fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
 
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let serialized1 = trace.serialize_postcard().unwrap();
             let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+                Trace::<TlsQueryMatcher>::deserialize_postcard(serialized1.as_ref()).unwrap();
+            let serialized2 = deserialized_trace.serialize_postcard().unwrap();
 
             assert_eq!(serialized1, serialized2);
         }

@@ -74,7 +74,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 extract_deferred: Rc::new(RefCell::new(None)),
             };
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
-                Error::OpenSSL(format!("Failed to create client/server: {}", err))
+                Error::Put(format!("Failed to create client/server: {}", err))
             })?))
         }
 
@@ -84,10 +84,6 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             OpenSSL::version()
-        }
-
-        fn make_deterministic(&self) {
-            OpenSSL::make_deterministic()
         }
     }
 
@@ -302,19 +298,26 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn version() -> String {
-        openssl::version::version().to_string()
-    }
-
-    fn make_deterministic() {
+    fn set_deterministic(&mut self) -> Result<(), Error> {
         #[cfg(all(feature = "deterministic", feature = "openssl111"))]
-        deterministic::set_openssl_deterministic();
+        {
+            deterministic::set_openssl_deterministic();
+            Ok(())
+        }
         #[cfg(not(feature = "openssl111"))]
-        log::warn!("Unable to make PUT determinisitic!");
+        {
+            Err(Error::Agent(
+                "Unable to make OpenSSL deterministic!".to_string(),
+            ))
+        }
     }
 
     fn shutdown(&mut self) -> String {
         panic!("Unsupported with OpenSSL PUT")
+    }
+
+    fn version() -> String {
+        openssl::version::version().to_string()
     }
 }
 
@@ -351,12 +354,6 @@ impl OpenSSL {
             store.add_cert(X509::from_pem(BOB_CERT.0.as_bytes())?)?;
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
-
-            /*let mut chain = Stack::new().unwrap();
-            let mut context = X509StoreContext::new().unwrap();
-            assert!(context
-                .init(&store, &cert, &chain, |c| c.verify_cert())
-                .unwrap());*/
 
             ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx_builder.set_cert_store(store);
@@ -420,12 +417,6 @@ impl OpenSSL {
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
 
-            /*let mut chain = Stack::new().unwrap();
-            let mut context = X509StoreContext::new().unwrap();
-            assert!(context
-                .init(&store, &cert, &chain, |c| c.verify_cert())
-                .unwrap());*/
-
             ctx_builder.set_cert_store(store);
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
@@ -458,7 +449,7 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }

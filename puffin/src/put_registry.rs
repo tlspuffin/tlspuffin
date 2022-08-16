@@ -28,13 +28,6 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         put_versions
     }
 
-    pub fn make_deterministic(&self) {
-        for func in self.factories {
-            let factory = func();
-            factory.make_deterministic();
-        }
-    }
-
     pub fn default_factory(&self) -> Box<dyn Factory<PB>> {
         (self.default)()
     }
@@ -56,5 +49,4 @@ pub trait Factory<PB: ProtocolBehavior> {
     ) -> Result<Box<dyn Put<PB>>, Error>;
     fn name(&self) -> PutName;
     fn version(&self) -> String;
-    fn make_deterministic(&self);
 }

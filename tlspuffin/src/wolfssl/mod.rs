@@ -92,10 +92,6 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn version(&self) -> String {
             WolfSSL::version()
         }
-
-        fn make_deterministic(&self) {
-            WolfSSL::make_deterministic()
-        }
     }
 
     Box::new(WolfSSLFactory)
@@ -103,7 +99,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
+        Error::Put(err.to_string())
     }
 }
 
@@ -263,8 +259,10 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         unsafe { version().to_string() }
     }
 
-    fn make_deterministic() {
-        // TODO
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "WolfSSL does not support determinism".to_string(),
+        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -524,7 +522,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }

@@ -541,10 +541,6 @@ pub mod test_signature {
         fn version(&self) -> String {
             panic!("Not implemented for test stub");
         }
-
-        fn make_deterministic(&self) {
-            panic!("Not implemented for test stub");
-        }
     }
 }
 

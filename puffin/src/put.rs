@@ -95,15 +95,8 @@ pub trait Put<PB: ProtocolBehavior>:
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
 
-    /// Returns a textual representation of the version of the PUT used by self
-    fn version() -> String
-    where
-        Self: Sized;
-
     /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
-    fn make_deterministic()
-    where
-        Self: Sized;
+    fn set_deterministic(&mut self) -> Result<(), Error>;
 
     /// checks whether a agent is reusable with the descriptor
     fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
@@ -113,4 +106,9 @@ pub trait Put<PB: ProtocolBehavior>:
 
     /// Shutdown the PUT by consuming it and returning a string which summarizes the execution.
     fn shutdown(&mut self) -> String;
+
+    /// Returns a textual representation of the version of the PUT used by self
+    fn version() -> String
+    where
+        Self: Sized;
 }

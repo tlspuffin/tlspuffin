@@ -22,7 +22,7 @@ use std::{
     marker::PhantomData,
 };
 
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -88,6 +88,7 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     claims: GlobalClaimList<PB::Claim>,
     put_descriptors: HashMap<AgentName, PutDescriptor>,
     put_registry: &'static PutRegistry<PB>,
+    deterministic: bool,
     phantom: PhantomData<PB>,
 }
 
@@ -103,6 +104,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             put_descriptors: Default::default(),
             put_registry,
+            deterministic: false,
             phantom: Default::default(),
         }
     }
@@ -193,12 +195,12 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         message: &PB::OpaqueProtocolMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.put.add_to_inbound(message))
+            .map(|agent| agent.put_mut().add_to_inbound(message))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.put.progress(&agent_name)
+        agent.put_mut().progress(&agent_name)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -208,11 +210,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         agent_name: AgentName,
     ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.put.take_message_from_outbound()
+        agent.put_mut().take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name;
+        let name = agent.name();
         self.agents.push(agent);
         name
     }
@@ -225,7 +227,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.name == name).ok_or_else(|| {
+        iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
@@ -235,7 +237,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent<PB>, Error> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.name == name).ok_or_else(|| {
+        iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
@@ -268,23 +270,19 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset(agent.name)?;
+            agent.reset(agent.name())?;
         }
         Ok(())
     }
 
     pub fn agents_successful(&self) -> bool {
-        for agent in &self.agents {
-            if !agent.put.is_state_successful() {
-                return false;
-            }
-        }
-
-        true
+        self.agents
+            .iter()
+            .all(|agent| agent.put().is_state_successful())
     }
 
-    pub fn default_put(&self) -> Box<dyn Factory<PB>> {
-        self.put_registry.default_factory()
+    pub fn set_deterministic(&mut self, deterministic: bool) {
+        self.deterministic = deterministic;
     }
 }
 
@@ -303,16 +301,25 @@ pub struct Trace<M: Matcher> {
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            if let Some(reusable) = ctx
+            let name = if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put.is_reusable_with(descriptor))
+                .find(|existing| existing.put().is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(descriptor.name)?;
+                descriptor.name
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?;
+                ctx.new_agent(descriptor)?
+            };
+
+            if ctx.deterministic {
+                if let Ok(agent) = ctx.find_agent_mut(name) {
+                    if let Err(err) = agent.put_mut().set_deterministic() {
+                        warn!("Unable to make agent {} deterministic: {}", name, err)
+                    }
+                }
             }
         }
 
@@ -353,11 +360,15 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute_default<PB>(&self, put_registry: &'static PutRegistry<PB>) -> TraceContext<PB>
+    pub fn execute_deterministic<PB>(
+        &self,
+        put_registry: &'static PutRegistry<PB>,
+    ) -> TraceContext<PB>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut ctx = TraceContext::new(put_registry);
+        ctx.set_deterministic(true);
         self.execute(&mut ctx).unwrap();
         ctx
     }
