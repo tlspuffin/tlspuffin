@@ -133,7 +133,7 @@ impl TcpClientPut {
     }
 
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let mut tries = 3;
+        let mut tries = 10;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -214,7 +214,7 @@ impl TcpServerPut {
             return;
         }
 
-        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(20)) {
+        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
             self.stream = Some(tuple);
         } else {
             panic!("Unable to get stream to client!")
