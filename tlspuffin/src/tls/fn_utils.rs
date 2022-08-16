@@ -3,7 +3,10 @@
 
 use std::convert::TryFrom;
 
-use puffin::algebra::error::FnError;
+use puffin::{
+    algebra::error::FnError,
+    codec::{Codec, Reader},
+};
 
 use crate::tls::{
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
@@ -14,11 +17,10 @@ use crate::tls::{
         key::Certificate,
         msgs::{
             base::PayloadU8,
-            codec::{Codec, Reader},
             enums::{HandshakeType, NamedGroup},
             handshake::{
-                CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
-                Random, ServerECDHParams,
+                CertificateEntry, CertificateExtension, CertificateExtensions,
+                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
             },
             message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
         },
@@ -379,7 +381,7 @@ pub fn fn_append_certificate_entry(
     let mut new_certs = certs.clone();
     new_certs.push(CertificateEntry {
         cert: cert.clone(),
-        exts: extensions.clone(),
+        exts: CertificateExtensions(extensions.clone()),
     });
 
     Ok(new_certs)

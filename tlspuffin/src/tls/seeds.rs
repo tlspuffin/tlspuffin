@@ -11,7 +11,8 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::{TLSProtocolBehavior, TLS_PUT_REGISTRY},
+    protocol::TLSProtocolBehavior,
+    put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -33,8 +34,7 @@ pub trait SeedExecutor<A> {
 
 impl<A, H: SeedHelper<A>> SeedExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
-        TLS_PUT_REGISTRY.make_deterministic();
-        self.build_trace().execute_default(&TLS_PUT_REGISTRY)
+        self.build_trace().execute_deterministic(&TLS_PUT_REGISTRY)
     }
 }
 
@@ -2219,15 +2219,13 @@ fn _seed_client_attacker_full(
                             (@server_finished_transcript),
                             (fn_get_server_key_share(((server, 0)))),
                             fn_no_psk,
+                            fn_named_group_secp384r1,
                             fn_seq_0  // sequence 0
                         )
                     },
                 }),
             },
-            Step {
-                agent: server,
-                action: Action::Output(OutputAction {}),
-            },*/
+            OutputAction::new_step(server),*/
         ],
     };
 
@@ -2535,7 +2533,7 @@ pub mod tests {
     fn test_seed_cve_2021_3449() {
         if !TLS_PUT_REGISTRY
             .default_factory()
-            .put_version()
+            .version()
             .contains("1.1.1j")
         {
             return;
@@ -2575,7 +2573,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
@@ -2588,7 +2586,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25640_simple() {
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
@@ -2601,7 +2599,7 @@ pub mod tests {
         feature = "wolfssl510",
         should_panic(expected = "Authentication bypass")
     )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "OpenSSL"))]
+    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
@@ -2740,10 +2738,10 @@ pub mod tests {
         fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
 
-            let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
+            let serialized1 = trace.serialize_postcard().unwrap();
             let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
-            let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
+                Trace::<TlsQueryMatcher>::deserialize_postcard(serialized1.as_ref()).unwrap();
+            let serialized2 = deserialized_trace.serialize_postcard().unwrap();
 
             assert_eq!(serialized1, serialized2);
         }
@@ -2830,11 +2828,11 @@ pub mod tests {
     pub mod rustls {
         use std::convert::TryFrom;
 
+        use puffin::codec::Reader;
         use test_log::test;
 
         use crate::tls::rustls::msgs::{
             base::Payload,
-            codec::Reader,
             enums::{ContentType, HandshakeType, ProtocolVersion},
             handshake::{
                 ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,

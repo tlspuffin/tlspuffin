@@ -1,6 +1,6 @@
 use crate::tls::rustls::{
     key,
-    msgs::handshake::{DistinguishedName, DistinguishedNames},
+    msgs::handshake::{DistinguishedName, DistinguishedNames, VecU16OfPayloadU16},
     x509,
 };
 
@@ -69,13 +69,13 @@ impl RootCertStore {
 
     /// Return the Subject Names for certificates in the container.
     pub fn subjects(&self) -> DistinguishedNames {
-        let mut r = DistinguishedNames::new();
+        let mut r = VecU16OfPayloadU16(Vec::new());
 
         for ota in &self.roots {
             let mut name = Vec::new();
             name.extend_from_slice(&ota.subject);
             x509::wrap_in_sequence(&mut name);
-            r.push(DistinguishedName::new(name));
+            r.0.push(DistinguishedName::new(name));
         }
 
         r

@@ -7,7 +7,6 @@ use crate::tls::rustls::{
     conn::ConnectionRandoms,
     kx,
     msgs::{
-        codec::{Codec, Reader},
         enums::{CipherSuite, SignatureScheme},
         handshake::KeyExchangeAlgorithm,
     },
@@ -16,6 +15,7 @@ use crate::tls::rustls::{
 
 mod cipher;
 pub use cipher::{AesGcm, ChaCha20Poly1305, Tls12AeadAlgorithm};
+use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::{conn::Side, error::Error};
 

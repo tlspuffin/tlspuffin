@@ -1,6 +1,7 @@
 /// These tests are intended to provide coverage and
 /// check panic-safety of relatively unused values.
-use super::codec::Codec;
+use puffin::codec::Codec;
+
 use super::enums::*;
 
 fn get8<T: Codec>(enum_value: &T) -> u8 {

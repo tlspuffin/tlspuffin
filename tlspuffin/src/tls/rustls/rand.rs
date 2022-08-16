@@ -1,9 +1,8 @@
+use puffin::codec;
 /// The single place where we generate random material
 /// for our own use.  These functions never fail,
 /// they panic on error.
 use ring::rand::{SecureRandom, SystemRandom};
-
-use crate::tls::rustls::msgs::codec;
 
 /// Fill the whole slice with random material.
 pub fn fill_random(bytes: &mut [u8]) -> Result<(), GetRandomFailed> {

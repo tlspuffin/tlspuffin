@@ -6,7 +6,6 @@ mod macros;
 pub mod alert;
 pub mod base;
 pub mod ccs;
-pub mod codec;
 pub mod deframer;
 #[allow(non_camel_case_types)]
 pub mod enums;
@@ -30,12 +29,11 @@ mod message_test;
 mod test {
     use std::convert::TryFrom;
 
+    use puffin::codec::Reader;
+
     #[test]
     fn smoketest() {
-        use super::{
-            codec::Reader,
-            message::{Message, OpaqueMessage},
-        };
+        use super::message::{Message, OpaqueMessage};
         let bytes = include_bytes!("handshake-test.1.bin");
         let mut r = Reader::init(bytes);
 

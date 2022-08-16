@@ -2,7 +2,7 @@
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
 
 use fn_impl::*;
-use puffin::{algebra::error::FnError, define_signature};
+use puffin::{algebra::error::FnError, define_signature, error::Error};
 
 mod key_exchange;
 mod key_schedule;
@@ -29,6 +29,12 @@ pub mod fn_impl {
     pub use fn_messages::*;
     pub use fn_transcript::*;
     pub use fn_utils::*;
+}
+
+impl From<rustls::error::Error> for Error {
+    fn from(error: rustls::error::Error) -> Self {
+        Error::Stream(error.to_string())
+    }
 }
 
 /// Function symbol which can be used for debugging

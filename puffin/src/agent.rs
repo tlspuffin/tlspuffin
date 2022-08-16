@@ -139,10 +139,10 @@ pub enum TLSVersion {
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent<PB: ProtocolBehavior> {
-    pub name: AgentName,
-    pub typ: AgentType,
-    pub put: Box<dyn Put<PB>>,
-    pub put_descriptor: PutDescriptor,
+    name: AgentName,
+
+    put: Box<dyn Put<PB>>,
+    put_descriptor: PutDescriptor,
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {
@@ -165,7 +165,6 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         let stream = factory.create(context, agent_descriptor)?;
         let agent = Agent {
             name: agent_descriptor.name,
-            typ: agent_descriptor.typ,
             put: stream,
             put_descriptor,
         };
@@ -180,5 +179,17 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
     pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
         self.put.reset(agent_name)
+    }
+
+    pub fn name(&self) -> AgentName {
+        self.name
+    }
+
+    pub fn put(&self) -> &dyn Put<PB> {
+        self.put.as_ref()
+    }
+
+    pub fn put_mut(&mut self) -> &mut dyn Put<PB> {
+        self.put.as_mut()
     }
 }

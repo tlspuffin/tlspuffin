@@ -9,7 +9,7 @@ members = [
     "tlspuffin-claims",
 ]
 
-exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/rust-rustls", "deps/wolfssl-sys" ]
+exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/wolfssl-sys" ]
 
 [profile.release]
 panic = "abort"

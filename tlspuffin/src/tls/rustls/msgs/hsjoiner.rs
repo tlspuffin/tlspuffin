@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
+use puffin::codec;
+
 use crate::tls::rustls::msgs::{
-    codec,
     enums::{ContentType, ProtocolVersion},
     handshake::HandshakeMessagePayload,
     message::{Message, MessagePayload, PlainMessage},
@@ -140,10 +141,11 @@ impl HandshakeJoiner {
 
 #[cfg(test)]
 mod tests {
+    use puffin::codec::Codec;
+
     use super::HandshakeJoiner;
     use crate::tls::rustls::msgs::{
         base::Payload,
-        codec::Codec,
         enums::{ContentType, HandshakeType, ProtocolVersion},
         handshake::{HandshakeMessagePayload, HandshakePayload},
         message::{Message, MessagePayload, PlainMessage},

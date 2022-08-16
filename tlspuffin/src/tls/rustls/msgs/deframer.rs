@@ -1,9 +1,8 @@
 use std::{collections::VecDeque, io};
 
-use crate::tls::rustls::msgs::{
-    codec,
-    message::{MessageError, OpaqueMessage},
-};
+use puffin::codec;
+
+use crate::tls::rustls::msgs::message::{MessageError, OpaqueMessage};
 
 /// This deframer works to reconstruct TLS messages
 /// from arbitrary-sized reads, buffering as necessary.

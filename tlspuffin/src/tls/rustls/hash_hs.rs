@@ -1,9 +1,9 @@
 use std::mem;
 
+use puffin::codec::Codec;
 use ring::digest;
 
 use crate::tls::rustls::msgs::{
-    codec::Codec,
     handshake::HandshakeMessagePayload,
     message::{Message, MessagePayload},
 };

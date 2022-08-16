@@ -30,6 +30,15 @@ impl<'a> Reader<'a> {
         Some(&self.buf[current..current + len])
     }
 
+    pub fn peek(&self, len: usize) -> Option<&[u8]> {
+        if self.left() < len {
+            return None;
+        }
+
+        let current = self.offs;
+        Some(&self.buf[current..current + len])
+    }
+
     pub fn any_left(&self) -> bool {
         self.offs < self.buf.len()
     }

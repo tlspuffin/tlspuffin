@@ -15,14 +15,16 @@ use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
-    io::{MessageResult, Stream},
+    protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
     put_registry::Factory,
+    stream::Stream,
     trace::TraceContext,
 };
 
 use crate::{
-    put_registry::{TLSProtocolBehavior, TCP_PUT},
+    protocol::TLSProtocolBehavior,
+    put_registry::TCP_PUT,
     tls::rustls::msgs::{
         deframer::MessageDeframer,
         message::{Message, OpaqueMessage},
@@ -66,16 +68,12 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             TCP_PUT
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> String {
             TcpClientPut::version()
-        }
-
-        fn make_deterministic(&self) {
-            TcpClientPut::make_deterministic()
         }
     }
 
@@ -123,8 +121,7 @@ impl TcpClientPut {
         agent_descriptor: &AgentDescriptor,
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
-        let addr =
-            addr_from_config(put_descriptor).map_err(|err| Error::OpenSSL(err.to_string()))?;
+        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
         let stream = Self::new_stream(addr)?;
 
         Ok(Self {
@@ -136,7 +133,7 @@ impl TcpClientPut {
     }
 
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let mut tries = 3;
+        let mut tries = 10;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -181,8 +178,7 @@ impl TcpServerPut {
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
-        let addr =
-            addr_from_config(put_descriptor).map_err(|err| Error::OpenSSL(err.to_string()))?;
+        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
 
         thread::spawn(move || {
             let listener = TcpListener::bind(&addr).unwrap();
@@ -246,7 +242,7 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream<TLSProtocolBehavior> for TcpServerPut {
+impl Stream<Message, OpaqueMessage> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
@@ -259,7 +255,7 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
     }
 }
 
-impl Stream<TLSProtocolBehavior> for TcpClientPut {
+impl Stream<Message, OpaqueMessage> for TcpClientPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
@@ -360,21 +356,21 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         false
     }
 
-    fn version() -> &'static str
-    where
-        Self: Sized,
-    {
-        "Undefined"
-    }
-
-    fn make_deterministic()
-    where
-        Self: Sized,
-    {
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "Unable to make TCP PUT deterministic!".to_string(),
+        ))
     }
 
     fn shutdown(&mut self) -> String {
         self.process.as_mut().unwrap().shutdown().unwrap()
+    }
+
+    fn version() -> String
+    where
+        Self: Sized,
+    {
+        "Undefined".to_string()
     }
 }
 
@@ -415,21 +411,21 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         false
     }
 
-    fn version() -> &'static str
-    where
-        Self: Sized,
-    {
-        "Undefined"
-    }
-
-    fn make_deterministic()
-    where
-        Self: Sized,
-    {
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "Unable to make TCP PUT deterministic!".to_string(),
+        ))
     }
 
     fn shutdown(&mut self) -> String {
         self.process.as_mut().unwrap().shutdown().unwrap()
+    }
+
+    fn version() -> String
+    where
+        Self: Sized,
+    {
+        "Undefined".to_string()
     }
 }
 
@@ -693,7 +689,7 @@ mod tests {
         );
 
         let server = AgentName::first().next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }
@@ -713,7 +709,7 @@ mod tests {
         let mut context = trace.execute_with_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
         assert!(!shutdown.contains("Reused session-id"));
@@ -747,12 +743,12 @@ mod tests {
         );
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
@@ -786,12 +782,12 @@ mod tests {
         );
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(!shutdown.contains("fail"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
