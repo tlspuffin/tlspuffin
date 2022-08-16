@@ -170,7 +170,7 @@ impl OpaqueProtocolMessage for OpaqueMessage {
     }
 
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        Ok(vec![])
+        Ok(vec![Box::new(self.clone())])
     }
 }
 

@@ -70,6 +70,21 @@ pub struct Knowledge<M: Matcher> {
     pub data: Box<dyn VariableData>,
 }
 
+impl<M: Matcher> Knowledge<M> {
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        let data_type_id = self.data.as_ref().type_id();
+        debug!(
+            "New knowledge {}: {}  (counter: {})",
+            &self,
+            remove_prefix(self.data.type_name()),
+            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+        );
+        trace!("Knowledge data: {:?}", self.data);
+    }
+}
 impl<M: Matcher> fmt::Display for Knowledge<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.agent_name, self.matcher)
@@ -482,53 +497,42 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        while let Some(MessageResult(message_o, opaque_message)) =
-            ctx.take_message_from_outbound(step.agent)?
-        {
-            let message_result = MessageResult(message_o, opaque_message);
-
+        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
             let matcher = message_result.create_matcher::<PB>();
 
-            let MessageResult(message, opaque_message) = &message_result;
+            let MessageResult(message, opaque_message) = message_result;
 
-            let knowledge = message_result.extract_knowledge()?;
+            let knowledge = message
+                .and_then(|message| message.extract_knowledge().ok())
+                .unwrap_or_default();
+            let opaque_knowledge = opaque_message.extract_knowledge()?;
 
-            debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+            debug!(
+                "Knowledge increased by {:?}",
+                knowledge.len() + opaque_knowledge.len()
+            ); // +1 because of the OpaqueMessage below
 
             for variable in knowledge {
-                let data_type_id = variable.as_ref().type_id();
-
-                let counter = ctx.number_matching_message(step.agent, data_type_id, &matcher);
                 let knowledge = Knowledge::<M> {
                     agent_name: step.agent,
                     matcher: matcher.clone(),
                     data: variable,
                 };
-                debug!(
-                    "New knowledge {}: {}  (counter: {})",
-                    &knowledge,
-                    remove_prefix(knowledge.data.type_name()),
-                    counter
-                );
-                trace!("Knowledge data: {:?}", knowledge.data);
+
+                knowledge.debug_print(ctx, &step.agent);
                 ctx.add_knowledge(knowledge)
             }
 
-            let type_id = std::any::Any::type_id(opaque_message);
-            let knowledge = Knowledge::<M> {
-                agent_name: step.agent,
-                matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                data: Box::new(message_result.1),
-            };
+            for variable in opaque_knowledge {
+                let knowledge = Knowledge::<M> {
+                    agent_name: step.agent,
+                    matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
+                    data: variable,
+                };
 
-            let counter = ctx.number_matching_message(step.agent, type_id, &None);
-            debug!(
-                "New knowledge {}: {} (counter: {})",
-                &knowledge,
-                remove_prefix(knowledge.data.type_name()),
-                counter
-            );
-            ctx.add_knowledge(knowledge);
+                knowledge.debug_print(ctx, &step.agent);
+                ctx.add_knowledge(knowledge)
+            }
         }
         Ok(())
     }
