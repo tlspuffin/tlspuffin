@@ -143,7 +143,9 @@ impl SshMessageDeframer {
     }
 }
 
-impl ProtocolMessageDeframer<SshMessage, RawSshMessage> for SshMessageDeframer {
+impl ProtocolMessageDeframer for SshMessageDeframer {
+    type OpaqueProtocolMessage = RawSshMessage;
+
     fn pop_frame(&mut self) -> Option<RawSshMessage> {
         self.frames.pop_front()
     }

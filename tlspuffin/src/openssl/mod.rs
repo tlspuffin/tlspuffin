@@ -39,7 +39,10 @@ use crate::{
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::message::{Message, OpaqueMessage},
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
 };
 
 #[cfg(feature = "deterministic")]
@@ -92,7 +95,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 }
 
 pub struct OpenSSL {
-    stream: SslStream<MemoryStream<TLSProtocolBehavior>>,
+    stream: SslStream<MemoryStream<MessageDeframer>>,
     config: TlsPutConfig,
 }
 
@@ -103,9 +106,12 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream<TLSProtocolBehavior> for OpenSSL {
+impl Stream<Message, OpaqueMessage> for OpenSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        self.stream.get_mut().add_to_inbound(result)
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+            self.stream.get_mut(),
+            result,
+        )
     }
 
     fn take_message_from_outbound(
@@ -320,7 +326,7 @@ impl OpenSSL {
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
 
-        let stream = SslStream::new(ssl, MemoryStream::new())?;
+        let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
 
         #[cfg(feature = "claims")]
         let agent_name = agent_descriptor.name;
