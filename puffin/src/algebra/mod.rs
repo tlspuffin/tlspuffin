@@ -436,6 +436,10 @@ pub mod test_signature {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
+
+        fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestMessage;
@@ -478,16 +482,10 @@ pub mod test_signature {
 
     pub struct TestMessageDeframer;
 
-    impl ProtocolMessageDeframer<TestMessage, TestOpaqueMessage> for TestMessageDeframer {
-        fn new() -> Self {
-            panic!("Not implemented for test stub");
-        }
+    impl ProtocolMessageDeframer for TestMessageDeframer {
+        type OpaqueProtocolMessage = TestOpaqueMessage;
 
         fn pop_frame(&mut self) -> Option<TestOpaqueMessage> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn encode(&self) -> Vec<u8> {
             panic!("Not implemented for test stub");
         }
 
@@ -510,7 +508,6 @@ pub mod test_signature {
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
         type ProtocolMessage = TestMessage;
         type OpaqueProtocolMessage = TestOpaqueMessage;
-        type ProtocolMessageDeframer = TestMessageDeframer;
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature {
