@@ -7,8 +7,8 @@ pub enum Error {
     /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
     Fn(FnError),
     Term(String),
-    /// OpenSSL reported an error
-    OpenSSL(String),
+    /// PUT reported an error
+    Put(String),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
     IO(String),
     /// Some error which was caused because of agents or their names. Like an agent which was not found.
@@ -26,7 +26,7 @@ impl fmt::Display for Error {
         match self {
             Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
             Error::Term(err) => write!(f, "error evaluating a term: {}", err),
-            Error::OpenSSL(err) => write!(f, "error in openssl: {}", err),
+            Error::Put(err) => write!(f, "error in openssl: {}", err),
             Error::IO(err) => write!(
                 f,
                 "error in io of openssl (this should not happen): {}",

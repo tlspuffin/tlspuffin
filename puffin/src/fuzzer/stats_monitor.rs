@@ -315,7 +315,7 @@ impl ErrorStatistics {
             match stat_definition {
                 RuntimeStats::FnError(c) => self.fn_error += get_number(client_stats, c.name),
                 RuntimeStats::TermError(c) => self.term_error += get_number(client_stats, c.name),
-                RuntimeStats::OpenSSLError(c) => self.ssl_error += get_number(client_stats, c.name),
+                RuntimeStats::PutError(c) => self.ssl_error += get_number(client_stats, c.name),
                 RuntimeStats::IOError(c) => self.io_error += get_number(client_stats, c.name),
                 RuntimeStats::AgentError(c) => self.ag_error += get_number(client_stats, c.name),
                 RuntimeStats::StreamError(c) => self.str_error += get_number(client_stats, c.name),

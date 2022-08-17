@@ -1,7 +1,8 @@
 use std::{convert::TryFrom, io::Read};
 
+use puffin::codec::Reader;
+
 use super::{
-    codec::Reader,
     enums::{AlertDescription, AlertLevel, HandshakeType},
     message::{Message, OpaqueMessage},
 };

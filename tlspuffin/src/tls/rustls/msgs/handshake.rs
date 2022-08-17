@@ -1,11 +1,14 @@
 use std::{collections, fmt};
 
+use puffin::{
+    codec,
+    codec::{Codec, Reader},
+};
+
 use crate::tls::rustls::{
     key,
     msgs::{
         base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        codec,
-        codec::{Codec, Reader},
         enums::{
             CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
             ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest,
@@ -18,15 +21,16 @@ use crate::tls::rustls::{
 
 macro_rules! declare_u8_vec (
   ($name:ident, $itemtype:ty) => {
-    pub type $name = Vec<$itemtype>;
+    #[derive(Debug, Clone)]
+    pub struct $name(pub Vec<$itemtype>);
 
-    impl Codec for $name {
+    impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u8(bytes, self);
+        puffin::codec::encode_vec_u8(bytes, &self.0);
       }
 
-      fn read(r: &mut Reader) -> Option<Self> {
-        codec::read_vec_u8::<$itemtype>(r)
+      fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
+        Some($name(puffin::codec::read_vec_u8::<$itemtype>(r)?))
       }
     }
   }
@@ -34,15 +38,16 @@ macro_rules! declare_u8_vec (
 
 macro_rules! declare_u16_vec (
   ($name:ident, $itemtype:ty) => {
-    pub type $name = Vec<$itemtype>;
+    #[derive(Debug, Clone)]
+    pub struct $name(pub Vec<$itemtype>);
 
-    impl Codec for $name {
+    impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u16(bytes, self);
+        puffin::codec::encode_vec_u16(bytes, &self.0);
       }
 
-      fn read(r: &mut Reader) -> Option<Self> {
-        codec::read_vec_u16::<$itemtype>(r)
+      fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
+        Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?))
       }
     }
   }
@@ -193,7 +198,7 @@ pub trait SupportedPointFormats {
 
 impl SupportedPointFormats for ECPointFormatList {
     fn supported() -> ECPointFormatList {
-        vec![ECPointFormat::Uncompressed]
+        ECPointFormatList(vec![ECPointFormat::Uncompressed])
     }
 }
 
@@ -317,7 +322,7 @@ impl ConvertServerNameList for ServerNameRequest {
     fn has_duplicate_names_for_type(&self) -> bool {
         let mut seen = collections::HashSet::new();
 
-        for name in self {
+        for name in &self.0 {
             if !seen.insert(name.typ.get_u8()) {
                 return true;
             }
@@ -335,7 +340,7 @@ impl ConvertServerNameList for ServerNameRequest {
             }
         }
 
-        self.iter().filter_map(only_dns_hostnames).next()
+        self.0.iter().filter_map(only_dns_hostnames).next()
     }
 }
 
@@ -349,24 +354,25 @@ pub trait ConvertProtocolNameList {
 
 impl ConvertProtocolNameList for ProtocolNameList {
     fn from_slices(names: &[&[u8]]) -> Self {
-        let mut ret = Self::new();
+        let mut ret = VecU16OfPayloadU8(Vec::new());
 
         for name in names {
-            ret.push(PayloadU8::new(name.to_vec()));
+            ret.0.push(PayloadU8::new(name.to_vec()));
         }
 
         ret
     }
 
     fn to_slices(&self) -> Vec<&[u8]> {
-        self.iter()
+        self.0
+            .iter()
             .map(|proto| -> &[u8] { &proto.0 })
             .collect::<Vec<&[u8]>>()
     }
 
     fn as_single_slice(&self) -> Option<&[u8]> {
-        if self.len() == 1 {
-            Some(&self[0].0)
+        if self.0.len() == 1 {
+            Some(&self.0[0].0)
         } else {
             None
         }
@@ -447,8 +453,8 @@ impl PresharedKeyOffer {
     /// Make a new one with one entry.
     pub fn new(id: PresharedKeyIdentity, binder: Vec<u8>) -> Self {
         Self {
-            identities: vec![id],
-            binders: vec![PresharedKeyBinder::new(binder)],
+            identities: PresharedKeyIdentities(vec![id]),
+            binders: VecU16OfPayloadU8(vec![PresharedKeyBinder::new(binder)]),
         }
     }
 }
@@ -527,7 +533,7 @@ impl Codec for CertificateStatusRequest {
 impl CertificateStatusRequest {
     pub fn build_ocsp() -> Self {
         let ocsp = OCSPCertificateStatusRequest {
-            responder_ids: ResponderIDs::new(),
+            responder_ids: VecU16OfPayloadU16(Vec::new()),
             extensions: PayloadU16::empty(),
         };
         Self::OCSP(ocsp)
@@ -719,7 +725,7 @@ impl ClientExtension {
             payload: ServerNamePayload::new_hostname(trim_hostname_trailing_dot_for_sni(dns_name)),
         };
 
-        Self::ServerName(vec![name])
+        Self::ServerName(ServerNameRequest(vec![name]))
     }
 }
 
@@ -998,7 +1004,7 @@ impl ClientHelloPayload {
         if let Some(entries) = self.get_keyshare_extension() {
             let mut seen = collections::HashSet::new();
 
-            for kse in entries {
+            for kse in &entries.0 {
                 let grp = kse.group.get_u16();
 
                 if !seen.insert(grp) {
@@ -1034,14 +1040,14 @@ impl ClientHelloPayload {
 
     pub fn psk_mode_offered(&self, mode: PSKKeyExchangeMode) -> bool {
         self.get_psk_modes()
-            .map(|modes| modes.contains(&mode))
+            .map(|modes| modes.0.contains(&mode))
             .unwrap_or(false)
     }
 
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
         let last_extension = self.extensions.last_mut();
         if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
-            offer.binders[0] = PresharedKeyBinder::new(binder.into());
+            offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
         }
     }
 
@@ -1305,16 +1311,17 @@ impl ServerHelloPayload {
     }
 }
 
-pub type CertificatePayload = Vec<key::Certificate>;
+#[derive(Debug, Clone)]
+pub struct CertificatePayload(pub Vec<key::Certificate>);
 
 impl Codec for CertificatePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u24(bytes, self);
+        codec::encode_vec_u24(bytes, &self.0);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
         // 64KB of certificates is plenty, 16MB is obviously silly
-        codec::read_vec_u24_limited(r, 0x10000)
+        Some(CertificatePayload(codec::read_vec_u24_limited(r, 0x10000)?))
     }
 }
 
@@ -1424,14 +1431,14 @@ impl CertificateEntry {
     pub fn new(cert: key::Certificate) -> Self {
         Self {
             cert,
-            exts: Vec::new(),
+            exts: CertificateExtensions(Vec::new()),
         }
     }
 
     pub fn has_duplicate_extension(&self) -> bool {
         let mut seen = collections::HashSet::new();
 
-        for ext in &self.exts {
+        for ext in &self.exts.0 {
             let typ = ext.get_type().get_u16();
 
             if seen.contains(&typ) {
@@ -1444,13 +1451,14 @@ impl CertificateEntry {
     }
 
     pub fn has_unknown_extension(&self) -> bool {
-        self.exts.iter().any(|ext| {
+        self.exts.0.iter().any(|ext| {
             ext.get_type() != ExtensionType::StatusRequest && ext.get_type() != ExtensionType::SCT
         })
     }
 
     pub fn get_ocsp_response(&self) -> Option<&Vec<u8>> {
         self.exts
+            .0
             .iter()
             .find(|ext| ext.get_type() == ExtensionType::StatusRequest)
             .and_then(CertificateExtension::get_cert_status)
@@ -1458,6 +1466,7 @@ impl CertificateEntry {
 
     pub fn get_scts(&self) -> Option<&SCTList> {
         self.exts
+            .0
             .iter()
             .find(|ext| ext.get_type() == ExtensionType::SCT)
             .and_then(CertificateExtension::get_sct_list)
@@ -1514,7 +1523,7 @@ impl CertificatePayloadTLS13 {
 
     pub fn any_entry_has_extension(&self) -> bool {
         for entry in &self.entries {
-            if !entry.exts.is_empty() {
+            if !entry.exts.0.is_empty() {
                 return true;
             }
         }
@@ -1542,7 +1551,7 @@ impl CertificatePayloadTLS13 {
         for entry in &self.entries {
             ret.push(entry.cert.clone());
         }
-        ret
+        CertificatePayload(ret)
     }
 }
 
@@ -1775,7 +1784,13 @@ pub trait HasServerExtensions {
 
 impl HasServerExtensions for EncryptedExtensions {
     fn get_extensions(&self) -> &[ServerExtension] {
-        self
+        &self.0
+    }
+}
+
+impl HasServerExtensions for Vec<ServerExtension> {
+    fn get_extensions(&self) -> &[ServerExtension] {
+        &self
     }
 }
 
@@ -1851,7 +1866,7 @@ impl Codec for CertReqExtension {
         let ext = match typ {
             ExtensionType::SignatureAlgorithms => {
                 let schemes = SupportedSignatureSchemes::read(&mut sub)?;
-                if schemes.is_empty() {
+                if schemes.0.is_empty() {
                     return None;
                 }
                 Self::SignatureAlgorithms(schemes)
@@ -1898,7 +1913,7 @@ impl Codec for CertificateRequestPayloadTLS13 {
 
 impl CertificateRequestPayloadTLS13 {
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&CertReqExtension> {
-        self.extensions.iter().find(|x| x.get_type() == ext)
+        self.extensions.0.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_sigalgs_extension(&self) -> Option<&SupportedSignatureSchemes> {
@@ -2017,14 +2032,14 @@ impl NewSessionTicketPayloadTLS13 {
             age_add,
             nonce: PayloadU8::new(nonce),
             ticket: PayloadU16::new(ticket),
-            exts: vec![],
+            exts: NewSessionTicketExtensions(vec![]),
         }
     }
 
     pub fn has_duplicate_extension(&self) -> bool {
         let mut seen = collections::HashSet::new();
 
-        for ext in &self.exts {
+        for ext in &self.exts.0 {
             let typ = ext.get_type().get_u16();
 
             if seen.contains(&typ) {
@@ -2037,7 +2052,7 @@ impl NewSessionTicketPayloadTLS13 {
     }
 
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&NewSessionTicketExtension> {
-        self.exts.iter().find(|x| x.get_type() == ext)
+        self.exts.0.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_max_early_data_size(&self) -> Option<u32> {

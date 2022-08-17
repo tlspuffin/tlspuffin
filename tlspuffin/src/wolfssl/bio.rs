@@ -197,7 +197,7 @@ unsafe extern "C" fn destroy<S>(bio: *mut wolf::WOLFSSL_BIO) -> c_int {
 
     let data = wolf::wolfSSL_BIO_get_data(bio);
     assert!(!data.is_null());
-    Box::<StreamState<S>>::from_raw(data as *mut _);
+    drop(Box::<StreamState<S>>::from_raw(data as *mut _));
     wolf::wolfSSL_BIO_set_data(bio, ptr::null_mut());
     wolf::wolfSSL_BIO_set_init(bio, 0);
     1

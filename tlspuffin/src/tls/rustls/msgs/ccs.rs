@@ -1,4 +1,4 @@
-use crate::tls::rustls::msgs::codec::{Codec, Reader};
+use puffin::codec::{Codec, Reader};
 
 #[derive(Debug, Clone)]
 pub struct ChangeCipherSpecPayload;

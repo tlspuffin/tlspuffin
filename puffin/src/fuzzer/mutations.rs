@@ -783,8 +783,8 @@ mod tests {
         agent::AgentName,
         algebra::{
             dynamic_function::DescribableFunction,
-            test_signature::{TestQueryMatcher, TestTrace, *},
-            Term,
+            test_signature::{TestTrace, *},
+            AnyMatcher, Term,
         },
         graphviz::write_graphviz,
         trace::{Action, Step, Trace},
@@ -805,7 +805,7 @@ mod tests {
 
         let mut mutator = RepeatMutator::new(15);
 
-        fn check_is_encrypt12(step: &Step<TestQueryMatcher>) -> bool {
+        fn check_is_encrypt12(step: &Step<AnyMatcher>) -> bool {
             if let Action::Input(input) = &step.action {
                 if input.recipe.name() == fn_encrypt12.name() {
                     return true;

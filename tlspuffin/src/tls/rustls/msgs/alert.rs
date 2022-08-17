@@ -1,7 +1,6 @@
-use crate::tls::rustls::msgs::{
-    codec::{Codec, Reader},
-    enums::{AlertDescription, AlertLevel},
-};
+use puffin::codec::{Codec, Reader};
+
+use crate::tls::rustls::msgs::enums::{AlertDescription, AlertLevel};
 
 #[derive(Debug, Clone)]
 pub struct AlertMessagePayload {

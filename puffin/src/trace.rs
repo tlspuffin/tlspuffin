@@ -22,18 +22,17 @@ use std::{
     marker::PhantomData,
 };
 
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
-use crate::io::Channel;
+use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    io::MessageResult,
-    protocol::{Message, OpaqueMessage, ProtocolBehavior},
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::PutDescriptor,
     put_registry::{Factory, PutRegistry},
     variable_data::VariableData,
@@ -71,6 +70,21 @@ pub struct Knowledge<M: Matcher> {
     pub data: Box<dyn VariableData>,
 }
 
+impl<M: Matcher> Knowledge<M> {
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        let data_type_id = self.data.as_ref().type_id();
+        debug!(
+            "New knowledge {}: {}  (counter: {})",
+            &self,
+            remove_prefix(self.data.type_name()),
+            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+        );
+        trace!("Knowledge data: {:?}", self.data);
+    }
+}
 impl<M: Matcher> fmt::Display for Knowledge<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.agent_name, self.matcher)
@@ -89,6 +103,7 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     claims: GlobalClaimList<PB::Claim>,
     put_descriptors: HashMap<AgentName, PutDescriptor>,
     put_registry: &'static PutRegistry<PB>,
+    deterministic: bool,
     phantom: PhantomData<PB>,
 }
 
@@ -104,6 +119,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             put_descriptors: Default::default(),
             put_registry,
+            deterministic: false,
             phantom: Default::default(),
         }
     }
@@ -114,13 +130,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
         &self.claims
-    }
-
-    pub fn extract_knowledge(
-        &self,
-        message: &PB::Message,
-    ) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        PB::extract_knowledge(message)
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
@@ -198,15 +207,15 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueMessage,
+        message: &PB::OpaqueProtocolMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.put.add_to_inbound(message))
+            .map(|agent| agent.put_mut().add_to_inbound(message))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.put.progress(&agent_name)
+        agent.put_mut().progress(&agent_name)
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -214,13 +223,13 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::Message, PB::OpaqueMessage>>, Error> {
+    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
-        agent.put.take_message_from_outbound()
+        agent.put_mut().take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name;
+        let name = agent.name();
         self.agents.push(agent);
         name
     }
@@ -233,7 +242,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
         let mut iter = self.agents.iter_mut();
 
-        iter.find(|agent| agent.name == name).ok_or_else(|| {
+        iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
@@ -243,7 +252,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn find_agent(&self, name: AgentName) -> Result<&Agent<PB>, Error> {
         let mut iter = self.agents.iter();
-        iter.find(|agent| agent.name == name).ok_or_else(|| {
+        iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
                 "Could not find agent {}. Did you forget to call spawn_agents?",
                 name
@@ -259,7 +268,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .unwrap_or_else(|| {
                 let factory = (self.put_registry.default)();
                 PutDescriptor {
-                    name: factory.put_name(),
+                    name: factory.name(),
                     options: Default::default(),
                 }
             })
@@ -276,23 +285,19 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset(agent.name)?;
+            agent.reset(agent.name())?;
         }
         Ok(())
     }
 
     pub fn agents_successful(&self) -> bool {
-        for agent in &self.agents {
-            if !agent.put.is_state_successful() {
-                return false;
-            }
-        }
-
-        true
+        self.agents
+            .iter()
+            .all(|agent| agent.put().is_state_successful())
     }
 
-    pub fn default_put(&self) -> Box<dyn Factory<PB>> {
-        self.put_registry.default_factory()
+    pub fn set_deterministic(&mut self, deterministic: bool) {
+        self.deterministic = deterministic;
     }
 }
 
@@ -311,16 +316,25 @@ pub struct Trace<M: Matcher> {
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            if let Some(reusable) = ctx
+            let name = if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put.is_reusable_with(descriptor))
+                .find(|existing| existing.put().is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
                 reusable.rename(descriptor.name)?;
+                descriptor.name
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?;
+                ctx.new_agent(descriptor)?
+            };
+
+            if ctx.deterministic {
+                if let Ok(agent) = ctx.find_agent_mut(name) {
+                    if let Err(err) = agent.put_mut().set_deterministic() {
+                        warn!("Unable to make agent {} deterministic: {}", name, err)
+                    }
+                }
             }
         }
 
@@ -361,11 +375,15 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute_default<PB>(&self, put_registry: &'static PutRegistry<PB>) -> TraceContext<PB>
+    pub fn execute_deterministic<PB>(
+        &self,
+        put_registry: &'static PutRegistry<PB>,
+    ) -> TraceContext<PB>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut ctx = TraceContext::new(put_registry);
+        ctx.set_deterministic(true);
         self.execute(&mut ctx).unwrap();
         ctx
     }
@@ -479,57 +497,42 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        while let Some(MessageResult(message_o, opaque_message)) =
-            ctx.take_message_from_outbound(step.agent)?
-        {
-            let message_result = MessageResult(message_o, opaque_message);
-            let MessageResult(message, opaque_message) = &message_result;
-            let matcher = Some(PB::extract_query_matcher(&message_result));
+        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
+            let matcher = message_result.create_matcher::<PB>();
 
-            match &message {
-                Some(message) => {
-                    let knowledge = ctx.extract_knowledge(message)?;
+            let MessageResult(message, opaque_message) = message_result;
 
-                    debug!("Knowledge increased by {:?}", knowledge.len() + 1); // +1 because of the OpaqueMessage below
+            let knowledge = message
+                .and_then(|message| message.extract_knowledge().ok())
+                .unwrap_or_default();
+            let opaque_knowledge = opaque_message.extract_knowledge()?;
 
-                    for variable in knowledge {
-                        let data_type_id = variable.as_ref().type_id();
+            debug!(
+                "Knowledge increased by {:?}",
+                knowledge.len() + opaque_knowledge.len()
+            ); // +1 because of the OpaqueMessage below
 
-                        let counter =
-                            ctx.number_matching_message(step.agent, data_type_id, &matcher);
-                        let knowledge = Knowledge::<M> {
-                            agent_name: step.agent,
-                            matcher: matcher.clone(),
-                            data: variable,
-                        };
-                        debug!(
-                            "New knowledge {}: {}  (counter: {})",
-                            &knowledge,
-                            remove_prefix(knowledge.data.type_name()),
-                            counter
-                        );
-                        trace!("Knowledge data: {:?}", knowledge.data);
-                        ctx.add_knowledge(knowledge)
-                    }
-                }
-                None => {}
+            for variable in knowledge {
+                let knowledge = Knowledge::<M> {
+                    agent_name: step.agent,
+                    matcher: matcher.clone(),
+                    data: variable,
+                };
+
+                knowledge.debug_print(ctx, &step.agent);
+                ctx.add_knowledge(knowledge)
             }
 
-            let type_id = std::any::Any::type_id(opaque_message);
-            let knowledge = Knowledge::<M> {
-                agent_name: step.agent,
-                matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                data: Box::new(message_result.1),
-            };
+            for variable in opaque_knowledge {
+                let knowledge = Knowledge::<M> {
+                    agent_name: step.agent,
+                    matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
+                    data: variable,
+                };
 
-            let counter = ctx.number_matching_message(step.agent, type_id, &None);
-            debug!(
-                "New knowledge {}: {} (counter: {})",
-                &knowledge,
-                remove_prefix(knowledge.data.type_name()),
-                counter
-            );
-            ctx.add_knowledge(knowledge);
+                knowledge.debug_print(ctx, &step.agent);
+                ctx.add_knowledge(knowledge)
+            }
         }
         Ok(())
     }
@@ -571,11 +574,13 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::Message>() {
+        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
             ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
-        } else if let Some(opaque_message) = evaluated.as_ref().downcast_ref::<PB::OpaqueMessage>()
+        } else if let Some(opaque_message) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
             ctx.add_to_inbound(step.agent, opaque_message)?;

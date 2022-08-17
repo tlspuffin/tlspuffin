@@ -15,7 +15,7 @@ use libafl::{
 pub enum RuntimeStats {
     FnError(&'static Counter),
     TermError(&'static Counter),
-    OpenSSLError(&'static Counter),
+    PutError(&'static Counter),
     IOError(&'static Counter),
     AgentError(&'static Counter),
     StreamError(&'static Counter),
@@ -32,7 +32,7 @@ impl RuntimeStats {
         match self {
             RuntimeStats::FnError(inner) => inner.fire(consume),
             RuntimeStats::TermError(inner) => inner.fire(consume),
-            RuntimeStats::OpenSSLError(inner) => inner.fire(consume),
+            RuntimeStats::PutError(inner) => inner.fire(consume),
             RuntimeStats::IOError(inner) => inner.fire(consume),
             RuntimeStats::AgentError(inner) => inner.fire(consume),
             RuntimeStats::StreamError(inner) => inner.fire(consume),
@@ -47,8 +47,8 @@ impl RuntimeStats {
 pub static FN_ERROR: Counter = Counter::new("fn");
 // Term(String),
 pub static TERM: Counter = Counter::new("term");
-// OpenSSL(ErrorStack),
-pub static OPENSSL: Counter = Counter::new("ssl");
+// Put(String),
+pub static PUT: Counter = Counter::new("put");
 // IO(String),
 pub static IO: Counter = Counter::new("io");
 // Agent(String),
@@ -65,7 +65,7 @@ pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 pub static STATS: [RuntimeStats; 9] = [
     RuntimeStats::FnError(&FN_ERROR),
     RuntimeStats::TermError(&TERM),
-    RuntimeStats::OpenSSLError(&OPENSSL),
+    RuntimeStats::PutError(&PUT),
     RuntimeStats::IOError(&IO),
     RuntimeStats::AgentError(&AGENT),
     RuntimeStats::StreamError(&STREAM),

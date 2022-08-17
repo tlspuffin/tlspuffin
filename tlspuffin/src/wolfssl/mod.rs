@@ -16,9 +16,10 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     error::Error,
-    io::{MemoryStream, MessageResult, Stream},
+    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::Factory,
+    stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
 use smallvec::SmallVec;
@@ -29,10 +30,13 @@ use crate::{
         TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptServerFinished, TranscriptServerHello,
     },
+    protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
-    put_registry::{TLSProtocolBehavior, WOLFSSL520_PUT},
+    put_registry::WOLFSSL520_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+    tls,
     tls::rustls::msgs::{
+        deframer::MessageDeframer,
         enums::HandshakeType,
         message::{Message, OpaqueMessage},
     },
@@ -91,16 +95,12 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             Ok(Box::new(WolfSSL::new(config)?))
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             WOLFSSL520_PUT
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> String {
             WolfSSL::version()
-        }
-
-        fn make_deterministic(&self) {
-            WolfSSL::make_deterministic()
         }
     }
 
@@ -109,20 +109,24 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
 impl From<ErrorStack> for Error {
     fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
+        Error::Put(err.to_string())
     }
 }
 
 pub struct WolfSSL {
+    stream: SslStream<MemoryStream<MessageDeframer>>,
     ctx: SslContext,
-    stream: SslStream<MemoryStream<TLSProtocolBehavior>>,
     config: TlsPutConfig,
 }
 
-impl Stream<TLSProtocolBehavior> for WolfSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
+impl Stream<Message, OpaqueMessage> for WolfSSL {
+    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         let raw_stream = self.stream.get_mut();
-        raw_stream.add_to_inbound(result)
+        //raw_stream.add_to_inbound(opaque_message)
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+            raw_stream,
+            opaque_message,
+        )
     }
 
     fn take_message_from_outbound(
@@ -173,13 +177,16 @@ impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<TLSProtocolBehavior>>, Error> {
+    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, Error> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
 
-        Ok(SslStream::new(ssl, MemoryStream::new())?)
+        Ok(SslStream::new(
+            ssl,
+            MemoryStream::new(MessageDeframer::new()),
+        )?)
     }
 }
 
@@ -262,12 +269,14 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         self.stream.is_handshake_done()
     }
 
-    fn version() -> &'static str {
-        unsafe { version() }
+    fn version() -> String {
+        unsafe { version().to_string() }
     }
 
-    fn make_deterministic() {
-        // TODO
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "WolfSSL does not support determinism".to_string(),
+        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -527,7 +536,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }

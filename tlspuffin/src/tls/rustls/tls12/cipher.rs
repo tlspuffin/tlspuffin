@@ -1,3 +1,4 @@
+use puffin::codec;
 use ring::aead;
 
 use crate::tls::rustls::{
@@ -5,7 +6,6 @@ use crate::tls::rustls::{
     error::Error,
     msgs::{
         base::Payload,
-        codec,
         enums::{ContentType, ProtocolVersion},
         fragmenter::MAX_FRAGMENT_LEN,
         message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage},

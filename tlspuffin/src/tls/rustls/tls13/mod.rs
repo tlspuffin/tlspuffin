@@ -7,7 +7,6 @@ use crate::tls::rustls::{
     error::Error,
     msgs::{
         base::Payload,
-        codec::Codec,
         enums::{CipherSuite, ContentType, ProtocolVersion},
         fragmenter::MAX_FRAGMENT_LEN,
         message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage},
@@ -17,6 +16,7 @@ use crate::tls::rustls::{
 
 pub mod key_schedule;
 use key_schedule::{derive_traffic_iv, derive_traffic_key};
+use puffin::codec::Codec;
 
 /// The TLS1.3 ciphersuite TLS_CHACHA20_POLY1305_SHA256
 pub static TLS13_CHACHA20_POLY1305_SHA256: SupportedCipherSuite =

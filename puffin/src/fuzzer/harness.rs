@@ -27,7 +27,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> Ex
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
-            Error::OpenSSL(_) => OPENSSL.increment(),
+            Error::Put(_) => PUT.increment(),
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),
