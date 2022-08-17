@@ -10,10 +10,7 @@ use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};
 use wolfssl_sys as wolf;
 
-use crate::{
-    tls::rustls::msgs::enums::HandshakeType,
-    wolfssl::ssl::{SslContextRef, SslRef},
-};
+use crate::ssl::{SslContextRef, SslRef};
 
 ///
 /// We need to manually use this because the `wolfSSL_CRYPTO_get_ex_new_index` funcationality does
@@ -90,11 +87,11 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     _version: c_int,
     content_type: c_int,
     buf: *const c_void,
-    _len: c_ulong,
+    len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
+    F: Fn(&mut SslRef, i32, u8, bool) + 'static,
 {
     let ctx = SslContextRef::from_ptr_mut(wolf::wolfSSL_get_SSL_CTX(ssl));
 
@@ -108,13 +105,12 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
 
     let ssl = SslRef::from_ptr_mut(ssl);
 
-    let typ = if content_type == 22 {
-        HandshakeType::from(*(buf as *mut u8))
-    } else {
-        HandshakeType::Unknown(0)
-    };
-
-    (*callback)(ssl, typ, write_p == 1);
+    (*callback)(
+        ssl,
+        content_type,
+        if len > 0 { *(buf as *mut u8) } else { 0 },
+        write_p == 1,
+    );
 }
 
 pub unsafe extern "C" fn ssl_msg_callback<F>(
@@ -122,11 +118,11 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
     _version: c_int,
     content_type: c_int,
     buf: *const c_void,
-    _len: c_ulong,
+    len: c_ulong,
     ssl: *mut wolf::WOLFSSL,
     _arg: *mut c_void,
 ) where
-    F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
+    F: Fn(&mut SslRef, i32, u8, bool) + 'static,
 {
     let ssl = SslRef::from_ptr_mut(ssl);
 
@@ -138,11 +134,10 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
         callback.deref() as *const F
     };
 
-    let typ = if content_type == 22 {
-        HandshakeType::from(*(buf as *mut u8))
-    } else {
-        HandshakeType::Unknown(0)
-    };
-
-    (*callback)(ssl, typ, write_p == 1);
+    (*callback)(
+        ssl,
+        content_type,
+        if len > 0 { *(buf as *mut u8) } else { 0 },
+        write_p == 1,
+    );
 }

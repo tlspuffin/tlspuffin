@@ -1,6 +1,6 @@
 use libc::c_int;
 
-use crate::wolfssl::error::ErrorStack;
+use crate::error::ErrorStack;
 
 pub fn cvt_p<T>(r: *mut T) -> Result<*mut T, ErrorStack> {
     if r.is_null() {
