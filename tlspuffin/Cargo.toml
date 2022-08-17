@@ -3,14 +3,16 @@ name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2021"
-doctest = true
 
 [features]
 default = ["sancov_libafl", "introspection"]
 
 # Lastest OpenSSL 1.1.1
 openssl111 = [
-    "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src",
+    # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "tls13",
     "tls12-session-resumption",
@@ -22,20 +24,22 @@ openssl111 = [
     "client-authentication-transcript-extraction"
 ]
 openssl101f = [
-    "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src",
+    "openssl-src/openssl101f", "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 openssl102u = [
-    "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src",
+    "openssl-src/openssl102u", "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 # Some LibreSSL version
 libressl = [
-    "openssl/vendored-libressl",
+    "libressl-src",
     "tls12",
     "tls13", # Supported features by openssl111
     "tls12-session-resumption",
@@ -109,7 +113,7 @@ sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 sancov_libafl = ["puffin/sancov_libafl"]
 
 # Enables ASAN
-asan = ["openssl/asan", "wolfssl-sys/asan"]
+asan = ["openssl-src/asan","libressl-src/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -154,7 +158,8 @@ sct = "0.7.0"
 
 # OpenSSL
 # Uses build scripts from './openssl-src'
-openssl = { path = "../deps/rust-openssl/openssl", features = ["sancov"], optional = true }
+openssl = { version = "0.10.41", features = ["vendored"], optional = true }
+openssl-sys = "*"
 foreign-types-shared = { version = "0.1.1", optional = true }
 security-claims = { path = "../tlspuffin-claims", optional = false }
 
@@ -162,6 +167,11 @@ security-claims = { path = "../tlspuffin-claims", optional = false }
 wolfssl = { path = "../deps/wolfssl", optional = true }
 wolfssl-sys = { path = "../deps/wolfssl-sys", features = ["sancov"], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
+
+[build-dependencies]
+# It is essential that theye are listed as build-dependencies! Because they are. Else features get resolved wrong.
+openssl-src = { path = "../deps/rust-openssl-src", features = ["sancov"], optional = true }
+libressl-src = { path = "../deps/rust-libressl-src", features = ["sancov"], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"

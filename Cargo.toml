@@ -9,11 +9,11 @@ members = [
     "tlspuffin-claims",
 ]
 
-exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/wolfssl-sys", "deps/wolfssl" ]
+exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/wolfssl-sys", "deps/wolfssl" ]
 
 [patch.crates-io]
 wolfssl-sys = { path = "deps/wolfssl-sys" }
-
+openssl-src = { path = "deps/rust-openssl-src" }
 
 [profile.release]
 panic = "abort"
