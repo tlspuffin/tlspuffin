@@ -579,7 +579,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
     }
 }
 
-pub fn seed_12_finding_8(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -2651,7 +2651,8 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
-    fn test_seed_12_finding_1() {
+    /// Internal ID was "Finding 1"
+    fn test_seed_cve_2022_38152() {
         let put = PutDescriptor {
             name: WOLFSSL520_PUT,
             options: PutOptions::new(vec![("clear", "true")]),
@@ -2680,22 +2681,15 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
-    fn test_seed_12_finding_8() {
-        /*        let mut file = File::create(format!("./finding8.trace")).unwrap();
-        file.write_all(
-            &seed_12_finding_8
-                .build_trace()
-                .serialize_postcard()
-                .unwrap(),
-        )
-        .unwrap();*/
-
+    #[ignore] // Disabled because requires wolfSSL 5.3.0
+              // Internally known as "Finding 8"
+    fn test_seed_cve_2022_38153() {
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
         }
 
         expect_crash(|| {
-            seed_12_finding_8.execute_trace();
+            seed_cve_2022_38153.execute_trace();
         });
     }
 

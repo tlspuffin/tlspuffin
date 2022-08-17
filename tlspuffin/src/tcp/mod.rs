@@ -506,7 +506,7 @@ mod tests {
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_12_finding_8, seed_client_attacker_full, seed_session_resumption_dhe_full,
+            seed_client_attacker_full, seed_cve_2022_38153, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
@@ -800,7 +800,9 @@ mod tests {
     }
 
     #[test]
-    fn test_wolfssl_openssl_seed_12_finding_8() {
+    #[ignore] // wolfssl example server and client are not available in CI
+              // Internally known as "Finding 8"
+    fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
         let port = 44334;
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
@@ -817,7 +819,7 @@ mod tests {
             options: client_guard.build_options(),
         };
 
-        let trace = seed_12_finding_8.build_trace();
+        let trace = seed_cve_2022_38153.build_trace();
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
@@ -827,7 +829,7 @@ mod tests {
         );
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("free(): invalid pointer"));
     }
