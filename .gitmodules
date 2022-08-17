@@ -3,11 +3,6 @@
 	url = git@github.com:tlspuffin/openssl-src-rs.git
 	branch = fuzz
 	update = rebase
-[submodule "rust-openssl"]
-	path = deps/rust-openssl
-	url = git@github.com:tlspuffin/rust-openssl.git
-	branch = fuzz
-	update = rebase
 [submodule "rust-libressl-src"]
 	path = deps/rust-libressl-src
 	url = git@github.com:tlspuffin/libressl-src.git
