@@ -39,7 +39,7 @@ openssl102u = [
 ]
 # Some LibreSSL version
 libressl = [
-    "libressl-src",
+    "openssl-src/libressl",
     "tls12",
     "tls13", # Supported features by openssl111
     "tls12-session-resumption",
