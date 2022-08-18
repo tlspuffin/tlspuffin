@@ -12,12 +12,11 @@ openssl111 = [
     "openssl-src",
     # Unused, 111 is default: "openssl-src/openssl111",
     "openssl-src/no-rand",
-    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "tls13",
     "tls12-session-resumption",
     "tls13-session-resumption",
-    "deterministic", # Supported features by openssl111
+    "deterministic",
     "claims",
     "openssl-binding",
     "transcript-extraction",
@@ -41,7 +40,7 @@ openssl102u = [
 libressl = [
     "openssl-src/libressl333",
     "tls12",
-    "tls13", # Supported features by openssl111
+    "tls13",
     "tls12-session-resumption",
     "claims",
     "openssl-binding",
@@ -113,12 +112,12 @@ sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 sancov_libafl = ["puffin/sancov_libafl"]
 
 # Enables ASAN
-asan = ["openssl-src/asan","libressl-src/asan", "wolfssl-sys/asan"]
+asan = ["openssl-src/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "foreign-types-shared"]
+openssl-binding = ["openssl", "foreign-types"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -155,28 +154,26 @@ ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
 
+foreign-types = { version = "0.5.0", optional = true }
 
 # OpenSSL
 # Uses build scripts from './openssl-src'
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
 openssl-sys = "*"
-foreign-types-shared = { version = "0.1.1", optional = true }
 security-claims = { version = "0.1.0", optional = false }
 
 # WolfSSL
 wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = ["sancov"], optional = true }
-foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
-# It is essential that theye are listed as build-dependencies! Because they are. Else features get resolved wrong.
+# It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { path = "../crates/openssl-src-111", features = ["sancov"], optional = true }
-libressl-src = { path = "../crates/libressl-src", features = ["sancov"], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"
 env_logger = "0.9.0"
-nix = "0.24.1"
+nix = "0.25.0"
 serde_json = "1.0.81"
 tempfile = "3.3.0"
 criterion = "0.3.5"
