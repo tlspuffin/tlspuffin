@@ -58,6 +58,7 @@ libressl = [
 
 wolfssl430 = [
     "wolfssl-sys/vendored-wolfssl430",
+    "wolfssl/wolfssl430",
     "tls12",
     "tls13",
     "wolfssl-binding",

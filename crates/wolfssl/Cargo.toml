@@ -5,6 +5,8 @@ edition = "2021"
 
 [features]
 
+wolfssl430 = []
+
 [dependencies]
 wolfssl-sys = "0.1.7"
 
