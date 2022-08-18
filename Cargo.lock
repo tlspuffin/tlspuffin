@@ -1195,7 +1195,7 @@ checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
 
 [[package]]
 name = "libressl-src"
-version = "111.13.0+3.1.4"
+version = "111.0.0"
 dependencies = [
  "autotools",
  "security-claims",

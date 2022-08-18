@@ -9,12 +9,11 @@ readme = "README.md"
 exclude = ['libressl/*']
 
 [features]
+default = [ ]
 sancov = []
+vendored-libressl333 = []
 asan = [] # TODO
 
-[workspace]
-members = ['testcrate']
-
 [dependencies]
-security-claims = { path = "../../tlspuffin-claims" }
+security-claims = "0.1.0"
 autotools = "0.2"

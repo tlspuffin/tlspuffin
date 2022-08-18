@@ -8,8 +8,25 @@ use std::{
     process::Command,
 };
 
-pub fn source_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("libressl")
+const REF: &str = if cfg!(feature = "vendored-libressl333") {
+    "fuzz-v3.3.3"
+} else {
+    "master"
+};
+
+fn clone(dest: &PathBuf) -> std::io::Result<()> {
+    std::fs::remove_dir_all(dest)?;
+    Command::new("git")
+        .arg("clone")
+        .arg("--depth")
+        .arg("1")
+        .arg("--branch")
+        .arg(REF)
+        .arg("https://github.com/tlspuffin/libressl.git")
+        .arg(dest)
+        .status()?;
+
+    Ok(())
 }
 
 pub fn version() -> &'static str {
@@ -79,6 +96,10 @@ impl Build {
     }
 
     pub fn build(&mut self) -> Artifacts {
+        if cfg!(feature = "asan") {
+            panic!("ASAN not yet supported");
+        }
+
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
         let host = &self.host.as_ref().expect("HOST dir not set")[..];
         let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
@@ -99,7 +120,8 @@ impl Build {
 
         let inner_dir = build_dir.join("src");
         fs::create_dir_all(&inner_dir).unwrap();
-        cp_r(&source_dir(), &inner_dir);
+        clone(&inner_dir).unwrap();
+
         let _ = host;
 
         // out_dir defaults to $OUT_DIR/libressl-build
