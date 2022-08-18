@@ -3,5 +3,11 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/crates/openssl-src-111" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/boringssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/krb5" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/pyca-cryptography" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl101f" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl102u" vcs="Git" />
   </component>
 </project>
