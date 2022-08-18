@@ -18,10 +18,10 @@ unsafe fn SSL_CTX_set_tmp_rsa(ctx: *mut SSL_CTX, key: *mut RSA) -> c_long {
 }
 
 extern "C" {
-    pub fn SSL_clear(ssl: *mut SSL) -> c_int;
+    fn SSL_clear(ssl: *mut SSL) -> c_int;
 
     #[cfg(not(feature = "openssl111"))]
-    pub fn SSL_CTX_set_tmp_rsa_callback(
+    fn SSL_CTX_set_tmp_rsa_callback(
         ctx: *mut SSL_CTX,
         ecdh: unsafe extern "C" fn(ssl: *mut SSL, is_export: c_int, keylength: c_int) -> *mut RSA,
     );
@@ -31,11 +31,7 @@ extern "C" {
     any(feature = "openssl101f", feature = "openssl102u"),
     not(feature = "openssl111")
 ))]
-pub unsafe extern "C" fn raw_tmp_rsa<F>(
-    ssl: *mut SSL,
-    is_export: c_int,
-    keylength: c_int,
-) -> *mut RSA
+unsafe extern "C" fn raw_tmp_rsa<F>(ssl: *mut SSL, is_export: c_int, keylength: c_int) -> *mut RSA
 where
     F: Fn(&mut SslRef, bool, u32) -> Result<Rsa<Private>, ErrorStack> + 'static + Sync + Send,
 {
@@ -79,7 +75,7 @@ pub fn set_tmp_rsa(ctx: &SslContextBuilder, key: &Rsa<Private>) -> Result<(), Er
     unsafe { cvt(SSL_CTX_set_tmp_rsa(ctx.as_ptr(), key.as_ptr()) as c_int).map(|_| ()) }
 }
 
-pub fn cvt(r: c_int) -> Result<c_int, ErrorStack> {
+fn cvt(r: c_int) -> Result<c_int, ErrorStack> {
     if r <= 0 {
         Err(ErrorStack::get())
     } else {
