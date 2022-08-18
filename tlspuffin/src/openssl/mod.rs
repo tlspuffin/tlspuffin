@@ -245,7 +245,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
 
             let claims = self.config.claims.clone();
             let protocol_version = self.config.descriptor.tls_version;
@@ -270,7 +270,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }

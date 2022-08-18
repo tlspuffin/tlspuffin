@@ -7,7 +7,14 @@ edition = "2021"
 [features]
 default = ["sancov_libafl", "introspection"]
 
-# Lastest OpenSSL 1.1.1
+openssl-default = [
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "openssl-binding",
+]
+
 openssl111 = [
     "openssl-src",
     # Unused, 111 is default: "openssl-src/openssl111",
@@ -24,14 +31,16 @@ openssl111 = [
 ]
 openssl101f = [
     "openssl-src",
-    "openssl-src/openssl101f", "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src/openssl101f",
+    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 openssl102u = [
     "openssl-src",
-    "openssl-src/openssl102u", "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src/openssl102u",
+    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
@@ -117,7 +126,7 @@ asan = ["openssl-src/asan", "wolfssl-sys/asan"]
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "foreign-types"]
+openssl-binding = ["openssl", "foreign-types-openssl"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -154,21 +163,29 @@ ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
 
-foreign-types = { version = "0.5.0", optional = true }
+
 
 # OpenSSL
-# Uses build scripts from './openssl-src'
+
+# Up to verison 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
-openssl-sys = "*"
+openssl-sys = { version = "*", features = ["vendored"] }
+
+# For openssl 305
+#openssl = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
+#openssl-sys = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"] }
+
+foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { version = "0.1.0", optional = false }
 
 # WolfSSL
 wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = ["sancov"], optional = true }
+foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
-openssl-src = { path = "../crates/openssl-src-111", features = ["sancov"], optional = true }
+openssl-src = { version = "*", features = ["sancov"], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"

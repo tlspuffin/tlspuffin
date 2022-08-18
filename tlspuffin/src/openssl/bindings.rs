@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use foreign_types_shared::ForeignTypeRef;
+use foreign_types_openssl::ForeignTypeRef;
 use libc::{c_int, c_long, c_ulong};
 use openssl::{
     error::ErrorStack,
