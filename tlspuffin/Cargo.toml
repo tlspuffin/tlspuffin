@@ -149,7 +149,7 @@ client-authentication-transcript-extraction = []
 introspection = ["puffin/introspection"]
 
 # enable M1-specific build
-M1 = ["wolfssl-sys/M1"]
+m1 = ["wolfssl-sys/m1", "puffin/m1"]
 
 [dependencies]
 

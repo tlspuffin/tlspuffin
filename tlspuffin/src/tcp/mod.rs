@@ -766,7 +766,7 @@ mod tests {
 
         let mut input_file = std::fs::File::open("/Users/ehrenamtskarte/Downloads/HEAP-buffer.trace").unwrap();
 
-        if cfg!(M1) {
+        if cfg!(feature = "m1") {
             // Read trace file
             let mut buffer = Vec::new();
             input_file.read_to_end(&mut buffer).unwrap();

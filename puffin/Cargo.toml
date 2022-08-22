@@ -15,6 +15,9 @@ introspection = ["libafl/introspection"]
 
 claims = []
 
+# enable M1-specific build
+m1 = []
+
 [dependencies]
 
 # LibAFL

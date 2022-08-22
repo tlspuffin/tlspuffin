@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run on M1 (WolfSSL540)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" editBeforeRun="true" singleton="false">
-    <option name="command" value="run --target aarch64-apple-darwin --bin tlspuffin -p tlspuffin --features wolfssl540,M1 --no-default-features" />
+    <option name="command" value="run --target aarch64-apple-darwin --bin tlspuffin -p tlspuffin --features wolfssl540,m1 --no-default-features" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="NIGHTLY" />
     <option name="requiredFeatures" value="true" />

@@ -93,7 +93,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         //.cflag("-g")// FIXME: Reenable?
         .cflag("-fPIC");
 
-    if !(cfg!(feature = "M1")) { // only enabled when Mac M1 chip-specific build is not used
+    if !(cfg!(feature = "m1")) { // only enabled when Mac M1 chip-specific build is not used
         config
             .enable("aesni", None)
             .enable("sp", None) // FIXME: Fixes a memory leak?
