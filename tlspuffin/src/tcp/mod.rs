@@ -132,7 +132,7 @@ impl TcpClientPut {
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
         let addr =
-            if cfg!(not(feature = "fixed-port")) {
+            if true { //cfg!(feature = "fixed-port") {
                 addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?
             } else {
                 let host = &put_descriptor.options.get_option("host").unwrap_or("127.0.0.1");
@@ -835,15 +835,32 @@ mod tests {
             options: server_guard.build_options(),
         };
 
+        let client_guard = wolfssl_client(port, TLSVersion::V1_3);
+        let client = PutDescriptor {
+            name: TCP_PUT,
+            options: client_guard.build_options(),
+        };
 
         set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
 
         // Read trace file
         let mut path = env::current_dir().unwrap();
         path.push("../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16");
+        // AGENTNAME 0 and 1 --> OK if only 0 still bug ?
         info!("Accessing trace file at {}",path.display());
         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+        info!("Trace descriptors: {:#?}", trace.descriptors);
+        info!("Trace steps: {:#?}", trace.steps);
+        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
+        // Try to minimize the trace
+     /*   let trace = Trace {
+            steps: vec![trace.steps[0].clone()],
+            ..trace
+          //  descriptors: vec![trace.descriptors[0].clone()],
+          // prior_traces: vec![],
+        };
+*/
         //       trace.descriptors.get_mut(0).unwrap().put_descriptor = server;
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
@@ -851,7 +868,7 @@ mod tests {
 
         let mut context = trace.execute_with_puts(
             &TLS_PUT_REGISTRY,
-            &[(server_name, server.clone())],
+            &[(client_name, client.clone()), (server_name, server.clone())],
         );
 
         let server = AgentName::first();
