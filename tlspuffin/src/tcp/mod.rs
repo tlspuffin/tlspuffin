@@ -849,26 +849,28 @@ mod tests {
         // AGENTNAME 0 and 1 --> OK if only 0 still bug ?
         info!("Accessing trace file at {}",path.display());
         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+
+        let descriptors = &trace.descriptors;
+        let client_name = descriptors[0].name.clone();
+        let server_name = descriptors[1].name.clone();
+
+        // Try to minimize the trace
+        let trace = Trace {
+            steps: vec![trace.steps[0].clone()],
+            descriptors: vec![trace.descriptors[0].clone()],
+            ..trace
+          // prior_traces: vec![],
+        };
+
         info!("Trace descriptors: {:#?}", trace.descriptors);
         info!("Trace steps: {:#?}", trace.steps);
         info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
-        // Try to minimize the trace
-     /*   let trace = Trace {
-            steps: vec![trace.steps[0].clone()],
-            ..trace
-          //  descriptors: vec![trace.descriptors[0].clone()],
-          // prior_traces: vec![],
-        };
-*/
         //       trace.descriptors.get_mut(0).unwrap().put_descriptor = server;
-        let descriptors = &trace.descriptors;
-        let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
 
         let mut context = trace.execute_with_puts(
             &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
+            &[(server_name, server.clone())], //            &[(client_name, client.clone()), (server_name, server.clone())],
         );
 
         let server = AgentName::first();
