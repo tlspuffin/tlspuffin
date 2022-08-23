@@ -151,6 +151,9 @@ introspection = ["puffin/introspection"]
 # enable M1-specific build
 m1 = ["wolfssl-sys/m1", "puffin/m1"]
 
+# TCP: fixed-port to use external TLS libaries over TCP (5000 for server, 50001 for client)
+fixed-port = []
+
 [dependencies]
 
 puffin = { path = "../puffin" }

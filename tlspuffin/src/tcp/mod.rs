@@ -4,6 +4,8 @@
 /// For wolfssl: a folder wolfssl corresponding to the wolf ssl git repository must be at the root
 /// of this repository and the executable examples/server/server and examples/client/client must
 /// be built.
+/// When the flag fixed-port is enabled, the user should open its own client and server instances on
+/// port 5000 for the server and 5001 for the client (TODO: find a 'retry' mode).
 
 use std::{
     ffi::OsStr,
@@ -129,7 +131,14 @@ impl TcpClientPut {
         agent_descriptor: &AgentDescriptor,
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+        let addr =
+            if cfg!(not(feature = "fixed-port")) {
+                addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?
+            } else {
+                let host = &put_descriptor.options.get_option("host").unwrap_or("127.0.0.1");
+                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5001)
+            };
+
         let stream = Self::new_stream(addr)?;
 
         Ok(Self {
@@ -186,7 +195,13 @@ impl TcpServerPut {
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+        let addr =
+            if cfg!(not(feature = "fixed-port")) {
+                addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?
+            } else {
+                let host = &put_descriptor.options.get_option("host").unwrap_or("127.0.0.1");
+                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5000)
+            };
 
         thread::spawn(move || {
             let listener = TcpListener::bind(&addr).unwrap();
@@ -321,7 +336,8 @@ fn take_message_from_outbound<P: TcpPut>(
 fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrParseError> {
     let options = &put_descriptor.options;
     let host = options.get_option("host").unwrap_or("127.0.0.1");
-    let port = options
+    let port =
+        options
         .get_option("port")
         .and_then(|value| u16::from_str(value).ok())
         .expect("Failed to parse port option");
@@ -823,10 +839,6 @@ mod tests {
         set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
 
         // Read trace file
-        // let mut buffer = Vec::new();
-        // input_file.read_to_end(&mut buffer).unwrap();
-        // let mut trace = Trace::<TlsQueryMatcher>::deserialize_postcard(buffer.as_ref()).unwrap();
-        // let mut input_file = File::open(path).unwrap();
         let mut path = env::current_dir().unwrap();
         path.push("../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16");
         info!("Accessing trace file at {}",path.display());
