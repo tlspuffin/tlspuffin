@@ -765,10 +765,10 @@ mod tests {
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 
-    use postcard::{from_bytes, to_vec};
     use std::io::prelude::*;
     use std::fs::File;
     use puffin::algebra::set_deserialize_signature;
+    use puffin::libafl::inputs::Input;
     use puffin::trace::Trace;
     use crate::query::TlsQueryMatcher;
     use crate::tls::TLS_SIGNATURE;
@@ -819,17 +819,18 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let mut path = env::current_dir().unwrap();
-        path.push("../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16");
-        info!("Accessing file at {}",path.display());
-
-        let mut input_file = File::open(path).unwrap();
 
         set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
+
         // Read trace file
-        let mut buffer = Vec::new();
-        input_file.read_to_end(&mut buffer).unwrap();
-        let mut trace = from_bytes::<Trace<TlsQueryMatcher>>(&buffer).unwrap();
+        // let mut buffer = Vec::new();
+        // input_file.read_to_end(&mut buffer).unwrap();
+        // let mut trace = Trace::<TlsQueryMatcher>::deserialize_postcard(buffer.as_ref()).unwrap();
+        // let mut input_file = File::open(path).unwrap();
+        let mut path = env::current_dir().unwrap();
+        path.push("../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16");
+        info!("Accessing trace file at {}",path.display());
+        let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
 
         //       trace.descriptors.get_mut(0).unwrap().put_descriptor = server;
         let descriptors = &trace.descriptors;
