@@ -141,7 +141,7 @@ pub enum TLSVersion {
 pub struct Agent<PB: ProtocolBehavior> {
     name: AgentName,
 
-    put: Box<dyn Put<PB>>,
+    pub put: Box<dyn Put<PB>>,
     put_descriptor: PutDescriptor,
 }
 

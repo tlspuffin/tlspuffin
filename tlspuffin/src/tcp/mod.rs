@@ -1,3 +1,10 @@
+/// PUT over TCP: any TLS-spewaking library can be plugged in through a TCP channel
+/// Two libraries are ready to be tested: openssl and wolfssl
+/// For openssl: an executable "openssl" must be in the path.
+/// For wolfssl: a folder wolfssl corresponding to the wolf ssl git repository must be at the root
+/// of this repository and the executable examples/server/server and examples/client/client must
+/// be built.
+
 use std::{
     ffi::OsStr,
     io,
@@ -10,8 +17,9 @@ use std::{
     thread,
     time::Duration,
 };
+use std::fmt::Debug;
 
-use log::error;
+use log::{error, info};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
@@ -435,7 +443,7 @@ pub struct TLSProcess {
 }
 
 impl TLSProcess {
-    pub fn new<P: AsRef<Path>>(prog: &str, args: &str, cwd: Option<P>) -> Self {
+    pub fn new<P: AsRef<Path> + Debug>(prog: &str, args: &str, cwd: Option<P>) -> Self {
         Self {
             child: Some(execute_command(prog, args.split(' '), cwd)),
             output: None,
@@ -472,12 +480,14 @@ fn collect_output(child: Child) -> String {
     complete
 }
 
-fn execute_command<I, S, P: AsRef<Path>>(prog: &str, args: I, cwd: Option<P>) -> Child
+fn execute_command<I, S, P: AsRef<Path> + Debug>(prog: &str, args: I, cwd: Option<P>) -> Child
 where
-    I: IntoIterator<Item = S>,
+    I: IntoIterator<Item = S> + Debug,
     S: AsRef<OsStr>,
 {
     let mut cmd = Command::new(prog);
+
+    info!("About to execute: {:?} from {:?} with args {:?}", &cwd, &cmd, &args);
 
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
@@ -493,7 +503,7 @@ where
 
 #[cfg(test)]
 mod tests {
-
+    use std::env;
     use log::info;
     use puffin::{
         agent::{AgentName, TLSVersion},
@@ -576,7 +586,8 @@ mod tests {
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
         let prog = "./examples/client/client";
-        let cwd = "/local-homes/lhirschi/tlspuffin/wolfssl";
+        let mut cwd = env::current_dir().unwrap();
+        cwd.push("../wolfssl");
 
         match version {
             TLSVersion::V1_3 => {
@@ -593,7 +604,7 @@ mod tests {
             port,
             prog: prog.to_owned(),
             args: args.join(" "),
-            cwd: Some(cwd.to_owned()),
+            cwd: Some(cwd.to_str().unwrap().to_owned()),
             temp_dir: None,
         }
     }
@@ -604,13 +615,14 @@ mod tests {
         let port_string = port.to_string();
         let args = vec!["-p", &port_string, "-x", "-d"];
         let prog = "./examples/server/server";
-        let cwd = "/local-homes/lhirschi/tlspuffin/wolfssl";
+        let mut cwd = env::current_dir().unwrap();
+        cwd.push("../wolfssl");
 
         ParametersGuard {
             port,
             prog: prog.to_owned(),
             args: args.join(" "),
-            cwd: Some(cwd.to_owned()),
+            cwd: Some(cwd.to_str().unwrap().to_owned()),
             temp_dir: None,
         }
     }
@@ -756,7 +768,11 @@ mod tests {
     use postcard::{from_bytes, to_vec};
     use std::io::prelude::*;
     use std::fs::File;
-    
+    use puffin::algebra::set_deserialize_signature;
+    use puffin::trace::Trace;
+    use crate::query::TlsQueryMatcher;
+    use crate::tls::TLS_SIGNATURE;
+
     #[test]
     fn test_wolfssl_openssl_seed_successful12() {
         let port = 44336;
@@ -766,8 +782,6 @@ mod tests {
             name: TCP_PUT,
             options: server_guard.build_options(),
         };
-
-        let mut input_file = std::fs::File::open("/local-homes/lhirschi/tlspuffin/TRACES/2.trace-16").unwrap();
 
             let client_guard = wolfssl_client(port, TLSVersion::V1_2);
             let client = PutDescriptor {
@@ -794,4 +808,42 @@ mod tests {
 
         info!("{}", shutdown);
     }
+
+    #[test]
+    fn test_wolfssl_buffer_under_read() {
+        let port = 44336;
+
+        let server_guard = wolfssl_server(port);
+        let server = PutDescriptor {
+            name: TCP_PUT,
+            options: server_guard.build_options(),
+        };
+
+        let mut path = env::current_dir().unwrap();
+        path.push("../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16");
+        info!("Accessing file at {}",path.display());
+
+        let mut input_file = File::open(path).unwrap();
+
+        set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
+        // Read trace file
+        let mut buffer = Vec::new();
+        input_file.read_to_end(&mut buffer).unwrap();
+        let mut trace = from_bytes::<Trace<TlsQueryMatcher>>(&buffer).unwrap();
+
+        //       trace.descriptors.get_mut(0).unwrap().put_descriptor = server;
+        let descriptors = &trace.descriptors;
+        let client_name = descriptors[0].name;
+        let server_name = descriptors[1].name;
+
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(server_name, server.clone())],
+        );
+
+        let server = AgentName::first();
+        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        info!("{}", shutdown);
+    }
+
 }
