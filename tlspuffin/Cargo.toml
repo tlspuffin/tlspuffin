@@ -166,7 +166,7 @@ serde = { version = "1.0.137", features = ["derive"] }
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
-
+postcard = "1.0.0"
 
 
 # OpenSSL

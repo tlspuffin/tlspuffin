@@ -576,7 +576,7 @@ mod tests {
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
         let prog = "./examples/client/client";
-        let cwd = "/Users/ehrenamtskarte/projects/wolfssl";
+        let cwd = "/local-homes/lhirschi/tlspuffin/wolfssl";
 
         match version {
             TLSVersion::V1_3 => {
@@ -604,7 +604,7 @@ mod tests {
         let port_string = port.to_string();
         let args = vec!["-p", &port_string, "-x", "-d"];
         let prog = "./examples/server/server";
-        let cwd = "/Users/ehrenamtskarte/projects/wolfssl";
+        let cwd = "/local-homes/lhirschi/tlspuffin/wolfssl";
 
         ParametersGuard {
             port,
@@ -753,8 +753,11 @@ mod tests {
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 
+    use postcard::{from_bytes, to_vec};
+    use std::io::prelude::*;
+    use std::fs::File;
+    
     #[test]
-    //#[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
         let port = 44336;
 
@@ -764,25 +767,8 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let mut input_file = std::fs::File::open("/Users/ehrenamtskarte/Downloads/HEAP-buffer.trace").unwrap();
+        let mut input_file = std::fs::File::open("/local-homes/lhirschi/tlspuffin/TRACES/2.trace-16").unwrap();
 
-        if cfg!(feature = "m1") {
-            // Read trace file
-            let mut buffer = Vec::new();
-            input_file.read_to_end(&mut buffer).unwrap();
-            let trace = postcard::from_bytes::<crate::trace::Trace>(&buffer).unwrap();
-
-            //trace.descriptors.
-
-            //info!("Agents: {:?}", &trace.descriptors);
-
-            //let trace =
-            //    seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
-            let mut context = trace.execute_default();
-
-            let server = AgentName::first();
-            let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
-        } else {
             let client_guard = wolfssl_client(port, TLSVersion::V1_2);
             let client = PutDescriptor {
                 name: TCP_PUT,
@@ -805,7 +791,7 @@ mod tests {
 
             let server = client.next();
             let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        }
+
         info!("{}", shutdown);
     }
 }
