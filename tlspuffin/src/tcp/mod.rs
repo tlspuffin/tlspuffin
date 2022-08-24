@@ -629,7 +629,7 @@ mod tests {
         let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let args = vec!["-p", &port_string, "-x", "-d", ""v4""];
+        let args = vec!["-p", &port_string, "-x", "-d", "-v4"];
         let prog = "./examples/server/server";
         let mut cwd = env::current_dir().unwrap();
         cwd.push("../wolfssl");
