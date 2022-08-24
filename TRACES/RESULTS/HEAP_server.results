@@ -1,0 +1,908 @@
+cargo +nightly test --features wolfssl540,asan --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --lib tcp::tests::test_wolfssl_buffer_under_read_server -- --nocapture --exact &> TRACES/RESULTS/HEAP_server.results
+    Finished test [unoptimized + debuginfo] target(s) in 1.19s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-bf7706b87dd5b39f)
+
+running 1 test
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp] About to execute: "openssl" from None with args ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "/tmp/.tmpQhbLHm/key.pem", "-out", "/tmp/.tmpQhbLHm/cert.pem", "-days", "365", "-nodes", "-subj", "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=..."]
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] --- start stderr
+    Generating a RSA private key
+    ..........+++++
+    ............................+++++
+    writing new private key to '/tmp/.tmpQhbLHm/key.pem'
+    -----
+    
+    --- end stderr
+    --- start stdout
+    
+    --- end stdout
+    
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] Accessing trace file at /local-homes/lhirschi/tlspuffin/tlspuffin/../TRACES/HEAP_server.trace
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] Trace descriptors: [
+        AgentDescriptor {
+            name: AgentName(
+                0,
+            ),
+            tls_version: V1_3,
+            typ: Server,
+            try_reuse: false,
+            client_authentication: false,
+            server_authentication: true,
+        },
+    ]
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] Trace steps number: 1
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] Trace steps: [
+        Step {
+            agent: AgentName(
+                0,
+            ),
+            action: Input(
+                InputAction {
+                    recipe: Application(
+                        Function {
+                            unique_id: 2937426078,
+                            resistant_id: 1013421469,
+                            fn_container: FnContainer {
+                                shape: DynamicFunctionShape {
+                                    name: "tlspuffin::tls::fn_impl::fn_messages::fn_client_hello",
+                                    argument_types: [
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 1216763452958378553,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::enums::ProtocolVersion",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 7523282372567593621,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::handshake::Random",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 10552288605089886461,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::handshake::SessionID",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 13707093858368752771,
+                                            },
+                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::enums::CipherSuite>",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 12546148024370105072,
+                                            },
+                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::enums::Compression>",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 2146411407982405511,
+                                            },
+                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                        },
+                                    ],
+                                    return_type: TypeShape {
+                                        inner_type_id: TypeId {
+                                            t: 13676096548466482562,
+                                        },
+                                        name: "tlspuffin::tls::rustls::msgs::message::Message",
+                                    },
+                                },
+                                dynamic_fn: DynamicFunction,
+                            },
+                        },
+                        [
+                            Application(
+                                Function {
+                                    unique_id: 2759903698,
+                                    resistant_id: 821153800,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_protocol_version12",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 1216763452958378553,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::enums::ProtocolVersion",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 1055771183,
+                                    resistant_id: 3764401534,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_new_random",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 7523282372567593621,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::handshake::Random",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 3042200756,
+                                    resistant_id: 548025990,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_new_session_id",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 10552288605089886461,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::handshake::SessionID",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 805770556,
+                                    resistant_id: 3476488389,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_new_cipher_suites",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 13707093858368752771,
+                                                },
+                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::enums::CipherSuite>",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 1304582127,
+                                    resistant_id: 128804583,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_compressions",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 12546148024370105072,
+                                                },
+                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::enums::Compression>",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 3045180011,
+                                    resistant_id: 1360751200,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                            argument_types: [
+                                                TypeShape {
+                                                    inner_type_id: TypeId {
+                                                        t: 2146411407982405511,
+                                                    },
+                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                },
+                                                TypeShape {
+                                                    inner_type_id: TypeId {
+                                                        t: 15525883360501364477,
+                                                    },
+                                                    name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                },
+                                            ],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 2146411407982405511,
+                                                },
+                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [
+                                    Application(
+                                        Function {
+                                            unique_id: 1321502301,
+                                            resistant_id: 1360751200,
+                                            fn_container: FnContainer {
+                                                shape: DynamicFunctionShape {
+                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                    argument_types: [
+                                                        TypeShape {
+                                                            inner_type_id: TypeId {
+                                                                t: 2146411407982405511,
+                                                            },
+                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                        },
+                                                        TypeShape {
+                                                            inner_type_id: TypeId {
+                                                                t: 15525883360501364477,
+                                                            },
+                                                            name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                        },
+                                                    ],
+                                                    return_type: TypeShape {
+                                                        inner_type_id: TypeId {
+                                                            t: 2146411407982405511,
+                                                        },
+                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                    },
+                                                },
+                                                dynamic_fn: DynamicFunction,
+                                            },
+                                        },
+                                        [
+                                            Application(
+                                                Function {
+                                                    unique_id: 233396665,
+                                                    resistant_id: 1564715198,
+                                                    fn_container: FnContainer {
+                                                        shape: DynamicFunctionShape {
+                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                            argument_types: [
+                                                                TypeShape {
+                                                                    inner_type_id: TypeId {
+                                                                        t: 2146411407982405511,
+                                                                    },
+                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                },
+                                                                TypeShape {
+                                                                    inner_type_id: TypeId {
+                                                                        t: 15525883360501364477,
+                                                                    },
+                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                },
+                                                            ],
+                                                            return_type: TypeShape {
+                                                                inner_type_id: TypeId {
+                                                                    t: 2146411407982405511,
+                                                                },
+                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                            },
+                                                        },
+                                                        dynamic_fn: DynamicFunction,
+                                                    },
+                                                },
+                                                [
+                                                    Application(
+                                                        Function {
+                                                            unique_id: 3425180633,
+                                                            resistant_id: 3548622247,
+                                                            fn_container: FnContainer {
+                                                                shape: DynamicFunctionShape {
+                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                    argument_types: [
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 2146411407982405511,
+                                                                            },
+                                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                        },
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 15525883360501364477,
+                                                                            },
+                                                                            name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                        },
+                                                                    ],
+                                                                    return_type: TypeShape {
+                                                                        inner_type_id: TypeId {
+                                                                            t: 2146411407982405511,
+                                                                        },
+                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                    },
+                                                                },
+                                                                dynamic_fn: DynamicFunction,
+                                                            },
+                                                        },
+                                                        [
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 1202444348,
+                                                                    resistant_id: 1360751200,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                            argument_types: [
+                                                                                TypeShape {
+                                                                                    inner_type_id: TypeId {
+                                                                                        t: 2146411407982405511,
+                                                                                    },
+                                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                },
+                                                                                TypeShape {
+                                                                                    inner_type_id: TypeId {
+                                                                                        t: 15525883360501364477,
+                                                                                    },
+                                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                },
+                                                                            ],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 2146411407982405511,
+                                                                                },
+                                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [
+                                                                    Application(
+                                                                        Function {
+                                                                            unique_id: 3797768747,
+                                                                            resistant_id: 1564715198,
+                                                                            fn_container: FnContainer {
+                                                                                shape: DynamicFunctionShape {
+                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                                    argument_types: [
+                                                                                        TypeShape {
+                                                                                            inner_type_id: TypeId {
+                                                                                                t: 2146411407982405511,
+                                                                                            },
+                                                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                        },
+                                                                                        TypeShape {
+                                                                                            inner_type_id: TypeId {
+                                                                                                t: 15525883360501364477,
+                                                                                            },
+                                                                                            name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                        },
+                                                                                    ],
+                                                                                    return_type: TypeShape {
+                                                                                        inner_type_id: TypeId {
+                                                                                            t: 2146411407982405511,
+                                                                                        },
+                                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                    },
+                                                                                },
+                                                                                dynamic_fn: DynamicFunction,
+                                                                            },
+                                                                        },
+                                                                        [
+                                                                            Application(
+                                                                                Function {
+                                                                                    unique_id: 2033473086,
+                                                                                    resistant_id: 1360751200,
+                                                                                    fn_container: FnContainer {
+                                                                                        shape: DynamicFunctionShape {
+                                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                                            argument_types: [
+                                                                                                TypeShape {
+                                                                                                    inner_type_id: TypeId {
+                                                                                                        t: 2146411407982405511,
+                                                                                                    },
+                                                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                },
+                                                                                                TypeShape {
+                                                                                                    inner_type_id: TypeId {
+                                                                                                        t: 15525883360501364477,
+                                                                                                    },
+                                                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                },
+                                                                                            ],
+                                                                                            return_type: TypeShape {
+                                                                                                inner_type_id: TypeId {
+                                                                                                    t: 2146411407982405511,
+                                                                                                },
+                                                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                            },
+                                                                                        },
+                                                                                        dynamic_fn: DynamicFunction,
+                                                                                    },
+                                                                                },
+                                                                                [
+                                                                                    Application(
+                                                                                        Function {
+                                                                                            unique_id: 3923071166,
+                                                                                            resistant_id: 1360751200,
+                                                                                            fn_container: FnContainer {
+                                                                                                shape: DynamicFunctionShape {
+                                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                                                    argument_types: [
+                                                                                                        TypeShape {
+                                                                                                            inner_type_id: TypeId {
+                                                                                                                t: 2146411407982405511,
+                                                                                                            },
+                                                                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                        },
+                                                                                                        TypeShape {
+                                                                                                            inner_type_id: TypeId {
+                                                                                                                t: 15525883360501364477,
+                                                                                                            },
+                                                                                                            name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                        },
+                                                                                                    ],
+                                                                                                    return_type: TypeShape {
+                                                                                                        inner_type_id: TypeId {
+                                                                                                            t: 2146411407982405511,
+                                                                                                        },
+                                                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                    },
+                                                                                                },
+                                                                                                dynamic_fn: DynamicFunction,
+                                                                                            },
+                                                                                        },
+                                                                                        [
+                                                                                            Application(
+                                                                                                Function {
+                                                                                                    unique_id: 777172959,
+                                                                                                    resistant_id: 1564715198,
+                                                                                                    fn_container: FnContainer {
+                                                                                                        shape: DynamicFunctionShape {
+                                                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append",
+                                                                                                            argument_types: [
+                                                                                                                TypeShape {
+                                                                                                                    inner_type_id: TypeId {
+                                                                                                                        t: 2146411407982405511,
+                                                                                                                    },
+                                                                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                                },
+                                                                                                                TypeShape {
+                                                                                                                    inner_type_id: TypeId {
+                                                                                                                        t: 15525883360501364477,
+                                                                                                                    },
+                                                                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                                },
+                                                                                                            ],
+                                                                                                            return_type: TypeShape {
+                                                                                                                inner_type_id: TypeId {
+                                                                                                                    t: 2146411407982405511,
+                                                                                                                },
+                                                                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                            },
+                                                                                                        },
+                                                                                                        dynamic_fn: DynamicFunction,
+                                                                                                    },
+                                                                                                },
+                                                                                                [
+                                                                                                    Application(
+                                                                                                        Function {
+                                                                                                            unique_id: 3583810723,
+                                                                                                            resistant_id: 831808236,
+                                                                                                            fn_container: FnContainer {
+                                                                                                                shape: DynamicFunctionShape {
+                                                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_new",
+                                                                                                                    argument_types: [],
+                                                                                                                    return_type: TypeShape {
+                                                                                                                        inner_type_id: TypeId {
+                                                                                                                            t: 2146411407982405511,
+                                                                                                                        },
+                                                                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::ClientExtension>",
+                                                                                                                    },
+                                                                                                                },
+                                                                                                                dynamic_fn: DynamicFunction,
+                                                                                                            },
+                                                                                                        },
+                                                                                                        [],
+                                                                                                    ),
+                                                                                                    Application(
+                                                                                                        Function {
+                                                                                                            unique_id: 2523655222,
+                                                                                                            resistant_id: 1389201808,
+                                                                                                            fn_container: FnContainer {
+                                                                                                                shape: DynamicFunctionShape {
+                                                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_client_extension",
+                                                                                                                    argument_types: [],
+                                                                                                                    return_type: TypeShape {
+                                                                                                                        inner_type_id: TypeId {
+                                                                                                                            t: 15525883360501364477,
+                                                                                                                        },
+                                                                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                                    },
+                                                                                                                },
+                                                                                                                dynamic_fn: DynamicFunction,
+                                                                                                            },
+                                                                                                        },
+                                                                                                        [],
+                                                                                                    ),
+                                                                                                ],
+                                                                                            ),
+                                                                                            Application(
+                                                                                                Function {
+                                                                                                    unique_id: 614443185,
+                                                                                                    resistant_id: 2612324733,
+                                                                                                    fn_container: FnContainer {
+                                                                                                        shape: DynamicFunctionShape {
+                                                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_early_data_extension",
+                                                                                                            argument_types: [],
+                                                                                                            return_type: TypeShape {
+                                                                                                                inner_type_id: TypeId {
+                                                                                                                    t: 15525883360501364477,
+                                                                                                                },
+                                                                                                                name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                            },
+                                                                                                        },
+                                                                                                        dynamic_fn: DynamicFunction,
+                                                                                                    },
+                                                                                                },
+                                                                                                [],
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                    Application(
+                                                                                        Function {
+                                                                                            unique_id: 66856331,
+                                                                                            resistant_id: 2335699139,
+                                                                                            fn_container: FnContainer {
+                                                                                                shape: DynamicFunctionShape {
+                                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_draft_extension",
+                                                                                                    argument_types: [
+                                                                                                        TypeShape {
+                                                                                                            inner_type_id: TypeId {
+                                                                                                                t: 12503254427005707468,
+                                                                                                            },
+                                                                                                            name: "alloc::vec::Vec<u8>",
+                                                                                                        },
+                                                                                                    ],
+                                                                                                    return_type: TypeShape {
+                                                                                                        inner_type_id: TypeId {
+                                                                                                            t: 15525883360501364477,
+                                                                                                        },
+                                                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                                    },
+                                                                                                },
+                                                                                                dynamic_fn: DynamicFunction,
+                                                                                            },
+                                                                                        },
+                                                                                        [
+                                                                                            Application(
+                                                                                                Function {
+                                                                                                    unique_id: 1071240813,
+                                                                                                    resistant_id: 3841342370,
+                                                                                                    fn_container: FnContainer {
+                                                                                                        shape: DynamicFunctionShape {
+                                                                                                            name: "tlspuffin::tls::fn_impl::fn_cert::fn_bob_key",
+                                                                                                            argument_types: [],
+                                                                                                            return_type: TypeShape {
+                                                                                                                inner_type_id: TypeId {
+                                                                                                                    t: 12503254427005707468,
+                                                                                                                },
+                                                                                                                name: "alloc::vec::Vec<u8>",
+                                                                                                            },
+                                                                                                        },
+                                                                                                        dynamic_fn: DynamicFunction,
+                                                                                                    },
+                                                                                                },
+                                                                                                [],
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                            Application(
+                                                                                Function {
+                                                                                    unique_id: 3243918587,
+                                                                                    resistant_id: 5379848,
+                                                                                    fn_container: FnContainer {
+                                                                                        shape: DynamicFunctionShape {
+                                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_support_group_extension",
+                                                                                            argument_types: [
+                                                                                                TypeShape {
+                                                                                                    inner_type_id: TypeId {
+                                                                                                        t: 11961330944719769912,
+                                                                                                    },
+                                                                                                    name: "tlspuffin::tls::rustls::msgs::enums::NamedGroup",
+                                                                                                },
+                                                                                            ],
+                                                                                            return_type: TypeShape {
+                                                                                                inner_type_id: TypeId {
+                                                                                                    t: 15525883360501364477,
+                                                                                                },
+                                                                                                name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                            },
+                                                                                        },
+                                                                                        dynamic_fn: DynamicFunction,
+                                                                                    },
+                                                                                },
+                                                                                [
+                                                                                    Application(
+                                                                                        Function {
+                                                                                            unique_id: 2017239138,
+                                                                                            resistant_id: 1288958089,
+                                                                                            fn_container: FnContainer {
+                                                                                                shape: DynamicFunctionShape {
+                                                                                                    name: "tlspuffin::tls::fn_impl::fn_utils::fn_named_group_secp384r1",
+                                                                                                    argument_types: [],
+                                                                                                    return_type: TypeShape {
+                                                                                                        inner_type_id: TypeId {
+                                                                                                            t: 11961330944719769912,
+                                                                                                        },
+                                                                                                        name: "tlspuffin::tls::rustls::msgs::enums::NamedGroup",
+                                                                                                    },
+                                                                                                },
+                                                                                                dynamic_fn: DynamicFunction,
+                                                                                            },
+                                                                                        },
+                                                                                        [],
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    Application(
+                                                                        Function {
+                                                                            unique_id: 382930233,
+                                                                            resistant_id: 3156352880,
+                                                                            fn_container: FnContainer {
+                                                                                shape: DynamicFunctionShape {
+                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_signature_algorithm_extension",
+                                                                                    argument_types: [],
+                                                                                    return_type: TypeShape {
+                                                                                        inner_type_id: TypeId {
+                                                                                            t: 15525883360501364477,
+                                                                                        },
+                                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                                    },
+                                                                                },
+                                                                                dynamic_fn: DynamicFunction,
+                                                                            },
+                                                                        },
+                                                                        [],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 416994520,
+                                                                    resistant_id: 3902599673,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_server_name_extension",
+                                                                            argument_types: [],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 15525883360501364477,
+                                                                                },
+                                                                                name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    Application(
+                                                        Function {
+                                                            unique_id: 1688208145,
+                                                            resistant_id: 1389201808,
+                                                            fn_container: FnContainer {
+                                                                shape: DynamicFunctionShape {
+                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_client_extension",
+                                                                    argument_types: [],
+                                                                    return_type: TypeShape {
+                                                                        inner_type_id: TypeId {
+                                                                            t: 15525883360501364477,
+                                                                        },
+                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                                    },
+                                                                },
+                                                                dynamic_fn: DynamicFunction,
+                                                            },
+                                                        },
+                                                        [],
+                                                    ),
+                                                ],
+                                            ),
+                                            Application(
+                                                Function {
+                                                    unique_id: 476541896,
+                                                    resistant_id: 2612324733,
+                                                    fn_container: FnContainer {
+                                                        shape: DynamicFunctionShape {
+                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_early_data_extension",
+                                                            argument_types: [],
+                                                            return_type: TypeShape {
+                                                                inner_type_id: TypeId {
+                                                                    t: 15525883360501364477,
+                                                                },
+                                                                name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                            },
+                                                        },
+                                                        dynamic_fn: DynamicFunction,
+                                                    },
+                                                },
+                                                [],
+                                            ),
+                                        ],
+                                    ),
+                                    Application(
+                                        Function {
+                                            unique_id: 2128965178,
+                                            resistant_id: 2335699139,
+                                            fn_container: FnContainer {
+                                                shape: DynamicFunctionShape {
+                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_draft_extension",
+                                                    argument_types: [
+                                                        TypeShape {
+                                                            inner_type_id: TypeId {
+                                                                t: 12503254427005707468,
+                                                            },
+                                                            name: "alloc::vec::Vec<u8>",
+                                                        },
+                                                    ],
+                                                    return_type: TypeShape {
+                                                        inner_type_id: TypeId {
+                                                            t: 15525883360501364477,
+                                                        },
+                                                        name: "tlspuffin::tls::rustls::msgs::handshake::ClientExtension",
+                                                    },
+                                                },
+                                                dynamic_fn: DynamicFunction,
+                                            },
+                                        },
+                                        [
+                                            Application(
+                                                Function {
+                                                    unique_id: 320598516,
+                                                    resistant_id: 3841342370,
+                                                    fn_container: FnContainer {
+                                                        shape: DynamicFunctionShape {
+                                                            name: "tlspuffin::tls::fn_impl::fn_cert::fn_bob_key",
+                                                            argument_types: [],
+                                                            return_type: TypeShape {
+                                                                inner_type_id: TypeId {
+                                                                    t: 12503254427005707468,
+                                                                },
+                                                                name: "alloc::vec::Vec<u8>",
+                                                            },
+                                                        },
+                                                        dynamic_fn: DynamicFunction,
+                                                    },
+                                                },
+                                                [],
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                },
+            ),
+        },
+    ]
+[2022-08-24T14:04:05Z INFO  tlspuffin::tcp::tests] Trace prior steps: []
+               -------------------
+    
+[2022-08-24T14:04:05Z INFO  puffin::agent] [Agent::new] spawning a new agent:
+    AgentDescriptor: AgentDescriptor { name: AgentName(0), tls_version: V1_3, typ: Server, try_reuse: false, client_authentication: false, server_authentication: true }
+    Factory name/version: PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']),"5.4.0"
+=================================================================
+==347376==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6290000191fb at pc 0x561c3c5de3e7 bp 0x7f2dc26f8150 sp 0x7f2dc26f7920
+READ of size 16529 at 0x6290000191fb thread T1 (tcp::tests::tes)
+    #0 0x561c3c5de3e6 in __asan_memcpy /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_interceptors_memintrinsics.cpp:22:3
+    #1 0x561c3d45d19a in AddPacketInfo /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:23818:21
+    #2 0x561c3d5b3ae3 in DoTls13HandShakeMsgType /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:9331:9
+    #3 0x561c3d5c3466 in DoTls13HandShakeMsg /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:9658:15
+    #4 0x561c3d44f35b in ProcessReplyEx /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18770:31
+    #5 0x561c3d4496ad in ProcessReply /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18061:12
+    #6 0x561c3d510905 in wolfSSL_accept /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:12556:36
+    #7 0x561c3d53bebf in wolfSSL_ex_wrapper /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14501:19
+    #8 0x561c3d53ce30 in wolfSSL_accept_ex /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14565:16
+    #9 0x561c3c716dd7 in wolfssl::ssl::SslStream$LT$S$GT$::do_handshake::hee5d79c04a15881e /local-homes/lhirschi/tlspuffin/crates/wolfssl/src/ssl.rs:749:13
+    #10 0x561c3cb31acf in _$LT$tlspuffin..wolfssl..WolfSSL$u20$as$u20$puffin..put..Put$LT$tlspuffin..protocol..TLSProtocolBehavior$GT$$GT$::progress::h7b9d9f1b308bca91 /local-homes/lhirschi/tlspuffin/tlspuffin/src/wolfssl/mod.rs:190:43
+    #11 0x561c3ce1c4a3 in puffin::trace::TraceContext$LT$PB$GT$::next_state::h97e19d05a8ac1701 /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:218:9
+    #12 0x561c3ce17ff2 in puffin::trace::InputAction$LT$M$GT$::input::h4924e0929ef98a9c /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:594:9
+    #13 0x561c3ce1080f in puffin::trace::Action$LT$M$GT$::execute::hbc872923ff0c522f /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:461:37
+    #14 0x561c3ce0fcba in puffin::trace::Trace$LT$M$GT$::execute::h7ff7497ebf8efc0f /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:358:13
+    #15 0x561c3ce0e1c6 in puffin::trace::Trace$LT$M$GT$::execute_with_puts::h10c36fe3c5728bac /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:403:9
+    #16 0x561c3c68d3cf in tlspuffin::tcp::tests::test_wolfssl_buffer_under_read_server::test_impl::h108c1d6e5d270b14 /local-homes/lhirschi/tlspuffin/tlspuffin/src/tcp/mod.rs:922:27
+    #17 0x561c3c68af5a in tlspuffin::tcp::tests::test_wolfssl_buffer_under_read_server::h23cc6b0b5458ffee /local-homes/lhirschi/tlspuffin/tlspuffin/src/tcp/mod.rs:882:5
+    #18 0x561c3c7805a9 in tlspuffin::tcp::tests::test_wolfssl_buffer_under_read_server::_$u7b$$u7b$closure$u7d$$u7d$::h1daddd46f1c0b153 /local-homes/lhirschi/tlspuffin/tlspuffin/src/tcp/mod.rs:882:5
+    #19 0x561c3c89118f in core::ops::function::FnOnce::call_once::hffa0407c96dc4142 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/ops/function.rs:248:5
+    #20 0x561c3d34dee2 in core::ops::function::FnOnce::call_once::hc35e303045156fca /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/ops/function.rs:248:5
+    #21 0x561c3d34dee2 in test::__rust_begin_short_backtrace::h09d08b76c5d492e8 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/test/src/lib.rs:572:5
+    #22 0x561c3d34cc2b in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h6a599905d752010b /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/alloc/src/boxed.rs:1934:9
+    #23 0x561c3d34cc2b in _$LT$core..panic..unwind_safe..AssertUnwindSafe$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$$LP$$RP$$GT$$GT$::call_once::h797213f290a9bb2e /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/panic/unwind_safe.rs:271:9
+    #24 0x561c3d34cc2b in std::panicking::try::do_call::h2c7d81ea8256b187 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panicking.rs:492:40
+    #25 0x561c3d34cc2b in std::panicking::try::hae756f5d43b729e4 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panicking.rs:456:19
+    #26 0x561c3d34cc2b in std::panic::catch_unwind::h1a82ffbff3c4c1dd /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panic.rs:137:14
+    #27 0x561c3d34cc2b in test::run_test_in_process::h5aac7a47924f7cb2 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/test/src/lib.rs:595:18
+    #28 0x561c3d34cc2b in test::run_test::run_test_inner::_$u7b$$u7b$closure$u7d$$u7d$::h4116d72af3967b31 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/test/src/lib.rs:489:39
+    #29 0x561c3d3177fb in test::run_test::run_test_inner::_$u7b$$u7b$closure$u7d$$u7d$::h6500ab248c00a8ea /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/test/src/lib.rs:516:37
+    #30 0x561c3d3177fb in std::sys_common::backtrace::__rust_begin_short_backtrace::h3c5f6278359e805b /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/sys_common/backtrace.rs:122:18
+    #31 0x561c3d31d16e in std::thread::Builder::spawn_unchecked_::_$u7b$$u7b$closure$u7d$$u7d$::_$u7b$$u7b$closure$u7d$$u7d$::h34a765610b13e8de /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/thread/mod.rs:505:17
+    #32 0x561c3d31d16e in _$LT$core..panic..unwind_safe..AssertUnwindSafe$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$$LP$$RP$$GT$$GT$::call_once::hb12c781433c5a16f /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/panic/unwind_safe.rs:271:9
+    #33 0x561c3d31d16e in std::panicking::try::do_call::hf5be9c996899117c /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panicking.rs:492:40
+    #34 0x561c3d31d16e in std::panicking::try::h066cacaf8d27e44c /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panicking.rs:456:19
+    #35 0x561c3d31d16e in std::panic::catch_unwind::hb2f25d0b27ac9fbf /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/panic.rs:137:14
+    #36 0x561c3d31d16e in std::thread::Builder::spawn_unchecked_::_$u7b$$u7b$closure$u7d$$u7d$::hb920cf261c8e2003 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/thread/mod.rs:504:30
+    #37 0x561c3d31d16e in core::ops::function::FnOnce::call_once$u7b$$u7b$vtable.shim$u7d$$u7d$::h952dc82e845bf83f /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/ops/function.rs:248:5
+    #38 0x561c3f9e1b12 in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h61f0f1c34a8323f2 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/alloc/src/boxed.rs:1934:9
+    #39 0x561c3f9e1b12 in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h6bf6af2815173653 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/alloc/src/boxed.rs:1934:9
+    #40 0x561c3f9e1b12 in std::sys::unix::thread::Thread::new::thread_start::h352443937c681419 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/sys/unix/thread.rs:108:17
+    #41 0x7f2dc47c8608 in start_thread /build/glibc-SzIz7B/glibc-2.31/nptl/pthread_create.c:477:8
+    #42 0x7f2dc4596132 in clone /build/glibc-SzIz7B/glibc-2.31/misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+0x6290000191fb is located 5 bytes to the left of 16524-byte region [0x629000019200,0x62900001d28c)
+allocated by thread T1 (tcp::tests::tes) here:
+    #0 0x561c3c5deece in malloc /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_malloc_linux.cpp:69:3
+    #1 0x561c3d3f2a91 in wolfSSL_Malloc /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/wolfcrypt/src/memory.c:293:15
+    #2 0x561c3d422e5d in GrowInputBuffer /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:9571:18
+    #3 0x561c3d45309b in GetInputData /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:17893:13
+    #4 0x561c3d44a8c6 in ProcessReplyEx /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18276:28
+    #5 0x561c3d4496ad in ProcessReply /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18061:12
+    #6 0x561c3d510905 in wolfSSL_accept /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:12556:36
+    #7 0x561c3d53bebf in wolfSSL_ex_wrapper /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14501:19
+    #8 0x561c3d53ce30 in wolfSSL_accept_ex /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14565:16
+    #9 0x561c3c716dd7 in wolfssl::ssl::SslStream$LT$S$GT$::do_handshake::hee5d79c04a15881e /local-homes/lhirschi/tlspuffin/crates/wolfssl/src/ssl.rs:749:13
+    #10 0x561c3cb31acf in _$LT$tlspuffin..wolfssl..WolfSSL$u20$as$u20$puffin..put..Put$LT$tlspuffin..protocol..TLSProtocolBehavior$GT$$GT$::progress::h7b9d9f1b308bca91 /local-homes/lhirschi/tlspuffin/tlspuffin/src/wolfssl/mod.rs:190:43
+    #11 0x561c3ce1c4a3 in puffin::trace::TraceContext$LT$PB$GT$::next_state::h97e19d05a8ac1701 /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:218:9
+    #12 0x561c3ce17ff2 in puffin::trace::InputAction$LT$M$GT$::input::h4924e0929ef98a9c /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:594:9
+    #13 0x561c3ce1080f in puffin::trace::Action$LT$M$GT$::execute::hbc872923ff0c522f /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:461:37
+    #14 0x561c3ce0e1c6 in puffin::trace::Trace$LT$M$GT$::execute_with_puts::h10c36fe3c5728bac /local-homes/lhirschi/tlspuffin/puffin/src/trace.rs:403:9
+    #15 0x561c3c68d3cf in tlspuffin::tcp::tests::test_wolfssl_buffer_under_read_server::test_impl::h108c1d6e5d270b14 /local-homes/lhirschi/tlspuffin/tlspuffin/src/tcp/mod.rs:922:27
+    #16 0x561c3c68af5a in tlspuffin::tcp::tests::test_wolfssl_buffer_under_read_server::h23cc6b0b5458ffee /local-homes/lhirschi/tlspuffin/tlspuffin/src/tcp/mod.rs:882:5
+    #17 0x561c3d34dee2 in core::ops::function::FnOnce::call_once::hc35e303045156fca /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/ops/function.rs:248:5
+    #18 0x561c3d34dee2 in test::__rust_begin_short_backtrace::h09d08b76c5d492e8 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/test/src/lib.rs:572:5
+
+Thread T1 (tcp::tests::tes) created by T0 here:
+    #0 0x561c3c5c861c in pthread_create /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_interceptors.cpp:208:3
+    #1 0x561c3f9e1981 in std::sys::unix::thread::Thread::new::hbb2a6a987c8bc66f /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/std/src/sys/unix/thread.rs:87:19
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_interceptors_memintrinsics.cpp:22:3 in __asan_memcpy
+Shadow bytes around the buggy address:
+  0x0c527fffb1e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c527fffb1f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c527fffb200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c527fffb210: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x0c527fffb220: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+=>0x0c527fffb230: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa[fa]
+  0x0c527fffb240: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c527fffb250: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c527fffb260: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c527fffb270: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0c527fffb280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==347376==ABORTING
+error: test failed, to rerun pass '-p tlspuffin --lib'
+
+Caused by:
+  process didn't exit successfully: `/local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-bf7706b87dd5b39f 'tcp::tests::test_wolfssl_buffer_under_read_server' --nocapture --exact` (signal: 6, SIGABRT: process abort signal)
+d82b1259a2529003ec322041ac436934b18355d0

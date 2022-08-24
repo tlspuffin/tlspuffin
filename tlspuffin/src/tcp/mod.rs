@@ -854,9 +854,6 @@ mod tests {
         // AGENTNAME 0 and 1 --> OK if only 0 still bug ?
         info!("Accessing trace file at {}",path.display());
         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
-        info!("Trace descriptors: {:#?}", trace.descriptors);
-        info!("Trace steps: {:#?}", trace.steps);
-        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
         // Try to minimize the trace
        let trace = Trace {
@@ -865,6 +862,11 @@ mod tests {
             ..trace
           // prior_traces: vec![],
         };
+
+        info!("Trace descriptors: {:#?}", trace.descriptors);
+        info!("Trace steps number: {:#?}", trace.steps.len());
+        info!("Trace steps: {:#?}", trace.steps);
+        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
