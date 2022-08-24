@@ -5,6 +5,7 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
+use log::info;
 
 use serde::{Deserialize, Serialize};
 
@@ -168,6 +169,9 @@ impl<PB: ProtocolBehavior> Agent<PB> {
             put: stream,
             put_descriptor,
         };
+
+        info!("[Agent::new] spawning a new agent:\nAgentDescriptor: {:?}\nFactory name/version: {:?},{:?}",
+            agent_descriptor, factory.name(), factory.version());
 
         Ok(agent)
     }

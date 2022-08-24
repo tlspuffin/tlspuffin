@@ -503,7 +503,7 @@ where
 {
     let mut cmd = Command::new(prog);
 
-    info!("About to execute: {:?} from {:?} with args {:?}", &cwd, &cmd, &args);
+    info!("About to execute: {:?} from {:?} with args {:?}", &cmd, &cwd, &args);
 
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
@@ -600,7 +600,7 @@ mod tests {
         let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
+        let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d", "-v4"];
         let prog = "./examples/client/client";
         let mut cwd = env::current_dir().unwrap();
         cwd.push("../wolfssl");
@@ -629,7 +629,7 @@ mod tests {
         let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let args = vec!["-p", &port_string, "-x", "-d"];
+        let args = vec!["-p", &port_string, "-x", "-d", ""v4""];
         let prog = "./examples/server/server";
         let mut cwd = env::current_dir().unwrap();
         cwd.push("../wolfssl");
@@ -854,26 +854,23 @@ mod tests {
         info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
         // Try to minimize the trace
-     /*   let trace = Trace {
+       let trace = Trace {
             steps: vec![trace.steps[0].clone()],
+            descriptors: vec![trace.descriptors[0].clone()],
             ..trace
-          //  descriptors: vec![trace.descriptors[0].clone()],
           // prior_traces: vec![],
         };
-*/
-        //       trace.descriptors.get_mut(0).unwrap().put_descriptor = server;
+
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
-
+      //  let server_name = descriptors[1].name;
         let mut context = trace.execute_with_puts(
             &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
+            &[(client_name, client.clone())], //, (server_name, server.clone())],  // Use en empty array here instead to not change the PUT
         );
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
         info!("{}", shutdown);
     }
-
 }
