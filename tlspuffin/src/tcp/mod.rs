@@ -133,11 +133,11 @@ impl TcpClientPut {
         put_descriptor: &PutDescriptor,
     ) -> Result<Self, Error> {
         let addr =
-            if true { //cfg!(feature = "fixed-port") {
+            if cfg!(not(feature = "fixed-port")) {
                 addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?
             } else {
                 let host = &put_descriptor.options.get_option("host").unwrap_or("127.0.0.1");
-                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5001)
+                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5011)
             };
 
         let stream = Self::new_stream(addr)?;
@@ -201,7 +201,7 @@ impl TcpServerPut {
                 addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?
             } else {
                 let host = &put_descriptor.options.get_option("host").unwrap_or("127.0.0.1");
-                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5000)
+                SocketAddr::new(IpAddr::from_str(host).unwrap(), 5010 as u16)
             };
 
         thread::spawn(move || {
@@ -855,9 +855,6 @@ mod tests {
         // AGENTNAME 0 and 1 --> OK if only 0 still bug ?
         info!("Accessing trace file at {}",path.display());
         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
-        info!("Trace descriptors: {:#?}", trace.descriptors);
-        info!("Trace steps: {:#?}", trace.steps);
-        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
 
         // Try to minimize the trace
        let trace = Trace {
@@ -867,12 +864,67 @@ mod tests {
           // prior_traces: vec![],
         };
 
+        info!("Trace descriptors: {:#?}", trace.descriptors);
+        info!("Trace steps number: {:#?}", trace.steps.len());
+        info!("Trace steps: {:#?}", trace.steps);
+        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
+
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
       //  let server_name = descriptors[1].name;
         let mut context = trace.execute_with_puts(
             &TLS_PUT_REGISTRY,
             &[(client_name, client.clone())], //, (server_name, server.clone())],  // Use en empty array here instead to not change the PUT
+        );
+
+        let server = AgentName::first();
+        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        info!("{}", shutdown);
+    }
+
+    #[test]
+    fn test_wolfssl_buffer_under_read_server() {
+        // To test this and find the buffer overflow you need to enable CALLBACKS functions.
+        // For example, do the following at the root fo this repo prior to executing this test:
+        // $ git clone --branch debug_buffer_overflow git@github.com:tlspuffin/wolfssl.git
+        // $ cd wolfssl; ./autogen.sh; ./configure --enable-all CFLAGS='-DWOLFSSL_CALLBACKS -fsanitize=address'; make; cd ..
+        // and that's all.
+        let port = 44336;
+
+        let server_guard = wolfssl_server(port);
+        let server = PutDescriptor {
+            name: TCP_PUT,
+            options: server_guard.build_options(),
+        };
+
+        set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
+
+        // Read trace file
+        let mut path = env::current_dir().unwrap();
+        path.push("../TRACES/HEAP_server.trace");
+        // AGENT NAME 0 and 1 --> OK if only 0 still bug ?
+        info!("Accessing trace file at {}",path.display());
+        let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+ 
+        // Try to minimize the trace
+        let trace = Trace {
+            steps: vec![trace.steps[1].clone()],
+            descriptors: vec![trace.descriptors[0].clone()],
+            ..trace
+            // prior_traces: vec![],
+        };
+
+        info!("Trace descriptors: {:#?}", trace.descriptors);
+        info!("Trace steps number: {:#?}", trace.steps.len());
+        info!("Trace steps: {:#?}", trace.steps);
+        info!("Trace prior steps: {:#?}\n           -------------------\n", trace.prior_traces);
+
+	let descriptors = &trace.descriptors;
+        let server_name = descriptors[0].name;
+        //  let server_name = descriptors[1].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[],//(server_name, server.clone())]
         );
 
         let server = AgentName::first();

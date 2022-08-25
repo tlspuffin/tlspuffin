@@ -1,0 +1,1155 @@
+cargo +nightly test --features wolfssl540,asan --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --lib tcp::tests::test_wolfssl_buffer_under_read_client -- --nocapture --exact
+d82b1259a2529003ec322041ac436934b18355d0
+    Finished test [unoptimized + debuginfo] target(s) in 1.14s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-bf7706b87dd5b39f)
+
+running 1 test
+[2022-08-24T14:07:18Z INFO  tlspuffin::tcp] About to execute: "openssl" from None with args ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "/tmp/.tmpcdhx2i/key.pem", "-out", "/tmp/.tmpcdhx2i/cert.pem", "-days", "365", "-nodes", "-subj", "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=..."]
+[2022-08-24T14:07:18Z INFO  tlspuffin::tcp::tests] --- start stderr
+    Generating a RSA private key
+    .......................................................................................................................................+++++
+    .........+++++
+    writing new private key to '/tmp/.tmpcdhx2i/key.pem'
+    -----
+    
+    --- end stderr
+    --- start stdout
+    
+    --- end stdout
+    
+[2022-08-24T14:07:18Z INFO  tlspuffin::tcp] About to execute: "openssl" from None with args ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "/tmp/.tmpcmazMT/key.pem", "-out", "/tmp/.tmpcmazMT/cert.pem", "-days", "365", "-nodes", "-subj", "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=..."]
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] --- start stderr
+    Generating a RSA private key
+    ..........................................................+++++
+    ............................+++++
+    writing new private key to '/tmp/.tmpcmazMT/key.pem'
+    -----
+    
+    --- end stderr
+    --- start stdout
+    
+    --- end stdout
+    
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] Accessing trace file at /local-homes/lhirschi/tlspuffin/tlspuffin/../TRACES/HEAP_BUFFER_UNDER_READ_2022-08-23-114149-Wolfssl540_BUFFER-0_4.trace-16
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] Trace descriptors: [
+        AgentDescriptor {
+            name: AgentName(
+                0,
+            ),
+            tls_version: V1_3,
+            typ: Client,
+            try_reuse: false,
+            client_authentication: false,
+            server_authentication: true,
+        },
+    ]
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] Trace steps number: 1
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] Trace steps: [
+        Step {
+            agent: AgentName(
+                0,
+            ),
+            action: Input(
+                InputAction {
+                    recipe: Application(
+                        Function {
+                            unique_id: 2031830047,
+                            resistant_id: 139826361,
+                            fn_container: FnContainer {
+                                shape: DynamicFunctionShape {
+                                    name: "tlspuffin::tls::fn_impl::fn_messages::fn_hello_retry_request",
+                                    argument_types: [
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 1216763452958378553,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::enums::ProtocolVersion",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 10552288605089886461,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::handshake::SessionID",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 8140235882742646772,
+                                            },
+                                            name: "tlspuffin::tls::rustls::msgs::enums::CipherSuite",
+                                        },
+                                        TypeShape {
+                                            inner_type_id: TypeId {
+                                                t: 13449932409216635894,
+                                            },
+                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                        },
+                                    ],
+                                    return_type: TypeShape {
+                                        inner_type_id: TypeId {
+                                            t: 13676096548466482562,
+                                        },
+                                        name: "tlspuffin::tls::rustls::msgs::message::Message",
+                                    },
+                                },
+                                dynamic_fn: DynamicFunction,
+                            },
+                        },
+                        [
+                            Application(
+                                Function {
+                                    unique_id: 248635411,
+                                    resistant_id: 1003250197,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_protocol_version12",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 1216763452958378553,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::enums::ProtocolVersion",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 3886417816,
+                                    resistant_id: 3715336969,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_new_session_id",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 10552288605089886461,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::handshake::SessionID",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 823308148,
+                                    resistant_id: 2953581847,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_fields::fn_cipher_suite13_aes_128_gcm_sha256",
+                                            argument_types: [],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 8140235882742646772,
+                                                },
+                                                name: "tlspuffin::tls::rustls::msgs::enums::CipherSuite",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [],
+                            ),
+                            Application(
+                                Function {
+                                    unique_id: 2009108061,
+                                    resistant_id: 4046928326,
+                                    fn_container: FnContainer {
+                                        shape: DynamicFunctionShape {
+                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_append",
+                                            argument_types: [
+                                                TypeShape {
+                                                    inner_type_id: TypeId {
+                                                        t: 13449932409216635894,
+                                                    },
+                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                },
+                                                TypeShape {
+                                                    inner_type_id: TypeId {
+                                                        t: 13665322871720272715,
+                                                    },
+                                                    name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                },
+                                            ],
+                                            return_type: TypeShape {
+                                                inner_type_id: TypeId {
+                                                    t: 13449932409216635894,
+                                                },
+                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                            },
+                                        },
+                                        dynamic_fn: DynamicFunction,
+                                    },
+                                },
+                                [
+                                    Application(
+                                        Function {
+                                            unique_id: 1238312663,
+                                            resistant_id: 568394492,
+                                            fn_container: FnContainer {
+                                                shape: DynamicFunctionShape {
+                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_append",
+                                                    argument_types: [
+                                                        TypeShape {
+                                                            inner_type_id: TypeId {
+                                                                t: 13449932409216635894,
+                                                            },
+                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                        },
+                                                        TypeShape {
+                                                            inner_type_id: TypeId {
+                                                                t: 13665322871720272715,
+                                                            },
+                                                            name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                        },
+                                                    ],
+                                                    return_type: TypeShape {
+                                                        inner_type_id: TypeId {
+                                                            t: 13449932409216635894,
+                                                        },
+                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                    },
+                                                },
+                                                dynamic_fn: DynamicFunction,
+                                            },
+                                        },
+                                        [
+                                            Application(
+                                                Function {
+                                                    unique_id: 456606271,
+                                                    resistant_id: 184623432,
+                                                    fn_container: FnContainer {
+                                                        shape: DynamicFunctionShape {
+                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_append",
+                                                            argument_types: [
+                                                                TypeShape {
+                                                                    inner_type_id: TypeId {
+                                                                        t: 13449932409216635894,
+                                                                    },
+                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                },
+                                                                TypeShape {
+                                                                    inner_type_id: TypeId {
+                                                                        t: 13665322871720272715,
+                                                                    },
+                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                },
+                                                            ],
+                                                            return_type: TypeShape {
+                                                                inner_type_id: TypeId {
+                                                                    t: 13449932409216635894,
+                                                                },
+                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                            },
+                                                        },
+                                                        dynamic_fn: DynamicFunction,
+                                                    },
+                                                },
+                                                [
+                                                    Application(
+                                                        Function {
+                                                            unique_id: 3249313529,
+                                                            resistant_id: 3555121008,
+                                                            fn_container: FnContainer {
+                                                                shape: DynamicFunctionShape {
+                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_append",
+                                                                    argument_types: [
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 13449932409216635894,
+                                                                            },
+                                                                            name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                        },
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 13665322871720272715,
+                                                                            },
+                                                                            name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                        },
+                                                                    ],
+                                                                    return_type: TypeShape {
+                                                                        inner_type_id: TypeId {
+                                                                            t: 13449932409216635894,
+                                                                        },
+                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                    },
+                                                                },
+                                                                dynamic_fn: DynamicFunction,
+                                                            },
+                                                        },
+                                                        [
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 1874623652,
+                                                                    resistant_id: 184623432,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_append",
+                                                                            argument_types: [
+                                                                                TypeShape {
+                                                                                    inner_type_id: TypeId {
+                                                                                        t: 13449932409216635894,
+                                                                                    },
+                                                                                    name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                                },
+                                                                                TypeShape {
+                                                                                    inner_type_id: TypeId {
+                                                                                        t: 13665322871720272715,
+                                                                                    },
+                                                                                    name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                                },
+                                                                            ],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 13449932409216635894,
+                                                                                },
+                                                                                name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [
+                                                                    Application(
+                                                                        Function {
+                                                                            unique_id: 217846138,
+                                                                            resistant_id: 630581420,
+                                                                            fn_container: FnContainer {
+                                                                                shape: DynamicFunctionShape {
+                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_new",
+                                                                                    argument_types: [],
+                                                                                    return_type: TypeShape {
+                                                                                        inner_type_id: TypeId {
+                                                                                            t: 13449932409216635894,
+                                                                                        },
+                                                                                        name: "alloc::vec::Vec<tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension>",
+                                                                                    },
+                                                                                },
+                                                                                dynamic_fn: DynamicFunction,
+                                                                            },
+                                                                        },
+                                                                        [],
+                                                                    ),
+                                                                    Application(
+                                                                        Function {
+                                                                            unique_id: 1519381414,
+                                                                            resistant_id: 555795613,
+                                                                            fn_container: FnContainer {
+                                                                                shape: DynamicFunctionShape {
+                                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_cookie_hello_retry_extension",
+                                                                                    argument_types: [
+                                                                                        TypeShape {
+                                                                                            inner_type_id: TypeId {
+                                                                                                t: 12503254427005707468,
+                                                                                            },
+                                                                                            name: "alloc::vec::Vec<u8>",
+                                                                                        },
+                                                                                    ],
+                                                                                    return_type: TypeShape {
+                                                                                        inner_type_id: TypeId {
+                                                                                            t: 13665322871720272715,
+                                                                                        },
+                                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                                    },
+                                                                                },
+                                                                                dynamic_fn: DynamicFunction,
+                                                                            },
+                                                                        },
+                                                                        [
+                                                                            Application(
+                                                                                Function {
+                                                                                    unique_id: 4121064196,
+                                                                                    resistant_id: 2407115545,
+                                                                                    fn_container: FnContainer {
+                                                                                        shape: DynamicFunctionShape {
+                                                                                            name: "tlspuffin::tls::fn_impl::fn_cert::fn_alice_key",
+                                                                                            argument_types: [],
+                                                                                            return_type: TypeShape {
+                                                                                                inner_type_id: TypeId {
+                                                                                                    t: 12503254427005707468,
+                                                                                                },
+                                                                                                name: "alloc::vec::Vec<u8>",
+                                                                                            },
+                                                                                        },
+                                                                                        dynamic_fn: DynamicFunction,
+                                                                                    },
+                                                                                },
+                                                                                [],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 1262744591,
+                                                                    resistant_id: 3639469429,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_hello_retry_extension",
+                                                                            argument_types: [],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 13665322871720272715,
+                                                                                },
+                                                                                name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    Application(
+                                                        Function {
+                                                            unique_id: 3247802186,
+                                                            resistant_id: 555795613,
+                                                            fn_container: FnContainer {
+                                                                shape: DynamicFunctionShape {
+                                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_cookie_hello_retry_extension",
+                                                                    argument_types: [
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 12503254427005707468,
+                                                                            },
+                                                                            name: "alloc::vec::Vec<u8>",
+                                                                        },
+                                                                    ],
+                                                                    return_type: TypeShape {
+                                                                        inner_type_id: TypeId {
+                                                                            t: 13665322871720272715,
+                                                                        },
+                                                                        name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                                    },
+                                                                },
+                                                                dynamic_fn: DynamicFunction,
+                                                            },
+                                                        },
+                                                        [
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 1602542838,
+                                                                    resistant_id: 2407115545,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_cert::fn_alice_key",
+                                                                            argument_types: [],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 12503254427005707468,
+                                                                                },
+                                                                                name: "alloc::vec::Vec<u8>",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                            Application(
+                                                Function {
+                                                    unique_id: 2273961722,
+                                                    resistant_id: 1291644129,
+                                                    fn_container: FnContainer {
+                                                        shape: DynamicFunctionShape {
+                                                            name: "tlspuffin::tls::fn_impl::fn_extensions::fn_cookie_hello_retry_extension",
+                                                            argument_types: [
+                                                                TypeShape {
+                                                                    inner_type_id: TypeId {
+                                                                        t: 12503254427005707468,
+                                                                    },
+                                                                    name: "alloc::vec::Vec<u8>",
+                                                                },
+                                                            ],
+                                                            return_type: TypeShape {
+                                                                inner_type_id: TypeId {
+                                                                    t: 13665322871720272715,
+                                                                },
+                                                                name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                            },
+                                                        },
+                                                        dynamic_fn: DynamicFunction,
+                                                    },
+                                                },
+                                                [
+                                                    Application(
+                                                        Function {
+                                                            unique_id: 1849732655,
+                                                            resistant_id: 3187121659,
+                                                            fn_container: FnContainer {
+                                                                shape: DynamicFunctionShape {
+                                                                    name: "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12",
+                                                                    argument_types: [
+                                                                        TypeShape {
+                                                                            inner_type_id: TypeId {
+                                                                                t: 11961330944719769912,
+                                                                            },
+                                                                            name: "tlspuffin::tls::rustls::msgs::enums::NamedGroup",
+                                                                        },
+                                                                    ],
+                                                                    return_type: TypeShape {
+                                                                        inner_type_id: TypeId {
+                                                                            t: 12503254427005707468,
+                                                                        },
+                                                                        name: "alloc::vec::Vec<u8>",
+                                                                    },
+                                                                },
+                                                                dynamic_fn: DynamicFunction,
+                                                            },
+                                                        },
+                                                        [
+                                                            Application(
+                                                                Function {
+                                                                    unique_id: 2937877161,
+                                                                    resistant_id: 1747946107,
+                                                                    fn_container: FnContainer {
+                                                                        shape: DynamicFunctionShape {
+                                                                            name: "tlspuffin::tls::fn_impl::fn_utils::fn_named_group_secp384r1",
+                                                                            argument_types: [],
+                                                                            return_type: TypeShape {
+                                                                                inner_type_id: TypeId {
+                                                                                    t: 11961330944719769912,
+                                                                                },
+                                                                                name: "tlspuffin::tls::rustls::msgs::enums::NamedGroup",
+                                                                            },
+                                                                        },
+                                                                        dynamic_fn: DynamicFunction,
+                                                                    },
+                                                                },
+                                                                [],
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                    ),
+                                    Application(
+                                        Function {
+                                            unique_id: 3238762960,
+                                            resistant_id: 1356197969,
+                                            fn_container: FnContainer {
+                                                shape: DynamicFunctionShape {
+                                                    name: "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_hello_retry_extension",
+                                                    argument_types: [],
+                                                    return_type: TypeShape {
+                                                        inner_type_id: TypeId {
+                                                            t: 13665322871720272715,
+                                                        },
+                                                        name: "tlspuffin::tls::rustls::msgs::handshake::HelloRetryExtension",
+                                                    },
+                                                },
+                                                dynamic_fn: DynamicFunction,
+                                            },
+                                        },
+                                        [],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                },
+            ),
+        },
+    ]
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] Trace prior steps: []
+               -------------------
+    
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp] About to execute: "./examples/client/client" from Some("/local-homes/lhirschi/tlspuffin/tlspuffin/../wolfssl") with args Split(SplitInternal { start: 0, end: 36, matcher: CharSearcher { haystack: "-h 127.0.0.1 -p 44336 -x -d -v4 -v 4", finger: 0, finger_back: 36, needle: ' ', utf8_size: 1, utf8_encoded: [32, 0, 0, 0] }, allow_trailing_empty: true, finished: false })
+[2022-08-24T14:07:19Z INFO  puffin::agent] [Agent::new] spawning a new agent:
+    AgentDescriptor: AgentDescriptor { name: AgentName(0), tls_version: V1_3, typ: Client, try_reuse: false, client_authentication: false, server_authentication: true }
+    Factory name/version: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),"Undefined"
+[2022-08-24T14:07:19Z INFO  tlspuffin::tcp::tests] --- start stderr
+    wolfSSL Entering wolfSSL_Init
+    wolfSSL Entering wolfCrypt_Init
+    wolfSSL Entering TLSv1_3_client_method_ex
+    wolfSSL Entering wolfSSL_CTX_new_ex
+    wolfSSL Entering wolfSSL_CertManagerNew
+    wolfSSL Entering wolfSSL_CTX_set_verify
+    wolfSSL Entering SSL_CTX_set_mode
+    wolfSSL Entering wolfSSL_CTX_set_min_proto_version
+    wolfSSL Entering wolfSSL_CTX_get_max_proto_version
+    wolfSSL Entering wolfSSL_CTX_get_options
+    wolfSSL options are set through API calls and macros
+    wolfSSL Leaving wolfSSL_CTX_get_max_proto_version, return 772
+    wolfSSL Entering wolfSSL_CTX_set_min_proto_version_ex
+    wolfSSL Entering wolfSSL_CTX_allow_anon_cipher
+    wolfSSL Leaving WOLFSSL_CTX_new, return 0
+    wolfSSL Entering wolfSSL_CTX_set_verify
+    wolfSSL Entering SSL_CTX_set_default_passwd_cb
+    wolfSSL Entering wolfSSL_CTX_set_verify
+    wolfSSL Entering SSL_new
+    wolfSSL Entering wolfSSL_SESSION_set_ex_data
+    wolfSSL Entering ClientSessionToSession
+    wolfSSL Entering wolfSSL_CRYPTO_set_ex_data
+    wolfSSL Leaving SSL_new, return 0
+    wolfSSL Entering EccMakeKey
+    wolfSSL Leaving EccMakeKey, return 0
+    wolfSSL Entering DhGenKeyPair
+    wolfSSL Leaving DhGenKeyPair, return 0
+    wolfSSL Entering SSL_set_fd
+    wolfSSL Entering SSL_set_read_fd
+    wolfSSL Leaving SSL_set_read_fd, return 1
+    wolfSSL Entering SSL_set_write_fd
+    wolfSSL Leaving SSL_set_write_fd, return 1
+    wolfSSL Entering wolfSSL_EnableCRL
+    wolfSSL Entering wolfSSL_CertManagerEnableCRL
+    wolfSSL Entering InitCRL
+    wolfSSL Entering wolfSSL_LoadCRL
+    wolfSSL Entering wolfSSL_CertManagerLoadCRL
+    wolfSSL Entering LoadCRL
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetRevoked
+    wolfSSL Entering wc_GetSerialNumber
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    not .pem file, skipping
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetRevoked
+    wolfSSL Entering wc_GetSerialNumber
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    not .pem file, skipping
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    not .pem file, skipping
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    not .pem file, skipping
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    not .pem file, skipping
+    not .pem file, skipping
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetRevoked
+    wolfSSL Entering wc_GetSerialNumber
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetRevoked
+    wolfSSL Entering wc_GetSerialNumber
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    Getting dynamic buffer
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetRevoked
+    wolfSSL Entering wc_GetSerialNumber
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering BufferLoadCRL
+    wolfSSL Entering PemToDer
+    InitDecodedCRL
+    ParseCRL
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetNameHash
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering GetBasicDate
+    wolfSSL Entering ParseCRL_Extensions
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering ParseCRL_AuthKeyIdExt
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetAlgoId
+    wolfSSL Entering GetObjectId()
+    wolfSSL Entering GetCRL_Signature
+    About to verify CRL signature
+    Did NOT find CRL issuer CA
+    wolfSSL error occurred, error = 190 line:35272 file:wolfcrypt/src/asn.c
+    ParseCRL error
+    FreeDecodedCRL
+    CRL file load failed, continuing
+    wolfSSL Entering wolfSSL_SetCRL_Cb
+    wolfSSL Entering wolfSSL_CertManagerSetCRL_Cb
+    wolfSSL Entering wolfSSL_connect_ex
+    wolfSSL Entering SSL_connect()
+    wolfSSL Entering SendTls13ClientHello
+    Adding signature algorithms extension
+    Adding supported versions extension
+    PSK Key Exchange Modes extension to write
+    Supported Versions extension to write
+    Signature Algorithms extension to write
+    Supported Groups extension to write
+    Encrypt-Then-Mac extension to write
+    Key Share extension to write
+    Session Ticket extension to write
+    [BUG] Start AddPacketInfo
+    
+    sz: 599, type:22, written: 1
+    [BUG] before xmemcpy
+    
+    info->numberPackets: 0, sz: 599
+    data[0]: 
+    wolfSSL Leaving SendTls13ClientHello, return 0
+    connect state: CLIENT_HELLO_SENT
+    growing input buffer
+    received record layer msg
+    got HANDSHAKE
+    wolfSSL Entering wolfSSL_get_options
+    wolfSSL Entering DoTls13HandShakeMsg()
+    wolfSSL Entering DoTls13HandShakeMsgType
+    
+    --------------------------------
+    [BUG] compute offset
+    Call AddPacketInfo: add: 9, *inOutIdx - add: -5, size + add: 16588
+    [BUG] Start AddPacketInfo
+    
+    sz: 16588, type:22, written: 0
+    [BUG] before xmemcpy
+    
+    info->numberPackets: 1, sz: 16588
+    =================================================================
+    ==349261==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6290000001f1 at pc 0x7f95f6d5ab18 bp 0x7ffe067082b0 sp 0x7ffe067082a0
+    READ of size 1 at 0x6290000001f1 thread T0
+        #0 0x7f95f6d5ab17 in AddPacketInfo src/internal.c:24688
+        #1 0x7f95f6f1b0ba in DoTls13HandShakeMsgType src/tls13.c:9785
+        #2 0x7f95f6f1cad2 in DoTls13HandShakeMsg src/tls13.c:10130
+        #3 0x7f95f6d45684 in ProcessReplyEx src/internal.c:19325
+        #4 0x7f95f6d41895 in ProcessReply src/internal.c:18589
+        #5 0x7f95f6e1f4ad in wolfSSL_connect src/ssl.c:12367
+        #6 0x7f95f6e29425 in wolfSSL_ex_wrapper src/ssl.c:14818
+        #7 0x7f95f6e29c26 in wolfSSL_connect_ex src/ssl.c:14876
+        #8 0x55b55396d8f8 in NonBlockingSSL_Connect examples/client/client.c:172
+        #9 0x55b5539746c0 in client_test examples/client/client.c:3777
+        #10 0x55b553976598 in main examples/client/client.c:4547
+        #11 0x7f95f67fa082 in __libc_start_main ../csu/libc-start.c:308
+        #12 0x55b553964aed in _start (/local-homes/lhirschi/tlspuffin/wolfssl/examples/client/.libs/client+0x11aed)
+    
+    0x6290000001f1 is located 15 bytes to the left of 16583-byte region [0x629000000200,0x6290000042c7)
+    allocated by thread T0 here:
+        #0 0x7f95f72f3808 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cc:144
+        #1 0x7f95f6b3a50a in wolfSSL_Malloc wolfcrypt/src/memory.c:293
+        #2 0x7f95f6d1a6b6 in GrowInputBuffer src/internal.c:9795
+        #3 0x7f95f6d40824 in GetInputData src/internal.c:18409
+        #4 0x7f95f6d42161 in ProcessReplyEx src/internal.c:18822
+        #5 0x7f95f6d41895 in ProcessReply src/internal.c:18589
+        #6 0x7f95f6e1f4ad in wolfSSL_connect src/ssl.c:12367
+        #7 0x7f95f6e29425 in wolfSSL_ex_wrapper src/ssl.c:14818
+        #8 0x7f95f6e29c26 in wolfSSL_connect_ex src/ssl.c:14876
+        #9 0x55b55396d8f8 in NonBlockingSSL_Connect examples/client/client.c:172
+        #10 0x55b5539746c0 in client_test examples/client/client.c:3777
+        #11 0x55b553976598 in main examples/client/client.c:4547
+        #12 0x7f95f67fa082 in __libc_start_main ../csu/libc-start.c:308
+    
+    SUMMARY: AddressSanitizer: heap-buffer-overflow src/internal.c:24688 in AddPacketInfo
+    Shadow bytes around the buggy address:
+      0x0c527fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff8000: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+      0x0c527fff8010: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+      0x0c527fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+    =>0x0c527fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa[fa]fa
+      0x0c527fff8040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff8050: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff8060: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff8070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+      0x0c527fff8080: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    Shadow byte legend (one shadow byte represents 8 application bytes):
+      Addressable:           00
+      Partially addressable: 01 02 03 04 05 06 07 
+      Heap left redzone:       fa
+      Freed heap region:       fd
+      Stack left redzone:      f1
+      Stack mid redzone:       f2
+      Stack right redzone:     f3
+      Stack after return:      f5
+      Stack use after scope:   f8
+      Global redzone:          f9
+      Global init order:       f6
+      Poisoned by user:        f7
+      Container overflow:      fc
+      Array cookie:            ac
+      Intra object redzone:    bb
+      ASan internal:           fe
+      Left alloca redzone:     ca
+      Right alloca redzone:    cb
+      Shadow gap:              cc
+    ==349261==ABORTING
+    
+    --- end stderr
+    --- start stdout
+    
+    --- end stdout
+    
+test tcp::tests::test_wolfssl_buffer_under_read_client ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 178 filtered out; finished in 0.49s
+
+     Running unittests src/main.rs (target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-40ce3c2f40420f88)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
