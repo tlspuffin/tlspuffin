@@ -67,6 +67,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 .unwrap_or_default();
 
             if agent_descriptor.typ == AgentType::Client {
+                // TODO [LH] Weird, is there a typo in the conditional (I expected the converse)
                 let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
                 server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
                 Ok(Box::new(server))
@@ -826,7 +827,12 @@ mod tests {
     }
 
     #[test]
-    fn test_wolfssl_buffer_under_read() {
+    fn test_wolfssl_buffer_under_read_client() {
+        // To test this and find the buffer overflow you need to enable CALLBACKS functions.
+        // For example, do the following at the root fo this repo prior to executing this test:
+        // $ git clone --branch debug_buffer_overflow git@github.com:tlspuffin/wolfssl.git
+        // $ cd wolfssl; ./autogen.sh; ./configure --enable-all CFLAGS='-DWOLFSSL_CALLBACKS -fsanitize=address'; make; cd ..
+        // and that's all.
         let port = 44336;
 
         let server_guard = wolfssl_server(port);
