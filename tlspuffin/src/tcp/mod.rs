@@ -931,4 +931,63 @@ mod tests {
         let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
         info!("{}", shutdown);
     }
+
+    #[test]
+    fn test_wolfssl_stack_buffer_overflow_server() {
+        let port = 44336;
+
+        let server_guard = wolfssl_server(port);
+        let server = PutDescriptor {
+            name: TCP_PUT,
+            options: server_guard.build_options(),
+        };
+
+        set_deserialize_signature(&TLS_SIGNATURE).expect("TODO: panic message");
+
+        // Read trace file
+        let mut path = env::current_dir().unwrap();
+        path.push("../TRACES/stackBufferoverflow_server.trace");
+
+        info!("Accessing trace file at {}",path.display());
+        let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+
+//        let client_hello = ;
+
+        // Try to minimize the trace
+        let prior_trace_0 = trace.prior_traces[0].clone();
+
+        let prior_trace_0_new = Trace {
+            steps: vec![trace.prior_traces[0].steps[0].clone(),  // Input client hello
+                        trace.prior_traces[0].steps[1].clone(),  // Input client finished
+                        trace.prior_traces[0].steps[2].clone()], // Output
+ //           descriptors: vec![trace.descriptors[0].clone()],
+            ..prior_trace_0
+        };  // --> does not work, TcpClientPut failed to connect so one of them seems to shutdown
+        let trace = Trace {
+            steps: vec![trace.steps[0].clone(),  // ?
+                        trace.steps[1].clone()
+            ],
+//            descriptors: vec![trace.descriptors[0].clone()],
+            prior_traces: vec![prior_trace_0_new],
+            ..trace
+        };
+
+        info!("Trace descriptors: {:#?}", trace.descriptors);
+        info!("Trace steps number: {:#?}", trace.steps.len());
+        info!("Trace steps: {}", trace);
+        info!("Trace prior steps: {:?}\n           -------------------\n", trace.prior_traces);
+        info!("Trace prior steps: {}\n           -------------------\n", trace.prior_traces[0]);
+
+        let descriptors = &trace.descriptors;
+        let server_name = descriptors[0].name;
+        //  let server_name = descriptors[1].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(server_name, server.clone())]
+        );
+
+        //let server = AgentName::first().next();
+        //let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        //info!("{}", shutdown);
+    }
 }

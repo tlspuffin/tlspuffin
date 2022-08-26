@@ -1,0 +1,1081 @@
+cargo +nightly test --features wolfssl540,asan --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --lib tcp::tests::test_wolfssl_stack_buffer_overflow_server -- --nocapture --exact
+fd110a9734e745e72ce2d5356dc1fd6ff52512e1
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:8275:10
+     |
+8275 |     ) -> u128;
+     |          ^^^^ not FFI-safe
+     |
+     = note: `#[warn(improper_ctypes)]` on by default
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:9058:18
+     |
+9058 |         __value: u128,
+     |                  ^^^^ not FFI-safe
+     |
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:9066:18
+     |
+9066 |         __value: u128,
+     |                  ^^^^ not FFI-safe
+     |
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:9074:18
+     |
+9074 |         __value: u128,
+     |                  ^^^^ not FFI-safe
+     |
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:9101:18
+     |
+9101 |         __value: u128,
+     |                  ^^^^ not FFI-safe
+     |
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `extern` block uses type `u128`, which is not FFI-safe
+    --> /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/bindings.rs:9111:18
+     |
+9111 |         __value: u128,
+     |                  ^^^^ not FFI-safe
+     |
+     = note: 128-bit integers don't currently have a known stable ABI
+
+warning: `wolfssl-sys` (lib) generated 6 warnings
+warning: unused import: `DerefMut`
+ --> crates/wolfssl/src/callbacks.rs:6:18
+  |
+6 |     ops::{Deref, DerefMut},
+  |                  ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `any::TypeId`
+ --> crates/wolfssl/src/ssl.rs:2:5
+  |
+2 |     any::TypeId,
+  |     ^^^^^^^^^^^
+
+warning: unused imports: `UserData`, `cvt_n`
+  --> crates/wolfssl/src/ssl.rs:22:76
+   |
+22 |     callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
+   |                                                                            ^^^^^^^^
+23 |     error::{ErrorCode, ErrorStack, InnerError, SslError},
+24 |     util::{cvt, cvt_n, cvt_p},
+   |                 ^^^^^
+
+warning: variable does not need to be mutable
+  --> crates/wolfssl/src/callbacks.rs:99:13
+   |
+99 |         let mut callback = ctx
+   |             ----^^^^^^^^
+   |             |
+   |             help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+   --> crates/wolfssl/src/callbacks.rs:130:13
+    |
+130 |         let mut callback = ssl
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unnecessary `unsafe` block
+   --> crates/wolfssl/src/ssl.rs:136:9
+    |
+136 |         unsafe {
+    |         ^^^^^^ unnecessary `unsafe` block
+    |
+    = note: `#[warn(unused_unsafe)]` on by default
+
+warning: function `BIO_set_retry_read` should have a snake case name
+  --> crates/wolfssl/src/bio.rs:22:15
+   |
+22 | pub unsafe fn BIO_set_retry_read(b: *mut wolf::WOLFSSL_BIO) {
+   |               ^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `bio_set_retry_read`
+   |
+   = note: `#[warn(non_snake_case)]` on by default
+
+warning: function `BIO_set_retry_write` should have a snake case name
+  --> crates/wolfssl/src/bio.rs:31:15
+   |
+31 | pub unsafe fn BIO_set_retry_write(b: *mut wolf::WOLFSSL_BIO) {
+   |               ^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `bio_set_retry_write`
+
+warning: function `BIO_clear_retry_flags` should have a snake case name
+  --> crates/wolfssl/src/bio.rs:41:15
+   |
+41 | pub unsafe fn BIO_clear_retry_flags(b: *mut wolf::WOLFSSL_BIO) {
+   |               ^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `bio_clear_retry_flags`
+
+warning: function `BIO_set_num` should have a snake case name
+   --> crates/wolfssl/src/bio.rs:332:11
+    |
+332 | unsafe fn BIO_set_num(_bio: *mut wolf::WOLFSSL_BIO, _num: c_int) {}
+    |           ^^^^^^^^^^^ help: convert the identifier to snake case: `bio_set_num`
+
+warning: function `SSL_connect_timeout_ex` should have a snake case name
+   --> crates/wolfssl/src/ssl.rs:733:34
+    |
+733 |         pub unsafe extern "C" fn SSL_connect_timeout_ex(_info: *mut wolf::TimeoutInfo) -> i32 {
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `ssl_connect_timeout_ex`
+
+warning: function `SSL_connect_ex` should have a snake case name
+   --> crates/wolfssl/src/ssl.rs:737:34
+    |
+737 |         pub unsafe extern "C" fn SSL_connect_ex(_info: *mut wolf::HandShakeInfo) -> i32 {
+    |                                  ^^^^^^^^^^^^^^ help: convert the identifier to snake case: `ssl_connect_ex`
+
+warning: `wolfssl` (lib) generated 12 warnings
+warning: unused import: `Formatter`
+  --> puffin/src/algebra/mod.rs:32:18
+   |
+32 |     fmt::{Debug, Formatter},
+   |                  ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `Deserializer`, `Serializer`
+  --> puffin/src/algebra/mod.rs:37:48
+   |
+37 | use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+   |                                                ^^^^^^^^^^^^             ^^^^^^^^^^
+
+warning: unused import: `ProtocolBehavior`
+  --> puffin/src/algebra/mod.rs:43:54
+   |
+43 |     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+   |                                                      ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Write`
+ --> puffin/src/cli.rs:4:16
+  |
+4 |     io::{Read, Write},
+  |                ^^^^^
+
+warning: unused import: `marker::PhantomData`
+  --> puffin/src/stream.rs:23:5
+   |
+23 |     marker::PhantomData,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ProtocolBehavior`
+  --> puffin/src/stream.rs:32:47
+   |
+32 |         MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+   |                                               ^^^^^^^^^^^^^^^^
+
+warning: unused import: `Factory`
+  --> puffin/src/trace.rs:37:20
+   |
+37 |     put_registry::{Factory, PutRegistry},
+   |                    ^^^^^^^
+
+warning: unused import: `Write`
+ --> puffin/src/put.rs:7:38
+  |
+7 |     fmt::{Debug, Display, Formatter, Write},
+  |                                      ^^^^^
+
+warning: unused import: `Hasher`
+  --> puffin/src/algebra/mod.rs:33:18
+   |
+33 |     hash::{Hash, Hasher},
+   |                  ^^^^^^
+
+warning: unused import: `HasRand`
+  --> puffin/src/fuzzer/libafl_setup.rs:29:24
+   |
+29 |     state::{HasCorpus, HasRand, StdState},
+   |                        ^^^^^^^
+
+warning: unused variable: `matcher`
+  --> puffin/src/algebra/mod.rs:99:23
+   |
+99 |     fn matches(&self, matcher: &Self) -> bool {
+   |                       ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_matcher`
+   |
+   = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `trace`
+   --> puffin/src/cli.rs:242:13
+    |
+242 |         let trace = trace.to_file(format!("./seeds/{}.trace", name))?;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_trace`
+
+warning: field `put_descriptor` is never read
+   --> puffin/src/agent.rs:146:5
+    |
+142 | pub struct Agent<PB: ProtocolBehavior> {
+    |            ----- field in this struct
+...
+146 |     put_descriptor: PutDescriptor,
+    |     ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: `puffin` (lib) generated 13 warnings
+   Compiling tlspuffin v0.1.0 (/local-homes/lhirschi/tlspuffin/tlspuffin)
+warning: unused imports: `Matcher`, `MessageResult`, `OpaqueProtocolMessage`, `ProtocolBehavior`, `ProtocolMessageDeframer`, `ProtocolMessage`, `PutDescriptor`, `error::Error`, `signature::Signature`, `trace::Trace`, `variable_data::VariableData`
+  --> tlspuffin/src/put_registry.rs:2:15
+   |
+2  |     algebra::{signature::Signature, Matcher},
+   |               ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^
+3  |     error::Error,
+   |     ^^^^^^^^^^^^
+4  |     protocol::{
+5  |         MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+   |         ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+6  |         ProtocolMessageDeframer,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+7  |     },
+8  |     put::{PutDescriptor, PutName},
+   |           ^^^^^^^^^^^^^
+9  |     put_registry::{Factory, PutRegistry},
+10 |     trace::Trace,
+   |     ^^^^^^^^^^^^
+11 |     variable_data::VariableData,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused imports: `Message`, `OpaqueMessage`, `TLS_SIGNATURE`, `claims::TlsClaim`, `debug_message_with_info`, `debug_opaque_message_with_info`, `msgs`, `query::TlsQueryMatcher`, `seeds::create_corpus`, `violation::TlsSecurityViolationPolicy`
+  --> tlspuffin/src/put_registry.rs:15:5
+   |
+15 |     claims::TlsClaim,
+   |     ^^^^^^^^^^^^^^^^
+16 |     debug::{debug_message_with_info, debug_opaque_message_with_info},
+   |             ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 |     protocol::TLSProtocolBehavior,
+18 |     query::TlsQueryMatcher,
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+...
+21 |             msgs,
+   |             ^^^^
+22 |             msgs::message::{Message, OpaqueMessage},
+   |                             ^^^^^^^  ^^^^^^^^^^^^^
+23 |         },
+24 |         seeds::create_corpus,
+   |         ^^^^^^^^^^^^^^^^^^^^
+25 |         violation::TlsSecurityViolationPolicy,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+26 |         TLS_SIGNATURE,
+   |         ^^^^^^^^^^^^^
+
+warning: unused import: `TLSVersion`
+  --> tlspuffin/src/tcp/mod.rs:26:52
+   |
+26 |     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+   |                                                    ^^^^^^^^^^
+
+warning: unused import: `rustls`
+ --> tlspuffin/src/tls/rustls/msgs/base.rs:6:18
+  |
+6 | use crate::tls::{rustls, rustls::key};
+  |                  ^^^^^^
+
+warning: unused macro definition: `trace`
+  --> tlspuffin/src/tls/rustls/mod.rs:64:18
+   |
+64 |     macro_rules! trace    ( ($($tt:tt)*) => {{}} );
+   |                  ^^^^^
+   |
+   = note: `#[warn(unused_macros)]` on by default
+
+warning: unused macro definition: `debug`
+  --> tlspuffin/src/tls/rustls/mod.rs:65:18
+   |
+65 |     macro_rules! debug    ( ($($tt:tt)*) => {{}} );
+   |                  ^^^^^
+
+warning: unused macro definition: `warn`
+  --> tlspuffin/src/tls/rustls/mod.rs:66:18
+   |
+66 |     macro_rules! warn     ( ($($tt:tt)*) => {{}} );
+   |                  ^^^^
+
+warning: unused macro definition: `error`
+  --> tlspuffin/src/tls/rustls/mod.rs:67:18
+   |
+67 |     macro_rules! error    ( ($($tt:tt)*) => {{}} );
+   |                  ^^^^^
+
+warning: unused import: `put::PutDescriptor`
+ --> tlspuffin/src/tls/seeds.rs:8:5
+  |
+8 |     put::PutDescriptor,
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:150:1
+    |
+150 | /// MaxFragmentLength => 0x0001,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = note: `#[warn(unused_doc_comments)]` on by default
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:152:1
+    |
+152 | /// ClientCertificateUrl => 0x0002,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:154:1
+    |
+154 | /// TrustedCAKeys => 0x0003,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:156:1
+    |
+156 | /// TruncatedHMAC => 0x0004,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:191:1
+    |
+191 | /// UserMapping => 0x0006,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:193:1
+    |
+193 | /// ClientAuthz => 0x0007,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:195:1
+    |
+195 | /// ServerAuthz => 0x0008,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:197:1
+    |
+197 | /// CertificateType => 0x0009,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:214:1
+    |
+214 | /// SRP => 0x000c,
+    | ^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:233:1
+    |
+233 | /// UseSRTP => 0x000e,
+    | ^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:235:1
+    |
+235 | /// Heartbeat => 0x000f,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:268:1
+    |
+268 | /// status_request_v2 => 0x0011
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:289:1
+    |
+289 | /// client_certificate_type => 0x0013,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:291:1
+    |
+291 | /// server_certificate_type => 0x0014,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:293:1
+    |
+293 | /// Padding => 0x0015,
+    | ^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:295:1
+    |
+295 | /// encrypt_then_mac => 0x0016,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:304:1
+    |
+304 | /// token_binding => 0x0018,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:306:1
+    |
+306 | /// cached_info => 0x0019,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:308:1
+    |
+308 | /// tls_lts => 0x001A,
+    | ^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:310:1
+    |
+310 | /// compress_certificate => 0x001B,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:312:1
+    |
+312 | /// record_size_limit => 0x001C,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:314:1
+    |
+314 | /// pwd_protect => 0x001D,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:316:1
+    |
+316 | /// pwd_clear => 0x001E,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:318:1
+    |
+318 | /// password_salt => 0x001F,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:320:1
+    |
+320 | /// ticket_pinning => 0x0020,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:322:1
+    |
+322 | /// tls_cert_with_extern_psk => 0x0021,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:324:1
+    |
+324 | /// delegated_credentials => 0x0022,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:340:1
+    |
+340 | /// TLMSP => 0x0024,
+    | ^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:342:1
+    |
+342 | /// TLMSP_proxying => 0x0025,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:344:1
+    |
+344 | /// TLMSP_delegate => 0x0026,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:346:1
+    |
+346 | /// supported_ekt_ciphers => 0x0027,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:451:1
+    |
+451 | /// TicketEarlyDataInfo => 0x002e,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:466:1
+    |
+466 | /// OIDFilters => 0x0030,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:468:1
+    |
+468 | /// PostHandshakeAuth => 0x0031,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:526:1
+    |
+526 | /// transparency_info => 0x0034,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:528:1
+    |
+528 | /// connection_id => 0x0035,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:530:1
+    |
+530 | /// external_id_hash => 0x0037,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:532:1
+    |
+532 | /// external_session_id => 0x0038,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:547:1
+    |
+547 | /// NextProtocolNegotiation => 0x3374,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_extensions.rs:549:1
+    |
+549 | /// ChannelId => 0x754f,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:191:1
+    |
+191 | /// hello_verify_request_RESERVED => 0x03,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:229:1
+    |
+229 | /// EndOfEarlyData => 0x05,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:265:1
+    |
+265 | /// RequestConnectionId => 0x09,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:267:1
+    |
+267 | /// NewConnectionId => 0x0a,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:393:1
+    |
+393 | /// CertificateURL => 0x15,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:426:1
+    |
+426 | /// compressed_certificate => 0x019,
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused doc comment
+   --> tlspuffin/src/tls/./fn_messages.rs:428:1
+    |
+428 | /// ekt_key => 0x01A,
+    | ^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+warning: unused imports: `Borrow`, `CStr`, `CString`, `Write`, `c_uchar`, `c_void`, `mem::MaybeUninit`
+  --> tlspuffin/src/wolfssl/mod.rs:4:14
+   |
+4  |     borrow::{Borrow, BorrowMut},
+   |              ^^^^^^
+5  |     cell::RefCell,
+6  |     ffi::{CStr, CString},
+   |           ^^^^  ^^^^^^^
+7  |     io::{ErrorKind, Read, Write},
+   |                           ^^^^^
+8  |     mem::MaybeUninit,
+   |     ^^^^^^^^^^^^^^^^
+9  |     ops::Deref,
+10 |     os::raw::{c_uchar, c_void},
+   |               ^^^^^^^  ^^^^^^
+
+warning: unused imports: `ForeignTypeRef`, `ForeignType`
+  --> tlspuffin/src/wolfssl/mod.rs:14:21
+   |
+14 | use foreign_types::{ForeignType, ForeignTypeRef};
+   |                     ^^^^^^^^^^^  ^^^^^^^^^^^^^^
+
+warning: unused imports: `MemBioSlice`, `MemBio`, `cvt_n`, `cvt_p`, `cvt`
+  --> tlspuffin/src/wolfssl/mod.rs:27:11
+   |
+27 |     bio::{MemBio, MemBioSlice},
+   |           ^^^^^^  ^^^^^^^^^^^
+...
+30 |     util::{cvt, cvt_n, cvt_p},
+   |            ^^^  ^^^^^  ^^^^^
+
+warning: unused imports: `BOB_PRIVATE_KEY`, `TranscriptClientHello`, `tls`
+  --> tlspuffin/src/wolfssl/mod.rs:38:58
+   |
+38 |         TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+   |                                                          ^^^^^^^^^^^^^^^^^^^^^
+...
+44 |     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+   |                                                             ^^^^^^^^^^^^^^^
+45 |     tls,
+   |     ^^^
+
+warning: unused imports: `AgentName`, `AgentType`, `TLSVersion`, `claims::ClaimList`
+ --> tlspuffin/src/wolfssl/transcript.rs:3:13
+  |
+3 |     agent::{AgentName, AgentType, TLSVersion},
+  |             ^^^^^^^^^  ^^^^^^^^^  ^^^^^^^^^^
+4 |     claims::ClaimList,
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ClaimDataTranscript`, `ClaimData`, `TlsClaim`, `TranscriptCertificate`, `TranscriptClientFinished`, `TranscriptServerFinished`, `TranscriptServerHello`
+  --> tlspuffin/src/wolfssl/transcript.rs:10:9
+   |
+10 |         ClaimData, ClaimDataTranscript, TlsClaim, TlsTranscript, TranscriptCertificate,
+   |         ^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^                 ^^^^^^^^^^^^^^^^^^^^^
+11 |         TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `MessageResult`
+ --> tlspuffin/src/protocol.rs:5:9
+  |
+5 |         MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+  |         ^^^^^^^^^^^^^
+
+warning: unused import: `std::io::prelude::*`
+   --> tlspuffin/src/tcp/mod.rs:785:9
+    |
+785 |     use std::io::prelude::*;
+    |         ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::fs::File`
+   --> tlspuffin/src/tcp/mod.rs:786:9
+    |
+786 |     use std::fs::File;
+    |         ^^^^^^^^^^^^^
+
+warning: unused import: `DEFAULT_PUT_FACTORY`
+    --> tlspuffin/src/tls/seeds.rs:2487:31
+     |
+2487 |     use crate::put_registry::{DEFAULT_PUT_FACTORY, TLS_PUT_REGISTRY};
+     |                               ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `BorrowMut`
+ --> tlspuffin/src/wolfssl/mod.rs:4:22
+  |
+4 |     borrow::{Borrow, BorrowMut},
+  |                      ^^^^^^^^^
+
+warning: unused import: `Read`
+ --> tlspuffin/src/wolfssl/mod.rs:7:21
+  |
+7 |     io::{ErrorKind, Read, Write},
+  |                     ^^^^
+
+warning: unused import: `Read`
+  --> tlspuffin/src/tcp/mod.rs:13:21
+   |
+13 |     io::{ErrorKind, Read, Write},
+   |                     ^^^^
+
+warning: unused import: `Signer`
+  --> tlspuffin/src/tls/./fn_cert.rs:18:44
+   |
+18 |         sign::{EcdsaSigningKey, RsaSigner, Signer, SigningKey},
+   |                                            ^^^^^^
+
+warning: unused variable: `agent_name`
+   --> tlspuffin/src/wolfssl/mod.rs:199:25
+    |
+199 |     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    |                         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_agent_name`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: function cannot return without recursing
+   --> tlspuffin/src/tls/rustls/msgs/message.rs:234:5
+    |
+234 |     fn encode(&self, bytes: &mut Vec<u8>) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot return without recursing
+235 |         self.encode(bytes);
+    |         ------------------ recursive call site
+    |
+    = note: `#[warn(unconditional_recursion)]` on by default
+    = help: a `loop` may express intention better if this is on purpose
+
+warning: function cannot return without recursing
+   --> tlspuffin/src/tls/rustls/msgs/message.rs:238:5
+    |
+238 |     fn read(reader: &mut Reader) -> Option<Self> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot return without recursing
+239 |         Self::read(reader)
+    |         ------------------ recursive call site
+    |
+    = help: a `loop` may express intention better if this is on purpose
+
+warning: unused import: `io::Read`
+ --> tlspuffin/src/tls/rustls/msgs/message_test.rs:1:29
+  |
+1 | use std::{convert::TryFrom, io::Read};
+  |                             ^^^^^^^^
+
+warning: unused variable: `server`
+   --> tlspuffin/src/tcp/mod.rs:839:13
+    |
+839 |         let server = PutDescriptor {
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_server`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `server`
+   --> tlspuffin/src/tcp/mod.rs:895:13
+    |
+895 |         let server = PutDescriptor {
+    |             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_server`
+
+warning: unused variable: `server_name`
+   --> tlspuffin/src/tcp/mod.rs:923:13
+    |
+923 |         let server_name = descriptors[0].name;
+    |             ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_server_name`
+
+warning: unused variable: `context`
+   --> tlspuffin/src/tcp/mod.rs:984:17
+    |
+984 |         let mut context = trace.execute_with_puts(
+    |                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+
+warning: unused variable: `agent_name`
+   --> tlspuffin/src/wolfssl/mod.rs:199:25
+    |
+199 |     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    |                         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_agent_name`
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/wolfssl/mod.rs:147:13
+    |
+147 |         let mut stream = Self::new_stream(&ctx, &config)?;
+    |             ----^^^^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/wolfssl/mod.rs:155:13
+    |
+155 |         let mut wolfssl = WolfSSL {
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: unnecessary `unsafe` block
+   --> tlspuffin/src/wolfssl/mod.rs:434:88
+    |
+434 |         move |context: &mut SslRef, content_type: i32, first_byte: u8, outbound: bool| unsafe {
+    |                                                                                        ^^^^^^ unnecessary `unsafe` block
+    |
+    = note: `#[warn(unused_unsafe)]` on by default
+
+warning: type alias `Type` is never used
+   --> tlspuffin/src/claims.rs:186:14
+    |
+186 |         type Type = TypeShape;
+    |              ^^^^
+    |
+    = note: `#[warn(dead_code)]` on by default
+
+warning: field `output` is never read
+   --> tlspuffin/src/tcp/mod.rs:459:5
+    |
+457 | pub struct TLSProcess {
+    |            ---------- field in this struct
+458 |     child: Option<Child>,
+459 |     output: Option<String>,
+    |     ^^^^^^
+
+warning: static `TLS13_MAX_DROPPED_CCS` is never used
+  --> tlspuffin/src/tls/rustls/conn.rs:12:8
+   |
+12 | static TLS13_MAX_DROPPED_CCS: u8 = 2u8;
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `decode_ecdh_params_` is never used
+   --> tlspuffin/src/tls/rustls/tls12/mod.rs:404:4
+    |
+404 | fn decode_ecdh_params_<T: Codec>(kx_params: &[u8]) -> Option<T> {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `sign_finish` is never used
+   --> tlspuffin/src/tls/rustls/tls13/key_schedule.rs:431:8
+    |
+431 |     fn sign_finish(&self, base_key: &hkdf::Prk, hs_hash: &Digest) -> hmac::Tag {
+    |        ^^^^^^^^^^^
+
+warning: associated function `sign_verify_data` is never used
+   --> tlspuffin/src/tls/rustls/tls13/key_schedule.rs:441:8
+    |
+441 |     fn sign_verify_data(&self, base_key: &hkdf::Prk, hs_hash: &Digest) -> hmac::Tag {
+    |        ^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/tcp/mod.rs:857:13
+    |
+857 |         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/tcp/mod.rs:907:13
+    |
+907 |         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/tcp/mod.rs:952:13
+    |
+952 |         let mut trace = Trace::<TlsQueryMatcher>::from_file(path).unwrap();
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> tlspuffin/src/tcp/mod.rs:984:13
+    |
+984 |         let mut context = trace.execute_with_puts(
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+warning: field `temp_dir` is never read
+   --> tlspuffin/src/tcp/mod.rs:549:9
+    |
+544 |     struct ParametersGuard {
+    |            --------------- field in this struct
+...
+549 |         temp_dir: Option<TempDir>,
+    |         ^^^^^^^^
+
+warning: `tlspuffin` (lib) generated 79 warnings
+warning: `tlspuffin` (lib test) generated 91 warnings (77 duplicates)
+    Finished test [unoptimized + debuginfo] target(s) in 10.69s
+     Running unittests src/lib.rs (target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-bf7706b87dd5b39f)
+
+running 1 test
+=================================================================
+==524544==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7fcc60582bcc at pc 0x561286467850 bp 0x7fcc60582a70 sp 0x7fcc60582a60
+WRITE of size 1 at 0x7fcc60582bcc thread T1 (tcp::tests::tes)
+    #0 0x56128646784f in RefineSuites /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:4367
+    #1 0x561286440f3d in CheckPreSharedKeys /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:4711
+    #2 0x56128643f129 in DoTls13ClientHello /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:5435
+    #3 0x56128644668c in DoTls13HandShakeMsgType /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:9408
+    #4 0x5612864555d6 in DoTls13HandShakeMsg /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:9658
+    #5 0x5612862e14cb in ProcessReplyEx /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18770
+    #6 0x5612862db81d in ProcessReply /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/internal.c:18061
+    #7 0x56128646135b in wolfSSL_accept_TLSv13 /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:11001
+    #8 0x5612863a129b in wolfSSL_accept /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:12404
+    #9 0x5612863ce02f in wolfSSL_ex_wrapper /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14501
+    #10 0x5612863cefa0 in wolfSSL_accept_ex /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/ssl.c:14565
+    #11 0x561285efba15 in wolfssl::ssl::SslStream$LT$S$GT$::do_handshake::hee5d79c04a15881e crates/wolfssl/src/ssl.rs:749
+    #12 0x561285fe2e87 in _$LT$tlspuffin..wolfssl..WolfSSL$u20$as$u20$puffin..put..Put$LT$tlspuffin..protocol..TLSProtocolBehavior$GT$$GT$::progress::h7b9d9f1b308bca91 tlspuffin/src/wolfssl/mod.rs:190
+    #13 0x561286080c66 in puffin::trace::TraceContext$LT$PB$GT$::next_state::h97e19d05a8ac1701 puffin/src/trace.rs:218
+    #14 0x56128607fab6 in puffin::trace::InputAction$LT$M$GT$::input::h4924e0929ef98a9c puffin/src/trace.rs:594
+    #15 0x56128607db9e in puffin::trace::Action$LT$M$GT$::execute::hbc872923ff0c522f puffin/src/trace.rs:461
+    #16 0x56128607d78b in puffin::trace::Trace$LT$M$GT$::execute::h7ff7497ebf8efc0f puffin/src/trace.rs:358
+    #17 0x56128607d15f in puffin::trace::Trace$LT$M$GT$::execute_with_puts::h10c36fe3c5728bac puffin/src/trace.rs:403
+    #18 0x561285edbd29 in tlspuffin::tcp::tests::test_wolfssl_stack_buffer_overflow_server::test_impl::hb3301fd7b4aa9d68 tlspuffin/src/tcp/mod.rs:984
+    #19 0x561285eda87a in tlspuffin::tcp::tests::test_wolfssl_stack_buffer_overflow_server::h2ae4d81ecce14cfe tlspuffin/src/tcp/mod.rs:935
+    #20 0x56128610bf59 in tlspuffin::tcp::tests::test_wolfssl_stack_buffer_overflow_server::_$u7b$$u7b$closure$u7d$$u7d$::h8fb4b4d90db79220 tlspuffin/src/tcp/mod.rs:935
+    #21 0x561285f4be1d in core::ops::function::FnOnce::call_once::he3189024ed04e054 /rustc/c396bb3b8a16b1f2762b7c6078dc3e023f6a2493/library/core/src/ops/function.rs:248
+    #22 0x561286255fb2 in core::ops::function::FnOnce::call_once::hc35e303045156fca library/core/src/ops/function.rs:248
+    #23 0x561286255fb2 in test::__rust_begin_short_backtrace::h09d08b76c5d492e8 library/test/src/lib.rs:572
+    #24 0x561286254cfb in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h6a599905d752010b library/alloc/src/boxed.rs:1934
+    #25 0x561286254cfb in _$LT$core..panic..unwind_safe..AssertUnwindSafe$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$$LP$$RP$$GT$$GT$::call_once::h797213f290a9bb2e library/core/src/panic/unwind_safe.rs:271
+    #26 0x561286254cfb in std::panicking::try::do_call::h2c7d81ea8256b187 library/std/src/panicking.rs:492
+    #27 0x561286254cfb in std::panicking::try::hae756f5d43b729e4 library/std/src/panicking.rs:456
+    #28 0x561286254cfb in std::panic::catch_unwind::h1a82ffbff3c4c1dd library/std/src/panic.rs:137
+    #29 0x561286254cfb in test::run_test_in_process::h5aac7a47924f7cb2 library/test/src/lib.rs:595
+    #30 0x561286254cfb in test::run_test::run_test_inner::_$u7b$$u7b$closure$u7d$$u7d$::h4116d72af3967b31 library/test/src/lib.rs:489
+    #31 0x56128621f8cb in test::run_test::run_test_inner::_$u7b$$u7b$closure$u7d$$u7d$::h6500ab248c00a8ea library/test/src/lib.rs:516
+    #32 0x56128621f8cb in std::sys_common::backtrace::__rust_begin_short_backtrace::h3c5f6278359e805b library/std/src/sys_common/backtrace.rs:122
+    #33 0x56128622523e in std::thread::Builder::spawn_unchecked_::_$u7b$$u7b$closure$u7d$$u7d$::_$u7b$$u7b$closure$u7d$$u7d$::h34a765610b13e8de library/std/src/thread/mod.rs:505
+    #34 0x56128622523e in _$LT$core..panic..unwind_safe..AssertUnwindSafe$LT$F$GT$$u20$as$u20$core..ops..function..FnOnce$LT$$LP$$RP$$GT$$GT$::call_once::hb12c781433c5a16f library/core/src/panic/unwind_safe.rs:271
+    #35 0x56128622523e in std::panicking::try::do_call::hf5be9c996899117c library/std/src/panicking.rs:492
+    #36 0x56128622523e in std::panicking::try::h066cacaf8d27e44c library/std/src/panicking.rs:456
+    #37 0x56128622523e in std::panic::catch_unwind::hb2f25d0b27ac9fbf library/std/src/panic.rs:137
+    #38 0x56128622523e in std::thread::Builder::spawn_unchecked_::_$u7b$$u7b$closure$u7d$$u7d$::hb920cf261c8e2003 library/std/src/thread/mod.rs:504
+    #39 0x56128622523e in core::ops::function::FnOnce::call_once$u7b$$u7b$vtable.shim$u7d$$u7d$::h952dc82e845bf83f library/core/src/ops/function.rs:248
+    #40 0x561286b33592 in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h61f0f1c34a8323f2 library/alloc/src/boxed.rs:1934
+    #41 0x561286b33592 in _$LT$alloc..boxed..Box$LT$F$C$A$GT$$u20$as$u20$core..ops..function..FnOnce$LT$Args$GT$$GT$::call_once::h6bf6af2815173653 library/alloc/src/boxed.rs:1934
+    #42 0x561286b33592 in std::sys::unix::thread::Thread::new::thread_start::h352443937c681419 library/std/src/sys/unix/thread.rs:108
+    #43 0x7fcc6346f608 in start_thread /build/glibc-SzIz7B/glibc-2.31/nptl/pthread_create.c:477
+    #44 0x7fcc6323d132 in __clone (/lib/x86_64-linux-gnu/libc.so.6+0x11f132)
+
+Address 0x7fcc60582bcc is located in stack of thread T1 (tcp::tests::tes) at offset 332 in frame
+    #0 0x5612864671df in RefineSuites /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:4356
+
+  This frame has 1 object(s):
+    [32, 332) 'suites' (line 4357) <== Memory access at offset 332 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+Thread T1 (tcp::tests::tes) created by T0 here:
+    #0 0x7fcc634e9815 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cc:208
+    #1 0x561286b33401 in std::sys::unix::thread::Thread::new::hbb2a6a987c8bc66f library/std/src/sys/unix/thread.rs:87
+
+SUMMARY: AddressSanitizer: stack-buffer-overflow /local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/build/wolfssl-sys-f23e35bf0f62a0d0/out/src/tls13.c:4367 in RefineSuites
+Shadow bytes around the buggy address:
+  0x0ffa0c0a8520: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a8530: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a8540: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a8550: f1 f1 f1 f1 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a8560: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x0ffa0c0a8570: 00 00 00 00 00 00 00 00 00[04]f3 f3 f3 f3 f3 f3
+  0x0ffa0c0a8580: f3 f3 f3 f3 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a8590: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a85a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x0ffa0c0a85b0: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 02 f2 04 f3
+  0x0ffa0c0a85c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+  Shadow gap:              cc
+==524544==ABORTING
+error: test failed, to rerun pass '-p tlspuffin --lib'
+
+Caused by:
+  process didn't exit successfully: `/local-homes/lhirschi/tlspuffin/target/x86_64-unknown-linux-gnu/debug/deps/tlspuffin-bf7706b87dd5b39f 'tcp::tests::test_wolfssl_stack_buffer_overflow_server' --nocapture --exact` (signal: 6, SIGABRT: process abort signal)
