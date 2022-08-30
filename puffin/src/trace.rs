@@ -22,7 +22,7 @@ use std::{
     marker::PhantomData,
 };
 
-use log::{debug, trace, warn};
+use log::{debug, info, trace, warn};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -345,6 +345,7 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
+        info!("Executing prior traces.");
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
@@ -352,8 +353,9 @@ impl<M: Matcher> Trace<M> {
         }
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
+        info!("Executing trace:");
         for (i, step) in steps.iter().enumerate() {
-            debug!("Executing step #{}", i);
+            info!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 

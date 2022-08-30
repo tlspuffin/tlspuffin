@@ -399,7 +399,10 @@ where
     fn display(&mut self, event_msg: String, sender_id: u32) {
         self.log_count += 1;
 
-        if self.log_count % 100 != 0 {
+        // Only display log every 100 steps at the beginning and then every 1000 steps
+        if (self.log_count % 10000 != 0) ||
+            (self.log_count % 1000 != 0 && self.log_count < 1000000) ||
+            (self.log_count % 100 != 0 && self.log_count < 10000) {
             return;
         }
 

@@ -111,12 +111,14 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .cflag("-shared-libsan");
     }
 
-    if cfg!(feature = "asan") && cfg!(not(feature = "m1")){
+    if cfg!(feature = "asan") && cfg!(not(feature = "m1")) {
         config
             .cflag("-Wl,-rpath=/usr/lib/clang/10/lib/linux/"); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
         println!("cargo:rustc-link-lib=asan");
     }
-
+    if cfg!(feature = "asan") && cfg!(feature = "m1") {
+        // TODO: find the library where ASAN here for Apple Silicon
+    }
     if cfg!(feature = "additional-headers") {
         let additional_headers = PathBuf::from(dest).join("additional_headers");
 
