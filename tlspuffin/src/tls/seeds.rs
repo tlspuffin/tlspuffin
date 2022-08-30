@@ -2436,11 +2436,13 @@ pub fn seed_session_resumption_dhe_full(
 pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut cipher_suites = term! { fn_new_cipher_suites() };
 
-    for _ in 0..20 {
+    for _ in 0..100 {
+        // 200 is too large already
         cipher_suites = term! {
             fn_append_cipher_suite(
                 (@cipher_suites),
-                fn_cipher_suite12
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
             )
         };
     }
@@ -2587,11 +2589,13 @@ pub fn seed_finding_11_full(
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
 
-    for _ in 0..50 {
+    for _ in 0..100 {
+        // 200 is too large already
         cipher_suites = term! {
             fn_append_cipher_suite(
                 (@cipher_suites),
-                fn_cipher_suite12
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
             )
         };
     }
