@@ -2433,11 +2433,10 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
-///
 pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut cipher_suites = term! { fn_new_cipher_suites() };
 
-    for i in 0..20 {
+    for _ in 0..20 {
         cipher_suites = term! {
             fn_append_cipher_suite(
                 (@cipher_suites),
@@ -2467,7 +2466,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
             fn_new_random,
             fn_new_session_id,
             (fn_append_cipher_suite(
-                (@cipher_suites),
+                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256
             )),
             fn_compressions,
@@ -2477,23 +2476,30 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 fn_client_extensions_new,
+                                // CHANGED from: (fn_client_extensions_append(
+                                // CHANGED from:     fn_client_extensions_new,
+                                // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
+                                // CHANGED from: )),
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
                         )),
                         (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
-                    fn_supported_versions13_extension
+                    fn_supported_versions13_extension // CHANGED from: fn_psk_exchange_mode_dhe_ke_extension
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
                     (fn_new_session_ticket13(
-                            fn_empty_bytes_vec,
-                            fn_empty_bytes_vec,
-                            fn_new_session_ticket_extensions_new
+                        fn_empty_bytes_vec,
+                        fn_empty_bytes_vec,
+                        fn_new_session_ticket_extensions_new
                     ))
                 ))
+                // CHANGED from: (fn_preshared_keys_extension_empty_binder(
+                // CHANGED from:   (@new_ticket_message)
+                // CHANGED from: ))
             ))
         )
     };
@@ -2517,7 +2523,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
 
     let binder = term! {
         fn_derive_binder(
-            (@initial_client_hello),
+            (@initial_client_hello), // CHANGED: (@client_hello),
             (@psk)
         )
     };
