@@ -115,6 +115,18 @@ wolfssl540 = [
     # FIXME: support "claims", "deterministic"
 ]
 
+wolfsslmaster = [
+    "wolfssl-sys/vendored-master",
+    "tls12",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
+    # FIXME: support "claims", "deterministic"
+]
+
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
