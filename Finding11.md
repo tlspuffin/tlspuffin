@@ -1,12 +1,23 @@
+# TODOs [for the record]
+- fix the vuln (see below) and the other ones and relaunch a campaign
+- can we overwrite part of ssl fields without smashing the stack lack writing on the return address ?
+- can we make a silent buffer overflow (to test this out, reduce the number of ciphers to a low number like 3) [related to previous item] ?
+- is there additionally a logical error with the state machine of the hello retries ?
+- problems with a too lage ssl->suites->suiteSz ?
+- ?
+
 # SUMMARY
 
- - buffer overflow
- - rewrite part of ssl struct at the server
- - make ssl->suites->suiteSz larger than it should 
- - ??
+
 
 ## Potential impact
-TODO
+
+- buffer overflow [confirmed]
+- ungraceful crash with a SEGFAULT [confirmed]
+- RCE ? secret/data exfiltration ?
+- rewrite part of ssl struct at the server ?
+- make ssl->suites->suiteSz larger than it should
+- ??
 
 # STEPS TO REPRODUCE
 
