@@ -1,10 +1,23 @@
+# TODOs [for the record]
+- fix the vuln (see below) and the other ones and relaunch a campaign
+- can we overwrite part of ssl fields without smashing the stack lack writing on the return address ?
+- can we make a silent buffer overflow (to test this out, reduce the number of ciphers to a low number like 3) [related to previous item] ?
+- is there additionally a logical error with the state machine of the hello retries ?
+- problems with a too lage ssl->suites->suiteSz ?
+- ?
+
 # SUMMARY
 
- - buffer overflow
- - rewrite part of ssl struct at the server
- - make ssl->suites->suiteSz larger than it should 
- - ??
 
+
+## Potential impact
+
+- buffer overflow [confirmed]
+- ungraceful crash with a SEGFAULT [confirmed]
+- RCE ? secret/data exfiltration ?
+- rewrite part of ssl struct at the server ?
+- make ssl->suites->suiteSz larger than it should
+- ??
 
 # STEPS TO REPRODUCE
 
@@ -20,11 +33,11 @@ The buffer overflow at the attacked server is obtained by:
     - includes a PSK associated to the session established at step 1
     - includes a list of ciphers that contains at least a repetition of `n` times the same cipher `c`, accepted by the server 
    
-    The server will parse this message and because `ssl->suites->suites` already contains `n` times the cipher `c`, the function `refineSuites` will provoke a buffer overflow.
+    The server will parse this message and because `ssl->suites->suites` already contains `n` times the cipher `c`, the flawed logic of the function `refineSuites` will provoke a buffer overflow.
 
 ## DETAILS
 
-1. Perform an initial TLS 1.3 session with a full handshake (which includes the first Client Hello `CH1`).
+1. Perform an initial TLS 1.3 session with a full handshake (which includes the first Client Hello `CH1`). Note that the ssl context of that session can be cleared at this point without impacting the following.
 
 2. Trigger with a second client hello (`CH2`) a HelloRetryRequest after a PSK-based resumed session.
 
@@ -169,6 +182,32 @@ As a result, `ssl->suites->suites` will at least contain 13 times the ciphers th
 
 Right now we only found a way to overflow with "existing" cipher suites (See 2.).
 
-## MORE DETAILS
+## NUMBER OF CIPHERS ADJUSTING THE OVERFLOW
 The list of ciphers in the two client hello retry can be as large as 149 repeated ciphers (a larger list is rejected by the server). In that case, we were able to reach `suitesSz = 29461` so an overflow of 29161 bytes. With only 15 equal ciphers in the list, we reach `suiteSz = 450` so an overflow of 150 bytes. There is an overflow starting with 13 equal ciphers in the list, but no overflow was found with 12 equal ciphers in the list.
 
+# AFFECTED VERSIONS
+TODO
+
+# SUGGESTED REMEDIATION
+We recommend the following fixes.
+
+## A: Fixing the logic of refineSuite
+Either:
+ 1. Reset `ssl->suites->suites` with `ìnternal.c::int InitSSL_Suites(WOLFSSL* ssl)` at the beginning of RefineSuites if a specific flag ssl->suites->clean is set to 0. refineSuites sets it to 1. ìnternal.c::int InitSSL_Suites(WOLFSSL* ssl) sets it to 0.
+ 2. Reset `ssl->suites->suites` with `ìnternal.c::int InitSSL_Suites(WOLFSSL* ssl)` at the beginning of RefineSuites.
+ 3. Add bound checks in refineSuites. Conditional becomes:
+```c
+   (suiteSz < WOLFSSL_MAX_SUITE_SZ &&
+    ssl->suites->suites[i+0] == peerSuites->suites[j+0] &&
+    ssl->suites->suites[i+1] == peerSuites->suites[j+1])
+```
+
+## B: Fixing the HELLO_RETRY state machine
+TODO ??
+
+## C: OTHER STUFF?
+
+# Authors  [TO DISCUSS]
+Max Amman (part of the work was done when M. Amman was at Inria and some other part when M. Amman was at Trail of Bits)
+Lucca Hirschi (Inria)
+This vulnerability has been found in the context of a research project on Cryptographic Protocol Logic Fuzz Testing whose tlspuffin is a proof of concept.
