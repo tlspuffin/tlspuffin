@@ -2434,19 +2434,6 @@ pub fn seed_session_resumption_dhe_full(
 }
 
 pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
-    let mut cipher_suites = term! { fn_new_cipher_suites() };
-
-    for _ in 0..100 {
-        // 200 is too large already
-        cipher_suites = term! {
-            fn_append_cipher_suite(
-                (@cipher_suites),
-                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
-                //fn_cipher_suite12 // Works for 5.4.0
-            )
-        };
-    }
-
     let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
@@ -2461,6 +2448,19 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
             fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
         )
     };
+
+    let mut cipher_suites = term! { fn_new_cipher_suites() };
+
+    for _ in 0..100 {
+        // 200 is too large already
+        cipher_suites = term! {
+            fn_append_cipher_suite(
+                (@cipher_suites),
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
+            )
+        };
+    }
 
     let client_hello = term! {
           fn_client_hello(
@@ -2488,20 +2488,13 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                         )),
                         (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
-                    fn_supported_versions13_extension // CHANGED from: fn_psk_exchange_mode_dhe_ke_extension
+                    fn_psk_exchange_mode_dhe_ke_extension
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
-                    (fn_new_session_ticket13(
-                        fn_empty_bytes_vec,
-                        fn_empty_bytes_vec,
-                        fn_new_session_ticket_extensions_new
-                    ))
+                    (@new_ticket_message)
                 ))
-                // CHANGED from: (fn_preshared_keys_extension_empty_binder(
-                // CHANGED from:   (@new_ticket_message)
-                // CHANGED from: ))
             ))
         )
     };
@@ -2517,15 +2510,9 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
         )
     };
 
-    let initial_client_hello = match &initial_handshake.steps[0].action {
-        Action::Input(action) => Some(action.recipe.clone()),
-        Action::Output(_) => None,
-    }
-    .unwrap();
-
     let binder = term! {
         fn_derive_binder(
-            (@initial_client_hello), // CHANGED: (@client_hello),
+            (@client_hello),
             (@psk)
         )
     };
@@ -2626,20 +2613,13 @@ pub fn seed_finding_11_full(
                         )),
                         (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                     )),
-                    fn_supported_versions13_extension // CHANGED from: fn_psk_exchange_mode_dhe_ke_extension
+                    fn_psk_exchange_mode_dhe_ke_extension
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
                 (fn_preshared_keys_extension_empty_binder(
-                    (fn_new_session_ticket13(
-                        fn_empty_bytes_vec,
-                        fn_empty_bytes_vec,
-                        fn_new_session_ticket_extensions_new
-                    ))
+                    (@new_ticket_message)
                 ))
-                // CHANGED from: (fn_preshared_keys_extension_empty_binder(
-                // CHANGED from:   (@new_ticket_message)
-                // CHANGED from: ))
             ))
         )
     };
@@ -2655,15 +2635,9 @@ pub fn seed_finding_11_full(
         )
     };
 
-    let initial_client_hello = match &initial_handshake.steps[0].action {
-        Action::Input(action) => Some(action.recipe.clone()),
-        Action::Output(_) => None,
-    }
-    .unwrap();
-
     let binder = term! {
         fn_derive_binder(
-            (@initial_client_hello), // CHANGED: (@client_hello),
+            (@client_hello),
             (@psk)
         )
     };
