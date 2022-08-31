@@ -22,21 +22,7 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
-    "tlspuffin"
-} else if cfg!(feature = "vendored-wolfssl530") {
-    "v5.3.0-stable"
-} else if cfg!(feature = "vendored-wolfssl520") {
-    "v5.2.0-stable"
-} else if cfg!(feature = "vendored-wolfssl510") {
-    "v5.1.0-stable"
-} else if cfg!(feature = "vendored-wolfssl430") {
-    "v4.3.0-stable"
-} else if cfg!(feature = "vendored-master") {
-    "master"
-} else {
-    "master"
-};
+const REF: &str = "tlspuffin";
 
 fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
@@ -46,7 +32,7 @@ fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
         .arg("1")
         .arg("--branch")
         .arg(REF)
-        .arg("https://github.com/tlspuffin/wolfssl.git")
+        .arg("git@gitlab.inria.fr:fuzzing/wolfssl.git")
         .arg(dest)
         .status()?;
 
