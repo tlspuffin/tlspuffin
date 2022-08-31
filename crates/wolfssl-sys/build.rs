@@ -23,7 +23,7 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 }
 
 const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
-    "v5.4.0-stable"
+    "tlspuffin"
 } else if cfg!(feature = "vendored-wolfssl530") {
     "v5.3.0-stable"
 } else if cfg!(feature = "vendored-wolfssl520") {
@@ -46,7 +46,7 @@ fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
         .arg("1")
         .arg("--branch")
         .arg(REF)
-        .arg("https://github.com/wolfSSL/wolfssl.git")
+        .arg("https://github.com/tlspuffin/wolfssl.git")
         .arg(dest)
         .status()?;
 
