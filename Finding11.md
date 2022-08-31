@@ -1,6 +1,32 @@
-1. Perform an initial session TLS 1.3 session (which includes the first Client Hello)
+# SUMMARY
 
-2. Trigger a HelloRetryRequest after a resumed session
+ - buffer overflow
+ - rewrite part of ssl struct at the server
+ - make ssl->suites->suiteSz larger than it should 
+ - ??
+
+
+# STEPS TO REPRODUCE
+
+The buffer overflow at the attacked server is obtained by:
+ 1. sending a first genuine, standard client hello (`CH1`) to the server and then completes a full handshake, thus establishing a Pre-Shared Key (PSK).
+ 2. sending a second client hello (`CH2`) with the following specification:
+    - remove the `support_group_extension`
+    - includes a PSK associated to the session established at step 1
+    - includes a list of ciphers that contains at least a repetition of `n` times the same cipher `c`, accepted by the server
+ 
+    The server will parse this message and enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and store in `ssl->suites->suites` at least `n` times the cipher `c`.
+ 3. sending a third client hello (`CH3`) with the following specification:
+    - includes a PSK associated to the session established at step 1
+    - includes a list of ciphers that contains at least a repetition of `n` times the same cipher `c`, accepted by the server 
+   
+    The server will parse this message and because `ssl->suites->suites` already contains `n` times the cipher `c`, the function `refineSuites` will provoke a buffer overflow.
+
+## DETAILS
+
+1. Perform an initial TLS 1.3 session with a full handshake (which includes the first Client Hello `CH1`).
+
+2. Trigger with a second client hello (`CH2`) a HelloRetryRequest after a PSK-based resumed session.
 
 We want to make sure that `doHelloRetry` is true during the second Client Hello to enter state `SERVER_HELLO_RETRY_REQUEST_COMPLETE`. In the initial session it was false.
 We can make it true by not sending supported groups in the second Client Hello.
@@ -45,7 +71,7 @@ We can make it true by not sending supported groups in the second Client Hello.
 ```
 
 
-3. Send at least sqrt(300) + 1 identical ciphers in the second Client Hello
+In `CH2`, we also send at least 13 identical ciphers.
 
 NOTE: Only ciphers which are supported by the server are allowed! The following bytes represent accepted values by wolfSSL 5.4.0:
 
@@ -117,15 +143,9 @@ static void RefineSuites(WOLFSSL* ssl, Suites* peerSuites)
     XMEMCPY(ssl->suites->suites, &suites, sizeof(suites));
 }
 ```
+As a result, `ssl->suites->suites` will at least contain 13 times the ciphers that was included 13 times in `CH2`.
 
-
-4. Repeat 3. for the third Client Hello
-
-5. While accepting new messages from the client, the server accepts the third Client Hello
-
-
-The reason for this is that the server is in the `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state. That way it processes the third ClientHello with the call of `ProcessReply`.
-
+3. Repeat step 2 for the third Client Hello `CH3` (we can choose `CH3:=CH2`, one can also includes support_group_extension in `CH3`. The server will parse `CH3` because it is still in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE`. That way it processes the third ClientHello with the call of `ProcessReply`. 
 ```c
         case TLS13_ACCEPT_FIRST_REPLY_DONE :
             if (ssl->options.serverState ==
@@ -144,6 +164,11 @@ The reason for this is that the server is in the `SERVER_HELLO_RETRY_REQUEST_COM
             FALL_THROUGH;
 ```
 
-6. The server processes the ciphers in the third Client Hello again in `RefineSuites`. The quadratic explosion makes the `suites` array overflow the stack.
+  And yet, `ssl->suites->suites` has been filled up with all the ciphers from the list we sent at step 2. Even though the client hello from step 2 did not yield a full, valid handshake, the side effect of modifying ssl->suites->suites remains.
+  The ciphers from `CH3` are processed again in `RefineSuites`. But now, `ssl->suites->suites` already contains 13 times the cipher that is repeated in `CH3`. The quadratic explosion due to the flawed logic of `RefineSuites` makes the `suites` array overflow the stack.
 
 Right now we only found a way to overflow with "existing" cipher suites (See 2.).
+
+## MORE DETAILS
+The list of ciphers in the two client hello retry can be as large as 149 repeated ciphers (a larger list is rejected by the server). In that case, we were able to reach `suitesSz = 29461` so an overflow of 29161 bytes. With only 15 equal ciphers in the list, we reach `suiteSz = 450` so an overflow of 150 bytes. There is an overflow starting with 13 equal ciphers in the list, but no overflow was found with 12 equal ciphers in the list.
+
