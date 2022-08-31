@@ -32,6 +32,8 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "v5.1.0-stable"
 } else if cfg!(feature = "vendored-wolfssl430") {
     "v4.3.0-stable"
+} else if cfg!(feature = "vendored-master") {
+    "master"
 } else {
     "master"
 };
@@ -87,6 +89,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("secure-renegotiation", None)
         .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
         .enable("psk", None) // FIXME: Only 4.3.0
+        .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data

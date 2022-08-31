@@ -345,17 +345,18 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        info!("Executing prior traces.");
+        info!("[START] Executing prior traces");
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
             ctx.reset_agents()?;
         }
+        info!("[END] Executing prior traces");
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
-        info!("Executing trace:");
+        info!("[START] Executing trace:");
         for (i, step) in steps.iter().enumerate() {
-            info!("Executing step #{}", i);
+            info!("[START] Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -371,6 +372,8 @@ impl<M: Matcher> Trace<M> {
 
             ctx.claims.deref_borrow().log();
         }
+
+        info!("[END] Executing trace");
 
         ctx.verify_security_violations()?;
 
