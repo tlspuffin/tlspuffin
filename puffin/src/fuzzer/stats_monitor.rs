@@ -400,7 +400,7 @@ where
         self.log_count += 1;
 
         // Only display log every 100 steps at the beginning and then every 1000/10000 steps
-        if (self.log_count % 10000 != 0) &&
+        if (self.log_count % 10000 != 0) && // TODO: should be rewritten with >> and <<
             (self.log_count % 1000 != 0 && self.log_count < 1000000) &&
             (self.log_count % 100 != 0 && self.log_count < 10000) {
             return;

@@ -52,6 +52,20 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             let put_descriptor = context.put_descriptor(agent_descriptor);
 
             let options = &put_descriptor.options;
+            info!("put_descriptor.options {:?}", &put_descriptor.options);
+
+            if cfg!(feature = "fixed-port") { // dummy server
+                if agent_descriptor.typ == AgentType::Client {
+                    let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    server.set_process(TLSProcess::new("", "", Some("")));
+                    return Ok(Box::new(server));
+                } else {
+                    let process = TLSProcess::new("", "", Some(""));
+                    let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    client.set_process(process);
+                    return Ok(Box::new(client))
+                }
+            }
 
             let args = options
                 .get_option("args")
@@ -150,8 +164,10 @@ impl TcpClientPut {
         })
     }
 
-    fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
+    fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream>
+    where A:Debug {
         let mut tries = 10;
+        info!("[Tc[ClientPut::new_stream] Trying to connect to {:?}", addr);
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -189,7 +205,6 @@ pub struct TcpServerPut {
     agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
-
 impl TcpServerPut {
     fn new(
         agent_descriptor: &AgentDescriptor,
@@ -241,6 +256,7 @@ impl TcpServerPut {
         if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
             self.stream = Some(tuple);
         } else {
+            info!("Receive stream: {:#?}, rcv stream {:#?}", self.stream, self.stream_receiver);
             panic!("Unable to get stream to client!")
         }
     }
@@ -508,6 +524,16 @@ where
 
     if let Some(cwd) = cwd {
         cmd.current_dir(cwd);
+    }
+
+    if cfg!(feature = "fixed-port") {
+        let mut cmd = Command::new("ls");
+        return cmd
+            .stdin(Stdio::piped()) // This line is super important! Else the OpenSSL server immediately stops
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("failed to execute process")
     }
 
     cmd.args(args)
