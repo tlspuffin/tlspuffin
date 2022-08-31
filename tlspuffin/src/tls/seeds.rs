@@ -2790,6 +2790,11 @@ pub fn seed_finding_11_complete(initial_server: AgentName, server: AgentName) ->
         )
     };
 
+    let initial_client_hello = match &initial_handshake.steps[0].action {
+        Action::Input(action) => Some(action.recipe.clone()),
+        Action::Output(_) => None,
+    }.unwrap();
+
     let full_client_hello_3 = term! {
         fn_fill_binder(
             (@initial_client_hello),
