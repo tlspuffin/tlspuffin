@@ -204,8 +204,3 @@ Either:
 TODO ??
 
 ## C: OTHER STUFF?
-
-# Authors  [TO DISCUSS]
-Max Amman (part of the work was done when M. Amman was at Inria and some other part when M. Amman was at Trail of Bits)
-Lucca Hirschi (Inria)
-This vulnerability has been found in the context of a research project on Cryptographic Protocol Logic Fuzz Testing whose tlspuffin is a proof of concept.
