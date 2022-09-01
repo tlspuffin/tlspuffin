@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["deserialize","Deserializer from a `[u8; 16]` into a `Uuid`"],["serialize","Serializer for a `Uuid` into a `[u8; 16]`"]]};

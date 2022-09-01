@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["deregister_claimer",""],["register_claimer",""]],"type":[["Claimer",""]]};

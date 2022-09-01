@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["tlspuffin"] = [{"text":"impl <a class=\"trait\" href=\"puffin/protocol/trait.ProtocolMessageDeframer.html\" title=\"trait puffin::protocol::ProtocolMessageDeframer\">ProtocolMessageDeframer</a> for <a class=\"struct\" href=\"tlspuffin/tls/rustls/msgs/deframer/struct.MessageDeframer.html\" title=\"struct tlspuffin::tls::rustls::msgs::deframer::MessageDeframer\">MessageDeframer</a>","synthetic":false,"types":["tlspuffin::tls::rustls::msgs::deframer::MessageDeframer"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

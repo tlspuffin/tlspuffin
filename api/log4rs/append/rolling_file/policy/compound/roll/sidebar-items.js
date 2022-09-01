@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["delete","The delete roller."],["fixed_window","The fixed-window roller."]],"trait":[["Roll","A trait which processes log files after they have been rolled over."]]};

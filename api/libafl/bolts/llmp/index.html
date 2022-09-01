@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A library for low level message passing"><meta name="keywords" content="rust, rustlang, rust-lang, llmp"><title>libafl::bolts::llmp - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Module llmp</a></h2><div class="sidebar-elems"><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../libafl/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Module <a href="../../index.html">libafl</a>::<wbr><a href="../index.html">bolts</a>::<wbr><a class="mod" href="#">llmp</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../../../src/libafl/bolts/llmp.rs.html#1-2797">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A library for low level message passing</p>
+<p>To send new messages, the clients place a new message at the end of their
+<code>client_out_mem</code>. If the current map is filled up, they place an end of page (<code>EOP</code>)
+msg and alloc a new <a href="../shmem/trait.ShMem.html" title="ShMem"><code>ShMem</code></a>.
+Once the broker mapped this same page, it flags it as safe for unmapping.</p>
+<div class="example-wrap"><pre class="language-text"><code>[client0]        [client1]    ...    [clientN]
+  |                  |                 /
+[client0_out] [client1_out] ... [clientN_out]
+  |                 /                /
+  |________________/                /
+  |________________________________/
+ \|/
+[broker]</code></pre></div>
+<p>After the broker received a new message for clientN, (<code>clientN_out-&gt;current_id != last_message-&gt;message_id</code>) the broker will copy the message content to its
+own, centralized page.</p>
+<p>The clients periodically check (<code>current_broadcast_shmem-&gt;current_id != last_message-&gt;message_id</code>) for new incoming messages. If the page is filled up,
+the broker instead creates a new page and places an end of page (<code>EOP</code>)
+message in its queue. The <code>EOP</code> buf contains the new description to
+access the shared map. The clients then switch over to read from that new
+current map.</p>
+<div class="example-wrap"><pre class="language-text"><code>[broker]
+  |
+[current_broadcast_shmem]
+  |
+  |___________________________________
+  |_________________                  \
+  |                 \                  \
+  |                  |                  |
+ \|/                \|/                \|/
+[client0]        [client1]    ...    [clientN]</code></pre></div>
+<p>In the future, if we would need zero copy, the <code>current_broadcast_shmem</code> could instead
+list the <code>client_out_shmem</code> ID an offset for each message. In that case, the clients
+also need to create a new <a href="../shmem/trait.ShMem.html" title="ShMem"><code>ShMem</code></a> each time their bufs are filled up.</p>
+<p>To use, you will have to create a broker using <a href="struct.LlmpBroker.html#method.new" title="LlmpBroker::new()"><code>LlmpBroker::new()</code></a>.
+Then, create some <a href="struct.LlmpClient.html" title="LlmpClient"><code>LlmpClient</code></a><code>s</code> in other threads and register them
+with the main thread using <a href="struct.LlmpBroker.html#method.register_client" title="LlmpBroker::register_client"><code>LlmpBroker::register_client</code></a>.
+Finally, call <a href="struct.LlmpBroker.html#method.loop_forever" title="LlmpBroker::loop_forever()"><code>LlmpBroker::loop_forever()</code></a>.</p>
+<p>For broker2broker communication, all messages are forwarded via network sockets.</p>
+<p>Check out the <code>llmp_test</code> example in ./examples, or build it with <code>cargo run --example llmp_test</code>.</p>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpBroker.html" title="libafl::bolts::llmp::LlmpBroker struct">LlmpBroker</a></div><div class="item-right docblock-short"><p>The broker (node 0)</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpBrokerSignalHandler.html" title="libafl::bolts::llmp::LlmpBrokerSignalHandler struct">LlmpBrokerSignalHandler</a></div><div class="item-right docblock-short"><p>A signal handler for the <a href="struct.LlmpBroker.html" title="LlmpBroker"><code>LlmpBroker</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpClient.html" title="libafl::bolts::llmp::LlmpClient struct">LlmpClient</a></div><div class="item-right docblock-short"><p>Client side of LLMP</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpClientDescription.html" title="libafl::bolts::llmp::LlmpClientDescription struct">LlmpClientDescription</a></div><div class="item-right docblock-short"><p>A restorable client description</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpDescription.html" title="libafl::bolts::llmp::LlmpDescription struct">LlmpDescription</a></div><div class="item-right docblock-short"><p>Description of a shared map.
+May be used to restore the map by id.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpMsg.html" title="libafl::bolts::llmp::LlmpMsg struct">LlmpMsg</a></div><div class="item-right docblock-short"><p>Message sent over the “wire”</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpPage.html" title="libafl::bolts::llmp::LlmpPage struct">LlmpPage</a></div><div class="item-right docblock-short"><p>Contents of the share mem pages, used by llmp internally</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpReceiver.html" title="libafl::bolts::llmp::LlmpReceiver struct">LlmpReceiver</a></div><div class="item-right docblock-short"><p>Receiving end on a (unidirectional) sharedmap channel</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpSender.html" title="libafl::bolts::llmp::LlmpSender struct">LlmpSender</a></div><div class="item-right docblock-short"><p>Sending end on a (unidirectional) sharedmap channel</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.LlmpSharedMap.html" title="libafl::bolts::llmp::LlmpSharedMap struct">LlmpSharedMap</a></div><div class="item-right docblock-short"><p>A page wrapper</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.TcpRemoteNewMessage.html" title="libafl::bolts::llmp::TcpRemoteNewMessage struct">TcpRemoteNewMessage</a></div><div class="item-right docblock-short"><p>Messages for broker 2 broker connection.</p>
+</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.Listener.html" title="libafl::bolts::llmp::Listener enum">Listener</a></div><div class="item-right docblock-short"><p>Abstraction for listeners</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.ListenerStream.html" title="libafl::bolts::llmp::ListenerStream enum">ListenerStream</a></div><div class="item-right docblock-short"><p>A listener stream abstraction</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.LlmpConnection.html" title="libafl::bolts::llmp::LlmpConnection enum">LlmpConnection</a></div><div class="item-right docblock-short"><p>An Llmp instance</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.LlmpMsgHookResult.html" title="libafl::bolts::llmp::LlmpMsgHookResult enum">LlmpMsgHookResult</a></div><div class="item-right docblock-short"><p>Result of an LLMP Message hook</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.TcpRequest.html" title="libafl::bolts::llmp::TcpRequest enum">TcpRequest</a></div><div class="item-right docblock-short"><p>This is for the server the broker will spawn.
+If an llmp connection is local - use sharedmaps
+or remote (broker2broker) - forwarded via tcp</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.TcpResponse.html" title="libafl::bolts::llmp::TcpResponse enum">TcpResponse</a></div><div class="item-right docblock-short"><p>Responses for requests to the server.</p>
+</div></div></div><h2 id="constants" class="small-section-header"><a href="#constants">Constants</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.LLMP_FLAG_COMPRESSED.html" title="libafl::bolts::llmp::LLMP_FLAG_COMPRESSED constant">LLMP_FLAG_COMPRESSED</a></div><div class="item-right docblock-short"><p>This message was compressed in transit</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.LLMP_FLAG_FROM_B2B.html" title="libafl::bolts::llmp::LLMP_FLAG_FROM_B2B constant">LLMP_FLAG_FROM_B2B</a></div><div class="item-right docblock-short"><p>From another broker.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.LLMP_FLAG_INITIALIZED.html" title="libafl::bolts::llmp::LLMP_FLAG_INITIALIZED constant">LLMP_FLAG_INITIALIZED</a></div><div class="item-right docblock-short"><p>Unused…</p>
+</div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.BrokerId.html" title="libafl::bolts::llmp::BrokerId type">BrokerId</a></div><div class="item-right docblock-short"><p>The broker ID, for broker 2 broker communication.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.ClientId.html" title="libafl::bolts::llmp::ClientId type">ClientId</a></div><div class="item-right docblock-short"><p>The client ID == the sender id.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.Flags.html" title="libafl::bolts::llmp::Flags type">Flags</a></div><div class="item-right docblock-short"><p>The flags, indicating, for example, enabled compression.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.MessageId.html" title="libafl::bolts::llmp::MessageId type">MessageId</a></div><div class="item-right docblock-short"><p>The message ID, an ever-increasing number, unique only to a sharedmap/page.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.Tag.html" title="libafl::bolts::llmp::Tag type">Tag</a></div><div class="item-right docblock-short"><p>TAGs used throughout llmp</p>
+</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="libafl" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
+</body></html>

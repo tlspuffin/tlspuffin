@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["read_time_counter","Read a timestamp for measurements."]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"static":[["ALL_VERSIONS","A list of all the protocol versions supported by rustls."],["DEFAULT_VERSIONS","The version configuration that an application should use by default."],["TLS12","TLS1.2"],["TLS13","TLS1.3"]],"struct":[["EnabledVersions",""],["SupportedProtocolVersion","A TLS protocl version supported by rustls."]]};

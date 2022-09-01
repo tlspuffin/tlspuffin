@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["TlsQueryMatcher","[MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields It uses [rustls::msgs::enums::{ContentType,HandshakeType}]."]]};

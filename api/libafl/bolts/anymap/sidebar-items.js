@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["pack_type_id","Get a `type_id` from its previously unpacked `u64`. Opposite of [`unpack_type_id(id)`]."],["unpack_type_id","Unpack a `type_id` to an `u64` Opposite of [`pack_type_id(id)`]."]],"trait":[["AsAny","Convert to an Any trait object"]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["GeneralizationStage","A stage that runs a tracer executor"],["GeneralizedIndexesMetadata","A state metadata holding the set of indexes related to the generalized corpus entries"]]};

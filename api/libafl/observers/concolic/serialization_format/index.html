@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Concolic Tracing Serialization Format"><meta name="keywords" content="rust, rustlang, rust-lang, serialization_format"><title>libafl::observers::concolic::serialization_format - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"></h2>
+    </nav>
+    <nav class="sidebar"><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
+        </a><h2 class="location"><a href="#">Module serialization_format</a></h2><div class="sidebar-elems"><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../libafl/index.html"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
+    <h1 class="fqn"><span class="in-band">Module <a href="../../../index.html">libafl</a>::<wbr><a href="../../index.html">observers</a>::<wbr><a href="../index.html">concolic</a>::<wbr><a class="mod" href="#">serialization_format</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../../../../src/libafl/observers/concolic/serialization_format.rs.html#1-512">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="concolic-tracing-serialization-format"><a href="#concolic-tracing-serialization-format">Concolic Tracing Serialization Format</a></h2><h3 id="design-goals"><a href="#design-goals">Design Goals</a></h3>
+<ul>
+<li>The serialization format for concolic tracing was developed with the goal of being space and time efficient.</li>
+<li>Additionally, it should be easy to maintain and extend.</li>
+<li>It does not have to be compatible with other programming languages.</li>
+<li>It should be resilient to crashes. Since we are fuzzing, we are expecting the traced program to crash at some
+point.</li>
+</ul>
+<p>The format as implemented fulfils these design goals.
+Specifically:</p>
+<ul>
+<li>it requires only constant memory space for serialization, which allows for tracing complex and/or
+long-running programs.</li>
+<li>the trace itself requires little space. A typical binary operation (such as an add) typically takes just 3 bytes.</li>
+<li>it easy to encode. There is no translation between the interface of the runtime itself and the trace it generates.</li>
+<li>it is similarly easy to decode and can be easily translated into an in-memory AST without overhead, because
+expressions are decoded from leaf to root instead of root to leaf.</li>
+<li>At its core, it is just <a href="../enum.SymExpr.html" title="SymExpr"><code>SymExpr</code></a>s, which can be added to, modified and removed from with ease. The
+definitions are automatically shared between the runtime and the consuming program, since both depend on the same
+<code>LibAFL</code>.</li>
+</ul>
+<h3 id="techniques"><a href="#techniques">Techniques</a></h3>
+<p>The serialization format applies multiple techniques to achieve its goals.</p>
+<ul>
+<li>It uses bincode for efficient binary serialization. Crucially, bincode uses variable length integer encoding,
+allowing it encode small integers use fewer bytes.</li>
+<li>References to previous expressions are stored relative to the current expressions id. The vast majority of
+expressions refer to other expressions that were defined close to their use. Therefore, encoding relative references
+keeps references small. Therefore, they make optimal use of bincodes variable length integer encoding.</li>
+<li>Ids of expressions (<a href="../type.SymExprRef.html" title="SymExprRef"><code>SymExprRef</code></a>s) are implicitly derived by their position in the message stream. Effectively,
+a counter is used to identify expressions.</li>
+<li>The current length of the trace in bytes in serialized in a fixed format at the beginning of the trace.
+This length is updated regularly when the trace is in a consistent state. This allows the reader to avoid reading
+malformed data if the traced process crashed.</li>
+</ul>
+<h3 id="example"><a href="#example">Example</a></h3>
+<p>The expression <code>SymExpr::BoolAnd { a: SymExpr::True, b: SymExpr::False }</code> would be encoded as:</p>
+<ol>
+<li>1 byte to identify <code>SymExpr::True</code> (a)</li>
+<li>1 byte to identify <code>SymExpr::False</code> (b)</li>
+<li>1 byte to identify <code>SymExpr::BoolAnd</code></li>
+<li>1 byte to reference a</li>
+<li>1 byte to reference b</li>
+</ol>
+<p>… making for a total of 5 bytes.</p>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.MessageFileReader.html" title="libafl::observers::concolic::serialization_format::MessageFileReader struct">MessageFileReader</a></div><div class="item-right docblock-short"><p>A <code>MessageFileReader</code> reads a stream of <a href="../enum.SymExpr.html" title="SymExpr"><code>SymExpr</code></a> and their corresponding <a href="../type.SymExprRef.html" title="SymExprRef"><code>SymExprRef</code></a>s from any <a href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="Read"><code>Read</code></a>.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.MessageFileWriter.html" title="libafl::observers::concolic::serialization_format::MessageFileWriter struct">MessageFileWriter</a></div><div class="item-right docblock-short"><p>A <code>MessageFileWriter</code> writes a stream of <a href="../enum.SymExpr.html" title="SymExpr"><code>SymExpr</code></a> to any <a href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="Write"><code>Write</code></a>. For each written expression, it returns
+a <a href="../type.SymExprRef.html" title="SymExprRef"><code>SymExprRef</code></a> which should be used to refer back to it.</p>
+</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.ErrorKind.html" title="libafl::observers::concolic::serialization_format::ErrorKind enum">ErrorKind</a></div><div class="item-right docblock-short"><p>The kind of error that can be produced during a serialization or deserialization.</p>
+</div></div></div><h2 id="constants" class="small-section-header"><a href="#constants">Constants</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.DEFAULT_ENV_NAME.html" title="libafl::observers::concolic::serialization_format::DEFAULT_ENV_NAME constant">DEFAULT_ENV_NAME</a></div><div class="item-right docblock-short"><p>The default environment variable name to use for the shared memory used by the concolic tracing</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.DEFAULT_SIZE.html" title="libafl::observers::concolic::serialization_format::DEFAULT_SIZE constant">DEFAULT_SIZE</a></div><div class="item-right docblock-short"><p>The default shared memory size used by the concolic tracing.</p>
+</div></div></div><h2 id="types" class="small-section-header"><a href="#types">Type Definitions</a></h2>
+<div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="type" href="type.Result.html" title="libafl::observers::concolic::serialization_format::Result type">Result</a></div><div class="item-right docblock-short"><p>The result of a serialization or deserialization operation.</p>
+</div></div><div class="item-row"><div class="item-left module-item"><a class="type" href="type.StdShMemMessageFileWriter.html" title="libafl::observers::concolic::serialization_format::StdShMemMessageFileWriter type">StdShMemMessageFileWriter</a></div><div class="item-right docblock-short"><p>A writer that will write messages to a shared memory buffer.</p>
+</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="libafl" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
+</body></html>

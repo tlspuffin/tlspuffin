@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["Term","A first-order term: either a [`Variable`] or an application of an [`Function`]."]],"fn":[["remove_fn_prefix",""],["remove_prefix","`tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version` `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`"]],"trait":[["Subterms",""]]});

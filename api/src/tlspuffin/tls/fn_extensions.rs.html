@@ -1,9 +1,10 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/./fn_extensions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_extensions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/./fn_extensions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_extensions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -612,6 +613,20 @@
 <span id="607">607</span>
 <span id="608">608</span>
 <span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::ptr_arg</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -621,22 +636,24 @@
 <span class="doccomment">//! In the source code all IDs are available, but implementations are missing.</span>
 <span class="doccomment">//!</span>
 
-<span class="kw">use</span> <span class="ident">rustls</span>::{
-    <span class="ident">msgs</span>::{
-        <span class="ident">base</span>::{<span class="ident">Payload</span>, <span class="ident">PayloadU16</span>, <span class="ident">PayloadU24</span>, <span class="ident">PayloadU8</span>},
-        <span class="ident">enums</span>::<span class="kw-2">*</span>,
-        <span class="ident">handshake</span>::<span class="kw-2">*</span>,
-        <span class="ident">message::Message</span>,
-    },
-    <span class="ident">x509</span>, <span class="ident">ProtocolVersion</span>, <span class="ident">SignatureScheme</span>, <span class="ident">SupportedKxGroup</span>,
-};
+<span class="kw">use</span> <span class="ident">puffin::algebra::error::FnError</span>;
 <span class="kw">use</span> <span class="ident">webpki::DnsNameRef</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">nyi_fn</span>,
     <span class="ident">tls</span>::{
-        <span class="ident">error::FnError</span>, <span class="ident">fn_impl::fn_get_ticket_age_add</span>, <span class="ident">fn_utils::fn_get_ticket</span>,
+        <span class="ident">fn_impl::fn_get_ticket_age_add</span>,
+        <span class="ident">fn_utils::fn_get_ticket</span>,
         <span class="ident">key_exchange::deterministic_key_share</span>,
+        <span class="ident">rustls</span>::{
+            <span class="ident">msgs</span>::{
+                <span class="ident">base</span>::{<span class="ident">Payload</span>, <span class="ident">PayloadU16</span>, <span class="ident">PayloadU24</span>, <span class="ident">PayloadU8</span>},
+                <span class="ident">enums</span>::<span class="kw-2">*</span>,
+                <span class="ident">handshake</span>::<span class="kw-2">*</span>,
+                <span class="ident">message::Message</span>,
+            },
+            <span class="ident">x509</span>,
+        },
     },
 };
 
@@ -744,15 +761,17 @@
 <span class="doccomment">/// ServerName =&gt; 0x0000,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_server_name_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">dns_name</span> <span class="op">=</span> <span class="string">&quot;inria.fr&quot;</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::ServerName</span>(<span class="macro">vec!</span>[<span class="ident">ServerName</span> {
-        <span class="ident">typ</span>: <span class="ident">ServerNameType::HostName</span>,
-        <span class="ident">payload</span>: <span class="ident">ServerNamePayload::HostName</span>((
-            <span class="ident">PayloadU16</span>(<span class="ident">dns_name</span>.<span class="ident">to_string</span>().<span class="ident">into_bytes</span>()),
-            <span class="ident">DnsNameRef::try_from_ascii_str</span>(<span class="ident">dns_name</span>)
-                .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="ident">err</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
-                .<span class="ident">to_owned</span>(),
-        )),
-    }]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::ServerName</span>(<span class="ident">ServerNameRequest</span>(<span class="macro">vec!</span>[
+        <span class="ident">ServerName</span> {
+            <span class="ident">typ</span>: <span class="ident">ServerNameType::HostName</span>,
+            <span class="ident">payload</span>: <span class="ident">ServerNamePayload::HostName</span>((
+                <span class="ident">PayloadU16</span>(<span class="ident">dns_name</span>.<span class="ident">to_string</span>().<span class="ident">into_bytes</span>()),
+                <span class="ident">DnsNameRef::try_from_ascii_str</span>(<span class="ident">dns_name</span>)
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="ident">err</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
+                    .<span class="ident">to_owned</span>(),
+            )),
+        },
+    ])))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_server_name_server_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::ServerNameAck</span>)
@@ -774,10 +793,12 @@
     <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
     <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::CertificateStatusRequest</span>(
         <span class="ident">CertificateStatusRequest::OCSP</span>(<span class="ident">OCSPCertificateStatusRequest</span> {
-            <span class="ident">responder_ids</span>: <span class="ident">responder_ids</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> <span class="ident">PayloadU16::new</span>(<span class="ident">data</span>.<span class="ident">clone</span>()))
-                .<span class="ident">collect</span>(),
+            <span class="ident">responder_ids</span>: <span class="ident">VecU16OfPayloadU16</span>(
+                <span class="ident">responder_ids</span>
+                    .<span class="ident">iter</span>()
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> <span class="ident">PayloadU16::new</span>(<span class="ident">data</span>.<span class="ident">clone</span>()))
+                    .<span class="ident">collect</span>(),
+            ),
             <span class="ident">extensions</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">extensions</span>.<span class="ident">clone</span>()),
         }),
     ))
@@ -806,33 +827,37 @@
 <span class="macro">nyi_fn!</span>();
 <span class="doccomment">/// EllipticCurves =&gt; 0x000a,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_support_group_extension</span>(<span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::NamedGroups</span>(<span class="macro">vec!</span>[<span class="ident">group</span>.<span class="ident">clone</span>()]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::NamedGroups</span>(<span class="ident">NamedGroups</span>(<span class="macro">vec!</span>[<span class="kw-2">*</span><span class="ident">group</span>])))
 }
 <span class="doccomment">/// ECPointFormats =&gt; 0x000b,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_ec_point_formats_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::ECPointFormats</span>(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::ECPointFormats</span>(<span class="ident">ECPointFormatList</span>(<span class="macro">vec!</span>[
         <span class="ident">ECPointFormat::Uncompressed</span>,
-    ]))
+    ])))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_ec_point_formats_server_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::ECPointFormats</span>(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::ECPointFormats</span>(<span class="ident">ECPointFormatList</span>(<span class="macro">vec!</span>[
         <span class="ident">ECPointFormat::Uncompressed</span>,
-    ]))
+    ])))
 }
 <span class="doccomment">/// SRP =&gt; 0x000c,</span>
 <span class="macro">nyi_fn!</span>();
 <span class="doccomment">/// SignatureAlgorithms =&gt; 0x000d,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signature_algorithm_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SignatureAlgorithms</span>(<span class="macro">vec!</span>[
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
-        <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SignatureAlgorithms</span>(
+        <span class="ident">SupportedSignatureSchemes</span>(<span class="macro">vec!</span>[
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
+            <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
+        ]),
+    ))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signature_algorithm_cert_req_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CertReqExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">CertReqExtension::SignatureAlgorithms</span>(<span class="macro">vec!</span>[
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
-        <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">CertReqExtension::SignatureAlgorithms</span>(
+        <span class="ident">SupportedSignatureSchemes</span>(<span class="macro">vec!</span>[
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
+            <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
+        ]),
+    ))
 }
 <span class="doccomment">/// UseSRTP =&gt; 0x000e,</span>
 <span class="macro">nyi_fn!</span>();
@@ -852,22 +877,22 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_al_protocol_negotiation</span>(
     <span class="ident">protocol_name_list</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::Protocols</span>(
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::Protocols</span>(<span class="ident">VecU16OfPayloadU8</span>(
         <span class="ident">protocol_name_list</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> <span class="ident">PayloadU8::new</span>(<span class="ident">data</span>.<span class="ident">clone</span>()))
             .<span class="ident">collect</span>(),
-    ))
+    )))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_al_protocol_server_negotiation</span>(
     <span class="ident">protocol_name_list</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::Protocols</span>(
+    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::Protocols</span>(<span class="ident">VecU16OfPayloadU8</span>(
         <span class="ident">protocol_name_list</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">data</span><span class="op">|</span> <span class="ident">PayloadU8::new</span>(<span class="ident">data</span>.<span class="ident">clone</span>()))
             .<span class="ident">collect</span>(),
-    ))
+    )))
 }
 <span class="doccomment">/// status_request_v2 =&gt; 0x0011</span>
 <span class="macro">nyi_fn!</span>();
@@ -878,17 +903,17 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signed_certificate_timestamp_server_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where what to put here</span>
     <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
-    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::SignedCertificateTimestamp</span>(<span class="macro">vec!</span>[
-        <span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>])),
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::SignedCertificateTimestamp</span>(
+        <span class="ident">VecU16OfPayloadU16</span>(<span class="macro">vec!</span>[<span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>]))]),
+    ))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signed_certificate_timestamp_certificate_extension</span>(
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CertificateExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// todo unclear where what to put here</span>
     <span class="comment">//      https://github.com/tlspuffin/tlspuffin/issues/155</span>
-    <span class="prelude-val">Ok</span>(<span class="ident">CertificateExtension::SignedCertificateTimestamp</span>(<span class="macro">vec!</span>[
-        <span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>])),
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">CertificateExtension::SignedCertificateTimestamp</span>(
+        <span class="ident">VecU16OfPayloadU16</span>(<span class="macro">vec!</span>[<span class="ident">PayloadU16::new</span>(<span class="ident">Vec::from</span>([<span class="number">42u8</span>; <span class="number">128</span>]))]),
+    ))
 }
 <span class="doccomment">/// client_certificate_type =&gt; 0x0013,</span>
 <span class="macro">nyi_fn!</span>();
@@ -979,7 +1004,7 @@
     <span class="kw">let</span> <span class="ident">ticket_age_millis</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">100</span>; <span class="comment">// 100ms since receiving NewSessionTicket</span>
     <span class="kw">let</span> <span class="ident">obfuscated_ticket_age</span> <span class="op">=</span> <span class="ident">ticket_age_millis</span>.<span class="ident">wrapping_add</span>(<span class="ident">age_add</span> <span class="kw">as</span> <span class="ident">u32</span>);
 
-    <span class="kw">let</span> <span class="ident">resuming_suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::tls13::TLS13_AES_128_GCM_SHA256</span>; <span class="comment">// todo allow other cipher suites</span>
+    <span class="kw">let</span> <span class="ident">resuming_suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident"><span class="kw">crate</span>::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256</span>; <span class="comment">// todo allow other cipher suites</span>
     <span class="kw">let</span> <span class="ident">binder_len</span> <span class="op">=</span> <span class="ident">resuming_suite</span>.<span class="ident">hash_algorithm</span>().<span class="ident">output_len</span>;
     <span class="kw">let</span> <span class="ident">binder</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0u8</span>; <span class="ident">binder_len</span>];
 
@@ -1008,14 +1033,14 @@
 }
 <span class="doccomment">/// SupportedVersions =&gt; 0x002b,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_supported_versions12_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SupportedVersions</span>(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SupportedVersions</span>(<span class="ident">ProtocolVersions</span>(<span class="macro">vec!</span>[
         <span class="ident">ProtocolVersion::TLSv1_2</span>,
-    ]))
+    ])))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_supported_versions13_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SupportedVersions</span>(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SupportedVersions</span>(<span class="ident">ProtocolVersions</span>(<span class="macro">vec!</span>[
         <span class="ident">ProtocolVersion::TLSv1_3</span>,
-    ]))
+    ])))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_supported_versions12_hello_retry_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HelloRetryExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="ident">HelloRetryExtension::SupportedVersions</span>(
@@ -1043,26 +1068,26 @@
 }
 <span class="doccomment">/// PSKKeyExchangeModes =&gt; 0x002d,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_psk_exchange_mode_dhe_ke_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::PresharedKeyModes</span>(<span class="macro">vec!</span>[
-        <span class="ident">PSKKeyExchangeMode::PSK_DHE_KE</span>,
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::PresharedKeyModes</span>(<span class="ident">PSKKeyExchangeModes</span>(
+        <span class="macro">vec!</span>[<span class="ident">PSKKeyExchangeMode::PSK_DHE_KE</span>],
+    )))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_psk_exchange_mode_ke_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::PresharedKeyModes</span>(<span class="macro">vec!</span>[
-        <span class="ident">PSKKeyExchangeMode::PSK_KE</span>,
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::PresharedKeyModes</span>(<span class="ident">PSKKeyExchangeModes</span>(
+        <span class="macro">vec!</span>[<span class="ident">PSKKeyExchangeMode::PSK_KE</span>],
+    )))
 }
 <span class="doccomment">/// TicketEarlyDataInfo =&gt; 0x002e,</span>
 <span class="macro">nyi_fn!</span>();
 <span class="doccomment">/// CertificateAuthorities =&gt; 0x002f,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_certificate_authorities_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CertReqExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">DistinguishedNames::new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">VecU16OfPayloadU16</span>(<span class="ident">Vec::new</span>());
 
     <span class="kw">for</span> <span class="ident">subject</span> <span class="kw">in</span> [<span class="string">&quot;inria.fr&quot;</span>] {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">name</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
         <span class="ident">name</span>.<span class="ident">extend_from_slice</span>(<span class="ident">subject</span>.<span class="ident">as_bytes</span>());
         <span class="ident">x509::wrap_in_sequence</span>(<span class="kw-2">&amp;mut</span> <span class="ident">name</span>);
-        <span class="ident">r</span>.<span class="ident">push</span>(<span class="ident">DistinguishedName::new</span>(<span class="ident">name</span>));
+        <span class="ident">r</span>.<span class="number">0</span>.<span class="ident">push</span>(<span class="ident">DistinguishedName::new</span>(<span class="ident">name</span>));
     }
 
     <span class="prelude-val">Ok</span>(<span class="ident">CertReqExtension::AuthorityNames</span>(<span class="ident">r</span>))
@@ -1073,21 +1098,23 @@
 <span class="macro">nyi_fn!</span>();
 <span class="doccomment">/// SignatureAlgorithmsCert =&gt; 0x0032,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_signature_algorithm_cert_extension</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SignatureAlgorithmsCert</span>(<span class="macro">vec!</span>[
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA1</span>,
-        <span class="ident">SignatureScheme::ECDSA_SHA1_Legacy</span>,
-        <span class="ident">SignatureScheme::ECDSA_NISTP256_SHA256</span>,
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA384</span>,
-        <span class="ident">SignatureScheme::ECDSA_NISTP384_SHA384</span>,
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA512</span>,
-        <span class="ident">SignatureScheme::ECDSA_NISTP521_SHA512</span>,
-        <span class="ident">SignatureScheme::RSA_PSS_SHA384</span>,
-        <span class="ident">SignatureScheme::RSA_PSS_SHA512</span>,
-        <span class="ident">SignatureScheme::ED25519</span>,
-        <span class="ident">SignatureScheme::ED448</span>,
-        <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
-        <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
-    ]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::SignatureAlgorithmsCert</span>(
+        <span class="ident">SupportedSignatureSchemes</span>(<span class="macro">vec!</span>[
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA1</span>,
+            <span class="ident">SignatureScheme::ECDSA_SHA1_Legacy</span>,
+            <span class="ident">SignatureScheme::ECDSA_NISTP256_SHA256</span>,
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA384</span>,
+            <span class="ident">SignatureScheme::ECDSA_NISTP384_SHA384</span>,
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA512</span>,
+            <span class="ident">SignatureScheme::ECDSA_NISTP521_SHA512</span>,
+            <span class="ident">SignatureScheme::RSA_PSS_SHA384</span>,
+            <span class="ident">SignatureScheme::RSA_PSS_SHA512</span>,
+            <span class="ident">SignatureScheme::ED25519</span>,
+            <span class="ident">SignatureScheme::ED448</span>,
+            <span class="ident">SignatureScheme::RSA_PKCS1_SHA256</span>,
+            <span class="ident">SignatureScheme::RSA_PSS_SHA256</span>,
+        ]),
+    ))
 }
 <span class="doccomment">/// KeyShare =&gt; 0x0033,</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_key_share_deterministic_extension</span>(
@@ -1099,10 +1126,12 @@
     <span class="ident">key_share</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ClientExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::KeyShare</span>(<span class="macro">vec!</span>[<span class="ident">KeyShareEntry</span> {
-        <span class="ident">group</span>: <span class="ident">group</span>.<span class="ident">clone</span>(),
-        <span class="ident">payload</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">key_share</span>.<span class="ident">clone</span>()),
-    }]))
+    <span class="prelude-val">Ok</span>(<span class="ident">ClientExtension::KeyShare</span>(<span class="ident">KeyShareEntries</span>(<span class="macro">vec!</span>[
+        <span class="ident">KeyShareEntry</span> {
+            <span class="ident">group</span>: <span class="kw-2">*</span><span class="ident">group</span>,
+            <span class="ident">payload</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">key_share</span>.<span class="ident">clone</span>()),
+        },
+    ])))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_key_share_deterministic_server_extension</span>(
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
@@ -1114,14 +1143,14 @@
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ServerExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="ident">ServerExtension::KeyShare</span>(<span class="ident">KeyShareEntry</span> {
-        <span class="ident">group</span>: <span class="ident">group</span>.<span class="ident">clone</span>(),
+        <span class="ident">group</span>: <span class="kw-2">*</span><span class="ident">group</span>,
         <span class="ident">payload</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">key_share</span>.<span class="ident">clone</span>()),
     }))
 }
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_key_share_hello_retry_extension</span>(
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HelloRetryExtension</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="ident">HelloRetryExtension::KeyShare</span>(<span class="ident">group</span>.<span class="ident">clone</span>()))
+    <span class="prelude-val">Ok</span>(<span class="ident">HelloRetryExtension::KeyShare</span>(<span class="kw-2">*</span><span class="ident">group</span>))
 }
 <span class="doccomment">/// transparency_info =&gt; 0x0034,</span>
 <span class="macro">nyi_fn!</span>();
@@ -1222,5 +1251,5 @@
     }))
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
 </body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["DeleteRoller","A roller which deletes the log file."],["DeleteRollerConfig","Configuration for the delete roller."],["DeleteRollerDeserializer","A deserializer for the `DeleteRoller`."]]};

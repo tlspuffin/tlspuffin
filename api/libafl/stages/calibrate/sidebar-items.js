@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["CalibrationStage","The calibration stage will measure the average exec time and the target’s stability for this input."]]};

@@ -1,9 +1,10 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/key_exchange.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>key_exchange.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/key_exchange.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>key_exchange.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -107,27 +108,29 @@
 <span id="102">102</span>
 <span id="103">103</span>
 <span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std::convert::TryInto</span>;
 
+<span class="kw">use</span> <span class="ident">puffin::algebra::error::FnError</span>;
 <span class="kw">use</span> <span class="ident">ring::test::rand::FixedByteRandom</span>;
-<span class="kw">use</span> <span class="ident">rustls</span>::{
-    <span class="ident">conn::ConnectionRandoms</span>,
-    <span class="ident">kx::KeyExchange</span>,
-    <span class="ident">msgs</span>::{
-        <span class="ident">enums::NamedGroup</span>,
-        <span class="ident">handshake</span>::{<span class="ident">Random</span>, <span class="ident">ServerECDHParams</span>},
-    },
-    <span class="ident">tls12::ConnectionSecrets</span>,
-    <span class="ident">SupportedKxGroup</span>, <span class="ident">ALL_KX_GROUPS</span>,
-};
 
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::error::FnError</span>;
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::rustls</span>::{
+    <span class="ident">conn::ConnectionRandoms</span>,
+    <span class="ident">kx</span>::{<span class="ident">KeyExchange</span>, <span class="ident">SupportedKxGroup</span>, <span class="ident">ALL_KX_GROUPS</span>},
+    <span class="ident">msgs</span>::{<span class="ident">enums::NamedGroup</span>, <span class="ident">handshake::Random</span>},
+    <span class="ident">tls12</span>,
+    <span class="ident">tls12::ConnectionSecrets</span>,
+};
 
 <span class="kw">fn</span> <span class="ident">deterministic_key_exchange</span>(<span class="ident">skxg</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">SupportedKxGroup</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyExchange</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">random</span> <span class="op">=</span> <span class="ident">FixedByteRandom</span> { <span class="ident">byte</span>: <span class="number">42</span> };
-    <span class="kw">let</span> <span class="ident">ours</span> <span class="op">=</span> <span class="ident">ring::agreement::EphemeralPrivateKey::generate</span>(<span class="ident">skxg</span>.<span class="ident">agreement_algorithm</span>, <span class="kw-2">&amp;</span><span class="ident">random</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">ours</span> <span class="op">=</span> <span class="ident">ring::agreement::EphemeralPrivateKey::generate</span>(<span class="ident">skxg</span>.<span class="ident">agreement_algorithm</span>, <span class="kw-2">&amp;</span><span class="ident">random</span>)
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> <span class="ident">FnError::Crypto</span>(<span class="string">&quot;Failed to generate ephemeral key&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">pubkey</span> <span class="op">=</span> <span class="ident">ours</span>.<span class="ident">compute_public_key</span>()<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">pubkey</span> <span class="op">=</span> <span class="ident">ours</span>
+        .<span class="ident">compute_public_key</span>()
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> <span class="ident">FnError::Crypto</span>(<span class="string">&quot;Failed to compute public key&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(<span class="ident">KeyExchange</span> {
         <span class="ident">skxg</span>,
@@ -145,7 +148,7 @@
             <span class="ident">deterministic_key_exchange</span>(<span class="ident">supported_group</span>)<span class="question-mark">?</span>.<span class="ident">pubkey</span>.<span class="ident">as_ref</span>(),
         ))
     } <span class="kw">else</span> {
-        <span class="prelude-val">Err</span>(<span class="ident">FnError::Rustls</span>(<span class="string">&quot;Unable to find named group&quot;</span>.<span class="ident">to_string</span>()))
+        <span class="prelude-val">Err</span>(<span class="ident">FnError::Crypto</span>(<span class="string">&quot;Unable to find named group&quot;</span>.<span class="ident">to_string</span>()))
     }
 }
 
@@ -154,15 +157,17 @@
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="comment">// Shared Secret</span>
-    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="ident">group</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>)
+    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="kw-2">*</span><span class="ident">group</span>, <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>)
         .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;Failed to choose group in key exchange&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">kx</span>: <span class="ident">KeyExchange</span> <span class="op">=</span> <span class="ident">deterministic_key_exchange</span>(<span class="ident">skxg</span>)<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">shared_secret</span> <span class="op">=</span> <span class="ident">kx</span>.<span class="ident">complete</span>(<span class="ident">server_key_share</span>, <span class="op">|</span><span class="ident">secret</span><span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">Vec::from</span>(<span class="ident">secret</span>)))<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">shared_secret</span> <span class="op">=</span> <span class="ident">kx</span>
+        .<span class="ident">complete</span>(<span class="ident">server_key_share</span>, <span class="op">|</span><span class="ident">secret</span><span class="op">|</span> <span class="prelude-val">Ok</span>(<span class="ident">Vec::from</span>(<span class="ident">secret</span>)))
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> <span class="ident">FnError::Crypto</span>(<span class="string">&quot;Failed to compute shared secret&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">shared_secret</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">tls12_key_exchange</span>(<span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">KeyExchange</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="ident">group</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>)
+    <span class="kw">let</span> <span class="ident">skxg</span> <span class="op">=</span> <span class="ident">KeyExchange::choose</span>(<span class="kw-2">*</span><span class="ident">group</span>, <span class="kw-2">&amp;</span><span class="ident">ALL_KX_GROUPS</span>)
         .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="string">&quot;Failed to find key exchange group&quot;</span>.<span class="ident">to_string</span>())<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">kx</span>: <span class="ident">KeyExchange</span> <span class="op">=</span> <span class="ident">deterministic_key_exchange</span>(<span class="ident">skxg</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">kx</span>)
@@ -173,7 +178,7 @@
     <span class="ident">server_ecdh_pubkey</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="ident">group</span>: <span class="kw-2">&amp;</span><span class="ident">NamedGroup</span>,
 ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ConnectionSecrets</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</span>; <span class="comment">// todo https://github.com/tlspuffin/tlspuffin/issues/129</span>
+    <span class="kw">let</span> <span class="ident">suite</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</span>; <span class="comment">// todo https://github.com/tlspuffin/tlspuffin/issues/129</span>
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server_random_bytes</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">0</span>; <span class="number">32</span>];
 
@@ -191,17 +196,17 @@
         .<span class="ident">tls12</span>()
         .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">FnError::Unknown</span>(<span class="string">&quot;VersionNotCompatibleError&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">secrets</span> <span class="op">=</span>
-        <span class="ident">ConnectionSecrets::from_key_exchange</span>(<span class="ident">kx</span>, <span class="kw-2">&amp;</span><span class="ident">server_ecdh_pubkey</span>, <span class="prelude-val">None</span>, <span class="ident">randoms</span>, <span class="ident">suite</span>)<span class="question-mark">?</span>;
+        <span class="ident">ConnectionSecrets::from_key_exchange</span>(<span class="ident">kx</span>, <span class="ident">server_ecdh_pubkey</span>, <span class="prelude-val">None</span>, <span class="ident">randoms</span>, <span class="ident">suite</span>)
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> <span class="ident">FnError::Crypto</span>(<span class="string">&quot;Failed to shared secrets for TLS 1.2&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
     <span class="comment">// master_secret is: 01 40 26 dd 53 3c 0a...</span>
     <span class="prelude-val">Ok</span>(<span class="ident">secrets</span>)
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">rustls::kx_group::SECP384R1</span>;
     <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls::key_exchange::deterministic_key_exchange</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tls</span>::{<span class="ident">key_exchange::deterministic_key_exchange</span>, <span class="ident">rustls::kx::SECP384R1</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_deterministic_key</span>() {
@@ -212,5 +217,5 @@
     }
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
 </body></html>

@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["CURRENT_PUT_NAME",""],["DUMMY_PUT",""],["OPENSSL111_PUT",""],["PUT_REGISTRY",""],["TCP_CLIENT_PUT",""],["TCP_SERVER_PUT",""],["WOLFSSL520_PUT",""]],"fn":[["current_put",""]],"struct":[["PutRegistry",""]],"trait":[["Factory",""]]});
+window.SIDEBAR_ITEMS = {"constant":[["DEFAULT_PUT_FACTORY",""],["OPENSSL111_PUT",""],["TCP_PUT",""],["TLS_PUT_REGISTRY",""],["WOLFSSL520_PUT",""]]};

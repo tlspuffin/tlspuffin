@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["inclusive_map",""],["inclusive_set",""],["map",""],["set",""]],"trait":[["StepFns","Successor and predecessor functions defined for `T`, but as free functions rather than methods on `T` itself."],["StepLite","Minimal version of unstable `Step` trait from the Rust standard library."]]};

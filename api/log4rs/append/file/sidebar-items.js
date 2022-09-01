@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["FileAppender","An appender which logs to a file."],["FileAppenderBuilder","A builder for `FileAppender`s."],["FileAppenderConfig","The file appender’s configuration."],["FileAppenderDeserializer","A deserializer for the `FileAppender`."]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["dump_registers","Write the content of all important registers"],["generate_minibsod","Generates a mini-BSOD given a signal and context."]]};

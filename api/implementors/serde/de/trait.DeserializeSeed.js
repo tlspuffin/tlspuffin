@@ -1,0 +1,4 @@
+(function() {var implementors = {};
+implementors["libafl"] = [{"text":"impl&lt;'de, B&gt; <a class=\"trait\" href=\"serde/de/trait.DeserializeSeed.html\" title=\"trait serde::de::DeserializeSeed\">DeserializeSeed</a>&lt;'de&gt; for <a class=\"struct\" href=\"libafl/bolts/serdeany/struct.DeserializeCallbackSeed.html\" title=\"struct libafl::bolts::serdeany::DeserializeCallbackSeed\">DeserializeCallbackSeed</a>&lt;B&gt; <span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;B: ?<a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html\" title=\"trait core::marker::Sized\">Sized</a>,&nbsp;</span>","synthetic":false,"types":["libafl::bolts::serdeany::DeserializeCallbackSeed"]}];
+implementors["serde"] = [];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

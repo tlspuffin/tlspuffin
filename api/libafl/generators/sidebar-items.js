@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["gramatron","Gramatron generator"]],"struct":[["RandBytesGenerator","Generates random bytes"],["RandPrintablesGenerator","Generates random printable characters"]],"trait":[["Generator","Generators can generate ranges of bytes."]]};

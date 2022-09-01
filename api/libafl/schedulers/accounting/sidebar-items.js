@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["AccountingIndexesMetadata","A testcase metadata holding a list of indexes of a map"],["CoverageAccountingScheduler","A minimizer scheduler using coverage accounting"],["TopAccountingMetadata","A state metadata holding a map of favoreds testcases for each map entry"]]};

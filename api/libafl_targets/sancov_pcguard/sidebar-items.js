@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["__sanitizer_cov_trace_pc_guard","Callback for sancov `pc_guard` - usually called by `llvm` on each block or edge."],["__sanitizer_cov_trace_pc_guard_init","Initialize the sancov `pc_guard` - usually called by `llvm`."]]};

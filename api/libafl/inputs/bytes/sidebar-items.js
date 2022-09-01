@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["BytesInput","A bytes input is the basic input"]]};

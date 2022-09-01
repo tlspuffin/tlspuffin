@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["HandshakeHash","This deals with keeping a running hash of the handshake payloads.  This is computed by buffering initially.  Once we know what hash function we need to use we switch to incremental hashing."],["HandshakeHashBuffer","Early stage buffering of handshake payloads."]]};

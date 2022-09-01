@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["StagesOwnedList","An owned list of `Observer` trait objects"]],"trait":[["AnyStage","Combine `Stage` and `AsAny`"]]};

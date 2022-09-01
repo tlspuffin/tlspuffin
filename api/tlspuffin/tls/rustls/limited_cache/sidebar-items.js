@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["LimitedCache","A HashMap-alike, which never gets larger than a specified capacity, and evicts the oldest insertion to maintain this."]]};

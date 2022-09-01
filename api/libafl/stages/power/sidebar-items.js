@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["PowerMutationalStage","The mutational stage using power schedules"]],"type":[["StdPowerMutationalStage","The standard powerscheduling stage"]]};

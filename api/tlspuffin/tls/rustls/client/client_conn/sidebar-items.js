@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ServerName","Encodes ways a client can know the expected name of the server."]],"struct":[["InvalidDnsNameError","The provided input could not be parsed because it is not a syntactically-valid DNS Name."]]};

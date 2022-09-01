@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["PatternEncoder","An `Encode`r configured via a format string."],["PatternEncoderConfig","The pattern encoder’s configuration."],["PatternEncoderDeserializer","A deserializer for the `PatternEncoder`."]]};

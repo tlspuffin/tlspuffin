@@ -1,1 +1,0 @@
-initSidebarItems({"constant":[["ARGUMENTS",""],["FIELDS",""],["NAME",""],["RETURN",""]],"struct":[["FnContainer",""],["FnContainerVisitor",""]]});

@@ -1,9 +1,10 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/./fn_messages.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_messages.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script src="../../../crates.js"></script><script defer src="../../../main.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script>
-    <noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `tlspuffin/src/tls/./fn_messages.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>fn_messages.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../tlspuffin/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
-        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><div class="theme-picker hidden"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu" title="themes"><img width="22" height="22" alt="Pick another theme!" src="../../../brush.svg"></button><div id="theme-choices" role="menu"></div></div><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><button type="button" id="help-button" title="help">?</button><a id="settings-menu" href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+        </a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../tlspuffin/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+                                <a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div>
+                        </div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
 <span id="2">2</span>
 <span id="3">3</span>
 <span id="4">4</span>
@@ -454,27 +455,23 @@
 <span class="doccomment">//! Return type is `Message`</span>
 <span class="doccomment">//!</span>
 
-<span class="kw">use</span> <span class="ident">rustls</span>::{
-    <span class="ident">internal::msgs</span>::{
-        <span class="ident">base::Payload</span>,
-        <span class="ident">ccs::ChangeCipherSpecPayload</span>,
-        <span class="ident">handshake</span>::<span class="kw-2">*</span>,
-        <span class="ident">heartbeat::HeartbeatPayload</span>,
-        <span class="ident">message</span>::{<span class="ident">Message</span>, <span class="ident">MessagePayload</span>},
-    },
-    <span class="ident">msgs</span>::{
-        <span class="ident">alert::AlertMessagePayload</span>,
-        <span class="ident">base</span>::{<span class="ident">PayloadU16</span>, <span class="ident">PayloadU24</span>, <span class="ident">PayloadU8</span>},
-        <span class="ident">codec::Codec</span>,
-        <span class="ident">enums</span>::<span class="kw-2">*</span>,
-        <span class="ident">handshake</span>::{<span class="ident">CertificateEntry</span>, <span class="ident">CertificateStatus</span>, <span class="ident">HelloRetryExtension</span>},
-        <span class="ident">message::OpaqueMessage</span>,
-    },
-    <span class="ident">CipherSuite</span>, <span class="ident">ProtocolVersion</span>, <span class="ident">SignatureScheme</span>,
-};
-<span class="kw">use</span> <span class="ident">HandshakePayload::EncryptedExtensions</span>;
+<span class="kw">use</span> <span class="ident">puffin::algebra::error::FnError</span>;
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">nyi_fn</span>, <span class="ident">tls::error::FnError</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::{
+    <span class="ident">nyi_fn</span>,
+    <span class="ident">tls::rustls</span>::{
+        <span class="ident">key</span>,
+        <span class="ident">msgs</span>::{
+            <span class="ident">alert::AlertMessagePayload</span>,
+            <span class="ident">base</span>::{<span class="ident">Payload</span>, <span class="ident">PayloadU16</span>, <span class="ident">PayloadU24</span>, <span class="ident">PayloadU8</span>},
+            <span class="ident">ccs::ChangeCipherSpecPayload</span>,
+            <span class="ident">enums</span>::<span class="kw-2">*</span>,
+            <span class="ident">handshake</span>::{<span class="ident">CertificateEntry</span>, <span class="ident">CertificateStatus</span>, <span class="ident">HelloRetryExtension</span>, <span class="kw-2">*</span>},
+            <span class="ident">heartbeat::HeartbeatPayload</span>,
+            <span class="ident">message</span>::{<span class="ident">Message</span>, <span class="ident">MessagePayload</span>, <span class="ident">OpaqueMessage</span>},
+        },
+    },
+};
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_opaque_message</span>(<span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="ident">OpaqueMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">OpaqueMessage</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="ident">message</span>.<span class="ident">clone</span>())
@@ -671,7 +668,7 @@
                 <span class="ident">age_add</span>: <span class="number">12</span>,
                 <span class="ident">nonce</span>: <span class="ident">PayloadU8::new</span>(<span class="ident">nonce</span>.<span class="ident">clone</span>()),
                 <span class="ident">ticket</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">ticket</span>.<span class="ident">clone</span>()),
-                <span class="ident">exts</span>: <span class="ident">extensions</span>.<span class="ident">clone</span>(),
+                <span class="ident">exts</span>: <span class="ident">NewSessionTicketExtensions</span>(<span class="ident">extensions</span>.<span class="ident">clone</span>()),
             }),
         }),
     })
@@ -706,7 +703,9 @@
         <span class="ident">version</span>: <span class="ident">ProtocolVersion::TLSv1_2</span>,
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::EncryptedExtensions</span>,
-            <span class="ident">payload</span>: <span class="ident">EncryptedExtensions</span>(<span class="ident">server_extensions</span>.<span class="ident">clone</span>()),
+            <span class="ident">payload</span>: <span class="ident">HandshakePayload::EncryptedExtensions</span>(<span class="ident">EncryptedExtensions</span>(
+                <span class="ident">server_extensions</span>.<span class="ident">clone</span>(),
+            )),
         }),
     })
 }
@@ -715,12 +714,12 @@
 <span class="doccomment">/// NewConnectionId =&gt; 0x0a,</span>
 <span class="macro">nyi_fn!</span>();
 <span class="doccomment">/// Certificate =&gt; 0x0b,</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_certificate</span>(<span class="ident">certs</span>: <span class="kw-2">&amp;</span><span class="ident">CertificatePayload</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_certificate</span>(<span class="ident">certs</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">key::Certificate</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Message</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="ident">Message</span> {
         <span class="ident">version</span>: <span class="ident">ProtocolVersion::TLSv1_2</span>,
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::Certificate</span>,
-            <span class="ident">payload</span>: <span class="ident">HandshakePayload::Certificate</span>(<span class="ident">certs</span>.<span class="ident">clone</span>()),
+            <span class="ident">payload</span>: <span class="ident">HandshakePayload::Certificate</span>(<span class="ident">CertificatePayload</span>(<span class="ident">certs</span>.<span class="ident">clone</span>())),
         }),
     })
 }
@@ -763,9 +762,11 @@
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::CertificateRequest</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::CertificateRequest</span>(<span class="ident">CertificateRequestPayload</span> {
-                <span class="ident">certtypes</span>: <span class="macro">vec!</span>[<span class="ident">ClientCertificateType::RSASign</span>],
-                <span class="ident">sigschemes</span>: <span class="macro">vec!</span>[<span class="ident">SignatureScheme::ED25519</span>],
-                <span class="ident">canames</span>: <span class="macro">vec!</span>[<span class="ident">PayloadU16::new</span>(<span class="string">&quot;some ca name?&quot;</span>.<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>())],
+                <span class="ident">certtypes</span>: <span class="ident">ClientCertificateTypes</span>(<span class="macro">vec!</span>[<span class="ident">ClientCertificateType::RSASign</span>]),
+                <span class="ident">sigschemes</span>: <span class="ident">SupportedSignatureSchemes</span>(<span class="macro">vec!</span>[<span class="ident">SignatureScheme::ED25519</span>]),
+                <span class="ident">canames</span>: <span class="ident">VecU16OfPayloadU16</span>(<span class="macro">vec!</span>[<span class="ident">PayloadU16::new</span>(
+                    <span class="string">&quot;some ca name?&quot;</span>.<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(),
+                )]),
             }),
         }),
     })
@@ -783,7 +784,7 @@
             <span class="ident">typ</span>: <span class="ident">HandshakeType::CertificateRequest</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::CertificateRequestTLS13</span>(<span class="ident">CertificateRequestPayloadTLS13</span> {
                 <span class="ident">context</span>: <span class="ident">PayloadU8::new</span>(<span class="ident">context</span>.<span class="ident">clone</span>()),
-                <span class="ident">extensions</span>: <span class="ident">extensions</span>.<span class="ident">clone</span>(),
+                <span class="ident">extensions</span>: <span class="ident">CertReqExtensions</span>(<span class="ident">extensions</span>.<span class="ident">clone</span>()),
             }),
         }),
     })
@@ -810,7 +811,7 @@
         <span class="ident">payload</span>: <span class="ident">MessagePayload::Handshake</span>(<span class="ident">HandshakeMessagePayload</span> {
             <span class="ident">typ</span>: <span class="ident">HandshakeType::CertificateVerify</span>,
             <span class="ident">payload</span>: <span class="ident">HandshakePayload::CertificateVerify</span>(<span class="ident">DigitallySignedStruct</span> {
-                <span class="ident">scheme</span>: <span class="ident">scheme</span>.<span class="ident">clone</span>(),
+                <span class="ident">scheme</span>: <span class="kw-2">*</span><span class="ident">scheme</span>,
                 <span class="ident">sig</span>: <span class="ident">PayloadU16::new</span>(<span class="ident">signature</span>.<span class="ident">clone</span>()),
             }),
         }),
@@ -886,5 +887,5 @@
     })
 }
 </code></pre></div>
-</section><section id="search" class="content hidden"></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.61.0 (fe5b13d68 2022-05-18)" ></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
 </body></html>

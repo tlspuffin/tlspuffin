@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["GzipCompressor","Compression for your stream compression needs."]]};
