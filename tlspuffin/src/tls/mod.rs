@@ -2,14 +2,12 @@
 //! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
 
 use fn_impl::*;
-
-use crate::define_signature;
+use puffin::{algebra::error::FnError, define_signature, error::Error};
 
 mod key_exchange;
 mod key_schedule;
 
-pub mod error;
-
+pub mod rustls;
 pub mod seeds;
 pub mod violation;
 
@@ -33,12 +31,18 @@ pub mod fn_impl {
     pub use fn_utils::*;
 }
 
+impl From<rustls::error::Error> for Error {
+    fn from(error: rustls::error::Error) -> Self {
+        Error::Stream(error.to_string())
+    }
+}
+
 /// Function symbol which can be used for debugging
 ///
 #[allow(dead_code)]
 fn fn_debug(
-    message: &rustls::msgs::message::Message,
-) -> Result<rustls::msgs::message::Message, crate::tls::error::FnError> {
+    message: &crate::tls::rustls::msgs::message::Message,
+) -> Result<crate::tls::rustls::msgs::message::Message, FnError> {
     dbg!(message);
     Ok(message.clone())
 }
@@ -49,7 +53,7 @@ macro_rules! nyi_fn {
 }
 
 define_signature!(
-    SIGNATURE,
+    TLS_SIGNATURE,
     // constants
     fn_true
     fn_false

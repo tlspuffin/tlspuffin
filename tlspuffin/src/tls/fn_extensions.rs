@@ -7,22 +7,24 @@
 //! In the source code all IDs are available, but implementations are missing.
 //!
 
-use rustls::{
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::*,
-        message::Message,
-    },
-    x509, ProtocolVersion, SignatureScheme, SupportedKxGroup,
-};
+use puffin::algebra::error::FnError;
 use webpki::DnsNameRef;
 
 use crate::{
     nyi_fn,
     tls::{
-        error::FnError, fn_impl::fn_get_ticket_age_add, fn_utils::fn_get_ticket,
+        fn_impl::fn_get_ticket_age_add,
+        fn_utils::fn_get_ticket,
         key_exchange::deterministic_key_share,
+        rustls::{
+            msgs::{
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                enums::*,
+                handshake::*,
+                message::Message,
+            },
+            x509,
+        },
     },
 };
 
@@ -130,15 +132,17 @@ pub fn fn_new_session_ticket_extensions_append(
 /// ServerName => 0x0000,
 pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
     let dns_name = "inria.fr";
-    Ok(ClientExtension::ServerName(vec![ServerName {
-        typ: ServerNameType::HostName,
-        payload: ServerNamePayload::HostName((
-            PayloadU16(dns_name.to_string().into_bytes()),
-            DnsNameRef::try_from_ascii_str(dns_name)
-                .map_err(|err| FnError::Unknown(err.to_string()))?
-                .to_owned(),
-        )),
-    }]))
+    Ok(ClientExtension::ServerName(ServerNameRequest(vec![
+        ServerName {
+            typ: ServerNameType::HostName,
+            payload: ServerNamePayload::HostName((
+                PayloadU16(dns_name.to_string().into_bytes()),
+                DnsNameRef::try_from_ascii_str(dns_name)
+                    .map_err(|err| FnError::Unknown(err.to_string()))?
+                    .to_owned(),
+            )),
+        },
+    ])))
 }
 pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)
@@ -160,10 +164,12 @@ pub fn fn_status_request_extension(
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::CertificateStatusRequest(
         CertificateStatusRequest::OCSP(OCSPCertificateStatusRequest {
-            responder_ids: responder_ids
-                .iter()
-                .map(|data| PayloadU16::new(data.clone()))
-                .collect(),
+            responder_ids: VecU16OfPayloadU16(
+                responder_ids
+                    .iter()
+                    .map(|data| PayloadU16::new(data.clone()))
+                    .collect(),
+            ),
             extensions: PayloadU16::new(extensions.clone()),
         }),
     ))
@@ -192,33 +198,37 @@ nyi_fn!();
 nyi_fn!();
 /// EllipticCurves => 0x000a,
 pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(vec![group.clone()]))
+    Ok(ClientExtension::NamedGroups(NamedGroups(vec![*group])))
 }
 /// ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::ECPointFormats(vec![
+    Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![
         ECPointFormat::Uncompressed,
-    ]))
+    ])))
 }
 pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::ECPointFormats(vec![
+    Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![
         ECPointFormat::Uncompressed,
-    ]))
+    ])))
 }
 /// SRP => 0x000c,
 nyi_fn!();
 /// SignatureAlgorithms => 0x000d,
 pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SignatureAlgorithms(vec![
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::RSA_PSS_SHA256,
-    ]))
+    Ok(ClientExtension::SignatureAlgorithms(
+        SupportedSignatureSchemes(vec![
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PSS_SHA256,
+        ]),
+    ))
 }
 pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
-    Ok(CertReqExtension::SignatureAlgorithms(vec![
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::RSA_PSS_SHA256,
-    ]))
+    Ok(CertReqExtension::SignatureAlgorithms(
+        SupportedSignatureSchemes(vec![
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PSS_SHA256,
+        ]),
+    ))
 }
 /// UseSRTP => 0x000e,
 nyi_fn!();
@@ -238,22 +248,22 @@ pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Ve
 pub fn fn_al_protocol_negotiation(
     protocol_name_list: &Vec<Vec<u8>>,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::Protocols(
+    Ok(ClientExtension::Protocols(VecU16OfPayloadU8(
         protocol_name_list
             .iter()
             .map(|data| PayloadU8::new(data.clone()))
             .collect(),
-    ))
+    )))
 }
 pub fn fn_al_protocol_server_negotiation(
     protocol_name_list: &Vec<Vec<u8>>,
 ) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::Protocols(
+    Ok(ServerExtension::Protocols(VecU16OfPayloadU8(
         protocol_name_list
             .iter()
             .map(|data| PayloadU8::new(data.clone()))
             .collect(),
-    ))
+    )))
 }
 /// status_request_v2 => 0x0011
 nyi_fn!();
@@ -264,17 +274,17 @@ pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, Fn
 pub fn fn_signed_certificate_timestamp_server_extension() -> Result<ServerExtension, FnError> {
     // todo unclear where what to put here
     //      https://github.com/tlspuffin/tlspuffin/issues/155
-    Ok(ServerExtension::SignedCertificateTimestamp(vec![
-        PayloadU16::new(Vec::from([42u8; 128])),
-    ]))
+    Ok(ServerExtension::SignedCertificateTimestamp(
+        VecU16OfPayloadU16(vec![PayloadU16::new(Vec::from([42u8; 128]))]),
+    ))
 }
 pub fn fn_signed_certificate_timestamp_certificate_extension(
 ) -> Result<CertificateExtension, FnError> {
     // todo unclear where what to put here
     //      https://github.com/tlspuffin/tlspuffin/issues/155
-    Ok(CertificateExtension::SignedCertificateTimestamp(vec![
-        PayloadU16::new(Vec::from([42u8; 128])),
-    ]))
+    Ok(CertificateExtension::SignedCertificateTimestamp(
+        VecU16OfPayloadU16(vec![PayloadU16::new(Vec::from([42u8; 128]))]),
+    ))
 }
 /// client_certificate_type => 0x0013,
 nyi_fn!();
@@ -365,7 +375,7 @@ pub fn fn_preshared_keys_extension_empty_binder(
     let ticket_age_millis: u32 = 100; // 100ms since receiving NewSessionTicket
     let obfuscated_ticket_age = ticket_age_millis.wrapping_add(age_add as u32);
 
-    let resuming_suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
+    let resuming_suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites
     let binder_len = resuming_suite.hash_algorithm().output_len;
     let binder = vec![0u8; binder_len];
 
@@ -394,14 +404,14 @@ pub fn fn_early_data_server_extension() -> Result<ServerExtension, FnError> {
 }
 /// SupportedVersions => 0x002b,
 pub fn fn_supported_versions12_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SupportedVersions(vec![
+    Ok(ClientExtension::SupportedVersions(ProtocolVersions(vec![
         ProtocolVersion::TLSv1_2,
-    ]))
+    ])))
 }
 pub fn fn_supported_versions13_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SupportedVersions(vec![
+    Ok(ClientExtension::SupportedVersions(ProtocolVersions(vec![
         ProtocolVersion::TLSv1_3,
-    ]))
+    ])))
 }
 pub fn fn_supported_versions12_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::SupportedVersions(
@@ -429,26 +439,26 @@ pub fn fn_cookie_hello_retry_extension(cookie: &Vec<u8>) -> Result<HelloRetryExt
 }
 /// PSKKeyExchangeModes => 0x002d,
 pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::PresharedKeyModes(vec![
-        PSKKeyExchangeMode::PSK_DHE_KE,
-    ]))
+    Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
+        vec![PSKKeyExchangeMode::PSK_DHE_KE],
+    )))
 }
 pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::PresharedKeyModes(vec![
-        PSKKeyExchangeMode::PSK_KE,
-    ]))
+    Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
+        vec![PSKKeyExchangeMode::PSK_KE],
+    )))
 }
 /// TicketEarlyDataInfo => 0x002e,
 nyi_fn!();
 /// CertificateAuthorities => 0x002f,
 pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnError> {
-    let mut r = DistinguishedNames::new();
+    let mut r = VecU16OfPayloadU16(Vec::new());
 
     for subject in ["inria.fr"] {
         let mut name = Vec::new();
         name.extend_from_slice(subject.as_bytes());
         x509::wrap_in_sequence(&mut name);
-        r.push(DistinguishedName::new(name));
+        r.0.push(DistinguishedName::new(name));
     }
 
     Ok(CertReqExtension::AuthorityNames(r))
@@ -459,21 +469,23 @@ nyi_fn!();
 nyi_fn!();
 /// SignatureAlgorithmsCert => 0x0032,
 pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SignatureAlgorithmsCert(vec![
-        SignatureScheme::RSA_PKCS1_SHA1,
-        SignatureScheme::ECDSA_SHA1_Legacy,
-        SignatureScheme::ECDSA_NISTP256_SHA256,
-        SignatureScheme::RSA_PKCS1_SHA384,
-        SignatureScheme::ECDSA_NISTP384_SHA384,
-        SignatureScheme::RSA_PKCS1_SHA512,
-        SignatureScheme::ECDSA_NISTP521_SHA512,
-        SignatureScheme::RSA_PSS_SHA384,
-        SignatureScheme::RSA_PSS_SHA512,
-        SignatureScheme::ED25519,
-        SignatureScheme::ED448,
-        SignatureScheme::RSA_PKCS1_SHA256,
-        SignatureScheme::RSA_PSS_SHA256,
-    ]))
+    Ok(ClientExtension::SignatureAlgorithmsCert(
+        SupportedSignatureSchemes(vec![
+            SignatureScheme::RSA_PKCS1_SHA1,
+            SignatureScheme::ECDSA_SHA1_Legacy,
+            SignatureScheme::ECDSA_NISTP256_SHA256,
+            SignatureScheme::RSA_PKCS1_SHA384,
+            SignatureScheme::ECDSA_NISTP384_SHA384,
+            SignatureScheme::RSA_PKCS1_SHA512,
+            SignatureScheme::ECDSA_NISTP521_SHA512,
+            SignatureScheme::RSA_PSS_SHA384,
+            SignatureScheme::RSA_PSS_SHA512,
+            SignatureScheme::ED25519,
+            SignatureScheme::ED448,
+            SignatureScheme::RSA_PKCS1_SHA256,
+            SignatureScheme::RSA_PSS_SHA256,
+        ]),
+    ))
 }
 /// KeyShare => 0x0033,
 pub fn fn_key_share_deterministic_extension(
@@ -485,10 +497,12 @@ pub fn fn_key_share_extension(
     key_share: &Vec<u8>,
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::KeyShare(vec![KeyShareEntry {
-        group: group.clone(),
-        payload: PayloadU16::new(key_share.clone()),
-    }]))
+    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
+        KeyShareEntry {
+            group: *group,
+            payload: PayloadU16::new(key_share.clone()),
+        },
+    ])))
 }
 pub fn fn_key_share_deterministic_server_extension(
     group: &NamedGroup,
@@ -500,14 +514,14 @@ pub fn fn_key_share_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
-        group: group.clone(),
+        group: *group,
         payload: PayloadU16::new(key_share.clone()),
     }))
 }
 pub fn fn_key_share_hello_retry_extension(
     group: &NamedGroup,
 ) -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::KeyShare(group.clone()))
+    Ok(HelloRetryExtension::KeyShare(*group))
 }
 /// transparency_info => 0x0034,
 nyi_fn!();

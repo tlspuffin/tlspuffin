@@ -3,11 +3,23 @@
 resolver = "2"
 
 members = [
+    "puffin",
     "tlspuffin",
+    "sshpuffin",
     "tlspuffin-claims",
+    "crates/libressl-src",
+    "crates/wolfssl",
+    "crates/wolfssl-sys",
+    "crates/libssh-sys",
 ]
 
-exclude = [ "deps/rust-libressl-src", "deps/rust-openssl-src", "deps/rust-openssl", "deps/rust-rustls" ]
+exclude = [ "crates/openssl-src-111" ]
+
+[patch.crates-io]
+wolfssl-sys = { path = "crates/wolfssl-sys" }
+openssl-src = { path = "crates/openssl-src-111" }
+libressl-src = { path = "crates/libressl-src" }
+security-claims = { path = "tlspuffin-claims" }
 
 [profile.release]
 panic = "abort"

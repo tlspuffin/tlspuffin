@@ -1,7 +1,7 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use crate::tls::error::FnError;
+use puffin::algebra::error::FnError;
 
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)

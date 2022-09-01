@@ -1,86 +1,48 @@
 use std::{
-    any::Any,
-    cell::RefCell,
     ffi::OsStr,
     io,
     io::{ErrorKind, Read, Write},
     net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
-    ops::DerefMut,
     path::Path,
     process::{Child, Command, Stdio},
-    rc::Rc,
     str::FromStr,
-    sync::{mpsc, mpsc::channel, Arc, Mutex},
+    sync::{mpsc, mpsc::channel},
     thread,
     time::Duration,
 };
 
-use log::{error, info};
-use rustls::msgs::{
-    deframer::MessageDeframer,
-    message::{Message, OpaqueMessage},
+use log::error;
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    error::Error,
+    protocol::MessageResult,
+    put::{Put, PutDescriptor, PutName},
+    put_registry::Factory,
+    stream::Stream,
+    trace::TraceContext,
 };
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, TLSVersion},
-    error::Error,
-    io::{MessageResult, Stream},
-    put::{Put, PutConfig, PutName},
-    put_registry::{Factory, TCP_CLIENT_PUT, TCP_SERVER_PUT},
+    protocol::TLSProtocolBehavior,
+    put_registry::TCP_PUT,
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
 };
 
-pub fn new_tcp_client_factory() -> Box<dyn Factory> {
+pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
-    impl Factory for TCPFactory {
+    impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
-        ) -> Result<Box<dyn Put>, Error> {
-            let options = &config.descriptor.options;
-            let args = options
-                .get_option("args")
-                .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?;
-            let prog = options
-                .get_option("prog")
-                .ok_or_else(|| Error::Agent("Unable to find prog".to_string()))?;
-            let cwd = options
-                .get_option("cwd")
-                .map(|cwd| Some(cwd))
-                .unwrap_or_default();
+            context: &TraceContext<TLSProtocolBehavior>,
+            agent_descriptor: &AgentDescriptor,
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
+            let put_descriptor = context.put_descriptor(agent_descriptor);
 
-            let process = TLSProcess::new(&prog, &args, cwd);
+            let options = &put_descriptor.options;
 
-            let mut client = TcpClientPut::new(agent, config)?;
-            client.set_process(process);
-            Ok(Box::new(client))
-        }
-
-        fn put_name(&self) -> PutName {
-            TCP_CLIENT_PUT
-        }
-
-        fn put_version(&self) -> &'static str {
-            TcpClientPut::version()
-        }
-
-        fn make_deterministic(&self) {
-            TcpClientPut::make_deterministic()
-        }
-    }
-
-    Box::new(TCPFactory)
-}
-
-pub fn new_tcp_server_factory() -> Box<dyn Factory> {
-    struct TCPFactory;
-    impl Factory for TCPFactory {
-        fn create(
-            &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
-        ) -> Result<Box<dyn Put>, Error> {
-            let options = &config.descriptor.options;
             let args = options
                 .get_option("args")
                 .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?
@@ -93,51 +55,37 @@ pub fn new_tcp_server_factory() -> Box<dyn Factory> {
                 .get_option("cwd")
                 .map(|cwd| Some(cwd.to_owned()))
                 .unwrap_or_default();
-            let mut server = TcpServerPut::new(agent, config)?;
 
-            server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
-
-            Ok(Box::new(server))
+            if agent_descriptor.typ == AgentType::Client {
+                let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
+                Ok(Box::new(server))
+            } else {
+                let process = TLSProcess::new(&prog, &args, cwd);
+                let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                client.set_process(process);
+                Ok(Box::new(client))
+            }
         }
 
-        fn put_name(&self) -> PutName {
-            TCP_SERVER_PUT
+        fn name(&self) -> PutName {
+            TCP_PUT
         }
 
-        fn put_version(&self) -> &'static str {
-            TcpServerPut::version()
-        }
-
-        fn make_deterministic(&self) {
-            TcpServerPut::make_deterministic()
+        fn version(&self) -> String {
+            TcpClientPut::version()
         }
     }
 
     Box::new(TCPFactory)
 }
 
-impl From<AddrParseError> for Error {
-    fn from(err: AddrParseError) -> Self {
-        Error::IO(err.to_string())
-    }
-}
-
-pub trait TcpPut {
+trait TcpPut {
     fn deframer_mut(&mut self) -> &mut MessageDeframer;
 
     fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()>;
 
     fn read_to_deframer(&mut self) -> io::Result<usize>;
-
-    fn config(&self) -> &PutConfig;
-
-    fn new_from_config(config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized;
-
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error>;
-
-    fn shutdown(&mut self) -> String;
 }
 
 /// A PUT which is backed by a TCP stream to a server.
@@ -149,7 +97,7 @@ pub trait TcpPut {
 pub struct TcpClientPut {
     stream: TcpStream,
     deframer: MessageDeframer,
-    config: PutConfig,
+    agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
 
@@ -158,7 +106,7 @@ impl TcpPut for TcpClientPut {
         &mut self.deframer
     }
 
-    fn write_to_stream(&mut self, mut buf: &[u8]) -> io::Result<()> {
+    fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.stream.write_all(buf)?;
         self.stream.flush()
     }
@@ -166,36 +114,26 @@ impl TcpPut for TcpClientPut {
     fn read_to_deframer(&mut self) -> io::Result<usize> {
         self.deframer.read(&mut self.stream)
     }
+}
 
-    fn config(&self) -> &PutConfig {
-        &self.config
-    }
-
-    fn new_from_config(config: PutConfig) -> Result<Self, Error> {
-        let stream = Self::new_stream(addr_from_config(&config)?)?;
+impl TcpClientPut {
+    fn new(
+        agent_descriptor: &AgentDescriptor,
+        put_descriptor: &PutDescriptor,
+    ) -> Result<Self, Error> {
+        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+        let stream = Self::new_stream(addr)?;
 
         Ok(Self {
             stream,
             deframer: Default::default(),
-            config,
+            agent_descriptor: agent_descriptor.clone(),
             process: None,
         })
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        let address = self.stream.peer_addr()?;
-        self.stream = Self::new_stream(address)?;
-        Ok(())
-    }
-
-    fn shutdown(&mut self) -> String {
-        self.process.as_mut().unwrap().shutdown().unwrap()
-    }
-}
-
-impl TcpClientPut {
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let mut tries = 3;
+        let mut tries = 10;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -230,54 +168,17 @@ pub struct TcpServerPut {
     stream: Option<(TcpStream, TcpListener)>,
     stream_receiver: mpsc::Receiver<(TcpStream, TcpListener)>,
     deframer: MessageDeframer,
-    config: PutConfig,
+    agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
 
 impl TcpServerPut {
-    pub fn set_process(&mut self, process: TLSProcess) {
-        self.process = Some(process)
-    }
-
-    pub fn receive_stream(&mut self) {
-        if self.stream.is_some() {
-            return;
-        }
-
-        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
-            self.stream = Some(tuple);
-        } else {
-            panic!("Unstable to get stream to client!")
-        }
-    }
-}
-
-impl TcpPut for TcpServerPut {
-    fn deframer_mut(&mut self) -> &mut MessageDeframer {
-        &mut self.deframer
-    }
-
-    fn write_to_stream(&mut self, mut buf: &[u8]) -> io::Result<()> {
-        self.receive_stream();
-        let stream = &mut self.stream.as_mut().unwrap().0;
-        stream.write_all(buf)?;
-        stream.flush()?;
-        Ok(())
-    }
-
-    fn read_to_deframer(&mut self) -> io::Result<usize> {
-        self.receive_stream();
-        let stream = &mut self.stream.as_mut().unwrap().0;
-        self.deframer.read(stream)
-    }
-
-    fn config(&self) -> &PutConfig {
-        &self.config
-    }
-
-    fn new_from_config(config: PutConfig) -> Result<Self, Error> {
+    fn new(
+        agent_descriptor: &AgentDescriptor,
+        put_descriptor: &PutDescriptor,
+    ) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
-        let addr = addr_from_config(&config)?;
+        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
 
         thread::spawn(move || {
             let listener = TcpListener::bind(&addr).unwrap();
@@ -299,80 +200,118 @@ impl TcpPut for TcpServerPut {
             stream: None,
             stream_receiver,
             deframer: Default::default(),
-            config,
+            agent_descriptor: agent_descriptor.clone(),
             process: None,
         })
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        panic!("Not supported")
+    pub fn set_process(&mut self, process: TLSProcess) {
+        self.process = Some(process)
     }
 
-    fn shutdown(&mut self) -> String {
-        self.process.as_mut().unwrap().shutdown().unwrap()
+    pub fn receive_stream(&mut self) {
+        if self.stream.is_some() {
+            return;
+        }
+
+        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
+            self.stream = Some(tuple);
+        } else {
+            panic!("Unable to get stream to client!")
+        }
     }
 }
 
-impl<P> Stream for P
-where
-    P: TcpPut,
-{
+impl TcpPut for TcpServerPut {
+    fn deframer_mut(&mut self) -> &mut MessageDeframer {
+        &mut self.deframer
+    }
+
+    fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.receive_stream();
+        let stream = &mut self.stream.as_mut().unwrap().0;
+        stream.write_all(buf)?;
+        stream.flush()?;
+        Ok(())
+    }
+
+    fn read_to_deframer(&mut self) -> io::Result<usize> {
+        self.receive_stream();
+        let stream = &mut self.stream.as_mut().unwrap().0;
+        self.deframer.read(stream)
+    }
+}
+
+impl Stream<Message, OpaqueMessage> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         self.write_to_stream(&mut opaque_message.clone().encode())
             .unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        // Retry to read if no more frames in the deframer buffer
-        let opaque_message = loop {
-            if let Some(opaque_message) = self.deframer_mut().frames.pop_front() {
-                break Some(opaque_message);
-            } else {
-                match self.read_to_deframer() {
-                    Ok(v) => {
-                        if v == 0 {
-                            break None;
-                        }
-                    }
-                    Err(err) => match err.kind() {
-                        ErrorKind::WouldBlock => {
-                            // This is not a hard error. It just means we will should read again from
-                            // the TCPStream in the next steps.
-                            break None;
-                        }
-                        _ => return Err(err.into()),
-                    },
-                }
-            }
-        };
-
-        if let Some(opaque_message) = opaque_message {
-            let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
-                Ok(message) => Some(message),
-                Err(err) => {
-                    error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
-                    None
-                }
-            };
-
-            Ok(Some(MessageResult(message, opaque_message)))
-        } else {
-            // no message to return
-            Ok(None)
-        }
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+        take_message_from_outbound(self)
     }
 }
 
-impl Drop for TcpClientPut {
-    fn drop(&mut self) {}
+impl Stream<Message, OpaqueMessage> for TcpClientPut {
+    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
+        self.write_to_stream(&mut opaque_message.clone().encode())
+            .unwrap();
+    }
+
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+        take_message_from_outbound(self)
+    }
 }
 
-impl Drop for TcpServerPut {
-    fn drop(&mut self) {}
+fn take_message_from_outbound<P: TcpPut>(
+    put: &mut P,
+) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+    // Retry to read if no more frames in the deframer buffer
+    let opaque_message = loop {
+        if let Some(opaque_message) = put.deframer_mut().frames.pop_front() {
+            break Some(opaque_message);
+        } else {
+            match put.read_to_deframer() {
+                Ok(v) => {
+                    if v == 0 {
+                        break None;
+                    }
+                }
+                Err(err) => match err.kind() {
+                    ErrorKind::WouldBlock => {
+                        // This is not a hard error. It just means we will should read again from
+                        // the TCPStream in the next steps.
+                        break None;
+                    }
+                    _ => return Err(err.into()),
+                },
+            }
+        }
+    };
+
+    if let Some(opaque_message) = opaque_message {
+        let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
+            Ok(message) => Some(message),
+            Err(err) => {
+                error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                None
+            }
+        };
+
+        Ok(Some(MessageResult(message, opaque_message)))
+    } else {
+        // no message to return
+        Ok(None)
+    }
 }
 
-fn addr_from_config(config: &PutConfig) -> Result<SocketAddr, AddrParseError> {
-    let options = &config.descriptor.options;
+fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrParseError> {
+    let options = &put_descriptor.options;
     let host = options.get_option("host").unwrap_or("127.0.0.1");
     let port = options
         .get_option("port")
@@ -382,27 +321,17 @@ fn addr_from_config(config: &PutConfig) -> Result<SocketAddr, AddrParseError> {
     Ok(SocketAddr::new(IpAddr::from_str(host)?, port))
 }
 
-impl<P: 'static> Put for P
-where
-    P: TcpPut + Stream + Drop,
-{
-    fn new(_agent: &AgentDescriptor, config: PutConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        Self::new_from_config(config)
-    }
-
+impl Put<TLSProtocolBehavior> for TcpServerPut {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         Ok(())
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.reset(agent_name)
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        panic!("Not supported")
     }
 
-    fn config(&self) -> &PutConfig {
-        &self.config()
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.agent_descriptor
     }
 
     #[cfg(feature = "claims")]
@@ -427,21 +356,76 @@ where
         false
     }
 
-    fn version() -> &'static str
-    where
-        Self: Sized,
-    {
-        "Undefined"
-    }
-
-    fn make_deterministic()
-    where
-        Self: Sized,
-    {
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "Unable to make TCP PUT deterministic!".to_string(),
+        ))
     }
 
     fn shutdown(&mut self) -> String {
-        self.shutdown()
+        self.process.as_mut().unwrap().shutdown().unwrap()
+    }
+
+    fn version() -> String
+    where
+        Self: Sized,
+    {
+        "Undefined".to_string()
+    }
+}
+
+impl Put<TLSProtocolBehavior> for TcpClientPut {
+    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        let address = self.stream.peer_addr()?;
+        self.stream = Self::new_stream(address)?;
+        Ok(())
+    }
+
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.agent_descriptor
+    }
+
+    #[cfg(feature = "claims")]
+    fn register_claimer(&mut self, _agent_name: AgentName) {
+        panic!("Claims are not supported with TcpPut")
+    }
+
+    #[cfg(feature = "claims")]
+    fn deregister_claimer(&mut self) {
+        panic!("Claims are not supported with TcpPut")
+    }
+
+    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn describe_state(&self) -> &str {
+        panic!("Not supported")
+    }
+
+    fn is_state_successful(&self) -> bool {
+        false
+    }
+
+    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+        Err(Error::Agent(
+            "Unable to make TCP PUT deterministic!".to_string(),
+        ))
+    }
+
+    fn shutdown(&mut self) -> String {
+        self.process.as_mut().unwrap().shutdown().unwrap()
+    }
+
+    fn version() -> String
+    where
+        Self: Sized,
+    {
+        "Undefined".to_string()
     }
 }
 
@@ -453,7 +437,7 @@ pub struct TLSProcess {
 impl TLSProcess {
     pub fn new<P: AsRef<Path>>(prog: &str, args: &str, cwd: Option<P>) -> Self {
         Self {
-            child: Some(execute_command(prog, args.split(" "), cwd)),
+            child: Some(execute_command(prog, args.split(' '), cwd)),
             output: None,
         }
     }
@@ -509,28 +493,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        ffi::OsStr,
-        io::{stderr, Read, Write},
-        process::{Child, Command, Stdio},
-    };
 
     use log::info;
+    use puffin::{
+        agent::{AgentName, TLSVersion},
+        put::{PutDescriptor, PutOptions},
+    };
     use tempfile::{tempdir, TempDir};
     use test_log::test;
 
     use crate::{
-        agent::{AgentName, TLSVersion},
-        put::{PutDescriptor, PutOptions},
-        put_registry::{TCP_CLIENT_PUT, TCP_SERVER_PUT},
-        tcp::{collect_output, execute_command, TLSProcess},
+        put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+        tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12,
+            seed_client_attacker_full, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
 
-    const OPENSSL_PROG: &'static str = "openssl";
+    const OPENSSL_PROG: &str = "openssl";
 
     /// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.
     struct ParametersGuard {
@@ -590,7 +571,7 @@ mod tests {
     }
 
     fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
-        let (key, cert, temp_dir) = gen_certificate();
+        let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
@@ -618,10 +599,10 @@ mod tests {
     }
 
     fn wolfssl_server(port: u16) -> ParametersGuard {
-        let (key, cert, temp_dir) = gen_certificate();
+        let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let mut args = vec!["-p", &port_string, "-x", "-d"];
+        let args = vec!["-p", &port_string, "-x", "-d"];
         let prog = "./examples/server/server";
         let cwd = "/home/max/projects/wolfssl";
 
@@ -695,17 +676,20 @@ mod tests {
         let port = 44330;
         let guard = openssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
-            name: TCP_CLIENT_PUT,
+            name: TCP_PUT,
             options: guard.build_options(),
         };
 
-        let trace = seed_session_resumption_dhe_full.build_trace_with_puts(&[put.clone(), put]);
-        trace.execute_default();
-
-        let mut context = trace.execute_default();
+        let trace = seed_session_resumption_dhe_full.build_trace();
+        let initial_server = trace.prior_traces[0].descriptors[0].name;
+        let server = trace.descriptors[0].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(initial_server, put.clone()), (server, put)],
+        );
 
         let server = AgentName::first().next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }
@@ -716,15 +700,16 @@ mod tests {
 
         let guard = openssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
-            name: TCP_CLIENT_PUT,
+            name: TCP_PUT,
             options: guard.build_options(),
         };
 
-        let trace = seed_client_attacker_full.build_trace_with_puts(&[put]);
-        let mut context = trace.execute_default();
+        let trace = seed_client_attacker_full.build_trace();
+        let server = trace.descriptors[0].name;
+        let mut context = trace.execute_with_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
         assert!(!shutdown.contains("Reused session-id"));
@@ -736,7 +721,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_CLIENT_PUT,
+            name: TCP_PUT,
             options: server_guard.build_options(),
         };
 
@@ -744,21 +729,26 @@ mod tests {
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
-            name: TCP_SERVER_PUT,
+            name: TCP_PUT,
             options: client_guard.build_options(),
         };
 
-        let trace =
-            seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
-        let mut context = trace.execute_default();
+        let trace = seed_successful12_with_tickets.build_trace();
+        let descriptors = &trace.descriptors;
+        let client_name = descriptors[0].name;
+        let server_name = descriptors[1].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(client_name, client.clone()), (server_name, server.clone())],
+        );
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
@@ -770,7 +760,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_CLIENT_PUT,
+            name: TCP_PUT,
             options: server_guard.build_options(),
         };
 
@@ -778,21 +768,26 @@ mod tests {
 
         let client_guard = wolfssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
-            name: TCP_SERVER_PUT,
+            name: TCP_PUT,
             options: client_guard.build_options(),
         };
 
-        let trace =
-            seed_successful12_with_tickets.build_trace_with_puts(&[client.clone(), server.clone()]);
-        let mut context = trace.execute_default();
+        let trace = seed_successful12_with_tickets.build_trace();
+        let descriptors = &trace.descriptors;
+        let client_name = descriptors[0].name;
+        let server_name = descriptors[1].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(client_name, client.clone()), (server_name, server.clone())],
+        );
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(!shutdown.contains("fail"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put.shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }

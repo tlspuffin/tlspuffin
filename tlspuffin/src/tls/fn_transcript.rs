@@ -1,15 +1,14 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use rustls::{hash_hs::HandshakeHash, tls13};
+use puffin::algebra::error::FnError;
 
 use crate::{
-    agent::AgentName,
     claims::{
-        Claim, ClaimData, ClaimDataTranscript, Transcript, TranscriptCertificate,
-        TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
+        Transcript, TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
+        TranscriptServerHello,
     },
-    tls::error::FnError,
+    tls::rustls::{hash_hs::HandshakeHash, tls13},
 };
 
 pub fn fn_server_hello_transcript(claim: &TranscriptServerHello) -> Result<HandshakeHash, FnError> {

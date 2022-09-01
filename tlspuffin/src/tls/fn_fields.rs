@@ -1,21 +1,23 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use itertools::Itertools;
-use rustls::{
-    hash_hs::HandshakeHash,
-    msgs::{
-        codec::{Codec, Reader},
-        enums::{Compression, ExtensionType, NamedGroup},
-        handshake::{
-            ClientExtension, HasServerExtensions, Random, ServerECDHParams, ServerExtension,
-            SessionID,
-        },
-    },
-    CipherSuite, NoKeyLog, ProtocolVersion,
+use puffin::{
+    algebra::error::FnError,
+    codec::{Codec, Reader},
 };
 
-use crate::tls::{error::FnError, key_exchange::tls12_new_secrets, key_schedule::dhe_key_schedule};
+use crate::tls::{
+    key_exchange::tls12_new_secrets,
+    key_schedule::dhe_key_schedule,
+    rustls::{
+        hash_hs::HandshakeHash,
+        key_log::NoKeyLog,
+        msgs::{
+            enums::{CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion},
+            handshake::{ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID},
+        },
+    },
+};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -82,6 +84,7 @@ pub fn fn_get_client_key_share(
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         let keyshare = keyshares
+            .0
             .iter()
             .find(|keyshare| keyshare.group == *group)
             .ok_or(FnError::Unknown("Keyshare not found".to_string()))?;
@@ -101,6 +104,7 @@ pub fn fn_get_any_client_curve(
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         Ok(keyshares
+            .0
             .get(0)
             .ok_or(FnError::Unknown("Keyshare not found".to_string()))?
             .group)
@@ -117,7 +121,7 @@ pub fn fn_verify_data(
     group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
@@ -147,7 +151,7 @@ pub fn fn_verify_data_server(
     psk: &Option<Vec<u8>>,
 ) -> Result<Vec<u8>, FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
 
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 

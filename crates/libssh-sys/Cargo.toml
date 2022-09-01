@@ -1,0 +1,15 @@
+[package]
+name = "libssh-sys"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[features]
+
+[dependencies]
+
+[dev-dependencies]
+
+[build-dependencies]
+cmake = "0.1.48"
+bindgen = "0.60.1"

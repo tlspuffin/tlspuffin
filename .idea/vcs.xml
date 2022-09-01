@@ -2,16 +2,12 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-libressl-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl/boringssl" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl/krb5" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl/pyca-cryptography" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl101f" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-openssl-src/openssl102u" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/rust-rustls" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/deps/wolfssl-sys" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/boringssl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/krb5" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl/pyca-cryptography" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl101f" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/crates/openssl-src-111/openssl102u" vcs="Git" />
   </component>
 </project>

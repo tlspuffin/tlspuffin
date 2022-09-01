@@ -8,27 +8,23 @@
 //! Return type is `Message`
 //!
 
-use rustls::{
-    internal::msgs::{
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        handshake::*,
-        heartbeat::HeartbeatPayload,
-        message::{Message, MessagePayload},
-    },
-    msgs::{
-        alert::AlertMessagePayload,
-        base::{PayloadU16, PayloadU24, PayloadU8},
-        codec::Codec,
-        enums::*,
-        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-        message::OpaqueMessage,
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
-};
-use HandshakePayload::EncryptedExtensions;
+use puffin::algebra::error::FnError;
 
-use crate::{nyi_fn, tls::error::FnError};
+use crate::{
+    nyi_fn,
+    tls::rustls::{
+        key,
+        msgs::{
+            alert::AlertMessagePayload,
+            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+            ccs::ChangeCipherSpecPayload,
+            enums::*,
+            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+            heartbeat::HeartbeatPayload,
+            message::{Message, MessagePayload, OpaqueMessage},
+        },
+    },
+};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())
@@ -225,7 +221,7 @@ pub fn fn_new_session_ticket13(
                 age_add: 12,
                 nonce: PayloadU8::new(nonce.clone()),
                 ticket: PayloadU16::new(ticket.clone()),
-                exts: extensions.clone(),
+                exts: NewSessionTicketExtensions(extensions.clone()),
             }),
         }),
     })
@@ -260,7 +256,9 @@ pub fn fn_encrypted_extensions(
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::EncryptedExtensions,
-            payload: EncryptedExtensions(server_extensions.clone()),
+            payload: HandshakePayload::EncryptedExtensions(EncryptedExtensions(
+                server_extensions.clone(),
+            )),
         }),
     })
 }
@@ -269,12 +267,12 @@ nyi_fn!();
 /// NewConnectionId => 0x0a,
 nyi_fn!();
 /// Certificate => 0x0b,
-pub fn fn_certificate(certs: &CertificatePayload) -> Result<Message, FnError> {
+pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Certificate,
-            payload: HandshakePayload::Certificate(certs.clone()),
+            payload: HandshakePayload::Certificate(CertificatePayload(certs.clone())),
         }),
     })
 }
@@ -317,9 +315,11 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequest(CertificateRequestPayload {
-                certtypes: vec![ClientCertificateType::RSASign],
-                sigschemes: vec![SignatureScheme::ED25519],
-                canames: vec![PayloadU16::new("some ca name?".as_bytes().to_vec())],
+                certtypes: ClientCertificateTypes(vec![ClientCertificateType::RSASign]),
+                sigschemes: SupportedSignatureSchemes(vec![SignatureScheme::ED25519]),
+                canames: VecU16OfPayloadU16(vec![PayloadU16::new(
+                    "some ca name?".as_bytes().to_vec(),
+                )]),
             }),
         }),
     })
@@ -337,7 +337,7 @@ pub fn fn_certificate_request13(
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequestTLS13(CertificateRequestPayloadTLS13 {
                 context: PayloadU8::new(context.clone()),
-                extensions: extensions.clone(),
+                extensions: CertReqExtensions(extensions.clone()),
             }),
         }),
     })
@@ -364,7 +364,7 @@ pub fn fn_certificate_verify(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: scheme.clone(),
+                scheme: *scheme,
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),
