@@ -22,20 +22,43 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = "tlspuffin";
+
+const REMOTE: &str =   if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+    "https://github.com/tlspuffin/wolfssl.git" // private repo containing our fixes to wolfssl@master
+} else {
+    "https://github.com/wolfSSL/wolfssl.git"
+};
+
+const REF: &str =   if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+    "tlspuffin"
+} else if cfg!(feature = "vendored-wolfssl540") {
+     "v5.4.0-stable"
+} else if cfg!(feature = "vendored-wolfssl530") {
+    "v5.3.0-stable"
+} else if cfg!(feature = "vendored-wolfssl520") {
+    "v5.2.0-stable"
+} else if cfg!(feature = "vendored-wolfssl510") {
+    "v5.1.0-stable"
+} else if cfg!(feature = "vendored-wolfssl430") {
+    "v4.3.0-stable"
+} else if cfg!(feature = "vendored-master") {
+    "master"
+} else {
+    "master"
+};
 
 fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
+
     Command::new("git")
         .arg("clone")
         .arg("--depth")
         .arg("1")
         .arg("--branch")
         .arg(REF)
-        .arg("git@gitlab.inria.fr:fuzzing/wolfssl.git")
+        .arg(REMOTE)
         .arg(dest)
         .status()?;
-
     Ok(())
 }
 

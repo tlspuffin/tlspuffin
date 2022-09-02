@@ -164,6 +164,10 @@ introspection = ["puffin/introspection"]
 m1 = [ "wolfssl-sys/m1",
        "puffin/m1"]
 
+# use our fixes for wolfssl, latest version
+fix = [ "wolfssl-sys/fix" ]
+
+
 # TCP: fixed-port to use external TLS libaries over TCP (5000 for server, 50001 for client)
 fixed-port = []
 
