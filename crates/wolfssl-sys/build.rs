@@ -23,13 +23,13 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 }
 
 
-const REMOTE: &str =   if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
-    "https://github.com/tlspuffin/wolfssl.git" // private repo containing our fixes to wolfssl@master
+const REMOTE: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+    "git@gitlab.inria.fr:fuzzing/wolfssl.git" // private repo containing our fixes to wolfssl@master
 } else {
     "https://github.com/wolfSSL/wolfssl.git"
 };
 
-const REF: &str =   if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+const REF: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
     "tlspuffin"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
