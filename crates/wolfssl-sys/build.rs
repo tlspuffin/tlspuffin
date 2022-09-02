@@ -30,7 +30,7 @@ const REMOTE: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfss
 };
 
 const REF: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
-    "tlspuffin"
+    "noSEGV"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
 } else if cfg!(feature = "vendored-wolfssl530") {
@@ -103,7 +103,8 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         //.cflag("-g")// FIXME: Reenable?
-        .cflag("-fPIC");
+        .cflag("-fPIC")
+        .cflag("-fno-stack-protector");
 
     if !(cfg!(feature = "m1")) { // only enabled when Mac M1 chip-specific build is not used
         config
