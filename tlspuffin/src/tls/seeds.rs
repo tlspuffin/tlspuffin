@@ -2433,6 +2433,111 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
+pub fn seed_finding_11_minimized(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+    // WAS REQUIRED: let initial_handshake = seed_client_attacker(initial_server);
+
+    let new_ticket_message = term! {
+        fn_new_session_ticket13(  // DUMMY resumption ticket
+            fn_alice_cert,
+            fn_alice_cert,
+            fn_new_session_ticket_extensions_new
+        )
+        // WAS:
+        // fn_decrypt_application(
+        //     ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+        //     (fn_server_hello_transcript(((initial_server, 0)))),
+        //     (fn_server_finished_transcript(((initial_server, 0)))),
+        //     (fn_get_server_key_share(((initial_server, 0)))),
+        //     fn_no_psk,
+        //     fn_named_group_secp384r1,
+        //     fn_true,
+        //     fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+        // )
+    };
+
+    let mut cipher_suites = term! { fn_new_cipher_suites() };
+    for _ in 0..13 {  // also works with 149, 150 leads a too large list of suites (as expected)
+        // Maximum reached suitesSz value depending on the number of ciphers in the list:
+        // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
+        // 14 -> suiteSz reaches 450 (overflow of 150 bytes)
+        // 13 -> suiteSz reaches 392  (overflow of 92 bytes)
+        // 12 -> suiteSz reaches 338  (overflow of 38 bytes)
+        // 11 -> suiteSz remains below 300
+        cipher_suites = term! {
+            fn_append_cipher_suite(
+                (@cipher_suites),
+                fn_cipher_suite13_aes_256_gcm_sha384 // For 5.5.0 this MUST be a supported cipher suite
+                //fn_cipher_suite12 // Works for 5.4.0
+            )
+        };
+    }
+
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
+                fn_cipher_suite13_aes_256_gcm_sha384
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                fn_client_extensions_new,
+                                // CHANGED from: (fn_client_extensions_append(
+                                // CHANGED from:     fn_client_extensions_new,
+                                // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
+                                // CHANGED from: )),
+                                // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_supported_versions13_extension
+                        )),
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    )),
+                    fn_psk_exchange_mode_dhe_ke_extension
+                )),
+                // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
+                // must be last in client_hello, and initially empty until filled by fn_fill_binder
+                (fn_preshared_keys_extension_empty_binder(
+                    (@new_ticket_message)
+                ))
+            ))
+        )
+    };
+
+    let trace = Trace {
+        // No more need for a prior trace and a full handshake.
+        prior_traces: vec![], // WAS [initial_handshake],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
 pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let initial_handshake = seed_client_attacker(initial_server);
 
@@ -2450,7 +2555,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
     };
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
-    for _ in 0..12 {  // also works with 149, 150 leads a too large list of suites (as expected)
+    for _ in 0..13 {  // also works with 149, 150 leads a too large list of suites (as expected)
         // Maximum reached suitesSz value depending on the number of ciphers in the list:
         // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
         // 14 -> suiteSz reaches 450 (overflow of 150 bytes)
@@ -2558,7 +2663,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        @full_client_hello
+                        @full_client_hello_2
                     },
                 }),
             },
@@ -3037,6 +3142,13 @@ pub mod tests {
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         let ctx = seed_session_resumption_dhe_full.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[test]
+    fn test_seed_finding_11_minimized() {
+        let ctx = seed_finding_11_minimized.execute_trace();
         assert!(ctx.agents_successful());
     }
 
