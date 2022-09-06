@@ -23,7 +23,8 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 }
 
 
-const REMOTE: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+const REMOTE: &str = if (cfg!(feature = "vendored-wolfssl540") ||
+    cfg!(feature = "explore")) {
     "git@gitlab.inria.fr:fuzzing/wolfssl.git" // private repo containing our fixes to wolfssl@master
 } else {
     "https://github.com/wolfSSL/wolfssl.git"
@@ -31,7 +32,7 @@ const REMOTE: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfss
 
 const REF: &str = if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
     "moreExploits"
-} else if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+} else if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
     "noSEGV"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
@@ -159,7 +160,9 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         );
     }
 
-    config.env("CC", cc).build()
+    let env = config.env("CC", cc);
+    // trace!("About to build WolfSSL with config: {:#?}", &env);
+    env.build()
 }
 
 fn main() -> std::io::Result<()> {
