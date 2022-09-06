@@ -2663,7 +2663,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        @full_client_hello_2
+                        @full_client_hello
                     },
                 }),
             },
