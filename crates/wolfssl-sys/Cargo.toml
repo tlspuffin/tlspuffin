@@ -10,6 +10,8 @@ bindgen = "0.60.1"
 autotools = "0.2.5"
 security-claims = "0.1.0"
 cfg-if = "1.0.0"
+# Logging
+log = "0.4.17"
 
 [features]
 vendored-wolfssl430 = []
@@ -22,3 +24,4 @@ sancov = []
 asan = []
 m1 = []
 fix = []
+explore=[]

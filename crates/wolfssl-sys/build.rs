@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     process::Command,
 };
-
+use log::trace;
 use autotools::Config;
 
 #[derive(Debug)]
@@ -29,7 +29,9 @@ const REMOTE: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfss
     "https://github.com/wolfSSL/wolfssl.git"
 };
 
-const REF: &str = if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+const REF: &str = if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
+    "moreExploits"
+} else if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
     "noSEGV"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
@@ -103,10 +105,10 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         //.cflag("-g")// FIXME: Reenable?
-        .cflag("-fPIC")
-        .cflag("-fno-stack-protector");
+        .cflag("-fPIC");
+    // .cflag("-fno-stack-protector");
 
-    if !(cfg!(feature = "m1")) { // only enabled when Mac M1 chip-specific build is not used
+    if !(cfg!(feature = "m1")) { // only enabled when Mac M1 chip-specific build is NOT used
         config
             .enable("aesni", None)
             .enable("sp", None) // FIXME: Fixes a memory leak?
@@ -114,24 +116,34 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .enable("intelasm", None);
     }
 
+    if cfg!(feature = "m1") { // only enabled when Mac M1 chip-specific build is used
+        // ./configure --enable-all --enable-debug CFLAGS='-fsanitize=address -fno-stack-check -fno-stack-protector' --enable-static --disable-shared
+        config
+            .cflag("-fno-stack-check")             // disable stack canary
+            .cflag("-fno-stack-protector");        // disable stack canary
+}
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
     }
 
     if cfg!(feature = "asan") {
         config
-            .cflag("-fsanitize=address")
-            .cflag("-shared-libsan");
+            .cflag("-fsanitize=address") // ASAN
+            .cflag("-shared-libsan")
+            .cflag("-fno-omit-frame-pointer"); // [To get nicer stack traces in error messages]
     }
 
     if cfg!(feature = "asan") && cfg!(not(feature = "m1")) {
         config
+  //          .cflag("-shared-libsan")
             .cflag("-Wl,-rpath=/usr/lib/clang/10/lib/linux/"); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
         println!("cargo:rustc-link-lib=asan");
     }
     if cfg!(feature = "asan") && cfg!(feature = "m1") {
         // TODO: find the library where ASAN here for Apple Silicon
+//       println!("cargo:rustc-link-lib=asan");
     }
+
     if cfg!(feature = "additional-headers") {
         let additional_headers = PathBuf::from(dest).join("additional_headers");
 
