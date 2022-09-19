@@ -23,7 +23,7 @@ def main():
     stats_path = "%s/stats.json" % args.experiment
     print("Loading file \"%s\"." % stats_path)
     id_0_stats = load_json_slurpy(stats_path, args.worker_id)
-    log_path = "%s/tlspuffin-log.json" % args.experiment
+    log_path = "%s/log.json" % args.experiment
     print("Loading file \"%s\"." % log_path)
     log = load_json_slurpy_log(log_path)
 

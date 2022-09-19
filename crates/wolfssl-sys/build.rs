@@ -31,8 +31,8 @@ const REMOTE: &str = if cfg!(feature = "fix") || cfg!(feature = "explore") {
 
 const REF: &str = if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
     "moreExploits"
-} else if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
-    "noSEGV"
+} else if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
+    "wolfssl_fix"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
 } else if cfg!(feature = "vendored-wolfssl530") {

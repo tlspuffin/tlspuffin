@@ -2976,7 +2976,10 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         // Server Attackers
-        seed_server_attacker_full: cfg(feature = "tls13")
+        seed_server_attacker_full: cfg(feature = "tls13"),
+	// Specific to CVE
+        seed_finding_11_minimized: cfg(feature = "fix"),
+	seed_finding_11_complete:  cfg(feature = "fix")
     )
 }
 
