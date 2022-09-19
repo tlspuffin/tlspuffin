@@ -163,6 +163,8 @@ introspection = ["puffin/introspection"]
 # enable M1-specific build
 m1 = [ "wolfssl-sys/m1",
        "puffin/m1"]
+# disable stack canary
+no-stack-canary = [ "wolfssl-sys/no-stack-canary"]
 
 # use our fixes for wolfssl, latest version
 fix = [ "wolfssl-sys/fix" ]
