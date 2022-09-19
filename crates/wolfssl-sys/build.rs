@@ -116,12 +116,12 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .enable("intelasm", None);
     }
 
-    if cfg!(feature = "m1") { // only enabled when Mac M1 chip-specific build is used
-        // ./configure --enable-all --enable-debug CFLAGS='-fsanitize=address -fno-stack-check -fno-stack-protector' --enable-static --disable-shared
+    if !cfg!(feature = "no-stack-canary") {
         config
             .cflag("-fno-stack-check")             // disable stack canary
-            .cflag("-fno-stack-protector");        // disable stack canary
-}
+            .cflag("-fno-stack-protector");                    // disable stack canary
+    }
+
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
     }
@@ -139,8 +139,11 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .cflag("-Wl,-rpath=/usr/lib/clang/10/lib/linux/"); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
         println!("cargo:rustc-link-lib=asan");
     }
+
     if cfg!(feature = "asan") && cfg!(feature = "m1") {
-        // TODO: find the library where ASAN here for Apple Silicon
+        config
+            //          .cflag("-shared-libsan")
+            .cflag("-Wl,-rpath /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/13.1.6/lib/darwin/"); //I don't know why this does not work :(
 //       println!("cargo:rustc-link-lib=asan");
     }
 
