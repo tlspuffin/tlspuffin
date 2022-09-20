@@ -25,14 +25,18 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 
 const REMOTE: &str = if cfg!(feature = "fix") || cfg!(feature = "explore") {
     "git@gitlab.inria.fr:fuzzing/wolfssl.git" // private repo containing our fixes to wolfssl@master
+} else if cfg!(feature = "wolf-debug") {
+    "https://github.com/tlspuffin/wolfssl.git"
 } else {
     "https://github.com/wolfSSL/wolfssl.git"
 };
 
 const REF: &str = if cfg!(feature = "explore") && cfg!(feature = "vendored-wolfssl540") {
     "moreExploits"
-} else if cfg!(feature = "fix") && cfg!(feature = "vendored-wolfssl540") {
-    "wolfssl_fix"
+} else if cfg!(feature = "wolf-debug") && cfg!(feature = "vendored-wolfssl540") {
+    "debug_buffer_overflow"
+} else if cfg!(feature = "vendored-wolfssl540") {
+    "v5.4.0-stable"
 } else if cfg!(feature = "vendored-wolfssl540") {
      "v5.4.0-stable"
 } else if cfg!(feature = "vendored-wolfssl530") {

@@ -172,6 +172,9 @@ fix = [ "wolfssl-sys/fix" ]
 # use our semi-fixes for wolfsssl for finding more exploits
 explore = ["wolfssl-sys/explore"]
 
+# use wolfssl with debugging messages
+wolf-debug = ["wolfssl-sys/wolf-debug"]
+
 # TCP: fixed-port to use external TLS libaries over TCP (5000 for server, 50001 for client)
 fixed-port = []
 
