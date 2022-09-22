@@ -482,31 +482,28 @@ impl WolfSSL {
                     }
                     _ => {}
                 }
-            }
-
-            // type only work correctly for inbound messages
-            if let Some(transcript) = extract_current_transcript(context) {
-                let claim = match context.server_state() {
-                    wolfssl_sys::states_SERVER_HELLO_COMPLETE => {
+            } else {
+                match typ {
+                    HandshakeType::ServerHello => {
                         // Extract ClientHello..ServerFinished transcript at the end of the message flight
                         *extract_transcript.deref().borrow_mut() =
                             Some(TypeShape::of::<TranscriptServerFinished>());
 
-                        // Extract ClientHello..ServerHello transcript in-flight
-                        Some(ClaimData::Transcript(ClaimDataTranscript::ServerHello(
-                            TranscriptServerHello(transcript),
-                        )))
-                    }
-                    _ => None,
-                };
+                        if let Some(transcript) = extract_current_transcript(context) {
+                            // Extract ClientHello..ServerHello transcript in-flight
+                            let data = ClaimData::Transcript(ClaimDataTranscript::ServerHello(
+                                TranscriptServerHello(transcript),
+                            ));
 
-                if let Some(data) = claim {
-                    claims.deref_borrow_mut().claim_sized(TlsClaim {
-                        agent_name,
-                        origin,
-                        protocol_version,
-                        data,
-                    });
+                            claims.deref_borrow_mut().claim_sized(TlsClaim {
+                                agent_name,
+                                origin,
+                                protocol_version,
+                                data,
+                            });
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
