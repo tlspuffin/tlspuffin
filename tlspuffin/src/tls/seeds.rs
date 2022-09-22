@@ -1158,6 +1158,16 @@ pub fn _seed_client_attacker12(
     (trace, client_verify_data)
 }
 
+pub fn seed_finding2(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let mut trace = seed_client_attacker12(server);
+
+    trace
+        .prior_traces
+        .push(seed_client_attacker_full(server.next()));
+    trace
+}
+
+
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
@@ -1841,7 +1851,8 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         // Server Attackers
-        seed_server_attacker_full: cfg(feature = "tls13")
+        seed_server_attacker_full: cfg(feature = "tls13"),
+        seed_finding2: cfg(feature = "tls13")
     )
 }
 
@@ -1861,6 +1872,14 @@ pub mod tests {
     #[test]
     fn test_version() {
         TLS_PUT_REGISTRY.version_strings();
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "wolfssl-binding")] // only breaks on wolfssl
+    #[test]
+    #[should_panic]
+    fn test_seed_finding2() {
+        seed_finding2.execute_trace();
     }
 
     #[test]
