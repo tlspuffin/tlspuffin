@@ -22,7 +22,9 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
+const REF: &str = if cfg!(feature = "vendored-wolfssl550") {
+    "v5.5.0-stable"
+} else if cfg!(feature = "vendored-wolfssl540") {
     "v5.4.0-stable"
 } else if cfg!(feature = "vendored-wolfssl530") {
     "v5.3.0-stable"

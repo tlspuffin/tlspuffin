@@ -2522,7 +2522,7 @@ pub mod tests {
     #[cfg(all(feature = "openssl101f", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
-    fn test_seed_hearbeat() {
+    fn test_seed_heartbleed() {
         expect_crash(|| {
             seed_heartbleed.execute_trace();
         })
