@@ -90,6 +90,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .disable("sha3", None)
         .enable("intelasm", None)
         .enable("curve25519", None)
+        .disable("examples", None)
         .enable("secure-renegotiation", None)
         .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
         .enable("psk", None) // FIXME: Only 4.3.0
