@@ -65,6 +65,9 @@ jobs:
           - name: wolfssl540
             crate: tlspuffin
             features: wolfssl540
+          - name: wolfssl550
+            crate: tlspuffin
+            features: wolfssl550
           - name: libssh
             crate: sshpuffin
             features: ""
