@@ -5583,7 +5583,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101f&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls12&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_seed_hearbeat</span>() {
+    <span class="kw">fn</span> <span class="ident">test_seed_heartbleed</span>() {
         <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
             <span class="ident">seed_heartbleed</span>.<span class="ident">execute_trace</span>();
         })
