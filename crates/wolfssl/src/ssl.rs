@@ -15,20 +15,15 @@ use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libc::{c_int, c_uchar, c_void};
 use log::LevelFilter;
-use puffin::agent::TLSVersion;
-use smallvec::SmallVec;
 use wolfssl_sys as wolf;
 
 use crate::{
-    static_certs::ALICE_PRIVATE_KEY,
-    tls::rustls::msgs::enums::HandshakeType,
-    wolfssl::{
-        bio,
-        callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
-        error::{ErrorCode, ErrorStack, InnerError, SslError},
-        util::{cvt, cvt_n, cvt_p},
-        x509::X509Ref,
-    },
+    bio,
+    callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
+    error::{ErrorCode, ErrorStack, InnerError, SslError},
+    util::{cvt, cvt_n, cvt_p},
+    x509::X509Ref,
+    TLSVersion,
 };
 
 const EXTRA_USER_DATA_REGISTRY_INDEX: i32 = 0;
@@ -212,7 +207,7 @@ impl SslContextRef {
     #[cfg(not(feature = "wolfssl430"))]
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
+        F: Fn(&mut SslRef, i32, u8, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -255,12 +250,9 @@ impl SslContextRef {
     ///
     /// [`SSL_CTX_use_PrivateKey`]: https://www.openssl.org/docs/man1.0.2/ssl/SSL_CTX_use_PrivateKey_file.html
     #[cfg(not(feature = "wolfssl430"))]
-    pub fn set_private_key<T>(
-        &mut self,
-        key: &crate::wolfssl::pkey::PKeyRef<T>,
-    ) -> Result<(), ErrorStack>
+    pub fn set_private_key<T>(&mut self, key: &crate::pkey::PKeyRef<T>) -> Result<(), ErrorStack>
     where
-        T: crate::wolfssl::pkey::HasPrivate,
+        T: crate::pkey::HasPrivate,
     {
         unsafe {
             cvt(wolf::wolfSSL_CTX_use_PrivateKey(
@@ -406,7 +398,7 @@ impl SslRef {
 
     pub fn set_msg_callback<F>(&mut self, callback: F) -> Result<(), ErrorStack>
     where
-        F: Fn(&mut SslRef, HandshakeType, bool) + 'static,
+        F: Fn(&mut SslRef, i32, u8, bool) + 'static,
     {
         // Requires WOLFSSL_CALLBACKS (FIXME: or OPENSSL_EXTRA??)
         unsafe {
@@ -478,7 +470,7 @@ impl SslRef {
         }
     }
 
-    pub fn get_peer_certificate(&self) -> Option<SmallVec<[u8; 32]>> {
+    pub fn get_peer_certificate(&self) -> Option<Vec<u8>> {
         unsafe {
             let cert = wolf::wolfSSL_get_peer_certificate(self.as_ptr());
 
@@ -487,8 +479,7 @@ impl SslRef {
 
                 let cert_buffer = if let Ok(length) = cvt(wolf::wolfSSL_i2d_X509(cert, &mut buffer))
                 {
-                    let vec =
-                        SmallVec::from_slice(std::slice::from_raw_parts(buffer, length as usize));
+                    let vec = Vec::from(std::slice::from_raw_parts(buffer, length as usize));
                     if !buffer.is_null() {
                         wolfssl_sys::wolfSSL_Free(buffer as *mut c_void);
                     }

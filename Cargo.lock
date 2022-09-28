@@ -50,15 +50,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ansi_term"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "anyhow"
 version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -161,29 +152,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "bindgen"
-version = "0.59.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bd2a9a458e8f4304c52c43ebb0cfbd520289f8379a52e329a38afda99bf8eb8"
-dependencies = [
- "bitflags",
- "cexpr",
- "clang-sys",
- "clap 2.34.0",
- "env_logger",
- "lazy_static",
- "lazycell",
- "log",
- "peeking_take_while",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "which",
 ]
 
 [[package]]
@@ -398,13 +366,9 @@ version = "2.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0610544180c38b88101fecf2dd634b174a62eef6946f84dfc6a7127512b381c"
 dependencies = [
- "ansi_term",
- "atty",
  "bitflags",
- "strsim 0.8.0",
  "textwrap 0.11.0",
  "unicode-width",
- "vec_map",
 ]
 
 [[package]]
@@ -418,7 +382,7 @@ dependencies = [
  "clap_lex",
  "indexmap",
  "lazy_static",
- "strsim 0.10.0",
+ "strsim",
  "termcolor",
  "textwrap 0.15.0",
 ]
@@ -1209,9 +1173,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.126"
+version = "0.2.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
+checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
 
 [[package]]
 name = "libloading"
@@ -1231,7 +1195,7 @@ checksum = "33a33a362ce288760ec6a508b94caaec573ae7d3bbbd91b87aa0bad4456839db"
 
 [[package]]
 name = "libressl-src"
-version = "111.13.0+3.1.4"
+version = "111.0.0"
 dependencies = [
  "autotools",
  "security-claims",
@@ -1253,7 +1217,7 @@ dependencies = [
 name = "libssh-sys"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.60.1",
+ "bindgen",
  "cmake",
 ]
 
@@ -1431,14 +1395,16 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.24.1"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f17df307904acd05aa8e32e97bb20f2a0df1728bbc2d771ae8f9a90463441e9"
+checksum = "e322c04a9e3440c327fca7b6c8a63e6890a32fa2ad689db972425f07e0d22abb"
 dependencies = [
+ "autocfg",
  "bitflags",
  "cfg-if",
  "libc",
  "memoffset",
+ "pin-utils",
 ]
 
 [[package]]
@@ -1549,33 +1515,49 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssl"
-version = "0.10.35"
+version = "0.10.41"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "618febf65336490dfcf20b73f885f5651a0c89c64c2d4a8c3662585a70bf5bd0"
 dependencies = [
  "bitflags",
  "cfg-if",
  "foreign-types 0.3.2",
  "libc",
  "once_cell",
+ "openssl-macros",
  "openssl-sys",
 ]
 
 [[package]]
-name = "openssl-src"
-version = "111.15.0+1.1.1k"
+name = "openssl-macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b501e44f11665960c7e7fcf062c7d96a14ade4aa98116c004b2e37b5be7d736c"
 dependencies = [
- "bindgen 0.59.2",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "openssl-src"
+version = "111.22.0+1.1.1q"
+dependencies = [
+ "bindgen",
  "cc",
+ "libressl-src",
  "security-claims",
 ]
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.65"
+version = "0.9.75"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5f9bd0c2710541a3cda73d6f9ac4f1b240de4ae261065d309dbe73d9dceb42f"
 dependencies = [
  "autocfg",
  "cc",
  "libc",
- "libressl-src",
  "openssl-src",
  "pkg-config",
  "vcpkg",
@@ -2081,7 +2063,7 @@ dependencies = [
 name = "security-claims"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.60.1",
+ "bindgen",
  "hex",
  "itertools",
 ]
@@ -2274,7 +2256,7 @@ dependencies = [
 name = "sshpuffin"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.60.1",
+ "bindgen",
  "bitflags",
  "byteorder",
  "cmake",
@@ -2308,12 +2290,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "strsim"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "strsim"
@@ -2451,18 +2427,19 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
- "bitflags",
  "cfg-if",
  "criterion",
  "env_logger",
+ "foreign-types 0.3.2",
  "foreign-types 0.5.0",
- "foreign-types-shared 0.1.1",
  "hex",
  "itertools",
  "libc",
  "log",
- "nix 0.24.1",
+ "nix 0.25.0",
  "openssl",
+ "openssl-src",
+ "openssl-sys",
  "puffin",
  "ring",
  "sct",
@@ -2473,6 +2450,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "webpki",
+ "wolfssl",
  "wolfssl-sys",
 ]
 
@@ -2632,12 +2610,6 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
-
-[[package]]
-name = "vec_map"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 
 [[package]]
 name = "version_check"
@@ -2895,11 +2867,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4dd6dc7df2d84cf7b33822ed5b86318fb1781948e9663bacd047fc9dd52259d"
 
 [[package]]
+name = "wolfssl"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "foreign-types 0.5.0",
+ "libc",
+ "log",
+ "wolfssl-sys",
+]
+
+[[package]]
 name = "wolfssl-sys"
-version = "0.1.1"
+version = "0.1.7"
 dependencies = [
  "autotools",
- "bindgen 0.59.2",
+ "bindgen",
  "cfg-if",
  "security-claims",
 ]

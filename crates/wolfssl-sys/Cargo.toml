@@ -1,0 +1,21 @@
+[package]
+name = "wolfssl-sys"
+version = "0.1.7"
+edition = "2021"
+authors = []
+links = "wolfssl"
+
+[build-dependencies]
+bindgen = "0.60.1"
+autotools = "0.2.5"
+security-claims = "0.1.0"
+cfg-if = "1.0.0"
+
+[features]
+vendored-wolfssl430 = []
+vendored-wolfssl510 = []
+vendored-wolfssl520 = []
+vendored-wolfssl530 = []
+vendored-wolfssl540 = []
+sancov = []
+asan = []

@@ -3,7 +3,7 @@ use std::mem;
 use foreign_types::{foreign_type, ForeignType};
 use wolfssl_sys as wolf;
 
-use crate::wolfssl::{
+use crate::{
     error::ErrorStack,
     rsa::Rsa,
     util::{cvt, cvt_p},

@@ -8,7 +8,7 @@ edition = "2021"
 claims = ['puffin/claims']
 
 [dependencies]
-libssh-sys = { path = "../deps/libssh-sys" }
+libssh-sys = { path = "../crates/libssh-sys" }
 puffin = { path = "../puffin" }
 
 log = "0.4"

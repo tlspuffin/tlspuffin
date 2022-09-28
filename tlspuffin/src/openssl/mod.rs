@@ -10,7 +10,7 @@ use std::{
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+    ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream, SslVerifyMode},
     stack::Stack,
     x509::{
         store::{X509Store, X509StoreBuilder},
@@ -45,6 +45,7 @@ use crate::{
     },
 };
 
+mod bindings;
 #[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
@@ -234,9 +235,9 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
         if self.config.use_clear {
-            self.stream.clear();
+            bindings::clear(self.stream.ssl());
         } else {
-            self.stream.clear(); // FIXME: Add non-clear method like in wolfssl
+            bindings::clear(self.stream.ssl()); // FIXME: Add non-clear method like in wolfssl
         }
 
         Ok(())
@@ -249,7 +250,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
 
             let claims = self.config.claims.clone();
             let protocol_version = self.config.descriptor.tls_version;
@@ -274,7 +275,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
@@ -304,12 +305,12 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn set_deterministic(&mut self) -> Result<(), Error> {
-        #[cfg(all(feature = "deterministic", feature = "openssl111"))]
+        #[cfg(feature = "deterministic")]
         {
             deterministic::set_openssl_deterministic();
             Ok(())
         }
-        #[cfg(not(feature = "openssl111"))]
+        #[cfg(not(feature = "deterministic"))]
         {
             Err(Error::Agent(
                 "Unable to make OpenSSL deterministic!".to_string(),
@@ -370,7 +371,7 @@ impl OpenSSL {
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         #[cfg(feature = "openssl111")]
-        ctx_builder.set_options(openssl::ssl::SslOptions::ALLOW_NO_DHE_KEX);
+        bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
@@ -380,7 +381,7 @@ impl OpenSSL {
                 &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
             )?;
 
-            ctx_builder.set_tmp_rsa(&openssl::rsa::Rsa::generate(512)?)?;
+            bindings::set_tmp_rsa(&ctx_builder, &openssl::rsa::Rsa::generate(512)?)?;
         }
 
         // Allow EXPORT in server

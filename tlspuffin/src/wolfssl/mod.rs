@@ -23,6 +23,14 @@ use puffin::{
     trace::TraceContext,
 };
 use smallvec::SmallVec;
+use wolfssl::{
+    bio::{MemBio, MemBioSlice},
+    error::{ErrorStack, SslError},
+    ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
+    util::{cvt, cvt_n, cvt_p},
+    version::version,
+    x509::X509,
+};
 
 use crate::{
     claims::{
@@ -40,29 +48,10 @@ use crate::{
         enums::HandshakeType,
         message::{Message, OpaqueMessage},
     },
-    wolfssl::{
-        bio::{MemBio, MemBioSlice},
-        error::{ErrorStack, SslError},
-        ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
-        transcript::extract_current_transcript,
-        util::{cvt, cvt_n, cvt_p},
-        version::version,
-        x509::X509,
-    },
+    wolfssl::transcript::extract_current_transcript,
 };
 
-mod bio;
-mod callbacks;
-mod error;
-#[cfg(not(feature = "wolfssl430"))]
-mod pkey;
-#[cfg(not(feature = "wolfssl430"))]
-mod rsa;
-mod ssl;
 mod transcript;
-mod util;
-mod version;
-mod x509;
 
 pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct WolfSSLFactory;
@@ -107,9 +96,17 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     Box::new(WolfSSLFactory)
 }
 
-impl From<ErrorStack> for Error {
+pub struct WolfSSLErrorStack(pub ErrorStack);
+
+impl From<ErrorStack> for WolfSSLErrorStack {
     fn from(err: ErrorStack) -> Self {
-        Error::Put(err.to_string())
+        WolfSSLErrorStack(err)
+    }
+}
+
+impl From<WolfSSLErrorStack> for Error {
+    fn from(err: WolfSSLErrorStack) -> Self {
+        Error::Put(err.0.to_string())
     }
 }
 
@@ -154,14 +151,16 @@ impl WolfSSL {
         };
 
         #[cfg(not(feature = "wolfssl430"))]
-        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
+        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
+            .map_err(|err| WolfSSLErrorStack::from(err))?;
 
         let mut stream = Self::new_stream(&ctx, &config)?;
 
         #[cfg(feature = "wolfssl430")]
         stream
             .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))?;
+            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
+            .map_err(|err| WolfSSLErrorStack::from(err))?;
 
         let mut wolfssl = WolfSSL {
             ctx,
@@ -177,7 +176,7 @@ impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, Error> {
+    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, WolfSSLErrorStack> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
@@ -246,12 +245,14 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
 
         #[cfg(not(feature = "wolfssl430"))]
         self.ctx
-            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))
+            .map_err(|err| WolfSSLErrorStack::from(err))?;
 
         #[cfg(feature = "wolfssl430")]
         self.stream
             .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))?;
+            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))
+            .map_err(|err| WolfSSLErrorStack::from(err))?;
 
         Ok(())
     }
@@ -289,7 +290,9 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
 }
 
 impl WolfSSL {
-    pub fn create_client_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+    pub fn create_client_ctx(
+        descriptor: &AgentDescriptor,
+    ) -> Result<SslContext, WolfSSLErrorStack> {
         let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
@@ -303,10 +306,10 @@ impl WolfSSL {
 
             #[cfg(not(feature = "wolfssl430"))]
             {
-                let rsa = crate::wolfssl::rsa::Rsa::private_key_from_pem(
+                let rsa = wolfssl::rsa::Rsa::private_key_from_pem(
                     crate::static_certs::BOB_PRIVATE_KEY.0.as_bytes(),
                 )?;
-                let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+                let pkey = wolfssl::pkey::PKey::from_rsa(rsa)?;
                 ctx.set_private_key(pkey.as_ref())?;
             }
             #[cfg(feature = "wolfssl430")]
@@ -330,7 +333,7 @@ impl WolfSSL {
         Ok(ctx)
     }
 
-    pub fn create_client(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
+    pub fn create_client(ctx: &SslContextRef) -> Result<Ssl, WolfSSLErrorStack> {
         let mut ssl: Ssl = Ssl::new(&ctx)?;
         ssl.set_connect_state();
 
@@ -340,7 +343,9 @@ impl WolfSSL {
         Ok(ssl)
     }
 
-    pub fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+    pub fn create_server_ctx(
+        descriptor: &AgentDescriptor,
+    ) -> Result<SslContext, WolfSSLErrorStack> {
         let mut ctx = match descriptor.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
@@ -357,9 +362,8 @@ impl WolfSSL {
 
         #[cfg(not(feature = "wolfssl430"))]
         {
-            let rsa =
-                crate::wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
-            let pkey = crate::wolfssl::pkey::PKey::from_rsa(rsa)?;
+            let rsa = wolfssl::rsa::Rsa::private_key_from_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
+            let pkey = wolfssl::pkey::PKey::from_rsa(rsa)?;
             ctx.set_private_key(pkey.as_ref())?;
         }
         #[cfg(feature = "wolfssl430")]
@@ -387,7 +391,7 @@ impl WolfSSL {
         Ok(ctx)
     }
 
-    pub fn create_server(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
+    pub fn create_server(ctx: &SslContextRef) -> Result<Ssl, WolfSSLErrorStack> {
         //// SSL pointer builder
         let mut ssl: Ssl = Ssl::new(&ctx)?;
 
@@ -434,14 +438,20 @@ impl WolfSSL {
     fn create_msg_callback(
         agent_name: AgentName,
         config: &TlsPutConfig,
-    ) -> impl Fn(&mut SslRef, HandshakeType, bool) {
+    ) -> impl Fn(&mut SslRef, i32, u8, bool) {
         let origin = config.descriptor.typ;
         let protocol_version = config.descriptor.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;
 
-        move |context: &mut SslRef, typ: HandshakeType, outbound: bool| unsafe {
+        move |context: &mut SslRef, content_type: i32, first_byte: u8, outbound: bool| unsafe {
+            let typ = if content_type == 22 {
+                HandshakeType::from(first_byte)
+            } else {
+                HandshakeType::Unknown(0)
+            };
+
             if !outbound {
                 match typ {
                     HandshakeType::Certificate => {
@@ -469,6 +479,7 @@ impl WolfSSL {
                                 authenticate_peer,
                                 peer_certificate: context
                                     .get_peer_certificate()
+                                    .map(|cert| SmallVec::from_vec(cert))
                                     .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
                                 chosen_cipher: 0,                  // TODO

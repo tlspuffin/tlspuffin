@@ -3,41 +3,53 @@ name = "tlspuffin"
 version = "0.1.0"
 authors = ["Maximilian Ammann <max@maxammann.org>"]
 edition = "2021"
-doctest = true
 
 [features]
 default = ["sancov_libafl", "introspection"]
 
-# Lastest OpenSSL 1.1.1
-openssl111 = [
-    "openssl/vendored-openssl111", "openssl/no-rand", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+openssl-default = [
     "tls12",
     "tls13",
     "tls12-session-resumption",
     "tls13-session-resumption",
-    "deterministic", # Supported features by openssl111
+    "openssl-binding",
+]
+
+openssl111 = [
+    "openssl-src",
+    # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic",
     "claims",
     "openssl-binding",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
 ]
 openssl101f = [
-    "openssl/vendored-openssl101f", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src",
+    "openssl-src/openssl101f",
+    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 openssl102u = [
-    "openssl/vendored-openssl102u", "openssl/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src",
+    "openssl-src/openssl102u",
+    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
     "openssl-binding",
     "tls12-session-resumption"
 ]
 # Some LibreSSL version
 libressl = [
-    "openssl/vendored-libressl",
+    "openssl-src/libressl333",
     "tls12",
-    "tls13", # Supported features by openssl111
+    "tls13",
     "tls12-session-resumption",
     "claims",
     "openssl-binding",
@@ -46,6 +58,7 @@ libressl = [
 
 wolfssl430 = [
     "wolfssl-sys/vendored-wolfssl430",
+    "wolfssl/wolfssl430",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -109,12 +122,12 @@ sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 sancov_libafl = ["puffin/sancov_libafl"]
 
 # Enables ASAN
-asan = ["openssl/asan", "wolfssl-sys/asan"]
+asan = ["openssl-src/asan", "wolfssl-sys/asan"]
 
 # WolfSSL bindings are used
-wolfssl-binding = ["wolfssl-sys", "foreign-types-shared", "foreign-types", "bitflags"]
+wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "foreign-types-shared"]
+openssl-binding = ["openssl", "foreign-types-openssl"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -152,21 +165,33 @@ webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
 
 
+
 # OpenSSL
-# Uses build scripts from './openssl-src'
-openssl = { path = "../deps/rust-openssl/openssl", features = ["sancov"], optional = true }
-foreign-types-shared = { version = "0.1.1", optional = true }
-security-claims = { path = "../tlspuffin-claims", optional = false }
+
+# Up to verison 111
+openssl = { version = "0.10.41", features = ["vendored"], optional = true }
+openssl-sys = { version = "*", features = ["vendored"] }
+
+# For openssl 305
+#openssl = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
+#openssl-sys = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"] }
+
+foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
+security-claims = { version = "0.1.0", optional = false }
 
 # WolfSSL
-wolfssl-sys = { path = "../deps/wolfssl-sys", features = ["sancov"], optional = true }
+wolfssl = { path = "../crates/wolfssl", optional = true }
+wolfssl-sys = { path = "../crates/wolfssl-sys", features = ["sancov"], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
-bitflags = { version = "1.3.2", optional = true }
+
+[build-dependencies]
+# It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
+openssl-src = { version = "*", features = ["sancov"], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"
 env_logger = "0.9.0"
-nix = "0.24.1"
+nix = "0.25.0"
 serde_json = "1.0.81"
 tempfile = "3.3.0"
 criterion = "0.3.5"
