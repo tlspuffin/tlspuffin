@@ -24,7 +24,7 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 
 
 const REMOTE: &str = if cfg!(feature = "fix") || cfg!(feature = "explore") {
-    "git@gitlab.inria.fr:fuzzing/wolfssl.git" // private repo containing our fixes to wolfssl@master
+    "https://github.com/tlspuffin/wolfssl.git" // "git@gitlab.inria.fr:fuzzing/wolfssl.git" // private repo containing our fixes to wolfssl@master
 } else if cfg!(feature = "wolf-debug") {
     "https://github.com/tlspuffin/wolfssl.git"
 } else {
