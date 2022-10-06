@@ -2979,7 +2979,7 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_server_attacker_full: cfg(feature = "tls13"),
 	// Specific to CVE
         seed_finding_11_minimized: cfg(any(feature = "fix", feature = "explore")),
-	seed_finding_11_complete:  cfg(any(feature = "fix", feature = "explore")),
+	seed_finding_11_complete:  cfg(any(feature = "fix", feature = "explore"))
     )
 }
 
