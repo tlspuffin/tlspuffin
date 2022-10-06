@@ -24,6 +24,7 @@ jobs:
           - wolfssl530
           - wolfssl530_asan
           - wolfssl540
+          - wolfssl540-explore
           - tlspuffin_no_default_features
           - libssh
           - sshpuffin_no_default_features
@@ -65,6 +66,9 @@ jobs:
           - name: wolfssl540
             crate: tlspuffin
             features: wolfssl540
+          - name: wolfssl540-explore
+            crate: tlspuffin
+            features: wolfssl540,asan,explore
           - name: libssh
             crate: sshpuffin
             features: ""
