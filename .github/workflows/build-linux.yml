@@ -32,6 +32,10 @@ jobs:
             crate: tlspuffin
             features: openssl111
             clean-crates: openssl-sys
+          - name: openssl111j
+            crate: tlspuffin
+            features: openssl111j
+            clean-crates: openssl-sys
           - name: openssl101f_asan
             crate: tlspuffin
             features: openssl101f,asan

@@ -604,9 +604,12 @@ pub mod tests {
         unistd::{fork, ForkResult},
     };
 
-    use crate::tls::{
-        trace_helper::{TraceExecutor, TraceHelper},
-        vulnerabilities::*,
+    use crate::{
+        put_registry::TLS_PUT_REGISTRY,
+        tls::{
+            trace_helper::{TraceExecutor, TraceHelper},
+            vulnerabilities::*,
+        },
     };
 
     fn expect_crash<R>(mut func: R)
@@ -658,15 +661,8 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(feature = "tls12")]
+    #[cfg(feature = "openssl111j")]
     fn test_seed_cve_2021_3449() {
-        if !TLS_PUT_REGISTRY
-            .default_factory()
-            .version()
-            .contains("1.1.1j")
-        {
-            return;
-        }
         expect_crash(|| {
             seed_cve_2021_3449.execute_trace();
         });
