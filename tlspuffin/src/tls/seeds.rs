@@ -2762,7 +2762,7 @@ pub mod tests {
     #[test]
     #[cfg_attr(
         feature = "wolfssl510",
-        should_panicg(expected = "Authentication bypass")
+        should_panic(expected = "Authentication bypass")
     )]
     #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
     fn test_seed_cve_2022_25638() {
