@@ -505,9 +505,12 @@ mod tests {
     use crate::{
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
-        tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full,
-            seed_successful12_with_tickets, SeedHelper,
+        tls::{
+            seeds::{
+                seed_client_attacker_full, seed_session_resumption_dhe_full,
+                seed_successful12_with_tickets,
+            },
+            trace_helper::TraceHelper,
         },
     };
 
