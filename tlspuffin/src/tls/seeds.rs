@@ -1415,7 +1415,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
-fn _seed_client_attacker_full(
+pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,

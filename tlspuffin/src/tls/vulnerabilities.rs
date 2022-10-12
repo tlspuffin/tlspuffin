@@ -12,7 +12,7 @@ use crate::{
     tls::{
         fn_impl::*,
         rustls::msgs::enums::HandshakeType,
-        seeds::{_seed_client_attacker12, seed_client_attacker},
+        seeds::{_seed_client_attacker12, _seed_client_attacker_full, seed_client_attacker},
     },
 };
 
@@ -1406,7 +1406,15 @@ pub mod tests {
 
         use crate::{
             put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-            tls::{trace_helper::TraceHelper, vulnerabilities::seed_cve_2022_38153},
+            tcp::{
+                openssl_server,
+                tcp_puts::{wolfssl_client, wolfssl_server},
+                wolfssl_client, wolfssl_server,
+            },
+            tls::{
+                trace_helper::TraceHelper,
+                vulnerabilities::{seed_cve_2022_38153, seed_cve_2022_39173_full},
+            },
         };
 
         #[test]
@@ -1442,6 +1450,28 @@ pub mod tests {
             let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
             info!("{}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
+        }
+
+        #[test]
+        fn test_wolfssl_cve_2022_39173() {
+            let port = 44330;
+            let guard = wolfssl_server(port, TLSVersion::V1_3);
+            let put = PutDescriptor {
+                name: TCP_PUT,
+                options: guard.build_options(),
+            };
+
+            let trace = seed_cve_2022_39173_full.build_trace();
+            let initial_server = trace.prior_traces[0].descriptors[0].name;
+            let server = trace.descriptors[0].name;
+            let mut context = trace.execute_with_puts(
+                &TLS_PUT_REGISTRY,
+                &[(initial_server, put.clone()), (server, put)],
+            );
+
+            let server = AgentName::first().next();
+            let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+            info!("{}", shutdown);
         }
     }
 }
