@@ -17,6 +17,7 @@ openssl-default = [
 
 openssl111 = [
     "openssl-src",
+    "openssl-src/openssl111k",
     # Unused, 111 is default: "openssl-src/openssl111",
     "openssl-src/no-rand",
     "tls12",
@@ -25,26 +26,42 @@ openssl111 = [
     "tls13-session-resumption",
     "deterministic",
     "claims",
-    "openssl-binding",
+    "openssl111-binding",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
+]
+openssl111j = [
+    "openssl-src",
+    "openssl-src/openssl111j",
+    # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic",
+    "claims",
+    "openssl111-binding",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
 ]
 openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
-    "openssl-binding",
-    "tls12-session-resumption"
+    "openssl101-binding",
+    "tls12-session-resumption",
 ]
 openssl102u = [
     "openssl-src",
     "openssl-src/openssl102u",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
-    "openssl-binding",
+    "openssl102-binding",
     "tls12-session-resumption"
 ]
+
 # Some LibreSSL version
 libressl = [
     "openssl-src/libressl333",
@@ -122,12 +139,18 @@ sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 sancov_libafl = ["puffin/sancov_libafl"]
 
 # Enables ASAN
-asan = ["openssl-src/asan", "wolfssl-sys/asan"]
+asan = ["openssl-src?/asan", "wolfssl-sys?/asan"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "foreign-types-openssl"]
+openssl-binding = ["openssl", "openssl-sys", "foreign-types-openssl"]
+# Openssl 1.0.1 bindings
+openssl101-binding = ["openssl-binding"]
+# Openssl 1.0.2 bindings
+openssl102-binding = ["openssl-binding"]
+# Openssl 1.1.1 bindings
+openssl111-binding = ["openssl-binding"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -170,11 +193,11 @@ sct = "0.7.0"
 
 # Up to verison 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
-openssl-sys = { version = "*", features = ["vendored"] }
+openssl-sys = { version = "*", features = ["vendored"], optional = true }
 
 # For openssl 305
 #openssl = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
-#openssl-sys = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"] }
+#openssl-sys = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
 
 foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { version = "0.1.0", optional = false }
