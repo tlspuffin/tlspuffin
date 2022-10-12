@@ -134,7 +134,7 @@ sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 sancov_libafl = ["puffin/sancov_libafl"]
 
 # Enables ASAN
-asan = ["openssl-src/asan", "wolfssl-sys/asan"]
+asan = ["openssl-src?/asan", "wolfssl-sys?/asan"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]

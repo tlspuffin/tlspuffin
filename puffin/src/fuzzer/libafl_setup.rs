@@ -546,6 +546,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
+                .stdout_file(Some("/dev/null"))
                 .build()
                 .launch()
         } else {
@@ -564,10 +565,10 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // There is no need to disable the stdout of the clients.
                 // tlspuffin never logs or outputs to stdout. It always logs its output
                 // to tlspuffin-log.json.
-                // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
+                // We can safely, disable the log output of clients.
+                .stdout_file(Some("/dev/null"))
                 .build()
                 .launch()
         }
