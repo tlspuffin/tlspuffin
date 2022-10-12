@@ -165,7 +165,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
 
         let config = FuzzerConfig {
-            initial_corpus_dir: experiment_path.join("seeds"),
+            initial_corpus_dir: PathBuf::from("./seeds"),
             static_seed,
             max_iters,
             core_definition: core_definition.to_string(),
