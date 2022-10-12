@@ -62,6 +62,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 Ok(Box::new(server))
             } else {
                 let process = TLSProcess::new(&prog, &args, cwd);
+                thread::sleep(Duration::from_secs(10));
                 let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
                 client.set_process(process);
                 Ok(Box::new(client))
@@ -506,7 +507,7 @@ mod tests {
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full,
+            seed_client_attacker_full, seed_finding_11_full, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
@@ -598,13 +599,24 @@ mod tests {
         }
     }
 
-    fn wolfssl_server(port: u16) -> ParametersGuard {
+    fn wolfssl_server(port: u16, version: TLSVersion) -> ParametersGuard {
         let (_key, _cert, _temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
-        let args = vec!["-p", &port_string, "-x", "-d"];
+        let mut args = vec!["-p", &port_string, "-x", "-d", "-i"];
         let prog = "./examples/server/server";
         let cwd = "/home/max/projects/wolfssl";
+
+        match version {
+            TLSVersion::V1_3 => {
+                args.push("-v");
+                args.push("4");
+            }
+            TLSVersion::V1_2 => {
+                args.push("-v");
+                args.push("3");
+            }
+        }
 
         ParametersGuard {
             port,
@@ -692,6 +704,28 @@ mod tests {
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
+    }
+
+    #[test]
+    fn test_wolfssl_finding_11() {
+        let port = 44330;
+        let guard = wolfssl_server(port, TLSVersion::V1_3);
+        let put = PutDescriptor {
+            name: TCP_PUT,
+            options: guard.build_options(),
+        };
+
+        let trace = seed_finding_11_full.build_trace();
+        let initial_server = trace.prior_traces[0].descriptors[0].name;
+        let server = trace.descriptors[0].name;
+        let mut context = trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(initial_server, put.clone()), (server, put)],
+        );
+
+        let server = AgentName::first().next();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        info!("{}", shutdown);
     }
 
     #[test]
