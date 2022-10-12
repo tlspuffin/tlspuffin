@@ -2433,7 +2433,7 @@ pub fn seed_session_resumption_dhe_full(
     trace
 }
 
-pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
@@ -2568,7 +2568,7 @@ pub fn seed_finding_11(initial_server: AgentName, server: AgentName) -> Trace<Tl
     trace
 }
 
-pub fn seed_finding_11_full(
+pub fn seed_cve_2022_39173_full(
     initial_server: AgentName,
     server: AgentName,
 ) -> Trace<TlsQueryMatcher> {
@@ -2693,7 +2693,7 @@ pub fn seed_finding_11_full(
     trace
 }
 
-pub fn seed_finding_11_complete(
+pub fn seed_cve_2022_39173_complete(
     initial_server: AgentName,
     server: AgentName,
 ) -> Trace<TlsQueryMatcher> {
@@ -2844,7 +2844,7 @@ pub fn seed_finding_11_complete(
     trace
 }
 
-pub fn seed_finding_11_minimized(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher> {
     // WAS REQUIRED: let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
@@ -3152,29 +3152,29 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
-    fn test_seed_finding_11() {
-        let ctx = seed_finding_11.execute_trace();
+    fn test_seed_cve_2022_39173() {
+        let ctx = seed_cve_2022_39173.execute_trace();
         assert!(ctx.agents_successful());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
-    fn test_seed_finding_11_full() {
-        let ctx = seed_finding_11_full.execute_trace();
+    fn test_seed_cve_2022_39173_full() {
+        let ctx = seed_cve_2022_39173_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
-    fn test_seed_finding_11_complete() {
-        let ctx = seed_finding_11_complete.execute_trace();
+    fn test_seed_cve_2022_39173_complete() {
+        let ctx = seed_cve_2022_39173_complete.execute_trace();
         assert!(ctx.agents_successful());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
-    fn test_seed_finding_11_minimized() {
-        let ctx = seed_finding_11_minimized.execute_trace();
+    fn test_seed_cve_2022_39173_minimized() {
+        let ctx = seed_cve_2022_39173_minimized.execute_trace();
         assert!(ctx.agents_successful());
     }
 

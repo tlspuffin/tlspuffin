@@ -507,7 +507,7 @@ mod tests {
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
         tls::seeds::{
-            seed_client_attacker_full, seed_finding_11_full, seed_session_resumption_dhe_full,
+            seed_client_attacker_full, seed_cve_2022_39173_full, seed_session_resumption_dhe_full,
             seed_successful12_with_tickets, SeedHelper,
         },
     };
@@ -707,7 +707,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wolfssl_finding_11() {
+    fn test_wolfssl_cve_2022_39173() {
         let port = 44330;
         let guard = wolfssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
@@ -715,7 +715,7 @@ mod tests {
             options: guard.build_options(),
         };
 
-        let trace = seed_finding_11_full.build_trace();
+        let trace = seed_cve_2022_39173_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
         let mut context = trace.execute_with_puts(
