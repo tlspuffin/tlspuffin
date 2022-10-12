@@ -431,7 +431,7 @@
         }
 
         <span class="kw">let</span> <span class="ident">config</span> <span class="op">=</span> <span class="ident">FuzzerConfig</span> {
-            <span class="ident">initial_corpus_dir</span>: <span class="ident">experiment_path</span>.<span class="ident">join</span>(<span class="string">&quot;seeds&quot;</span>),
+            <span class="ident">initial_corpus_dir</span>: <span class="ident">PathBuf::from</span>(<span class="string">&quot;./seeds&quot;</span>),
             <span class="ident">static_seed</span>,
             <span class="ident">max_iters</span>,
             <span class="ident">core_definition</span>: <span class="ident">core_definition</span>.<span class="ident">to_string</span>(),
