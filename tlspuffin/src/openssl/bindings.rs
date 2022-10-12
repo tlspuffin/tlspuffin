@@ -20,7 +20,7 @@ unsafe fn SSL_CTX_set_tmp_rsa(ctx: *mut SSL_CTX, key: *mut RSA) -> c_long {
 extern "C" {
     fn SSL_clear(ssl: *mut SSL) -> c_int;
 
-    #[cfg(not(feature = "openssl111"))]
+    #[cfg(not(feature = "openssl111-binding"))]
     fn SSL_CTX_set_tmp_rsa_callback(
         ctx: *mut SSL_CTX,
         ecdh: unsafe extern "C" fn(ssl: *mut SSL, is_export: c_int, keylength: c_int) -> *mut RSA,
@@ -28,8 +28,8 @@ extern "C" {
 }
 
 #[cfg(all(
-    any(feature = "openssl101f", feature = "openssl102u"),
-    not(feature = "openssl111")
+    any(feature = "openssl101-binding", feature = "openssl102-binding"),
+    not(feature = "openssl111-binding")
 ))]
 unsafe extern "C" fn raw_tmp_rsa<F>(ssl: *mut SSL, is_export: c_int, keylength: c_int) -> *mut RSA
 where
@@ -55,8 +55,8 @@ where
 }
 
 #[cfg(all(
-    any(feature = "openssl101f", feature = "openssl102u"),
-    not(feature = "openssl111")
+    any(feature = "openssl101-binding", feature = "openssl102-binding"),
+    not(feature = "openssl111-binding")
 ))]
 pub fn set_tmp_rsa_callback<F>(ctx: &mut SslContextBuilder, callback: F)
 where

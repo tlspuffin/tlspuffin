@@ -119,7 +119,6 @@ pub struct WolfSSL {
 impl Stream<Message, OpaqueMessage> for WolfSSL {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
         let raw_stream = self.stream.get_mut();
-        //raw_stream.add_to_inbound(opaque_message)
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
             raw_stream,
             opaque_message,
