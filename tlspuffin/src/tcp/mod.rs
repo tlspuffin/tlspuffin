@@ -455,7 +455,12 @@ impl TLSProcess {
 
 impl Drop for TLSProcess {
     fn drop(&mut self) {
-        self.shutdown();
+        if let Some(output) = self.shutdown() {
+            println!(
+                "TLSProcess was not shutdown manually. Output of the process: {}",
+                output
+            );
+        }
     }
 }
 
@@ -505,9 +510,12 @@ mod tests {
     use crate::{
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
         tcp::{collect_output, execute_command},
-        tls::seeds::{
-            seed_client_attacker_full, seed_session_resumption_dhe_full,
-            seed_successful12_with_tickets, SeedHelper,
+        tls::{
+            seeds::{
+                seed_client_attacker_full, seed_session_resumption_dhe_full,
+                seed_successful12_with_tickets,
+            },
+            trace_helper::TraceHelper,
         },
     };
 
@@ -558,20 +566,18 @@ mod tests {
             "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...",
         ];
 
-        info!(
-            "{}",
-            collect_output(execute_command::<_, _, &str>(
-                OPENSSL_PROG,
-                openssl_gen_cert_args,
-                None,
-            ))
-        );
+        let cert_output = collect_output(execute_command::<_, _, &str>(
+            OPENSSL_PROG,
+            openssl_gen_cert_args,
+            None,
+        ));
+        println!("Certificate generation: {}", cert_output);
 
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
 
     fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
-        let (_key, _cert, _temp_dir) = gen_certificate();
+        let (_key, _cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
@@ -594,12 +600,12 @@ mod tests {
             prog: prog.to_owned(),
             args: args.join(" "),
             cwd: Some(cwd.to_owned()),
-            temp_dir: None,
+            temp_dir: Some(temp_dir),
         }
     }
 
     fn wolfssl_server(port: u16) -> ParametersGuard {
-        let (_key, _cert, _temp_dir) = gen_certificate();
+        let (_key, _cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let args = vec!["-p", &port_string, "-x", "-d"];
@@ -611,7 +617,7 @@ mod tests {
             prog: prog.to_owned(),
             args: args.join(" "),
             cwd: Some(cwd.to_owned()),
-            temp_dir: None,
+            temp_dir: Some(temp_dir),
         }
     }
 
