@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["seed_cve_2021_3449",""],["seed_cve_2022_25638","https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638"],["seed_cve_2022_25640","https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640"],["seed_cve_2022_25640_simple","A simplified version of [`seed_cve_2022_25640`]"],["seed_freak",""],["seed_heartbleed",""]]};

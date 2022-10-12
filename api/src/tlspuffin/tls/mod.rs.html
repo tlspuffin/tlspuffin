@@ -258,6 +258,8 @@
 <span id="252">252</span>
 <span id="253">253</span>
 <span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The *tls* module provides concrete implementations for the functions used in the term.</span>
 <span class="doccomment">//! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.</span>
 
@@ -269,7 +271,9 @@
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">rustls</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">seeds</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">trace_helper</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">violation</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">vulnerabilities</span>;
 
 <span class="doccomment">/// This modules contains all the concrete implementations of function symbols.</span>
 <span class="attribute">#[<span class="ident">path</span> <span class="op">=</span> <span class="string">&quot;.&quot;</span>]</span>

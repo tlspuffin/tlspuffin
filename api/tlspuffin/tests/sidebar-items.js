@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":[["term_zoo",""]]};

@@ -123,6 +123,7 @@
 <span id="117">117</span>
 <span id="118">118</span>
 <span id="119">119</span>
+<span id="120">120</span>
 </pre><pre class="rust"><code><span class="doccomment">//! TODO: Write intro: https://github.com/tlspuffin/tlspuffin/issues/94</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ### Used protocol and cryptographic libraries</span>
@@ -231,6 +232,7 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">debug</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl-binding&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">openssl</span>;
+<span class="kw">mod</span> <span class="ident">protocol</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">put</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">put_registry</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">query</span>;
@@ -240,7 +242,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl-binding&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">wolfssl</span>;
 
-<span class="kw">mod</span> <span class="ident">protocol</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span>;
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
