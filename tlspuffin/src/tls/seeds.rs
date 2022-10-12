@@ -2671,15 +2671,6 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
-    #[cfg(feature = "wolfssl-binding")] // only breaks on wolfssl
-    #[should_panic]
-    fn test_seed_12_finding_2() {
-        seed_client_attacker_full.execute_trace();
-        seed_client_attacker12.execute_trace();
-    }
-
-    #[test]
-    #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
     #[ignore] // Disabled because requires wolfSSL 5.3.0
               // Internally known as "Finding 8"
