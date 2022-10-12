@@ -73,6 +73,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     || agent_descriptor.typ == AgentType::Server
                         && agent_descriptor.client_authentication,
                 extract_deferred: Rc::new(RefCell::new(None)),
+                use_clear: false, // TODO: Add non-clear method like in wolfssl
             };
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))

