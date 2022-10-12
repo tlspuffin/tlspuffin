@@ -26,9 +26,9 @@ openssl111 = [
     "tls13-session-resumption",
     "deterministic",
     "claims",
-    "openssl-binding",
+    "openssl111-binding",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
 ]
 openssl111j = [
     "openssl-src",
@@ -41,26 +41,27 @@ openssl111j = [
     "tls13-session-resumption",
     "deterministic",
     "claims",
-    "openssl-binding",
+    "openssl111-binding",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
 ]
 openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
-    "openssl-binding",
-    "tls12-session-resumption"
+    "openssl101-binding",
+    "tls12-session-resumption",
 ]
 openssl102u = [
     "openssl-src",
     "openssl-src/openssl102u",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
     "tls12",
-    "openssl-binding",
+    "openssl102-binding",
     "tls12-session-resumption"
 ]
+
 # Some LibreSSL version
 libressl = [
     "openssl-src/libressl333",
@@ -144,6 +145,12 @@ asan = ["openssl-src?/asan", "wolfssl-sys?/asan"]
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
 openssl-binding = ["openssl", "openssl-sys", "foreign-types-openssl"]
+# Openssl 1.0.1 bindings
+openssl101-binding = ["openssl-binding"]
+# Openssl 1.0.2 bindings
+openssl102-binding = ["openssl-binding"]
+# Openssl 1.1.1 bindings
+openssl111-binding = ["openssl-binding"]
 
 # PUT supports TLS 1.3
 tls13 = []

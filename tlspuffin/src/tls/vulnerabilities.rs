@@ -641,7 +641,7 @@ pub mod tests {
     }
 
     // Vulnerable up until OpenSSL 1.0.1j
-    #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
     #[ignore] // We can not check for this vulnerability right now
@@ -651,7 +651,7 @@ pub mod tests {
         });
     }
 
-    #[cfg(all(feature = "openssl101f", feature = "asan"))]
+    #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_heartbleed() {
@@ -662,46 +662,38 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "openssl111j")]
+    #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
         expect_crash(|| {
             seed_cve_2021_3449.execute_trace();
         });
     }
 
+    #[test]
+    #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[test]
-    #[cfg_attr(
-        feature = "wolfssl510",
-        should_panic(expected = "Authentication bypass")
-    )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
+    #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
     }
 
+    #[test]
+    #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[test]
-    #[cfg_attr(
-        feature = "wolfssl510",
-        should_panic(expected = "Authentication bypass")
-    )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
+    #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
     }
 
+    #[test]
+    #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[test]
-    #[cfg_attr(
-        feature = "wolfssl510",
-        should_panic(expected = "Authentication bypass")
-    )]
-    #[cfg_attr(not(feature = "wolfssl510"), should_panic(expected = "Put"))]
+    #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());

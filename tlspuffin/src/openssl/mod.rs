@@ -362,15 +362,15 @@ impl OpenSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
+        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
         {
             ctx_builder.set_tmp_ecdh(
                 &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
@@ -394,7 +394,7 @@ impl OpenSSL {
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
         // for now.
         // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
