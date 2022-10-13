@@ -993,7 +993,7 @@ pub fn seed_cve_2022_39173_complete(
     };
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
-    for _ in 0..12 {
+    for _ in 0..149 {
         // also works with 149, 150 leads a too large list of suites (as expected)
         // Maximum reached suitesSz value depending on the number of ciphers in the list:
         // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
