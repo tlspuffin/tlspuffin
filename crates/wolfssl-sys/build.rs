@@ -32,6 +32,8 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "v5.1.0-stable"
 } else if cfg!(feature = "vendored-wolfssl430") {
     "v4.3.0-stable"
+} else if cfg!(feature = "vendored-master") {
+    "master"
 } else {
     "master"
 };
@@ -91,6 +93,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("secure-renegotiation", None)
         .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
         .enable("psk", None) // FIXME: Only 4.3.0
+        .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
@@ -102,10 +105,16 @@ fn build_wolfssl(dest: &str) -> PathBuf {
     }
 
     if cfg!(feature = "asan") {
+        let output = Command::new("clang")
+            .args(["--print-resource-dir"])
+            .output()
+            .expect("failed to clang to get resource dir");
+        let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
+
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
-            .cflag("-Wl,-rpath=/usr/lib/clang/10/lib/linux/"); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
+            .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
         println!("cargo:rustc-link-lib=asan");
     }
 

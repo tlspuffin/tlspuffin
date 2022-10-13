@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Tests (WolfSSL520)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Run Tests (WolfSSL520)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Tests">
     <option name="command" value="test -p tlspuffin --features wolfssl520" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
@@ -17,6 +17,6 @@
     <method v="2">
       <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       <option name="RunConfigurationTask" enabled="true" run_configuration_name="Run Tests (puffin)" run_configuration_type="CargoCommandRunConfiguration" />
-</method>
+    </method>
   </configuration>
 </component>

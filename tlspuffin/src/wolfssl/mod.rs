@@ -61,6 +61,15 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
+            let put_descriptor = context.put_descriptor(agent_descriptor);
+
+            let options = &put_descriptor.options;
+
+            let use_clear = options
+                .get_option("clear")
+                .map(|value| value.parse::<bool>().unwrap_or(false))
+                .unwrap_or(false);
+
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
                 claims: context.claims().clone(),
@@ -69,6 +78,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     || agent_descriptor.typ == AgentType::Server
                         && agent_descriptor.client_authentication,
                 extract_deferred: Rc::new(RefCell::new(None)),
+                use_clear,
             };
 
             Ok(Box::new(WolfSSL::new(config)?))
@@ -196,8 +206,12 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.stream = Self::new_stream(&self.ctx, &self.config)?;
-        //self.stream.clear();
+        if self.config.use_clear {
+            self.stream.clear();
+        } else {
+            self.stream = Self::new_stream(&self.ctx, &self.config)?;
+        }
+
         Ok(())
     }
 

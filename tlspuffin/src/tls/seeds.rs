@@ -1415,7 +1415,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
-fn _seed_client_attacker_full(
+pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,
@@ -1847,16 +1847,8 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-    use nix::{
-        sys::{
-            signal::Signal,
-            wait::{
-                waitpid, WaitPidFlag,
-                WaitStatus::{Exited, Signaled},
-            },
-        },
-        unistd::{fork, ForkResult},
-    };
+    use std::io::Write;
+
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
