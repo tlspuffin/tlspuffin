@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run tlspuffin (Debug) (WolfSSL530)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Run tlspuffin (Debug) (WolfSSL530)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Run">
     <option name="command" value="run -p tlspuffin --bin tlspuffin  --features wolfssl530 " />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
