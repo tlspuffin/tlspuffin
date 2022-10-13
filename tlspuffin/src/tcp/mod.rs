@@ -691,11 +691,7 @@ mod tests {
 
     use crate::{
         put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-        tcp::{
-            openssl_client, openssl_server,
-            tcp_puts::{openssl_client, openssl_server, wolfssl_client},
-            wolfssl_client,
-        },
+        tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
                 seed_client_attacker_full, seed_session_resumption_dhe_full,
@@ -759,7 +755,7 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let port = 55333;
+        let port = 44333;
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
@@ -790,7 +786,7 @@ mod tests {
     #[test]
     #[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
-        let port = 44336;
+        let port = 44334;
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
@@ -798,7 +794,7 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let port = 55337;
+        let port = 44335;
 
         let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {

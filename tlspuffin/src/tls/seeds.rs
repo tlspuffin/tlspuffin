@@ -1916,13 +1916,6 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
-    fn test_seed_cve_2022_39173() {
-        let ctx = seed_cve_2022_39173.execute_trace();
-        assert!(ctx.agents_successful());
-    }
-
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[test]
     fn test_seed_session_resumption_ke() {
         let ctx = seed_session_resumption_ke.execute_trace();
         assert!(ctx.agents_successful());
