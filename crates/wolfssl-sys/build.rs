@@ -105,10 +105,16 @@ fn build_wolfssl(dest: &str) -> PathBuf {
     }
 
     if cfg!(feature = "asan") {
+        let output = Command::new("clang")
+            .args(["--print-resource-dir"])
+            .output()
+            .expect("failed to clang to get resource dir");
+        let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
+
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
-            .cflag("-Wl,-rpath=/usr/lib/clang/10/lib/linux/"); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
+            .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
         println!("cargo:rustc-link-lib=asan");
     }
 
