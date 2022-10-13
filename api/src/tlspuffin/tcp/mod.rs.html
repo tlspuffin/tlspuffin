@@ -804,6 +804,30 @@
 <span id="798">798</span>
 <span id="799">799</span>
 <span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">ffi::OsStr</span>,
     <span class="ident">io</span>,
@@ -1020,7 +1044,7 @@
             <span class="kw">return</span>;
         }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">tuple</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream_receiver</span>.<span class="ident">recv_timeout</span>(<span class="ident">Duration::from_secs</span>(<span class="number">10</span>)) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">tuple</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream_receiver</span>.<span class="ident">recv_timeout</span>(<span class="ident">Duration::from_secs</span>(<span class="number">60</span>)) {
             <span class="self">self</span>.<span class="ident">stream</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">tuple</span>);
         } <span class="kw">else</span> {
             <span class="macro">panic!</span>(<span class="string">&quot;Unable to get stream to client!&quot;</span>)
@@ -1303,32 +1327,16 @@
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
-<span class="kw">mod</span> <span class="ident">tests</span> {
-
-    <span class="kw">use</span> <span class="ident">log::info</span>;
-    <span class="kw">use</span> <span class="ident">puffin</span>::{
-        <span class="ident">agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>},
-        <span class="ident">put</span>::{<span class="ident">PutDescriptor</span>, <span class="ident">PutOptions</span>},
-    };
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tcp_puts</span> {
+    <span class="kw">use</span> <span class="ident">puffin</span>::{<span class="ident">agent::TLSVersion</span>, <span class="ident">put::PutOptions</span>};
     <span class="kw">use</span> <span class="ident">tempfile</span>::{<span class="ident">tempdir</span>, <span class="ident">TempDir</span>};
-    <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
-    <span class="kw">use</span> <span class="kw">crate</span>::{
-        <span class="ident">put_registry</span>::{<span class="ident">TCP_PUT</span>, <span class="ident">TLS_PUT_REGISTRY</span>},
-        <span class="ident">tcp</span>::{<span class="ident">collect_output</span>, <span class="ident">execute_command</span>},
-        <span class="ident">tls</span>::{
-            <span class="ident">seeds</span>::{
-                <span class="ident">seed_client_attacker_full</span>, <span class="ident">seed_session_resumption_dhe_full</span>,
-                <span class="ident">seed_successful12_with_tickets</span>,
-            },
-            <span class="ident">trace_helper::TraceHelper</span>,
-        },
-    };
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::tcp</span>::{<span class="ident">collect_output</span>, <span class="ident">execute_command</span>};
 
     <span class="kw">const</span> <span class="ident">OPENSSL_PROG</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;openssl&quot;</span>;
 
     <span class="doccomment">/// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.</span>
-    <span class="kw">struct</span> <span class="ident">ParametersGuard</span> {
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ParametersGuard</span> {
         <span class="ident">port</span>: <span class="ident">u16</span>,
         <span class="ident">prog</span>: <span class="ident">String</span>,
         <span class="ident">args</span>: <span class="ident">String</span>,
@@ -1337,7 +1345,7 @@
     }
 
     <span class="kw">impl</span> <span class="ident">ParametersGuard</span> {
-        <span class="kw">fn</span> <span class="ident">build_options</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">PutOptions</span> {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">build_options</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">PutOptions</span> {
             <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">port</span>.<span class="ident">to_string</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>)<span class="op">&gt;</span> <span class="op">=</span>
                 <span class="macro">vec!</span>[(<span class="string">&quot;port&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">port</span>), (<span class="string">&quot;prog&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">prog</span>), (<span class="string">&quot;args&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">args</span>)];
@@ -1382,12 +1390,47 @@
         (<span class="ident">key_path</span>.<span class="ident">to_owned</span>(), <span class="ident">cert_path</span>.<span class="ident">to_owned</span>(), <span class="ident">temp_dir</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">wolfssl_client</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wolfssl_client</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>, <span class="ident">warmups</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>) -&gt; <span class="ident">ParametersGuard</span> {
         <span class="kw">let</span> (<span class="ident">_key</span>, <span class="ident">_cert</span>, <span class="ident">temp_dir</span>) <span class="op">=</span> <span class="ident">gen_certificate</span>();
 
         <span class="kw">let</span> <span class="ident">port_string</span> <span class="op">=</span> <span class="ident">port</span>.<span class="ident">to_string</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">args</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;-h&quot;</span>, <span class="string">&quot;127.0.0.1&quot;</span>, <span class="string">&quot;-p&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">port_string</span>, <span class="string">&quot;-x&quot;</span>, <span class="string">&quot;-d&quot;</span>];
         <span class="kw">let</span> <span class="ident">prog</span> <span class="op">=</span> <span class="string">&quot;./examples/client/client&quot;</span>;
+        <span class="kw">let</span> <span class="ident">cwd</span> <span class="op">=</span> <span class="string">&quot;/home/max/projects/wolfssl&quot;</span>;
+
+        <span class="kw">match</span> <span class="ident">version</span> {
+            <span class="ident">TLSVersion::V1_3</span> =&gt; {
+                <span class="ident">args</span>.<span class="ident">push</span>(<span class="string">&quot;-v&quot;</span>);
+                <span class="ident">args</span>.<span class="ident">push</span>(<span class="string">&quot;4&quot;</span>);
+            }
+            <span class="ident">TLSVersion::V1_2</span> =&gt; {
+                <span class="ident">args</span>.<span class="ident">push</span>(<span class="string">&quot;-v&quot;</span>);
+                <span class="ident">args</span>.<span class="ident">push</span>(<span class="string">&quot;3&quot;</span>);
+            }
+        }
+
+        <span class="kw">let</span> <span class="ident">warmups</span> <span class="op">=</span> <span class="ident">warmups</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">warmups</span><span class="op">|</span> <span class="ident">warmups</span>.<span class="ident">to_string</span>());
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">warmups</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">warmups</span> {
+            <span class="ident">args</span>.<span class="ident">push</span>(<span class="string">&quot;-b&quot;</span>);
+            <span class="ident">args</span>.<span class="ident">push</span>(<span class="ident">warmups</span>);
+        }
+
+        <span class="ident">ParametersGuard</span> {
+            <span class="ident">port</span>,
+            <span class="ident">prog</span>: <span class="ident">prog</span>.<span class="ident">to_owned</span>(),
+            <span class="ident">args</span>: <span class="ident">args</span>.<span class="ident">join</span>(<span class="string">&quot; &quot;</span>),
+            <span class="ident">cwd</span>: <span class="prelude-val">Some</span>(<span class="ident">cwd</span>.<span class="ident">to_owned</span>()),
+            <span class="ident">temp_dir</span>: <span class="prelude-val">Some</span>(<span class="ident">temp_dir</span>),
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wolfssl_server</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
+        <span class="kw">let</span> (<span class="ident">_key</span>, <span class="ident">_cert</span>, <span class="ident">temp_dir</span>) <span class="op">=</span> <span class="ident">gen_certificate</span>();
+
+        <span class="kw">let</span> <span class="ident">port_string</span> <span class="op">=</span> <span class="ident">port</span>.<span class="ident">to_string</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">args</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;-p&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">port_string</span>, <span class="string">&quot;-x&quot;</span>, <span class="string">&quot;-d&quot;</span>, <span class="string">&quot;-i&quot;</span>];
+        <span class="kw">let</span> <span class="ident">prog</span> <span class="op">=</span> <span class="string">&quot;./examples/server/server&quot;</span>;
         <span class="kw">let</span> <span class="ident">cwd</span> <span class="op">=</span> <span class="string">&quot;/home/max/projects/wolfssl&quot;</span>;
 
         <span class="kw">match</span> <span class="ident">version</span> {
@@ -1410,24 +1453,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">wolfssl_server</span>(<span class="ident">port</span>: <span class="ident">u16</span>) -&gt; <span class="ident">ParametersGuard</span> {
-        <span class="kw">let</span> (<span class="ident">_key</span>, <span class="ident">_cert</span>, <span class="ident">temp_dir</span>) <span class="op">=</span> <span class="ident">gen_certificate</span>();
-
-        <span class="kw">let</span> <span class="ident">port_string</span> <span class="op">=</span> <span class="ident">port</span>.<span class="ident">to_string</span>();
-        <span class="kw">let</span> <span class="ident">args</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;-p&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">port_string</span>, <span class="string">&quot;-x&quot;</span>, <span class="string">&quot;-d&quot;</span>];
-        <span class="kw">let</span> <span class="ident">prog</span> <span class="op">=</span> <span class="string">&quot;./examples/server/server&quot;</span>;
-        <span class="kw">let</span> <span class="ident">cwd</span> <span class="op">=</span> <span class="string">&quot;/home/max/projects/wolfssl&quot;</span>;
-
-        <span class="ident">ParametersGuard</span> {
-            <span class="ident">port</span>,
-            <span class="ident">prog</span>: <span class="ident">prog</span>.<span class="ident">to_owned</span>(),
-            <span class="ident">args</span>: <span class="ident">args</span>.<span class="ident">join</span>(<span class="string">&quot; &quot;</span>),
-            <span class="ident">cwd</span>: <span class="prelude-val">Some</span>(<span class="ident">cwd</span>.<span class="ident">to_owned</span>()),
-            <span class="ident">temp_dir</span>: <span class="prelude-val">Some</span>(<span class="ident">temp_dir</span>),
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">openssl_server</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">openssl_server</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
         <span class="kw">let</span> (<span class="ident">key</span>, <span class="ident">cert</span>, <span class="ident">temp_dir</span>) <span class="op">=</span> <span class="ident">gen_certificate</span>();
 
         <span class="kw">let</span> <span class="ident">port_string</span> <span class="op">=</span> <span class="ident">port</span>.<span class="ident">to_string</span>();
@@ -1461,7 +1487,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">openssl_client</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">openssl_client</span>(<span class="ident">port</span>: <span class="ident">u16</span>, <span class="ident">version</span>: <span class="ident">TLSVersion</span>) -&gt; <span class="ident">ParametersGuard</span> {
         <span class="kw">let</span> <span class="ident">connect</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="string">&quot;127.0.0.1&quot;</span>, <span class="ident">port</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">args</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="string">&quot;s_client&quot;</span>, <span class="string">&quot;-connect&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">connect</span>, <span class="string">&quot;-msg&quot;</span>, <span class="string">&quot;-state&quot;</span>];
 
@@ -1482,6 +1508,28 @@
             <span class="ident">temp_dir</span>: <span class="prelude-val">None</span>,
         }
     }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">log::info</span>;
+    <span class="kw">use</span> <span class="ident">puffin</span>::{
+        <span class="ident">agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>},
+        <span class="ident">put::PutDescriptor</span>,
+    };
+    <span class="kw">use</span> <span class="ident">test_log::test</span>;
+
+    <span class="kw">use</span> <span class="kw">crate</span>::{
+        <span class="ident">put_registry</span>::{<span class="ident">TCP_PUT</span>, <span class="ident">TLS_PUT_REGISTRY</span>},
+        <span class="ident">tcp::tcp_puts</span>::{<span class="ident">openssl_client</span>, <span class="ident">openssl_server</span>, <span class="ident">wolfssl_client</span>},
+        <span class="ident">tls</span>::{
+            <span class="ident">seeds</span>::{
+                <span class="ident">seed_client_attacker_full</span>, <span class="ident">seed_session_resumption_dhe_full</span>,
+                <span class="ident">seed_successful12_with_tickets</span>,
+            },
+            <span class="ident">trace_helper::TraceHelper</span>,
+        },
+    };
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_openssl_session_resumption_dhe_full</span>() {
@@ -1537,7 +1585,7 @@
             <span class="ident">options</span>: <span class="ident">server_guard</span>.<span class="ident">build_options</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">55333</span>;
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44333</span>;
 
         <span class="kw">let</span> <span class="ident">client_guard</span> <span class="op">=</span> <span class="ident">openssl_client</span>(<span class="ident">port</span>, <span class="ident">TLSVersion::V1_2</span>);
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
@@ -1568,7 +1616,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">ignore</span>]</span> <span class="comment">// wolfssl example server and client are not available in CI</span>
     <span class="kw">fn</span> <span class="ident">test_wolfssl_openssl_seed_successful12</span>() {
-        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44336</span>;
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44334</span>;
 
         <span class="kw">let</span> <span class="ident">server_guard</span> <span class="op">=</span> <span class="ident">openssl_server</span>(<span class="ident">port</span>, <span class="ident">TLSVersion::V1_2</span>);
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
@@ -1576,9 +1624,9 @@
             <span class="ident">options</span>: <span class="ident">server_guard</span>.<span class="ident">build_options</span>(),
         };
 
-        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">55337</span>;
+        <span class="kw">let</span> <span class="ident">port</span> <span class="op">=</span> <span class="number">44335</span>;
 
-        <span class="kw">let</span> <span class="ident">client_guard</span> <span class="op">=</span> <span class="ident">wolfssl_client</span>(<span class="ident">port</span>, <span class="ident">TLSVersion::V1_2</span>);
+        <span class="kw">let</span> <span class="ident">client_guard</span> <span class="op">=</span> <span class="ident">wolfssl_client</span>(<span class="ident">port</span>, <span class="ident">TLSVersion::V1_2</span>, <span class="prelude-val">None</span>);
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
             <span class="ident">name</span>: <span class="ident">TCP_PUT</span>,
             <span class="ident">options</span>: <span class="ident">client_guard</span>.<span class="ident">build_options</span>(),

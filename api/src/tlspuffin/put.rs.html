@@ -20,6 +20,7 @@
 <span id="14">14</span>
 <span id="15">15</span>
 <span id="16">16</span>
+<span id="17">17</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">cell::RefCell</span>, <span class="ident">rc::Rc</span>};
 
 <span class="kw">use</span> <span class="ident">puffin</span>::{
@@ -35,6 +36,7 @@
     <span class="kw">pub</span> <span class="ident">claims</span>: <span class="ident">GlobalClaimList</span><span class="op">&lt;</span><span class="ident">TlsClaim</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">authenticate_peer</span>: <span class="ident">bool</span>,
     <span class="kw">pub</span> <span class="ident">extract_deferred</span>: <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TypeShape</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">use_clear</span>: <span class="ident">bool</span>,
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>

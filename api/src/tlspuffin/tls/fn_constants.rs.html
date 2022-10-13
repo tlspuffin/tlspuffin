@@ -76,6 +76,10 @@
 <span id="70">70</span>
 <span id="71">71</span>
 <span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">allow</span>(<span class="ident">clippy::ptr_arg</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -147,6 +151,10 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_empty_bytes_vec</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
     <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fn_large_bytes_vec</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">FnError</span><span class="op">&gt;</span> {
+    <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[<span class="number">42</span>; <span class="number">700</span>])
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="tlspuffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>
