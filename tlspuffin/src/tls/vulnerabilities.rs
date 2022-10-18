@@ -403,6 +403,7 @@ pub fn seed_almost_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                 fn_signature_algorithm_cert_extension
             ))
         )
+
     };
 
     trace.steps.push(Step {
