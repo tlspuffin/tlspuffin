@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BRANCH=evaluate
+BRANCH=evaluation
 START_CORE=$(( 0 ))
 # Mut be at least 1
 CORES_PER_EXPERIMENT=$(( 8 ))
@@ -22,6 +22,7 @@ echo "Downloading latest evaluation build"
 
 rm -rf tlspuffin-*
 to_download=$(gh run list -R tlspuffin/tlspuffin -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
+echo "https://github.com/tlspuffin/tlspuffin/actions/runs/$to_download"
 gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo >&2 "Failed to download"; exit 1; }
 chmod +x tlspuffin-*/tlspuffin
 

@@ -83,7 +83,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
         }
-        println!("attempts: {}", attempts);
+        println!("attempts 1: {}", attempts);
         attempts = 0;
 
         // Check if we have a client hello in last encrypted one
@@ -116,7 +116,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
         }
-        println!("attempts: {}", attempts);
+        println!("attempts 2: {}", attempts);
         attempts = 0;
 
         // Test if we can replace the sequence number
@@ -145,7 +145,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
         }
-        println!("attempts: {}", attempts);
+        println!("attempts 3: {}", attempts);
         attempts = 0;
 
         // Remove sig algo
@@ -181,7 +181,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
         }
-        println!("attempts: {}", attempts);
+        println!("attempts 4: {}", attempts);
         attempts = 0;
 
         // Sucessfully renegotiate
@@ -212,7 +212,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
         }
-        println!("attempts: {}", attempts);
+        println!("attempts 5: {}", attempts);
         attempts = 0;
 
         let mut context = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
