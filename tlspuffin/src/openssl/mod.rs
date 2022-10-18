@@ -7,6 +7,7 @@ use std::{
     rc::Rc,
 };
 
+use log::warn;
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
@@ -75,8 +76,8 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 .unwrap_or(false);
 
             // FIXME: Add non-clear method like in wolfssl
-            if use_clear {
-                unimplemented!("OpenSSL put does not support non-clearing mode")
+            if !use_clear {
+                warn!("OpenSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
