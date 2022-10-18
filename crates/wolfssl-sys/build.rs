@@ -2,9 +2,10 @@ use std::{
     collections::HashSet,
     env,
     fs::{canonicalize, File},
-    io::Write,
+    io,
+    io::{ErrorKind, Write},
     path::PathBuf,
-    process::Command,
+    process::{Command, ExitStatus},
 };
 
 use autotools::Config;
@@ -38,15 +39,23 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "master"
 };
 
-fn patch_wolfssl(patch: &str) -> std::io::Result<()> {
-    Command::new("git").arg("am").arg(patch).status()?;
+fn patch_wolfssl(source_dir: &PathBuf, out_dir: &str, patch: &str) -> std::io::Result<()> {
+    let status = Command::new("git")
+        .current_dir(out_dir)
+        .arg("am")
+        .arg(source_dir.join("patches").join(patch).to_str().unwrap())
+        .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
 
     Ok(())
 }
 
 fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
-    Command::new("git")
+    let status = Command::new("git")
         .arg("clone")
         .arg("--depth")
         .arg("1")
@@ -55,6 +64,10 @@ fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
         .arg("https://github.com/wolfSSL/wolfssl.git")
         .arg(dest)
         .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
 
     Ok(())
 }
@@ -148,21 +161,9 @@ fn main() -> std::io::Result<()> {
     clone_wolfssl(&out_dir)?;
 
     #[cfg(feature = "fix-CVE-2022-25640")]
-    patch_wolfssl(
-        source_dir
-            .join("patches/fix-CVE-2022-25640.patch")
-            .to_str()
-            .unwrap(),
-    )
-    .unwrap();
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25640.patch").unwrap();
     #[cfg(feature = "fix-CVE-2022-25638")]
-    patch_wolfssl(
-        source_dir
-            .join("patches/fix-CVE-2022-25638.patch")
-            .to_str()
-            .unwrap(),
-    )
-    .unwrap();
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25638.patch").unwrap();
 
     let dst = build_wolfssl(&out_dir);
 
