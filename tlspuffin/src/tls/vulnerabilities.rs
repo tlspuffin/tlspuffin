@@ -397,7 +397,7 @@ pub fn seed_almost_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                         fn_signed_certificate_timestamp_extension
                     )),
                      // Enable Renegotiation
-                    (fn_renegotiation_info_extension((@client_verify_data)))
+                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
                 )),
                 // Add signature cert extension
                 fn_signature_algorithm_cert_extension
@@ -417,7 +417,7 @@ pub fn seed_almost_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                     )),
                     fn_named_group_secp384r1,
                     fn_true,
-                    fn_seq_1
+                    fn_seq_0
                 )
             },
         }),
