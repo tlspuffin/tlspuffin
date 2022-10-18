@@ -12,6 +12,7 @@ use puffin::{
         state::StdState,
     },
     put::PutOptions,
+    test_utils::*,
     trace::{Action, Step, Trace, TraceContext},
 };
 
@@ -43,6 +44,7 @@ fn create_state() -> StdState<
 }
 
 #[test]
+#[ignore]
 fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();
     let _server = AgentName::first();

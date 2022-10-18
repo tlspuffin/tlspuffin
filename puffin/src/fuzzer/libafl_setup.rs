@@ -23,9 +23,10 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::Input,
     monitors::tui::TuiMonitor,
-    mutators::MutatorsTuple,
+    mutators::{MutatorsTuple, StdScheduledMutator},
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
+    stages::StdMutationalStage,
     state::{HasCorpus, HasRand, StdState},
     Evaluator,
 };
@@ -258,10 +259,11 @@ where
             ..
         } = self.config;
 
-        let mutator =
-            PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        //let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        let mutator = StdScheduledMutator::new(self.mutations.unwrap());
         let mut stages = tuple_list!(
-            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            //PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            StdMutationalStage::new(mutator),
             StatsStage::new()
         );
 

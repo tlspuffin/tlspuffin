@@ -118,4 +118,5 @@ pub mod wolfssl;
 
 #[cfg(test)]
 mod integration_tests;
+#[cfg(test)]
 mod test_utils;
