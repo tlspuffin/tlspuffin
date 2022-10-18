@@ -292,6 +292,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
+/// https://nvd.nist.gov/vuln/detail/cve-2021-3449
 pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
     let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
@@ -1097,11 +1098,52 @@ pub mod tests {
     use crate::{
         put_registry::{TLS_PUT_REGISTRY, WOLFSSL520_PUT},
         tls::{
-            seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
+            seeds::{
+                seed_client_attacker12, seed_client_attacker_auth, seed_client_attacker_full,
+                seed_server_attacker_full, seed_session_resumption_dhe,
+                seed_session_resumption_dhe_full, seed_session_resumption_ke, seed_successful,
+                seed_successful12, seed_successful12_with_tickets, seed_successful_client_auth,
+                seed_successful_mitm, seed_successful_with_ccs, seed_successful_with_tickets,
+            },
             trace_helper::{TraceExecutor, TraceHelper},
             vulnerabilities::*,
         },
     };
+
+    #[test]
+    fn test_term_sizes() {
+        let client = AgentName::first();
+        let _server = client.next();
+
+        for (name, trace) in [
+            seed_cve_2022_25638.build_named_trace(),
+            seed_cve_2022_25640.build_named_trace(),
+            seed_cve_2021_3449.build_named_trace(),
+            seed_heartbleed.build_named_trace(),
+            seed_freak.build_named_trace(),
+            seed_cve_2022_25640_simple.build_named_trace(),
+            seed_cve_2022_38153.build_named_trace(),
+            // TODO: 685 seed_cve_2022_39173.build_named_trace(),
+            // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
+            // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),
+        ] {
+            for step in &trace.steps {
+                match &step.action {
+                    Action::Input(input) => {
+                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        let terms = input.recipe.size();
+                        assert!(
+                            terms < 300,
+                            "{} has step with too large term size {}!",
+                            name,
+                            terms
+                        );
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+    }
 
     fn expect_crash<R>(mut func: R)
     where
