@@ -37,6 +37,7 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
