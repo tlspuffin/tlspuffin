@@ -17,6 +17,7 @@ pub mod protocol;
 pub mod put;
 pub mod put_registry;
 pub mod stream;
+pub mod test_utils;
 pub mod trace;
 pub mod variable_data;
 

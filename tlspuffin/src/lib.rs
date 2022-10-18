@@ -117,4 +117,5 @@ pub mod tls;
 pub mod wolfssl;
 
 #[cfg(test)]
-mod tests;
+mod integration_tests;
+mod test_utils;
