@@ -2,6 +2,8 @@
 
 BRANCH=evaluate
 START_CORE=$(( 0 ))
+# Mut be at least 1
+CORES_PER_EXPERIMENT=$(( 8 ))
 START_PORT=$(( 6000 ))
 
 function check_available  {
@@ -13,7 +15,6 @@ function check_available  {
   fi
 }
 
-check_available "jq"
 check_available "gh"
 check_available "tmux"
 
@@ -21,7 +22,7 @@ echo "Downloading latest evaluation build"
 
 rm -rf tlspuffin-*
 to_download=$(gh run list -R tlspuffin/tlspuffin -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
-gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download"
+gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo >&2 "Failed to download"; exit 1; }
 chmod +x tlspuffin-*/tlspuffin
 
 
@@ -43,14 +44,13 @@ function start_experiment  {
   additional_args=$3
 
   tmux new-window -t $session:$window -n "$experiment"
-  tmux send-keys "$binary --cores $core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
+  end_core=$(( core + CORES_PER_EXPERIMENT - 1 ))
+  tmux send-keys "$binary --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
 
-  (( core++ ))
+  (( core += CORES_PER_EXPERIMENT ))
   (( port++ ))
   (( window++ ))
 }
-
-
 
 start_experiment "SDOS1" "./tlspuffin-openssl111j/tlspuffin" ""
 start_experiment "SIG" "./tlspuffin-wolfssl510-fix-CVE-2022-25640/tlspuffin" ""
