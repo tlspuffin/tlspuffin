@@ -367,6 +367,65 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
+pub fn seed_almost_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let (mut trace, client_verify_data) = _seed_client_attacker12(server);
+
+    let renegotiation_client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                fn_cipher_suite12
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                (fn_client_extensions_append(
+                                    fn_client_extensions_new,
+                                    (fn_support_group_extension(fn_named_group_secp384r1))
+                                )),
+                                fn_signature_algorithm_extension
+                            )),
+                            fn_ec_point_formats_extension
+                        )),
+                        fn_signed_certificate_timestamp_extension
+                    )),
+                     // Enable Renegotiation
+                    (fn_renegotiation_info_extension((@client_verify_data)))
+                )),
+                // Add signature cert extension
+                fn_signature_algorithm_cert_extension
+            ))
+        )
+    };
+
+    trace.steps.push(Step {
+        agent: server,
+        action: Action::Input(InputAction {
+            recipe: term! {
+                fn_encrypt12(
+                    (@renegotiation_client_hello),
+                    ((server, 0)),
+                    (fn_decode_ecdh_pubkey(
+                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                    )),
+                    fn_named_group_secp384r1,
+                    fn_true,
+                    fn_seq_1
+                )
+            },
+        }),
+    });
+
+    trace
+}
+
 pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(

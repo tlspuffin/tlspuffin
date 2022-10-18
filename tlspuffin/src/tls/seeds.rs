@@ -19,6 +19,7 @@ use crate::{
             handshake::{Random, ServerExtension, SessionID},
         },
         trace_helper::TraceHelper,
+        vulnerabilities::seed_almost_cve_2021_3449,
     },
 };
 
@@ -1837,6 +1838,7 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_client_attacker: cfg(feature = "tls13"),
         seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
         seed_client_attacker12: cfg(feature = "tls12"),
+        seed_almost_cve_2021_3449: cfg(feature = "tls12"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
