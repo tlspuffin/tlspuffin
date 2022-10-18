@@ -38,6 +38,12 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "master"
 };
 
+fn patch_wolfssl(patch: &str) -> std::io::Result<()> {
+    Command::new("git").arg("am").arg(patch).status()?;
+
+    Ok(())
+}
+
 fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
     Command::new("git")
@@ -137,8 +143,27 @@ fn build_wolfssl(dest: &str) -> PathBuf {
 }
 
 fn main() -> std::io::Result<()> {
+    let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = env::var("OUT_DIR").unwrap();
     clone_wolfssl(&out_dir)?;
+
+    #[cfg(feature = "fix-CVE-2022-25640")]
+    patch_wolfssl(
+        source_dir
+            .join("patches/fix-CVE-2022-25640.patch")
+            .to_str()
+            .unwrap(),
+    )
+    .unwrap();
+    #[cfg(feature = "fix-CVE-2022-25638")]
+    patch_wolfssl(
+        source_dir
+            .join("patches/fix-CVE-2022-25638.patch")
+            .to_str()
+            .unwrap(),
+    )
+    .unwrap();
+
     let dst = build_wolfssl(&out_dir);
 
     // Block some macros:https://github.com/rust-lang/rust-bindgen/issues/687

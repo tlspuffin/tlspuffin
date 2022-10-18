@@ -54,6 +54,12 @@ jobs:
           - name: wolfssl510
             crate: tlspuffin
             features: wolfssl510
+          - name: wolfssl510-fix-CVE-2022-25638
+            crate: tlspuffin
+            features: wolfssl510,fix-CVE-2022-25638
+          - name: wolfssl510-fix-CVE-2022-25640
+            crate: tlspuffin
+            features: wolfssl510,fix-CVE-2022-25640
           - name: wolfssl520
             crate: tlspuffin
             features: wolfssl520

@@ -132,6 +132,9 @@ wolfssl540 = [
     # FIXME: support "claims", "deterministic"
 ]
 
+fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
+fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640"]
+
 wolfsslmaster = [
     "wolfssl-sys/vendored-master",
     "tls12",
