@@ -522,7 +522,7 @@ pub mod tcp_puts {
             if let Some(cwd) = &self.cwd {
                 options.push(("cwd", cwd));
             }
-            PutOptions::new(options)
+            PutOptions::from_slice_vec(options)
         }
     }
 
@@ -685,7 +685,7 @@ mod tests {
     use log::info;
     use puffin::{
         agent::{AgentName, TLSVersion},
-        put::PutDescriptor,
+        put::{PutDescriptor, PutOptions},
     };
     use test_log::test;
 
@@ -713,7 +713,7 @@ mod tests {
         let trace = seed_session_resumption_dhe_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_puts(
+        let mut context = trace.execute_with_non_default_puts(
             &TLS_PUT_REGISTRY,
             &[(initial_server, put.clone()), (server, put)],
         );
@@ -736,7 +736,7 @@ mod tests {
 
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
+        let mut context = trace.execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
@@ -767,7 +767,7 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
+        let mut context = trace.execute_with_non_default_puts(
             &TLS_PUT_REGISTRY,
             &[(client_name, client.clone()), (server_name, server.clone())],
         );
@@ -806,7 +806,7 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
+        let mut context = trace.execute_with_non_default_puts(
             &TLS_PUT_REGISTRY,
             &[(client_name, client.clone()), (server_name, server.clone())],
         );

@@ -27,7 +27,7 @@ use libafl::{
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
     state::{HasCorpus, HasRand, StdState},
-    Error, Evaluator,
+    Evaluator,
 };
 use log::{info, warn};
 use log4rs::Handle;
@@ -228,7 +228,7 @@ where
         self
     }
 
-    fn run_client(mut self) -> Result<(), Error> {
+    fn run_client(mut self) -> Result<(), libafl::Error> {
         let event_manager_id = self.event_manager.mgr_id().id as u64;
         info!("Event manager ID is {}", event_manager_id);
 
@@ -466,7 +466,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         |state: Option<StdState<_, Trace<PB::Matcher>, _, _>>,
          event_manager: LlmpRestartingEventManager<Trace<PB::Matcher>, _, _, StdShMemProvider>,
          _unknown: usize|
-         -> Result<(), Error> {
+         -> Result<(), libafl::Error> {
             let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
             let harness_fn = &mut harness::harness::<PB>;

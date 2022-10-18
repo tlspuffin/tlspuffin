@@ -14,12 +14,14 @@ use crate::{
     algebra::set_deserialize_signature,
     experiment::*,
     fuzzer::{
+        harness::{default_put_options, set_default_put_options},
         sanitizer::asan::{asan_info, setup_asan_env},
         start, FuzzerConfig,
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
     protocol::ProtocolBehavior,
+    put::PutOptions,
     put_registry::PutRegistry,
     trace::{Trace, TraceContext},
 };
@@ -76,6 +78,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     let minimizer = matches.is_present("minimizer");
     let monitor = matches.is_present("monitor");
     let no_launcher = matches.is_present("no-launcher");
+    let put_use_clear = matches.is_present("put-use-clear");
 
     info!("Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -86,8 +89,18 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     asan_info();
     setup_asan_env();
 
+    // Initialize global state
+
     if set_deserialize_signature(PB::signature()).is_err() {
         error!("Failed to initialize deserialization");
+    }
+
+    let mut options: Vec<(String, String)> = Vec::new();
+    if put_use_clear {
+        options.push(("use_clear".to_string(), put_use_clear.to_string()))
+    }
+    if set_default_put_options(PutOptions::new(options)).is_err() {
+        error!("Failed to initialize default put options");
     }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
@@ -254,7 +267,7 @@ fn execute<PB: ProtocolBehavior>(
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new(put_registry);
+    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
     trace.execute(&mut ctx)?;
     Ok(())
 }

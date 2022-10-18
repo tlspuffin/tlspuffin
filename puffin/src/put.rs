@@ -39,7 +39,11 @@ pub struct PutOptions {
 }
 
 impl PutOptions {
-    pub fn new(options: Vec<(&str, &str)>) -> Self {
+    pub fn new(options: Vec<(String, String)>) -> Self {
+        Self { options }
+    }
+
+    pub fn from_slice_vec(options: Vec<(&str, &str)>) -> Self {
         Self {
             options: Vec::from_iter(
                 options

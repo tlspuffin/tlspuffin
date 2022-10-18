@@ -5,7 +5,7 @@ use libafl::{bolts::HasLen, inputs::Input};
 
 use crate::trace::Trace;
 
-mod harness;
+pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
 mod stages;

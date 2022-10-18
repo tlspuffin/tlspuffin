@@ -1197,7 +1197,7 @@ pub mod tests {
     fn test_seed_cve_2022_38152() {
         let put = PutDescriptor {
             name: WOLFSSL520_PUT,
-            options: PutOptions::new(vec![("clear", "true")]),
+            options: PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
         };
 
         let trace = seed_session_resumption_dhe_full.build_trace();
@@ -1205,7 +1205,7 @@ pub mod tests {
         let server = trace.prior_traces[0].descriptors[0].name;
 
         expect_crash(move || {
-            trace.execute_with_puts(
+            trace.execute_with_non_default_puts(
                 &TLS_PUT_REGISTRY,
                 &[(initial_server, put.clone()), (server, put.clone())],
             );
@@ -1293,7 +1293,7 @@ pub mod tests {
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
-            let mut context = trace.execute_with_puts(
+            let mut context = trace.execute_with_non_default_puts(
                 &TLS_PUT_REGISTRY,
                 &[(client_name, client.clone()), (server_name, server.clone())],
             );
@@ -1318,7 +1318,7 @@ pub mod tests {
             let trace = seed_cve_2022_39173_full.build_trace();
             let initial_server = trace.prior_traces[0].descriptors[0].name;
             let server = trace.descriptors[0].name;
-            let mut context = trace.execute_with_puts(
+            let mut context = trace.execute_with_non_default_puts(
                 &TLS_PUT_REGISTRY,
                 &[(initial_server, put.clone()), (server, put)],
             );
