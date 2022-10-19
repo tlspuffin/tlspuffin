@@ -22,6 +22,7 @@ impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
         self.build_trace()
             .execute_deterministic(&TLS_PUT_REGISTRY, PutOptions::default())
+            .unwrap()
     }
 }
 
