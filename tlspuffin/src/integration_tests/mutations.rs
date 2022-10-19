@@ -12,22 +12,18 @@ use puffin::{
         state::StdState,
     },
     put::PutOptions,
-    test_utils::*,
     trace::{Action, Step, Trace, TraceContext},
 };
 
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
-    test_utils::expect_crash,
     tls::{
         fn_impl::{
             fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
         seeds::_seed_client_attacker12,
-        trace_helper::TraceExecutor,
-        vulnerabilities::seed_freak,
         TLS_SIGNATURE,
     },
 };

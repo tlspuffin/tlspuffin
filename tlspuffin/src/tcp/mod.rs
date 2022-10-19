@@ -713,10 +713,12 @@ mod tests {
         let trace = seed_session_resumption_dhe_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_non_default_puts(
-            &TLS_PUT_REGISTRY,
-            &[(initial_server, put.clone()), (server, put)],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(initial_server, put.clone()), (server, put)],
+            )
+            .unwrap();
 
         let server = AgentName::first().next();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
@@ -736,7 +738,9 @@ mod tests {
 
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
+        let mut context = trace
+            .execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)])
+            .unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
@@ -767,10 +771,12 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_non_default_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client.clone()), (server_name, server.clone())],
+            )
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
@@ -806,10 +812,12 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_non_default_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client.clone()), (server_name, server.clone())],
+            )
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();

@@ -1082,14 +1082,13 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-    use puffin::{put::PutOptions, trace::TraceContext};
+    use puffin::put::PutOptions;
     use test_log::test;
 
     use crate::{
-        put_registry::TLS_PUT_REGISTRY,
-        test_utils::expect_crash,
+        test_utils::expect_trace_crash,
         tls::{
-            seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
+            seeds::seed_successful12_with_tickets,
             trace_helper::{TraceExecutor, TraceHelper},
             vulnerabilities::*,
         },
@@ -1212,42 +1211,52 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
-    #[cfg(feature = "wolfssl530")]
+    #[cfg(feature = "wolfssl540")]
     fn test_seed_cve_2022_38153() {
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
         }
 
-        expect_crash(|| {
-            seed_cve_2022_38153.execute_trace();
-        });
+        expect_trace_crash(seed_cve_2022_38153.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173() {
-        expect_crash(|| {
-            seed_cve_2022_39173.execute_trace();
-        })
+        expect_trace_crash(seed_cve_2022_39173.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_full() {
-        expect_crash(|| {
-            seed_cve_2022_39173_full.execute_trace();
-        });
+        expect_trace_crash(
+            seed_cve_2022_39173_full.build_trace(),
+            PutOptions::default(),
+        );
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_minimized() {
-        expect_crash(|| {
-            seed_cve_2022_39173_minimized.execute_trace();
-        });
+        expect_trace_crash(
+            seed_cve_2022_39173_minimized.build_trace(),
+            PutOptions::default(),
+        );
     }
 
     mod tcp {
@@ -1290,10 +1299,12 @@ pub mod tests {
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
-            let mut context = trace.execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
-                &[(client_name, client.clone()), (server_name, server.clone())],
-            );
+            let mut context = trace
+                .execute_with_non_default_puts(
+                    &TLS_PUT_REGISTRY,
+                    &[(client_name, client.clone()), (server_name, server.clone())],
+                )
+                .unwrap();
 
             let client = AgentName::first();
             let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
@@ -1315,10 +1326,12 @@ pub mod tests {
             let trace = seed_cve_2022_39173_full.build_trace();
             let initial_server = trace.prior_traces[0].descriptors[0].name;
             let server = trace.descriptors[0].name;
-            let mut context = trace.execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
-                &[(initial_server, put.clone()), (server, put)],
-            );
+            let mut context = trace
+                .execute_with_non_default_puts(
+                    &TLS_PUT_REGISTRY,
+                    &[(initial_server, put.clone()), (server, put)],
+                )
+                .unwrap();
 
             let server = AgentName::first().next();
             let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();

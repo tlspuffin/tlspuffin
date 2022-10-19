@@ -8,10 +8,24 @@ use nix::{
     },
     unistd::{fork, ForkResult},
 };
+use puffin::{algebra::Matcher, put::PutOptions, trace::Trace};
 
-pub fn expect_crash<R>(mut func: R)
+use crate::{
+    put_registry::TLS_PUT_REGISTRY,
+    query::TlsQueryMatcher,
+    tls::{trace_helper::TraceExecutor, vulnerabilities::seed_cve_2022_38153, TLS_SIGNATURE},
+};
+
+pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: PutOptions) {
+    expect_crash(move || {
+        // Ignore Rust errors
+        let _ = trace.execute_deterministic(&TLS_PUT_REGISTRY, default_put_options);
+    });
+}
+
+fn expect_crash<R>(mut func: R)
 where
-    R: FnMut(),
+    R: FnOnce(),
 {
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {

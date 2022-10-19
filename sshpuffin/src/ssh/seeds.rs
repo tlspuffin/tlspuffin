@@ -176,7 +176,9 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        let context = trace.execute_deterministic(&SSH_PUT_REGISTRY, PutOptions::default());
+        let context = trace
+            .execute_deterministic(&SSH_PUT_REGISTRY, PutOptions::default())
+            .unwrap();
 
         assert!(context
             .find_agent(client)
