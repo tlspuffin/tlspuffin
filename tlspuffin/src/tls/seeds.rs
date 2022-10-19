@@ -1901,6 +1901,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
         let ctx = seed_session_resumption_dhe.execute_trace();
@@ -1908,6 +1909,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         let ctx = seed_session_resumption_dhe_full.execute_trace();
@@ -1915,6 +1917,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_ke() {
         let ctx = seed_session_resumption_ke.execute_trace();
