@@ -7,7 +7,7 @@ use std::{
     rc::Rc,
 };
 
-use log::warn;
+use log::{info, warn};
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},

@@ -8,7 +8,7 @@ use std::{
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
 use libafl::inputs::Input;
-use log::{error, info};
+use log::{error, info, LevelFilter};
 
 use crate::{
     algebra::set_deserialize_signature,
@@ -62,7 +62,7 @@ fn create_app() -> Command<'static> {
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,
 ) -> ExitCode {
-    let handle = match log4rs::init_config(create_stdout_config()) {
+    let handle = match log4rs::init_config(create_stdout_config(LevelFilter::Info)) {
         Ok(handle) => handle,
         Err(err) => {
             error!("Failed to init logging: {:?}", err);
@@ -187,7 +187,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
             monitor_file: experiment_path.join("stats.json"),
-            log_file: experiment_path.join("log.json"),
+            log_file: experiment_path.join("tlspuffin.log"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),

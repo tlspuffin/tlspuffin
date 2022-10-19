@@ -137,7 +137,7 @@ where
 
         (self.print_fn)(fmt);
 
-        ClientStatistics {
+        Statistics::Client(ClientStatistics {
             id: sender_id,
             time: SystemTime::now(),
             trace,
@@ -149,7 +149,7 @@ where
             objective_size,
             total_execs,
             exec_per_sec: exec_sec,
-        }
+        })
         .serialize(&mut self.json_writer)
         .unwrap();
     }
@@ -166,8 +166,43 @@ where
             total_execs,
             self.execs_per_sec()
         );
+
         (self.print_fn)(global_fmt);
+
+        Statistics::Global(GlobalStatistics {
+            time: SystemTime::now(),
+
+            clients: self.client_stats().len() as u32,
+            corpus_size: self.corpus_size(),
+            objective_size: self.objective_size(),
+            total_execs,
+            exec_per_sec: self.execs_per_sec(),
+        })
+        .serialize(&mut self.json_writer)
+        .unwrap();
     }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum Statistics {
+    #[serde(rename = "client")]
+    Client(ClientStatistics),
+    #[serde(rename = "global")]
+    Global(GlobalStatistics),
+}
+
+#[derive(Serialize)]
+struct GlobalStatistics {
+    time: SystemTime,
+
+    clients: u32,
+
+    corpus_size: u64,
+    objective_size: u64,
+
+    total_execs: u64,
+    exec_per_sec: u64,
 }
 
 #[derive(Serialize)]

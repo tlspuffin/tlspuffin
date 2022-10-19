@@ -26,7 +26,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
-                * Log: [tlspuffin-log.json](./tlspuffin-log.json)\n\n\
+                * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
         put_versions = put_registry.version_strings().join(", "),

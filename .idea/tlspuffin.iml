@@ -2,7 +2,7 @@
 <module type="CPP_MODULE" version="4">
   <component name="FacetManager">
     <facet type="Python" name="Python facet">
-      <configuration sdkName="Python 3.8" />
+      <configuration sdkName="Python 3.10 (tlspuffin)" />
     </facet>
   </component>
   <component name="NewModuleRootManager">
@@ -18,11 +18,13 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/libssh-sys/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wolfssl-sys/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wolfssl/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tools/tlspuffin-analyzer" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/deps" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Python 3.8 interpreter library" level="application" />
+    <orderEntry type="library" name="Python 3.10 (tlspuffin) interpreter library" level="application" />
   </component>
 </module>
