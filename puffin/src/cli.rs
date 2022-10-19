@@ -28,7 +28,7 @@ use crate::{
 
 fn create_app() -> Command<'static> {
     Command::new(crate_name!())
-        .version(crate_version!())
+        .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
@@ -81,7 +81,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     let no_launcher = matches.is_present("no-launcher");
     let put_use_clear = matches.is_present("put-use-clear");
 
-    info!("Version: {}", crate::GIT_REF);
+    info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
     for version in put_registry.version_strings() {
         info!("{}", version);
