@@ -27,7 +27,7 @@ echo "Downloading latest evaluation build"
 
 rm -rf tlspuffin-*
 to_download=$(gh run list -R tlspuffin/tlspuffin -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
-echo "https://github.com/tlspuffin/tlspuffin/actions/runs/$to_download"
+echo "https://github.com/trailofbits/tlspuffin-disclosure/actions/runs/$to_download"
 gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo >&2 "Failed to download"; exit 1; }
 chmod +x tlspuffin-*/tlspuffin
 
