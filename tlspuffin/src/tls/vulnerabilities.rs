@@ -1082,30 +1082,14 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-    use nix::{
-        sys::{
-            signal::Signal,
-            wait::{
-                waitpid, WaitPidFlag,
-                WaitStatus::{Exited, Signaled},
-            },
-        },
-        unistd::{fork, ForkResult},
-    };
-    use puffin::put::{PutDescriptor, PutOptions};
+    use puffin::{put::PutOptions, trace::TraceContext};
     use test_log::test;
 
     use crate::{
-        put_registry::{TLS_PUT_REGISTRY, WOLFSSL520_PUT},
+        put_registry::TLS_PUT_REGISTRY,
         test_utils::expect_crash,
         tls::{
-            seeds::{
-                seed_client_attacker12, seed_client_attacker_auth, seed_client_attacker_full,
-                seed_server_attacker_full, seed_session_resumption_dhe,
-                seed_session_resumption_dhe_full, seed_session_resumption_ke, seed_successful,
-                seed_successful12, seed_successful12_with_tickets, seed_successful_client_auth,
-                seed_successful_mitm, seed_successful_with_ccs, seed_successful_with_tickets,
-            },
+            seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
             trace_helper::{TraceExecutor, TraceHelper},
             vulnerabilities::*,
         },
@@ -1210,23 +1194,18 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
-    #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
+    #[cfg(feature = "wolfssl540")]
+    #[cfg(feature = "wolfssl-disable-postauth")]
     /// Internal ID was "Finding 1"
     fn test_seed_cve_2022_38152() {
-        let put = PutDescriptor {
-            name: WOLFSSL520_PUT,
-            options: PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
-        };
-
         let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.descriptors[0].name;
-        let server = trace.prior_traces[0].descriptors[0].name;
 
         expect_crash(move || {
-            trace.execute_with_non_default_puts(
+            let mut context = TraceContext::new(
                 &TLS_PUT_REGISTRY,
-                &[(initial_server, put.clone()), (server, put.clone())],
+                PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
             );
+            trace.execute(&mut context).unwrap()
         });
     }
 

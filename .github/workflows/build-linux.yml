@@ -54,10 +54,10 @@ jobs:
           - name: wolfssl510
             crate: tlspuffin
             features: wolfssl510
-          - name: wolfssl510-fix-CVE-2022-25638
+          - name: wolfssl510-sig
             crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25638
-          - name: wolfssl510-fix-CVE-2022-25640
+          - name: wolfssl510-skip
             crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25640
           - name: wolfssl520
@@ -75,6 +75,9 @@ jobs:
           - name: wolfssl540
             crate: tlspuffin
             features: wolfssl540
+          - name: wolfssl540-sdos2
+            crate: tlspuffin
+            features: wolfssl540,wolfssl-disable-postauth
           - name: wolfssl540_asan
             crate: tlspuffin
             features: wolfssl540,asan

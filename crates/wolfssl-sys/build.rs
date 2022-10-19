@@ -96,28 +96,35 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("opensslall", None)
         .enable("opensslextra", None)
         .enable("context-extra-user-data", None)
-        //.enable("all", None) // FIXME: Do not use this as its non-default
-        //.enable("opensslcoexist", None) // FIXME: not needed
         .enable("keygen", None) // Support for RSA certs
         .enable("certgen", None) // Support x509 decoding
         .enable("tls13", None)
         .enable("aesni", None)
         .enable("dtls", None)
-        .enable("sp", None) // FIXME: Fixes a memory leak?
+        .enable("sp", None)
         .enable("sp-asm", None)
         .enable("dtls-mtu", None)
         .disable("sha3", None)
         .enable("intelasm", None)
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
-        .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
         .enable("psk", None) // FIXME: Only 4.3.0
         .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
-        //.cflag("-g")// FIXME: Reenable?
+        .cflag("-g")
         .cflag("-fPIC");
+
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    {
+        config.enable("postauth", None);
+    }
+
+    #[cfg(feature = "wolfssl-disable-postauth")]
+    {
+        config.disable("postauth", None);
+    }
 
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
