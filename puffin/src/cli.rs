@@ -55,7 +55,7 @@ fn create_app() -> Command<'static> {
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
                 .about("Executes a trace stored in a file")
-                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))
         ])
 }
 
@@ -123,10 +123,17 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         // Parse arguments
-        let input = matches.value_of("input").unwrap();
+        let inputs = matches.values_of("inputs").unwrap();
+        let mut failed = false;
+        for input in inputs {
+            error!("Executing: {}", input);
+            if let Err(err) = execute(input, put_registry) {
+                error!("Failed to execute trace: {:?}", err);
+                failed = true
+            }
+        }
 
-        if let Err(err) = execute(input, put_registry) {
-            error!("Failed to execute trace: {:?}", err);
+        if failed {
             return ExitCode::FAILURE;
         }
     } else {
