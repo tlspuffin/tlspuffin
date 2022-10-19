@@ -16,6 +16,7 @@ vendored-wolfssl430 = []
 vendored-wolfssl510 = []
 fix-CVE-2022-25638 = []
 fix-CVE-2022-25640 = []
+wolfssl-disable-postauth = []
 
 vendored-wolfssl520 = []
 vendored-wolfssl530 = []
