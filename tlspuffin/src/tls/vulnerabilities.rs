@@ -73,7 +73,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let certificate_verify_rsa = term! {
         fn_certificate_verify(
-            (fn_invalid_signature_algorithm),
+            fn_invalid_signature_algorithm,
             // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
             //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):

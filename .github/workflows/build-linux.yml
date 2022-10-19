@@ -84,10 +84,10 @@ jobs:
           - name: wolfssl540_asan
             crate: tlspuffin
             features: wolfssl540,asan
-          - name: wolfssl540_asan-buf
+          - name: wolfssl540-buf
             crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-42905
-          - name: wolfssl540_asan-heap
+          - name: wolfssl540-heap
             crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173
           - name: libssh
