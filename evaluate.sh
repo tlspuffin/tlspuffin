@@ -56,8 +56,8 @@ function start_experiment  {
 start_experiment "SDOS1" "./tlspuffin-openssl111j/tlspuffin" ""
 start_experiment "SIG" "./tlspuffin-wolfssl510-sig/tlspuffin" ""
 start_experiment "SKIP" "./tlspuffin-wolfssl510-skip/tlspuffin" ""
-start_experiment "SDOS2" "./tlspuffin-wolfssl540/tlspuffin" "--put-use-clear"
-start_experiment "CDOS" "./tlspuffin-wolfssl530/tlspuffin" ""
+start_experiment "SDOS2" "./tlspuffin-wolfssl540-sdos2/tlspuffin" "--put-use-clear"
+start_experiment "CDOS" "./tlspuffin-wolfssl530-cdos/tlspuffin" ""
 start_experiment "BUF" "./tlspuffin-wolfssl540/tlspuffin" ""
 
 # return to main window
