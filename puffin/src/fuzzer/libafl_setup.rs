@@ -30,7 +30,7 @@ use libafl::{
     state::{HasCorpus, HasRand, StdState},
     Evaluator,
 };
-use log::{info, warn};
+use log::{info, trace, warn};
 use log4rs::Handle;
 
 use super::harness;
@@ -230,9 +230,6 @@ where
     }
 
     fn run_client(mut self) -> Result<(), libafl::Error> {
-        let event_manager_id = self.event_manager.mgr_id().id as u64;
-        info!("Event manager ID is {}", event_manager_id);
-
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -300,7 +297,7 @@ where
                     });
                 info!("Imported {} inputs from disk.", state.corpus().count());
             } else {
-                warn!("Initial seed corpus not found. Using embedded seeds.");
+                info!("Initial seed corpus not found. Using embedded seeds.");
 
                 for (seed, name) in self.initial_inputs.unwrap() {
                     info!("Using seed {}", name);
