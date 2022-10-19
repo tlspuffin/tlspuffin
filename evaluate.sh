@@ -1,9 +1,14 @@
 #!/bin/bash
 
-BRANCH=evaluation
+if [ "$#" -ne 2 ]; then
+    echo "Illegal number of parameters"
+    exit 1
+fi
+
+BRANCH=$1
 START_CORE=$(( 0 ))
 # Mut be at least 1
-CORES_PER_EXPERIMENT=$(( 8 ))
+CORES_PER_EXPERIMENT=$(( $2 ))
 START_PORT=$(( 6000 ))
 
 function check_available  {
@@ -27,11 +32,11 @@ gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo
 chmod +x tlspuffin-*/tlspuffin
 
 
-session="evaluation"
+session=$BRANCH
 
 # Start
 tmux start-server
-tmux new-session -d -s $session
+tmux new-session -d -s "$session"
 
 start_window=$(( 1 ))
 
@@ -44,7 +49,7 @@ function start_experiment  {
   binary=$2
   additional_args=$3
 
-  tmux new-window -t $session:$window -n "$experiment"
+  tmux new-window -t "$session:$window" -n "$experiment"
   end_core=$(( core + CORES_PER_EXPERIMENT - 1 ))
   tmux send-keys " $binary --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
 
@@ -61,8 +66,8 @@ start_experiment "CDOS" "./tlspuffin-wolfssl530-cdos/tlspuffin" ""
 start_experiment "BUF" "./tlspuffin-wolfssl540/tlspuffin" ""
 
 # return to main window
-tmux select-window -t $session:0
+tmux select-window -t "$session:0"
 tmux send-keys "htop" C-m
 
 # Finally attach
-tmux attach-session -t $session
+tmux attach-session -t "$session"
