@@ -46,7 +46,7 @@ function start_experiment  {
 
   tmux new-window -t $session:$window -n "$experiment"
   end_core=$(( core + CORES_PER_EXPERIMENT - 1 ))
-  tmux send-keys "$binary --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
+  tmux send-keys " $binary --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
 
   (( core += CORES_PER_EXPERIMENT ))
   (( port++ ))
