@@ -103,7 +103,7 @@ jobs:
             cargo-flags: "--no-default-features"
     name: Build "${{ matrix.name }}"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
       - name: Setup Git
@@ -129,12 +129,12 @@ jobs:
         shell: bash
         run: just build ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }} --timings"
       - name: Upload Build Timings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cargo-timings-${{ matrix.name }}
           path: target/cargo-timings/cargo-timing.html
       - name: Upload Build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.crate }}-${{ matrix.name }}
           path: target/x86_64-unknown-linux-gnu/release/${{ matrix.crate }}
