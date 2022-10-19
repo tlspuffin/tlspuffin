@@ -63,7 +63,8 @@ start_experiment "SIG" "./tlspuffin-wolfssl510-sig/tlspuffin" ""
 start_experiment "SKIP" "./tlspuffin-wolfssl510-skip/tlspuffin" ""
 start_experiment "SDOS2" "./tlspuffin-wolfssl540-sdos2/tlspuffin" "--put-use-clear"
 start_experiment "CDOS" "./tlspuffin-wolfssl530-cdos/tlspuffin" ""
-start_experiment "BUF" "./tlspuffin-wolfssl540/tlspuffin" ""
+start_experiment "BUF" "./tlspuffin-wolfssl540-buf/tlspuffin" ""
+start_experiment "HEAP" "./tlspuffin-wolfssl540-heap/tlspuffin" ""
 
 # return to main window
 tmux select-window -t "$session:0"
