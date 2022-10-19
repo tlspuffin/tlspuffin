@@ -1135,27 +1135,21 @@ pub mod tests {
     #[test]
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
-        expect_crash(|| {
-            seed_freak.execute_trace();
-        });
+        expect_trace_crash(seed_freak.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_heartbleed() {
-        expect_crash(|| {
-            seed_heartbleed.execute_trace();
-        })
+        expect_trace_crash(seed_heartbleed.build_trace(), PutOptions::default());
     }
 
     #[test]
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        expect_crash(|| {
-            seed_cve_2021_3449.execute_trace();
-        });
+        expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
     }
 
     #[test]
@@ -1195,23 +1189,17 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[cfg(feature = "wolfssl540")]
     #[cfg(feature = "wolfssl-disable-postauth")]
-    /// Internal ID was "Finding 1"
     fn test_seed_cve_2022_38152() {
-        let trace = seed_session_resumption_dhe_full.build_trace();
-
-        expect_crash(move || {
-            let mut context = TraceContext::new(
-                &TLS_PUT_REGISTRY,
-                PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
-            );
-            trace.execute(&mut context).unwrap()
-        });
+        expect_trace_crash(
+            seed_session_resumption_dhe_full.build_trace(),
+            PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+        );
     }
 
     #[test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
-    #[cfg(feature = "wolfssl540")]
+    #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
