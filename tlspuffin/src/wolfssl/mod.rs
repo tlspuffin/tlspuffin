@@ -208,10 +208,8 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
         if self.config.use_clear {
-            warn!("use clear");
             self.stream.clear();
         } else {
-            warn!("no clear");
             self.stream = Self::new_stream(&self.ctx, &self.config)?;
         }
 
