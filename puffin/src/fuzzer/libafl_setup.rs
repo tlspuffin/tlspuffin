@@ -30,7 +30,7 @@ use libafl::{
     state::{HasCorpus, HasRand, StdState},
     Evaluator,
 };
-use log::{info, trace, warn};
+use log::{info, trace, warn, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
@@ -560,7 +560,9 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                     .with_scheduler(libafl::schedulers::RandScheduler::new());
             }
 
-            log_handle.clone().set_config(create_file_config(log_file));
+            log_handle
+                .clone()
+                .set_config(create_file_config(LevelFilter::Warn, log_file));
 
             builder.run_client()
         };
@@ -612,7 +614,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .cores(&cores)
                 .broker_port(*broker_port)
                 // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin-log.json.
+                // to tlspuffin.log.
                 // We can safely, disable the log output of clients.
                 .stdout_file(Some("/dev/null"))
                 .build()

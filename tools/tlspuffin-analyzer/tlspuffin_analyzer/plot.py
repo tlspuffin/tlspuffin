@@ -109,15 +109,12 @@ def plot_with_other(ax, times, data: List[dict],
     # plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
 
 
-def spread_xy(start_date, client_data, trunc_minutes=None, log=False):
+def spread_xy(start_date, client_data, trunc_minutes=None):
     times = []
     data = []
 
     for client_datum in client_data:
-        if not (log):
-            time = datetime.fromtimestamp(client_datum["time"]["secs_since_epoch"])
-        else:
-            time = client_datum["time"]
+        time = datetime.fromtimestamp(client_datum["time"]["secs_since_epoch"])
         times.append(time - start_date)
         data.append(client_datum)
 
@@ -132,12 +129,9 @@ def spread_xy(start_date, client_data, trunc_minutes=None, log=False):
     return times, data
 
 
-def plot_client_stats(start_date, start_date_log, client_stats: List[dict], client_log: List[dict], fewer=False):
+def plot_stats(start_date, client_stats: List[dict], global_stats: List[dict], fewer=False):
     times, data = spread_xy(start_date, client_stats)
-    times_log, data_log = spread_xy(start_date_log, client_log, log=True)
-
-    # print(times)
-    # print(data)
+    times_global, data_global = spread_xy(start_date, global_stats)
 
     if not fewer:
         fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8), (ax9, ax10), (ax11, ax12), (ax13, ax14),
@@ -178,11 +172,11 @@ def plot_client_stats(start_date, start_date_log, client_stats: List[dict], clie
                         "PUT Perf Share")
 
         # Global Performance
-        plot_with_other(ax17, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", log=True,
+        plot_with_other(ax17, times_global, data_global, lambda log: log["corpus_size"], "Global Corpus Size", log=True,
                         smooth=True)
-        plot_with_other(ax18, times_log, data_log,
+        plot_with_other(ax18, times_global, data_global,
                         lambda log: log["exec_per_sec"], "Global Execs/s",
-                        lambda log: log["obj"], "Global Objective",
+                        lambda log: log["objective_size"], "Global Objective",
                         smooth=True, log=True)
 
     else:
