@@ -28,6 +28,8 @@ pub const GIT_REF: &str = match option_env!("GIT_REF") {
     None => "undefined",
 };
 
+pub const MAYBE_GIT_REF: Option<&str> = option_env!("GIT_REF");
+
 pub const GIT_MSG: &str = match option_env!("GIT_MSG") {
     Some(env) => env,
     None => "undefined",
