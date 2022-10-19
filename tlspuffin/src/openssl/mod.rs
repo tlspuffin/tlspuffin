@@ -77,7 +77,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                warn!("OpenSSL put does not support clearing mode")
+                info!("OpenSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
