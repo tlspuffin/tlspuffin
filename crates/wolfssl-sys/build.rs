@@ -171,6 +171,8 @@ fn main() -> std::io::Result<()> {
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25640.patch").unwrap();
     #[cfg(feature = "fix-CVE-2022-25638")]
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25638.patch").unwrap();
+    #[cfg(feature = "fix-CVE-2022-39173")]
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-39173.patch").unwrap();
 
     let dst = build_wolfssl(&out_dir);
 
