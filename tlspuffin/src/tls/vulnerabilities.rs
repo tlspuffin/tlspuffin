@@ -1148,7 +1148,7 @@ pub mod tests {
     use crate::{
         test_utils::expect_trace_crash,
         tls::{
-            seeds::seed_successful12_with_tickets,
+            seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
             trace_helper::{TraceExecutor, TraceHelper},
             vulnerabilities::*,
         },
