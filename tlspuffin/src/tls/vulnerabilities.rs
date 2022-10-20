@@ -418,7 +418,7 @@ pub fn seed_almost_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                     )),
                     fn_named_group_secp384r1,
                     fn_true,
-                    fn_seq_0
+                    fn_seq_1
                 )
             },
         }),
