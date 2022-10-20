@@ -595,7 +595,7 @@ impl<M: Matcher> InputAction<M> {
             ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
             ))
             .into());
         }
