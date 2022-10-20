@@ -23,7 +23,7 @@ pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: Pu
     });
 }
 
-fn expect_crash<R>(mut func: R)
+pub fn expect_crash<R>(mut func: R)
 where
     R: FnOnce(),
 {
