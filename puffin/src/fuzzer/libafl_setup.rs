@@ -256,10 +256,10 @@ where
             ..
         } = self.config;
 
-        //let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
         let mutator = StdScheduledMutator::new(self.mutations.unwrap());
         let mut stages = tuple_list!(
-            //PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
             StdMutationalStage::new(mutator),
             StatsStage::new()
         );
