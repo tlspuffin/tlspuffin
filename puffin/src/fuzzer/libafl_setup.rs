@@ -351,6 +351,88 @@ type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
     ConcreteState<C, R, SC, I>,
 >;
 
+impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
+    RunClientBuilder<
+        'harness,
+        H,
+        C,
+        R,
+        SC,
+        EM,
+        ConcreteFeedback<'a, C, R, SC, I>,
+        OF,
+        ConcreteObservers<'a>,
+        CS,
+        MT,
+        I,
+    >
+where
+    I: Input + HasLen,
+    C: Corpus<I> + fmt::Debug,
+    R: Rand,
+    SC: Corpus<I> + fmt::Debug,
+    H: FnMut(&I) -> ExitKind,
+    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
+    EM: EventFirer<I>
+        + EventRestarter<ConcreteState<C, R, SC, I>>
+        + EventManager<
+            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
+            I,
+            ConcreteState<C, R, SC, I>,
+            StdFuzzer<
+                ConcreteMinimizer<C, R, SC, I>,
+                ConcreteFeedback<'a, C, R, SC, I>,
+                I,
+                OF,
+                ConcreteObservers<'a>,
+                ConcreteState<C, R, SC, I>,
+            >,
+        > + ProgressReporter<I>,
+    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+{
+    fn create_feedback_observers(
+        &self,
+    ) -> (ConcreteFeedback<'a, C, R, SC, I>, ConcreteObservers<'a>) {
+        #[cfg(not(test))]
+        let map = unsafe {
+            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
+        #[cfg(test)]
+        let map = unsafe {
+            // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
+            pub const EDGES_MAP_SIZE: usize = 65536;
+            pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
+            pub static mut MAX_EDGES_NUM: usize = 0;
+            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+        };
+
+        let map_feedback = MaxMapFeedback::with_names_tracking(
+            MAP_FEEDBACK_NAME,
+            EDGES_OBSERVER_NAME,
+            true,
+            false,
+        );
+
+        return {
+            let time_observer = TimeObserver::new("time");
+            let edges_observer =
+                HitcountsMapObserver::new(StdMapObserver::new(EDGES_OBSERVER_NAME, map));
+            let feedback = feedback_or!(
+                // New maximization map feedback linked to the edges observer and the feedback state
+                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+                map_feedback,
+                // Time feedback, this one does not need a feedback state
+                // needed for IndexesLenTimeMinimizerCorpusScheduler
+                TimeFeedback::new_with_observer(&time_observer)
+            );
+            let observers = tuple_list!(time_observer, edges_observer);
+            (feedback, observers)
+        };
+    }
+}
+
 impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
     RunClientBuilder<
         'harness,
@@ -390,44 +472,8 @@ where
         > + ProgressReporter<I>,
     MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
-    fn install_minimizer(self) -> Self {
-        #[cfg(not(test))]
-        let map = unsafe {
-            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
-            &mut EDGES_MAP[0..MAX_EDGES_NUM]
-        };
-
-        #[cfg(test)]
-        let map = unsafe {
-            // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
-            pub const EDGES_MAP_SIZE: usize = 65536;
-            pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
-            pub static mut MAX_EDGES_NUM: usize = 0;
-            &mut EDGES_MAP[0..MAX_EDGES_NUM]
-        };
-
-        let map_feedback = MaxMapFeedback::with_names_tracking(
-            MAP_FEEDBACK_NAME,
-            EDGES_OBSERVER_NAME,
-            true,
-            false,
-        );
-
-        let (feedback, observers) = {
-            let time_observer = TimeObserver::new("time");
-            let edges_observer =
-                HitcountsMapObserver::new(StdMapObserver::new(EDGES_OBSERVER_NAME, map));
-            let feedback = feedback_or!(
-                // New maximization map feedback linked to the edges observer and the feedback state
-                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
-                map_feedback,
-                // Time feedback, this one does not need a feedback state
-                // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::new_with_observer(&time_observer)
-            );
-            let observers = tuple_list!(time_observer, edges_observer);
-            (feedback, observers)
-        };
+    pub fn install_minimizer(self) -> Self {
+        let (feedback, observers) = self.create_feedback_observers();
         self.with_feedback(feedback)
             .with_observers(observers)
             .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
@@ -507,9 +553,10 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             //#[cfg(not(feature = "sancov_libafl"))]
             {
                 log::error!("Running without minimizer is unsupported");
+                let (feedback, observer) = builder.create_feedback_observers();
                 builder = builder
-                    .with_feedback(())
-                    .with_observers(())
+                    .with_feedback(feedback)
+                    .with_observers(observer)
                     .with_scheduler(libafl::schedulers::RandScheduler::new());
             }
 
