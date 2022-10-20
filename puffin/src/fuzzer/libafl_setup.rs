@@ -499,12 +499,12 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 )
                 .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
 
-            #[cfg(feature = "sancov_libafl")]
-            {
-                builder = builder.install_minimizer();
-            }
+            //#[cfg(feature = "sancov_libafl")]
+            //{
+            //    builder = builder.install_minimizer();
+            //}
 
-            #[cfg(not(feature = "sancov_libafl"))]
+            //#[cfg(not(feature = "sancov_libafl"))]
             {
                 log::error!("Running without minimizer is unsupported");
                 builder = builder
