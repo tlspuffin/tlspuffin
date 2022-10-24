@@ -226,7 +226,11 @@ pub fn seed_almost_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate_verify = term! {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
-            fn_eve_pkcs1_signature
+            (fn_rsa_sign_client(
+                (fn_certificate_transcript(((server, 0)))),
+                fn_bob_key,
+                fn_rsa_pss_signature_algorithm
+            ))
         )
     };
 
