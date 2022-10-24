@@ -245,9 +245,11 @@ fn test_mutate_seed_cve_2022_25638() {
         let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
 
         loop {
-            attempts += 1;
             let mut mutate = trace.clone();
-            mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+            let result = mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+            if let MutationResult::Mutated = result {
+                attempts += 1;
+            }
 
             if let Some(certificate) = mutate.steps.get(1) {
                 match &certificate.action {
