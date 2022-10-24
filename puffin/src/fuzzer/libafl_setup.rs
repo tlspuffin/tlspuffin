@@ -367,27 +367,12 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
         I,
     >
 where
-    I: Input + HasLen,
+    I: Input,
     C: Corpus<I> + fmt::Debug,
     R: Rand,
     SC: Corpus<I> + fmt::Debug,
     H: FnMut(&I) -> ExitKind,
     OF: Feedback<I, ConcreteState<C, R, SC, I>>,
-    EM: EventFirer<I>
-        + EventRestarter<ConcreteState<C, R, SC, I>>
-        + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
-            I,
-            ConcreteState<C, R, SC, I>,
-            StdFuzzer<
-                ConcreteMinimizer<C, R, SC, I>,
-                ConcreteFeedback<'a, C, R, SC, I>,
-                I,
-                OF,
-                ConcreteObservers<'a>,
-                ConcreteState<C, R, SC, I>,
-            >,
-        > + ProgressReporter<I>,
     MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     fn create_feedback_observers(
@@ -512,6 +497,10 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
          event_manager: LlmpRestartingEventManager<Trace<PB::Matcher>, _, _, StdShMemProvider>,
          _unknown: usize|
          -> Result<(), libafl::Error> {
+            log_handle
+                .clone()
+                .set_config(create_file_config(LevelFilter::Warn, log_file));
+
             let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
             info!("Seed is {}", seed);
             let harness_fn = &mut harness::harness::<PB>;
@@ -559,10 +548,6 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                     .with_observers(observer)
                     .with_scheduler(libafl::schedulers::RandScheduler::new());
             }
-
-            log_handle
-                .clone()
-                .set_config(create_file_config(LevelFilter::Warn, log_file));
 
             builder.run_client()
         };
