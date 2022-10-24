@@ -83,7 +83,7 @@ pub struct MutationStageConfig {
 impl Default for MutationStageConfig {
     fn default() -> Self {
         Self {
-            max_iterations_per_stage: 256,
+            max_iterations_per_stage: 128,
             max_mutations_per_iteration: 16,
         }
     }
@@ -256,11 +256,12 @@ where
             ..
         } = self.config;
 
-        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
-        let mutator = StdScheduledMutator::new(self.mutations.unwrap());
+        let mutator =
+            PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        //let mutator = StdScheduledMutator::new(self.mutations.unwrap());
         let mut stages = tuple_list!(
-            // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
-            StdMutationalStage::new(mutator),
+            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            //StdMutationalStage::new(mutator),
             StatsStage::new()
         );
 

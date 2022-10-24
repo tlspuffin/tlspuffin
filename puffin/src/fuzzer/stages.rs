@@ -167,7 +167,9 @@ where
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        state.rand_mut().below(self.max_mutations_per_iteration)
+        state
+            .rand_mut()
+            .between(1, self.max_mutations_per_iteration)
     }
 
     /// Get the next mutation to apply
