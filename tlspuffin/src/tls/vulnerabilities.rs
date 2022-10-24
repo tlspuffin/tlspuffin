@@ -1324,7 +1324,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
-        seed_cve_2022_25638.store_to_seeds();
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
     }
