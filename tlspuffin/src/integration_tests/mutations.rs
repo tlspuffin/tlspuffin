@@ -1,9 +1,10 @@
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
+    error::Error,
     fuzzer::mutations::{
-        util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-        ReplaceReuseMutator,
+        util::TermConstraints, GenerateMutator, RemoveAndLiftMutator, RepeatMutator,
+        ReplaceMatchMutator, ReplaceReuseMutator,
     },
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -21,10 +22,11 @@ use crate::{
     test_utils::expect_crash,
     tls::{
         fn_impl::{
-            fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
+            fn_client_hello, fn_encrypt12, fn_eve_cert, fn_eve_pkcs1_signature,
+            fn_invalid_signature_algorithm, fn_seq_1, fn_sign_transcript,
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
-        seeds::_seed_client_attacker12,
+        seeds::{_seed_client_attacker12, seed_client_attacker_auth},
         TLS_SIGNATURE,
     },
 };
@@ -223,4 +225,108 @@ fn test_mutate_seed_cve_2021_3449() {
             println!("try");
         }
     });
+}
+
+#[test]
+#[ignore]
+fn test_mutate_seed_cve_2022_25638() {
+    let mut state = create_state();
+
+    let constraints = TermConstraints {
+        min_term_size: 0,
+        max_term_size: 300,
+    };
+
+    let mut attempts = 0;
+
+    loop {
+        let mut trace = seed_client_attacker_auth(AgentName::first());
+
+        let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+
+        loop {
+            attempts += 1;
+            let mut mutate = trace.clone();
+            mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+
+            if let Some(certificate) = mutate.steps.get(1) {
+                match &certificate.action {
+                    Action::Input(input) => {
+                        if input.recipe.count_functions_by_name(fn_eve_cert.name()) == 1 {
+                            trace = mutate;
+                            break;
+                        }
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+        println!("attempts certificate eve: {}", attempts);
+        attempts = 0;
+
+        let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+
+        loop {
+            attempts += 1;
+            let mut mutate = trace.clone();
+            mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+
+            if let Some(certificate) = mutate.steps.get(2) {
+                match &certificate.action {
+                    Action::Input(input) => {
+                        if input
+                            .recipe
+                            .count_functions_by_name(fn_invalid_signature_algorithm.name())
+                            == 1
+                        {
+                            trace = mutate;
+                            break;
+                        }
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+        println!("attempts certificate_verify invalid: {}", attempts);
+        attempts = 0;
+
+        let mut mutator = GenerateMutator::new(10000, constraints, &TLS_SIGNATURE);
+        loop {
+            attempts += 1;
+            let mut mutate = trace.clone();
+            mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+
+            if let Some(certificate_verify) = mutate.steps.get(2) {
+                match &certificate_verify.action {
+                    Action::Input(input) => {
+                        if input
+                            .recipe
+                            .count_functions_by_name(fn_eve_pkcs1_signature.name())
+                            == 1
+                        {
+                            trace = mutate;
+                            break;
+                        }
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+        println!(
+            "attempts certificate_verify fn_eve_pkcs1_signature: {}",
+            attempts
+        );
+        attempts = 0;
+
+        let mut context = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        if let Err(err) = trace.execute(&mut context) {
+            match err {
+                Error::SecurityClaim(e) => {
+                    println!("{}", e);
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
 }

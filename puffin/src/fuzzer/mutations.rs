@@ -39,7 +39,7 @@ where
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        GenerateMutator::new(fresh_zoo_after, constraints, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints)
     )
 }
@@ -460,17 +460,15 @@ where
 {
     #[must_use]
     pub fn new(
-        mutation_counter: u64,
         refresh_zoo_after: u64,
         constraints: TermConstraints,
-        zoo: Option<TermZoo<M>>,
         signature: &'static Signature,
     ) -> Self {
         Self {
-            mutation_counter,
+            mutation_counter: 0,
             refresh_zoo_after,
             constraints,
-            zoo,
+            zoo: None,
             signature,
             phantom_s: std::marker::PhantomData,
         }
