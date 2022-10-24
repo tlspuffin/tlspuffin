@@ -108,7 +108,7 @@ impl Default for MutationConfig {
             min_trace_length: 2,
             term_constraints: TermConstraints {
                 min_term_size: 0,
-                max_term_size: 300,
+                max_term_size: 1000,
             },
         }
     }
