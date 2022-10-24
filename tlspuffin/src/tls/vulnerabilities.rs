@@ -659,7 +659,7 @@ pub fn seed_almost_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
             (fn_get_context((@certificate_request_message))),
             (fn_append_certificate_entry(
                 (fn_certificate_entry(
-                    fn_bob_cert
+                    fn_eve_cert
                 )),
               fn_empty_certificate_chain
             ))
@@ -668,7 +668,7 @@ pub fn seed_almost_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let certificate_verify = term! {
         fn_certificate_verify(
-            fn_rsa_pss_signature_algorithm,
+            fn_invalid_signature_algorithm,
             (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
                 fn_bob_key,
