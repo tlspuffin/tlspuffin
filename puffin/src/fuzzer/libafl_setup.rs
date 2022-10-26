@@ -9,7 +9,9 @@ use libafl::{
         tuples::tuple_list,
         HasLen,
     },
-    corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
+    corpus::{
+        ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus,
+    },
     events::{
         setup_restarting_mgr_std, EventConfig, EventFirer, EventManager, EventRestarter,
         HasEventManagerId, LlmpRestartingEventManager, ProgressReporter,
@@ -433,53 +435,6 @@ where
     }
 }
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
-    RunClientBuilder<
-        'harness,
-        H,
-        C,
-        R,
-        SC,
-        EM,
-        ConcreteFeedback<'a, C, R, SC, I>,
-        OF,
-        ConcreteObservers<'a>,
-        ConcreteMinimizer<C, R, SC, I>,
-        MT,
-        I,
-    >
-where
-    I: Input + HasLen,
-    C: Corpus<I> + fmt::Debug,
-    R: Rand,
-    SC: Corpus<I> + fmt::Debug,
-    H: FnMut(&I) -> ExitKind,
-    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
-    EM: EventFirer<I>
-        + EventRestarter<ConcreteState<C, R, SC, I>>
-        + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
-            I,
-            ConcreteState<C, R, SC, I>,
-            StdFuzzer<
-                ConcreteMinimizer<C, R, SC, I>,
-                ConcreteFeedback<'a, C, R, SC, I>,
-                I,
-                OF,
-                ConcreteObservers<'a>,
-                ConcreteState<C, R, SC, I>,
-            >,
-        > + ProgressReporter<I>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
-{
-    pub fn install_minimizer(self) -> Self {
-        let (feedback, observers) = self.create_feedback_observers();
-        self.with_feedback(feedback)
-            .with_observers(observers)
-            .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
-    }
-}
-
 /// Starts the fuzzing loop
 pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     config: FuzzerConfig,
@@ -507,65 +462,73 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Running on cores: {}", &core_definition);
 
-    let mut run_client =
-        |state: Option<StdState<_, Trace<PB::Matcher>, _, _>>,
-         event_manager: LlmpRestartingEventManager<Trace<PB::Matcher>, _, _, StdShMemProvider>,
-         _unknown: usize|
-         -> Result<(), libafl::Error> {
-            let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
-            info!("Seed is {}", seed);
-            let harness_fn = &mut harness::harness::<PB>;
+    let mut run_client = |state: Option<StdState<_, Trace<PB::Matcher>, _, _>>,
+                          event_manager: LlmpRestartingEventManager<
+        Trace<PB::Matcher>,
+        _,
+        _,
+        StdShMemProvider,
+    >,
+                          _unknown: usize|
+     -> Result<(), libafl::Error> {
+        let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
+        info!("Seed is {}", seed);
+        let harness_fn = &mut harness::harness::<PB>;
 
-            let mut builder =
-                RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        builder = builder
+            .with_mutations(trace_mutations(
+                *min_trace_length,
+                *max_trace_length,
+                *term_constraints,
+                *fresh_zoo_after,
+                PB::signature(),
+            ))
+            .with_initial_inputs(PB::create_corpus())
+            .with_rand(StdRand::with_seed(seed))
+            .with_corpus(
+                InMemoryCorpus::new(),
+                /* CachedOnDiskCorpus::new_save_meta(
+                    corpus_dir.clone(),
+                    Some(OnDiskMetadataFormat::Json),
+                    1000,
+                )
+                .unwrap(),*/
+            )
+            .with_objective_corpus(
+                OnDiskCorpus::new_save_meta(
+                    objective_dir.clone(),
+                    Some(OnDiskMetadataFormat::JsonPretty),
+                )
+                .unwrap(),
+            )
+            .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+
+        //#[cfg(feature = "sancov_libafl")]
+        //{
+        /*            let (feedback, observers) = builder.create_feedback_observers();*/
+        /*            builder = builder*/
+        /*                .with_feedback(feedback)*/
+        /*                .with_observers(observers)*/
+        /*                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()));*/
+        //}
+
+        //#[cfg(not(feature = "sancov_libafl"))]
+        {
+            log::error!("Running without minimizer is unsupported");
+            let (feedback, observer) = builder.create_feedback_observers();
             builder = builder
-                .with_mutations(trace_mutations(
-                    *min_trace_length,
-                    *max_trace_length,
-                    *term_constraints,
-                    *fresh_zoo_after,
-                    PB::signature(),
-                ))
-                .with_initial_inputs(PB::create_corpus())
-                .with_rand(StdRand::with_seed(seed))
-                .with_corpus(
-                    CachedOnDiskCorpus::new_save_meta(
-                        corpus_dir.clone(),
-                        Some(OnDiskMetadataFormat::Json),
-                        1000,
-                    )
-                    .unwrap(),
-                )
-                .with_objective_corpus(
-                    OnDiskCorpus::new_save_meta(
-                        objective_dir.clone(),
-                        Some(OnDiskMetadataFormat::JsonPretty),
-                    )
-                    .unwrap(),
-                )
-                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+                .with_feedback(feedback)
+                .with_observers(observer)
+                .with_scheduler(libafl::schedulers::RandScheduler::new());
+        }
 
-            //#[cfg(feature = "sancov_libafl")]
-            //{
-            //    builder = builder.install_minimizer();
-            //}
+        log_handle
+            .clone()
+            .set_config(create_file_config(LevelFilter::Warn, log_file));
 
-            //#[cfg(not(feature = "sancov_libafl"))]
-            {
-                log::error!("Running without minimizer is unsupported");
-                let (feedback, observer) = builder.create_feedback_observers();
-                builder = builder
-                    .with_feedback(feedback)
-                    .with_observers(observer)
-                    .with_scheduler(libafl::schedulers::RandScheduler::new());
-            }
-
-            log_handle
-                .clone()
-                .set_config(create_file_config(LevelFilter::Warn, log_file));
-
-            builder.run_client()
-        };
+        builder.run_client()
+    };
 
     if *no_launcher {
         let (state, restarting_mgr) = setup_restarting_mgr_std(
