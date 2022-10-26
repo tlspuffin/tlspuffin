@@ -1,5 +1,8 @@
 #!/bin/env python
 import argparse
+
+from matplotlib.pyplot import close
+
 from tlspuffin_analyzer import *
 
 PATH = "/local-homes/lhirschi/tlspuffin"
@@ -11,7 +14,7 @@ def main():
     parser.add_argument('experiment', type=str,
                         help='Name of the experiment')
     parser.add_argument('--worker_id', type=int,
-                        default=1,
+                        default=None,
                         help='Filter log entries from this worker id (deprecated, before was set to 0) but it seems that libAFL changed its logs.')
     parser.add_argument('--save', type=str,
                         help='Save the output as a PDF at the given path.')
@@ -42,18 +45,23 @@ def main():
         client_stat = list(client_stat)
         client_id = client_stat[0]["id"]
         print("Plotting group=\"%s\"" % client_id)
-        fig = plot_stats(start_date, client_stat, global_stats, fewer=args.fewer)
+        try:
+            fig = plot_stats(start_date, client_stat, global_stats, fewer=args.fewer)
 
+            if args.save:
+                save_name = f"{args.save}_{client_id}"
+                # print(fig.canvas.get_supported_filetypes())
+                # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
+                print("Saving files %s and %s..." % (save_name + ".svg", save_name + ".pdf"))
+                fig.savefig(save_name + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
+                fig.savefig(save_name + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
+                close(fig)
+            else:
+                print("Displaying the plot...")
+                plt.show()
 
-        if args.save:
-            save_name = f"{args.save}_{client_id}"
-            # print(fig.canvas.get_supported_filetypes())
-            # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
-            print("Saving files %s and %s..." % (save_name + ".svg", save_name + ".pdf"))
-            fig.savefig(save_name + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
-            fig.savefig(save_name + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
-        else:
-            print("Displaying the plot...")
-            plt.show()
+        except Exception as e:
+            print(f"Failed to parse stats for client {client_id}")
+            print(e)
 
 main()

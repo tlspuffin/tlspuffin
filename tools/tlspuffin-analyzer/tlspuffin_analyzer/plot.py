@@ -33,6 +33,9 @@ def is_available(stat: dict, selector: Callable[[dict], Union[int, float]]):
         return True
     except KeyError:
         return False
+    except TypeError:
+        # Indexing None values
+        return False
 
 
 # https://colorbrewer2.org/#type=diverging&scheme=RdYlBu&n=3
@@ -183,9 +186,9 @@ def plot_stats(start_date, client_stats: List[dict], global_stats: List[dict], f
         fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10, 20))
 
         # Global Performance
-        plot_with_other(ax1, times_log, data_log, lambda log: log["corpus"], "Global Corpus Size", smooth=True,
+        plot_with_other(ax1, times_global, data_global, lambda log: log["corpus"], "Global Corpus Size", smooth=True,
                         log=True)
-        plot_with_other(ax2, times_log, data_log,
+        plot_with_other(ax2, times_global, data_global,
                         lambda log: log["exec_per_sec"], "Global Execs/s",
                         lambda log: log["obj"], "Global Objective",
                         smooth=True, log=True)

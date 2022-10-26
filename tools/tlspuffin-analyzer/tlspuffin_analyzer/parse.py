@@ -24,10 +24,7 @@ def load_json_slurpy(json_path, client_id=None):
 
     return filtered
 
+
 def group_by_id(all_stats):
     sortkeyfn = itemgetter("id")
     return map(lambda t: t[1], groupby(sorted(all_stats, key=sortkeyfn), key=sortkeyfn))
-
-
-def filter_by_id(all_stats, id):
-    return [item for item in all_stats if item["id"] == id]
