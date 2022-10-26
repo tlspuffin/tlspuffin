@@ -351,7 +351,7 @@ impl WolfSSL {
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
-        ctx.disable_session_cache()?;
+        //ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
         ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;

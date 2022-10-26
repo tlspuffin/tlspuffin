@@ -1167,7 +1167,6 @@ pub fn seed_finding2(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
-
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,

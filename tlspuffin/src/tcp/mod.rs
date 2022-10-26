@@ -42,7 +42,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             let put_descriptor = context.put_descriptor(agent_descriptor);
 
             let options = &put_descriptor.options;
-
+            /*
             let args = options
                 .get_option("args")
                 .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?
@@ -50,7 +50,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             let prog = options
                 .get_option("prog")
                 .ok_or_else(|| Error::Agent("Unable to find prog".to_string()))?
-                .to_owned();
+                .to_owned();*/
             let cwd = options
                 .get_option("cwd")
                 .map(|cwd| Some(cwd.to_owned()))
@@ -58,12 +58,12 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             if agent_descriptor.typ == AgentType::Client {
                 let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
-                server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
+                //server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
                 Ok(Box::new(server))
             } else {
-                let process = TLSProcess::new(&prog, &args, cwd);
+                //let process = TLSProcess::new(&prog, &args, cwd);
                 let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
-                client.set_process(process);
+                //client.set_process(process);
                 Ok(Box::new(client))
             }
         }
@@ -685,7 +685,7 @@ mod tests {
     use log::info;
     use puffin::{
         agent::{AgentName, TLSVersion},
-        put::PutDescriptor,
+        put::{PutDescriptor, PutOptions},
     };
     use test_log::test;
 
@@ -694,8 +694,8 @@ mod tests {
         tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
-                seed_client_attacker_full, seed_session_resumption_dhe_full,
-                seed_successful12_with_tickets,
+                seed_client_attacker, seed_client_attacker12, seed_client_attacker_full,
+                seed_session_resumption_dhe_full, seed_successful12_with_tickets,
             },
             trace_helper::TraceHelper,
         },
@@ -820,5 +820,17 @@ mod tests {
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
+    }
+
+    #[test]
+    fn test_wolfssl_finding2() {
+        let put = PutDescriptor {
+            name: TCP_PUT,
+            options: PutOptions::new(vec![("port", "443")]),
+        };
+
+        let trace = seed_client_attacker_full.build_trace();
+        let server = trace.descriptors[0].name;
+        let mut context = trace.execute_with_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
     }
 }
