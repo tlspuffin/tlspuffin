@@ -11,7 +11,8 @@ use libafl::inputs::Input;
 use log::{error, info, LevelFilter};
 
 use crate::{
-    algebra::set_deserialize_signature,
+    algebra::{error::FnError, set_deserialize_signature},
+    codec::Codec,
     experiment::*,
     fuzzer::{
         harness::{default_put_options, set_default_put_options},
@@ -20,10 +21,10 @@ use crate::{
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
-    protocol::ProtocolBehavior,
+    protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
     put_registry::PutRegistry,
-    trace::{Trace, TraceContext},
+    trace::{Action, Trace, TraceContext},
 };
 
 fn create_app() -> Command<'static> {
@@ -55,7 +56,11 @@ fn create_app() -> Command<'static> {
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
                 .about("Executes a trace stored in a file")
-                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))
+                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))   ,
+            Command::new("binary-attack")
+                .about("Serializes a trace as much as possible and output its")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(<output> "The file to write serialized data to"))
         ])
 }
 
@@ -122,7 +127,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        // Parse arguments
         let inputs = matches.values_of("inputs").unwrap();
         let mut failed = false;
         for input in inputs {
@@ -134,6 +138,14 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
 
         if failed {
+            return ExitCode::FAILURE;
+        }
+    } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
+        let input = matches.value_of("input").unwrap();
+        let output = matches.value_of("output").unwrap();
+
+        if let Err(err) = binary_attack(input, output, put_registry) {
+            error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else {
@@ -277,5 +289,43 @@ fn execute<PB: ProtocolBehavior>(
 
     let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
     trace.execute(&mut ctx)?;
+    Ok(())
+}
+
+fn binary_attack<PB: ProtocolBehavior>(
+    input: &str,
+    output: &str,
+    put_registry: &'static PutRegistry<PB>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let mut ctx = TraceContext::new(put_registry);
+
+    info!("Agents: {:?}", &trace.descriptors);
+
+    let mut f = File::create(output).expect("Unable to create file");
+
+    for step in trace.steps {
+        match step.action {
+            Action::Input(input) => {
+                if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
+                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                        let mut data: Vec<u8> = Vec::new();
+                        msg.create_opaque().encode(&mut data);
+                        f.write_all(&data).expect("Unable to write data");
+                    } else if let Some(opaque_message) = evaluated
+                        .as_ref()
+                        .downcast_ref::<PB::OpaqueProtocolMessage>()
+                    {
+                        let mut data: Vec<u8> = Vec::new();
+                        opaque_message.encode(&mut data);
+                        f.write_all(&data).expect("Unable to write data");
+                    } else {
+                        error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
+                    }
+                }
+            }
+            Action::Output(_) => {}
+        }
+    }
     Ok(())
 }
