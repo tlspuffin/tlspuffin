@@ -51,6 +51,7 @@ impl<C: Claim> ClaimList<C> {
 
 impl<C: Claim> ClaimList<C> {
     pub fn log(&self) {
+        // TODO: skip logging completely during fuzzing -> more performance
         debug!(
             "New Claims: {}",
             &self

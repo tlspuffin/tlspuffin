@@ -376,9 +376,9 @@ impl<M: Matcher> Trace<M> {
             }
 
             ctx.claims.deref_borrow().log();
-        }
 
-        ctx.verify_security_violations()?;
+            ctx.verify_security_violations()?;
+        }
 
         Ok(())
     }
