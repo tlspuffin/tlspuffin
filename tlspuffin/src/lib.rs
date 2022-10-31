@@ -102,6 +102,8 @@
 //! ```
 //!
 
+extern crate core;
+
 pub mod claims;
 pub mod debug;
 #[cfg(feature = "openssl-binding")]
