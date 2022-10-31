@@ -298,7 +298,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let mut ctx = TraceContext::new(put_registry);
+    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     info!("Agents: {:?}", &trace.descriptors);
 
