@@ -1159,7 +1159,7 @@ dependencies = [
  "num-traits",
  "num_enum",
  "once_cell",
- "postcard 1.0.2",
+ "postcard",
  "rand_core",
  "regex",
  "rustversion",
@@ -1672,17 +1672,6 @@ dependencies = [
 
 [[package]]
 name = "postcard"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a25c0b0ae06fcffe600ad392aabfa535696c8973f2253d9ac83171924c58a858"
-dependencies = [
- "heapless",
- "postcard-cobs",
- "serde",
-]
-
-[[package]]
-name = "postcard"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c2b180dc0bade59f03fd005cb967d3f1e5f69b13922dad0cd6e047cb8af2363"
@@ -1691,12 +1680,6 @@ dependencies = [
  "heapless",
  "serde",
 ]
-
-[[package]]
-name = "postcard-cobs"
-version = "0.1.5-pre"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c68cb38ed13fd7bc9dd5db8f165b7c8d9c1a315104083a2b10f11354c2af97f"
 
 [[package]]
 name = "ppv-lite86"
@@ -1734,7 +1717,7 @@ dependencies = [
  "log",
  "log4rs",
  "once_cell",
- "postcard 0.7.3",
+ "postcard",
  "rand",
  "serde",
  "serde_json",
