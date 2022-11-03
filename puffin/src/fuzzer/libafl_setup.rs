@@ -487,13 +487,12 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             .with_initial_inputs(PB::create_corpus())
             .with_rand(StdRand::with_seed(seed))
             .with_corpus(
-                InMemoryCorpus::new(),
-                /* CachedOnDiskCorpus::new_save_meta(
+                CachedOnDiskCorpus::new_save_meta(
                     corpus_dir.clone(),
                     Some(OnDiskMetadataFormat::Json),
-                    1000,
+                    10000,
                 )
-                .unwrap(),*/
+                .unwrap(),
             )
             .with_objective_corpus(
                 OnDiskCorpus::new_save_meta(
