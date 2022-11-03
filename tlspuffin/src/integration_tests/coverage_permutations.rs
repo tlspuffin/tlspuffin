@@ -734,6 +734,8 @@ fn test_seed_cve_2022_25638_coveragetest() {
     let mut all_hitcounts = vec![];
     let mut all_hashes = vec![];
 
+    assert_eq!(hitcount(), 0);
+
     for (i, perm) in items.iter().permutations(items.len()).enumerate() {
         println!("Permutation: {}", i);
         let mut hitcounts = vec![];
