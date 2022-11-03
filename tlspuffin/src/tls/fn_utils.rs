@@ -373,20 +373,6 @@ pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
     Ok(vec![])
 }
 
-pub fn fn_append_certificate_entry(
-    certs: &Vec<CertificateEntry>,
-    cert: &Certificate,
-    extensions: &Vec<CertificateExtension>,
-) -> Result<Vec<CertificateEntry>, FnError> {
-    let mut new_certs = certs.clone();
-    new_certs.push(CertificateEntry {
-        cert: cert.clone(),
-        exts: CertificateExtensions(extensions.clone()),
-    });
-
-    Ok(new_certs)
-}
-
 pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
     Ok(NamedGroup::secp384r1)
 }
