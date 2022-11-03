@@ -19,8 +19,8 @@ use libafl::{
     executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
     feedback_or,
     feedbacks::{
-        CombinedFeedback, CrashFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback,
-        MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
+        AflMapFeedback, CombinedFeedback, CrashFeedback, DifferentIsNovel, Feedback, LogicEagerOr,
+        MapFeedback, MaxMapFeedback, OrReducer, TimeFeedback, TimeoutFeedback,
     },
     fuzzer::{Fuzzer, StdFuzzer},
     inputs::Input,
@@ -343,7 +343,7 @@ type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
         I,
         DifferentIsNovel,
         HitcountsMapObserver<StdMapObserver<'a, u8>>,
-        MaxReducer,
+        OrReducer,
         ConcreteState<C, R, SC, I>,
         u8,
     >,
@@ -410,7 +410,7 @@ where
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
         };
 
-        let map_feedback = MaxMapFeedback::with_names_tracking(
+        let map_feedback = AflMapFeedback::with_names_tracking(
             MAP_FEEDBACK_NAME,
             EDGES_OBSERVER_NAME,
             true,
