@@ -37,7 +37,7 @@ fn create_state() -> StdState<
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TlsQueryMatcher>>,
 > {
-    let rand = StdRand::with_seed(1235);
+    let rand = StdRand::with_seed(1200);
     let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
