@@ -1,11 +1,16 @@
 from datetime import datetime
 from typing import Callable, Union, List
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 
 tick_formatter = ticker.FuncFormatter(lambda x, pos: "%dmin" % (x * 60) if x < 1 else "%dh" % x)
+
+font = {'size': 8}
+
+matplotlib.rc('font', **font)
 
 
 def get_start_date(stats):
@@ -141,41 +146,41 @@ def plot_stats(start_date, client_stats: List[dict], global_stats: List[dict], f
               (ax15, ax16), (ax17, ax18)) = plt.subplots(9, 2, sharex="all", figsize=(10, 15))
 
         # Corpi
-        plot_with_other(ax1, times, data, lambda stats: stats["objective_size"], "Objectives")
-        plot_with_other(ax2, times, data, lambda stats: stats["corpus_size"], "Corpus Size")
+        plot_with_other(ax1, times, data, lambda stats: stats["objective_size"], "Obj")
+        plot_with_other(ax2, times, data, lambda stats: stats["corpus_size"], "Corpus")
         # Errors
-        plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
+        plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL E")
         # Corpus vs Errors
-        plot_with_other(ax4, times, data, lambda stats: stats["objective_size"], "Objectives",
-                        lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
+        plot_with_other(ax4, times, data, lambda stats: stats["objective_size"], "Obj",
+                        lambda stats: stats["errors"]["ssl_error"], "SSL E")
         # Coverage
-        plot_with_other(ax5, times, data, lambda stats: stats["coverage"]["discovered"], "Global coverage")
+        plot_with_other(ax5, times, data, lambda stats: stats["coverage"]["discovered"], "Coverage")
 
         # Performance
         plot_with_other(ax6, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
 
         # Traces and Terms
-        plot_with_other(ax7, times, data, lambda stats: stats["trace"]["max_trace_length"], "Max Trace Length")
+        plot_with_other(ax7, times, data, lambda stats: stats["trace"]["max_trace_length"], "Max Trace Len")
         plot_with_other(ax8, times, data, lambda stats: stats["trace"]["max_term_size"], "Max Term Size")
 
-        plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Length",
+        plot_with_other(ax9, times, data, lambda stats: stats["trace"]["mean_trace_length"], "Mean Trace Len",
                         smooth=True)
         plot_with_other(ax10, times, data, lambda stats: stats["trace"]["mean_term_size"], "Mean Term Size",
                         smooth=True)
 
-        plot_with_other(ax11, times, data, lambda stats: stats["trace"]["min_trace_length"], "Min Trace Length")
-        plot_with_other(ax12, times, data, lambda stats: stats["trace"]["min_term_size"], "Min Tern Size")
+        plot_with_other(ax11, times, data, lambda stats: stats["trace"]["min_trace_length"], "Min Trace Len")
+        plot_with_other(ax12, times, data, lambda stats: stats["trace"]["min_term_size"], "Min Term Size")
 
-        plot_with_other(ax13, times, data, lambda stats: stats["intro"]["scheduler"], "Scheduler Perf Share")
-        plot_with_other(ax14, times, data, lambda stats: stats["intro"]["elapsed_cycles"], "Elapsed Cycles")
+        plot_with_other(ax13, times, data, lambda stats: stats["intro"]["scheduler"], "Sched Perf")
+        plot_with_other(ax14, times, data, lambda stats: stats["intro"]["elapsed_cycles"], "Cycles")
 
         plot_with_other(ax15, times, data, lambda stats: stats["intro"]["introspect_features"]["mutate"],
-                        "Mutation Perf Share")
+                        "Mut Perf")
         plot_with_other(ax16, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"],
-                        "PUT Perf Share")
+                        "PUT Perf")
 
         # Global Performance
-        plot_with_other(ax17, times_global, data_global, lambda log: log["corpus_size"], "Global Corpus Size", log=True,
+        plot_with_other(ax17, times_global, data_global, lambda log: log["corpus_size"], "Corpus Size", log=True,
                         smooth=True)
         plot_with_other(ax18, times_global, data_global,
                         lambda log: log["exec_per_sec"], "Global Execs/s",
@@ -186,20 +191,20 @@ def plot_stats(start_date, client_stats: List[dict], global_stats: List[dict], f
         fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10, 20))
 
         # Global Performance
-        plot_with_other(ax1, times_global, data_global, lambda log: log["corpus"], "Global Corpus Size", smooth=True,
+        plot_with_other(ax1, times_global, data_global, lambda log: log["corpus"], "G Corpus", smooth=True,
                         log=True)
         plot_with_other(ax2, times_global, data_global,
-                        lambda log: log["exec_per_sec"], "Global Execs/s",
-                        lambda log: log["obj"], "Global Objective",
+                        lambda log: log["exec_per_sec"], "G Execs/s",
+                        lambda log: log["obj"], "G Obj",
                         smooth=True, log=True)
         # Errors
-        plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL Errors")
+        plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL E")
         # Coverage
-        plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "Global coverage")
+        plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "G Coverage")
         # Performance
         plot_with_other(ax5, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
         plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"],
-                        "PUT Perf Share")
+                        "PUT Perf")
         axes = (ax1, ax2, ax3, ax4, ax5, ax6)
 
     return fig

@@ -9,10 +9,11 @@ PATH = "/local-homes/lhirschi/tlspuffin"
 HOST = "pesto-calc.loria.fr"
 USER = "lhirschi"
 
+
 def main():
     parser = argparse.ArgumentParser(description='Plots statistics')
-    parser.add_argument('experiment', type=str,
-                        help='Name of the experiment')
+    parser.add_argument('stats', type=str,
+                        help='Path to stats file')
     parser.add_argument('--worker_id', type=int,
                         default=None,
                         help='Filter log entries from this worker id (deprecated, before was set to 0) but it seems that libAFL changed its logs.')
@@ -22,13 +23,12 @@ def main():
                         help='Only displays most important tables.')
     args = parser.parse_args()
 
-
-    stats_path = "%s/stats.json" % args.experiment
+    stats_path = args.stats
     print("Loading file \"%s\"." % stats_path)
     stats = load_json_slurpy(stats_path, args.worker_id)
 
-    if stats == []:
-        print("Experiment log JSON is empty.")
+    if not stats:
+        print("Stats are empty.")
         exit(0)
 
     # keys_stats = get_keys(stats)
@@ -47,6 +47,7 @@ def main():
         print("Plotting group=\"%s\"" % client_id)
         try:
             fig = plot_stats(start_date, client_stat, global_stats, fewer=args.fewer)
+            fig.tight_layout()
 
             if args.save:
                 save_name = f"{args.save}_{client_id}"
@@ -63,5 +64,6 @@ def main():
         except Exception as e:
             print(f"Failed to parse stats for client {client_id}")
             print(e)
+
 
 main()
