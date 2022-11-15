@@ -55,7 +55,7 @@ def main():
                 # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
                 print("Saving files %s and %s..." % (save_name + ".svg", save_name + ".pdf"))
                 fig.savefig(save_name + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
-                fig.savefig(save_name + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
+                # fig.savefig(save_name + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
                 close(fig)
             else:
                 print("Displaying the plot...")
