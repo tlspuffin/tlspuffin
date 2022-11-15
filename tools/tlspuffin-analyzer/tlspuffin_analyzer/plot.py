@@ -191,20 +191,25 @@ def plot_stats(start_date, client_stats: List[dict], global_stats: List[dict], f
         fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(6, 1, figsize=(10, 20))
 
         # Global Performance
-        plot_with_other(ax1, times_global, data_global, lambda log: log["corpus"], "G Corpus", smooth=True,
-                        log=True)
+        plot_with_other(ax1, times_global, data_global,
+                        lambda stats: stats["exec_per_sec"], "G Execs/s",
+                        lambda stats: stats["corpus_size"], "G Corpus",
+                        smooth=True, log=True)
         plot_with_other(ax2, times_global, data_global,
-                        lambda log: log["exec_per_sec"], "G Execs/s",
-                        lambda log: log["obj"], "G Obj",
+                        lambda stats: stats["exec_per_sec"], "G Execs/s",
+                        lambda stats: stats["objective_size"], "G Obj",
                         smooth=True, log=True)
         # Errors
-        plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL E")
+        # plot_with_other(ax3, times, data, lambda stats: stats["errors"]["ssl_error"], "SSL E")
         # Coverage
-        plot_with_other(ax4, times, data, lambda stats: stats["coverage"]["discovered"], "G Coverage")
+        plot_with_other(ax4, times, data,
+                        lambda stats: stats["coverage"]["discovered"], "Coverage")
         # Performance
-        plot_with_other(ax5, times, data, lambda stats: stats["exec_per_sec"], "Execs/s", smooth=True)
-        plot_with_other(ax6, times, data, lambda stats: stats["intro"]["introspect_features"]["target_execution"],
+        plot_with_other(ax5, times, data,
+                        lambda stats: stats["exec_per_sec"], "Execs/s",
+                        smooth=True)
+        plot_with_other(ax6, times, data,
+                        lambda stats: stats["intro"]["introspect_features"]["target_execution"],
                         "PUT Perf")
-        axes = (ax1, ax2, ax3, ax4, ax5, ax6)
 
     return fig
