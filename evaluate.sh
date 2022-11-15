@@ -23,6 +23,14 @@ function check_available  {
 check_available "gh"
 check_available "tmux"
 
+
+
+if ! pgrep -x "tlspuffin" >/dev/null
+then
+    echo "Clearing shared memory"
+    ipcs -m | tail -n +5 | awk '{print $2}' | xargs -i sh -c "ipcrm -m {} || true"
+fi
+
 echo "Downloading latest evaluation build"
 
 rm -rf tlspuffin-*
