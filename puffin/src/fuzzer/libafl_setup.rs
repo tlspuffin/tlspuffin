@@ -27,6 +27,7 @@ use libafl::{
     monitors::tui::TuiMonitor,
     mutators::{MutatorsTuple, StdScheduledMutator},
     observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
+    prelude::RandomSeed,
     schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
     stages::StdMutationalStage,
     state::{HasCorpus, HasRand, StdState},
@@ -471,8 +472,6 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     >,
                           _unknown: usize|
      -> Result<(), libafl::Error> {
-        let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
-        info!("Seed is {}", seed);
         let harness_fn = &mut harness::harness::<PB>;
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
@@ -485,7 +484,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 PB::signature(),
             ))
             .with_initial_inputs(PB::create_corpus())
-            .with_rand(StdRand::with_seed(seed))
+            .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),
                 CachedOnDiskCorpus::new_save_meta(
