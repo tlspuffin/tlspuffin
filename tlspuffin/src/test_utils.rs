@@ -23,6 +23,35 @@ pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: Pu
     });
 }
 
+pub fn expect_crash_result<R>(mut func: R) -> Result<(), ()>
+where
+    R: FnOnce(),
+{
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { child, .. }) => {
+            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+
+            if let Signaled(_, signal, _) = status {
+                if signal != Signal::SIGSEGV && signal != Signal::SIGABRT {
+                    return Err(());
+                }
+            } else if let Exited(_, code) = status {
+                if code == 0 {
+                    return Err(());
+                }
+            } else {
+                return Err(());
+            }
+        }
+        Ok(ForkResult::Child) => {
+            func();
+            std::process::exit(0);
+        }
+        Err(_) => panic!("Fork failed"),
+    }
+    Ok(())
+}
+
 pub fn expect_crash<R>(mut func: R)
 where
     R: FnOnce(),

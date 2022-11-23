@@ -1,9 +1,11 @@
+use log::trace;
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
+    error::Error,
     fuzzer::mutations::{
-        util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-        ReplaceReuseMutator,
+        util::TermConstraints, GenerateMutator, RemoveAndLiftMutator, RepeatMutator,
+        ReplaceMatchMutator, ReplaceReuseMutator,
     },
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -18,13 +20,14 @@ use puffin::{
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
-    test_utils::expect_crash,
+    test_utils::{expect_crash, expect_crash_result},
     tls::{
         fn_impl::{
-            fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
+            fn_client_hello, fn_encrypt12, fn_eve_cert, fn_eve_pkcs1_signature,
+            fn_invalid_signature_algorithm, fn_seq_1, fn_sign_transcript,
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
-        seeds::_seed_client_attacker12,
+        seeds::{_seed_client_attacker12, seed_client_attacker_auth},
         TLS_SIGNATURE,
     },
 };
@@ -46,9 +49,34 @@ fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();
     let _server = AgentName::first();
 
-    expect_crash(move || {
-        for i in 0..5 {
-            let mut attempts = 0;
+    let mut attempts = 0;
+
+    #[derive(Copy, Clone)]
+    struct Attempts {
+        repeatmutation: u32,
+        replacereusemutation1: u32,
+        replacematchmutation2: u32,
+        removeliftmutation: u32,
+        replacereusemutation3: u32,
+    }
+
+    let mut attempts = [Attempts {
+        repeatmutation: 0,
+        replacereusemutation1: 0,
+        replacematchmutation2: 0,
+        removeliftmutation: 0,
+        replacereusemutation3: 0,
+    }; 100];
+
+    for i in 0..100 {
+        loop {
+            let mut attempt = Attempts {
+                repeatmutation: 0,
+                replacereusemutation1: 0,
+                replacematchmutation2: 0,
+                removeliftmutation: 0,
+                replacereusemutation3: 0,
+            };
 
             let (mut trace, _) = _seed_client_attacker12(AgentName::first());
 
@@ -65,8 +93,8 @@ fn test_mutate_seed_cve_2021_3449() {
                 false
             }
 
-            loop {
-                attempts += 1;
+            for _ in 0..10000 {
+                attempt.repeatmutation += 1;
                 let mut mutate = trace.clone();
                 mutator.mutate(&mut state, &mut mutate, 0).unwrap();
 
@@ -82,8 +110,6 @@ fn test_mutate_seed_cve_2021_3449() {
                     }
                 }
             }
-            println!("attempts 1: {}", attempts);
-            attempts = 0;
 
             // Check if we have a client hello in last encrypted one
 
@@ -93,8 +119,8 @@ fn test_mutate_seed_cve_2021_3449() {
             };
             let mut mutator = ReplaceReuseMutator::new(constraints);
 
-            loop {
-                attempts += 1;
+            for _ in 0..10000 {
+                attempt.replacereusemutation1 += 1;
                 let mut mutate = trace.clone();
                 mutator.mutate(&mut state, &mut mutate, 0).unwrap();
 
@@ -115,15 +141,13 @@ fn test_mutate_seed_cve_2021_3449() {
                     }
                 }
             }
-            println!("attempts 2: {}", attempts);
-            attempts = 0;
 
             // Test if we can replace the sequence number
 
             let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
 
-            loop {
-                attempts += 1;
+            for _ in 0..10000 {
+                attempt.replacematchmutation2 += 1;
                 let mut mutate = trace.clone();
                 mutator.mutate(&mut state, &mut mutate, 0).unwrap();
 
@@ -144,15 +168,13 @@ fn test_mutate_seed_cve_2021_3449() {
                     }
                 }
             }
-            println!("attempts 3: {}", attempts);
-            attempts = 0;
 
             // Remove sig algo
 
             let mut mutator = RemoveAndLiftMutator::new(constraints);
 
-            loop {
-                attempts += 1;
+            for _ in 0..10000 {
+                attempt.removeliftmutation += 1;
                 let mut mutate = trace.clone();
                 let result = mutator.mutate(&mut state, &mut mutate, 0).unwrap();
 
@@ -184,15 +206,13 @@ fn test_mutate_seed_cve_2021_3449() {
                     }
                 }
             }
-            println!("attempts 4: {}", attempts);
-            attempts = 0;
 
             // Sucessfully renegotiate
 
             let mut mutator = ReplaceReuseMutator::new(constraints);
 
-            loop {
-                attempts += 1;
+            for _ in 0..10000 {
+                attempt.replacereusemutation3 += 1;
                 let mut mutate = trace.clone();
                 mutator.mutate(&mut state, &mut mutate, 0).unwrap();
 
@@ -215,12 +235,186 @@ fn test_mutate_seed_cve_2021_3449() {
                     }
                 }
             }
-            println!("attempts 5: {}", attempts);
-            attempts = 0;
+
+            let result = expect_crash_result(move || {
+                let mut context = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+                let _ = trace.execute(&mut context);
+            });
+
+            if result.is_ok() {
+                attempts[i] = attempt;
+                break;
+            }
+        }
+    }
+
+    let repeatmutation = attempts
+        .iter()
+        .map(|a| a.repeatmutation as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    let replacereusemutation1 = attempts
+        .iter()
+        .map(|a| a.replacereusemutation1 as f64)
+        .sum::<f64>() as f64
+        / 100.;
+
+    let replacematchmutation2 = attempts
+        .iter()
+        .map(|a| a.replacematchmutation2 as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    let removeliftmutation = attempts
+        .iter()
+        .map(|a| a.removeliftmutation as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    let replacereusemutation3 = attempts
+        .iter()
+        .map(|a| a.replacereusemutation3 as f64)
+        .sum::<f64>() as f64
+        / 100.;
+
+    println!("{}", repeatmutation);
+    println!("{}", replacereusemutation1);
+    println!("{}", replacematchmutation2);
+    println!("{}", removeliftmutation);
+    println!("{}", replacereusemutation3);
+}
+
+#[test]
+fn test_mutate_seed_cve_2022_25638() {
+    let mut state = create_state();
+
+    let constraints = TermConstraints {
+        min_term_size: 0,
+        max_term_size: 300,
+    };
+
+    #[derive(Copy, Clone)]
+    struct Attempts {
+        certificate_eve: u32,
+        certificate_verify_invalid: u32,
+        certificate_verify_fn_eve_pkcs1_signature: u32,
+    }
+
+    let mut attempts = [Attempts {
+        certificate_eve: 0,
+        certificate_verify_invalid: 0,
+        certificate_verify_fn_eve_pkcs1_signature: 0,
+    }; 100];
+
+    for i in 0..100 {
+        loop {
+            let mut attempt = Attempts {
+                certificate_eve: 0,
+                certificate_verify_invalid: 0,
+                certificate_verify_fn_eve_pkcs1_signature: 0,
+            };
+
+            let mut trace = seed_client_attacker_auth(AgentName::first());
+
+            let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+
+            for _ in 0..10000 {
+                let mut mutate = trace.clone();
+                let result = mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+                if let MutationResult::Mutated = result {
+                    attempt.certificate_eve += 1;
+                }
+
+                if let Some(certificate) = mutate.steps.get(1) {
+                    match &certificate.action {
+                        Action::Input(input) => {
+                            if input.recipe.count_functions_by_name(fn_eve_cert.name()) == 1 {
+                                trace = mutate;
+                                break;
+                            }
+                        }
+                        Action::Output(_) => {}
+                    }
+                }
+            }
+
+            let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+
+            for _ in 0..10000 {
+                let mut mutate = trace.clone();
+                let result = mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+                if let MutationResult::Mutated = result {
+                    attempt.certificate_verify_invalid += 1;
+                }
+
+                if let Some(certificate) = mutate.steps.get(2) {
+                    match &certificate.action {
+                        Action::Input(input) => {
+                            if input
+                                .recipe
+                                .count_functions_by_name(fn_invalid_signature_algorithm.name())
+                                == 1
+                            {
+                                trace = mutate;
+                                break;
+                            }
+                        }
+                        Action::Output(_) => {}
+                    }
+                }
+            }
+
+            let mut mutator = GenerateMutator::new(0, 10000, constraints, None, &TLS_SIGNATURE);
+            for _ in 0..10000 {
+                attempt.certificate_verify_fn_eve_pkcs1_signature += 1;
+                let mut mutate = trace.clone();
+                mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+
+                if let Some(certificate_verify) = mutate.steps.get(2) {
+                    match &certificate_verify.action {
+                        Action::Input(input) => {
+                            if input
+                                .recipe
+                                .count_functions_by_name(fn_eve_pkcs1_signature.name())
+                                == 1
+                            {
+                                trace = mutate;
+                                break;
+                            }
+                        }
+                        Action::Output(_) => {}
+                    }
+                }
+            }
 
             let mut context = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-            let _ = trace.execute(&mut context);
-            println!("try");
+            if let Err(err) = trace.execute(&mut context) {
+                match err {
+                    Error::SecurityClaim(e) => {
+                        println!("{}", e);
+                        attempts[i] = attempt;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
         }
-    });
+    }
+
+    let certificate_eve = attempts
+        .iter()
+        .map(|a| a.certificate_eve as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    let certificate_verify_fn_eve_pkcs1_signature = attempts
+        .iter()
+        .map(|a| a.certificate_verify_fn_eve_pkcs1_signature as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    let certificate_verify_invalid = attempts
+        .iter()
+        .map(|a| a.certificate_verify_invalid as f64)
+        .sum::<f64>() as f64
+        / 100.;
+    println!("{}", certificate_eve);
+    println!("{}", certificate_verify_fn_eve_pkcs1_signature);
+    println!("{}", certificate_verify_invalid);
 }
