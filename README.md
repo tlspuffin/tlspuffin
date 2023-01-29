@@ -114,7 +114,7 @@ For the python `tlspuffin-analyzer`:
 Build the project:
 
 ```bash
-git clone git@github.com/tlspuffin/tlspuffin
+git clone https://github.com/tlspuffin/tlspuffin.git
 git submodule update --init --recursive
 cargo build
 ```
