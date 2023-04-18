@@ -50,7 +50,8 @@ fn build(source_dir: &str) -> PathBuf {
     let config = config
         .define("CMAKE_C_COMPILER", cc)
         .define("WITH_GSSAPI", "OFF")
-        .define("BUILD_STATIC_LIB", "ON");
+        .define("BUILD_STATIC_LIB", "ON")
+        .cflag("-Wno-error,-Wstrict-prototypes");
 
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
