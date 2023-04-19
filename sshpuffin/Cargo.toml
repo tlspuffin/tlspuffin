@@ -16,10 +16,6 @@ thiserror = "1.0"
 
 # libssh
 
-russh-cryptovec = "0.7.0-beta.1"
-russh-keys = "0.22.0-beta.3"
-russh-libsodium = "0.3.0-beta.1"
-
 byteorder = "1.3"
 digest = "0.10.3"
 flate2 = {version = "1.0"}
