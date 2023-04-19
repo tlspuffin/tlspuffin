@@ -1849,6 +1849,8 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker12.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1857,6 +1859,8 @@ pub mod tests {
     #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
     #[test]
     fn test_seed_client_attacker() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1865,6 +1869,8 @@ pub mod tests {
     #[cfg(feature = "client-authentication-transcript-extraction")]
     #[test]
     fn test_seed_client_attacker_auth() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker_auth.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1872,6 +1878,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1879,6 +1887,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_server_attacker_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_server_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1887,6 +1897,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_dhe.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1895,6 +1907,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_dhe_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1903,6 +1917,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_ke() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_ke.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1910,6 +1926,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1917,6 +1935,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_client_auth() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_client_auth.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1928,6 +1948,8 @@ pub mod tests {
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_mitm.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1935,6 +1957,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_with_ccs() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_with_ccs.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1944,6 +1968,8 @@ pub mod tests {
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_with_tickets.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1951,6 +1977,8 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     fn test_seed_successful12() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         #[cfg(feature = "tls12-session-resumption")]
         let ctx = seed_successful12_with_tickets.execute_trace();
         #[cfg(not(feature = "tls12-session-resumption"))]
