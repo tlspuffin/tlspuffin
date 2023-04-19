@@ -3,15 +3,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use libafl::{
-    events::{Event, EventFirer},
-    inputs::Input,
-    monitors::UserStats,
-    stages::Stage,
-    state::{HasCorpus, HasRand},
-    Error, Evaluator,
-};
-
+use libafl::prelude::*;
 pub enum RuntimeStats {
     FnError(&'static Counter),
     TermError(&'static Counter),
@@ -191,20 +183,27 @@ impl Fire for MinMaxMean {
 }
 
 #[derive(Clone, Debug)]
-pub struct StatsStage<E, EM, S, Z>
-where
-    S: HasCorpus + HasRand,
-    Z: Evaluator<E, EM, S>,
-{
+pub struct StatsStage<E, EM, Z> {
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(E, EM, S, Z)>,
+    phantom: PhantomData<(E, EM, Z)>,
 }
 
-impl<E, EM, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, S, Z>
+impl<E, EM, Z> UsesState for StatsStage<E, EM, Z>
 where
     EM: EventFirer,
-    S: HasCorpus + HasRand,
-    Z: Evaluator<E, EM, S>,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    Z: Evaluator<E, EM>,
+{
+    type State = Z::State;
+}
+
+impl<E, EM, Z> Stage<E, EM, Z> for StatsStage<E, EM, Z>
+where
+    EM: EventFirer,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    Z: Evaluator<E, EM>,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -212,9 +211,9 @@ where
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut S,
+        state: &mut Z::State,
         manager: &mut EM,
-        _corpus_idx: usize,
+        _corpus_idx: CorpusId,
     ) -> Result<(), Error> {
         for stat in &STATS {
             stat.fire(&mut |name, stats| {
@@ -233,9 +232,10 @@ where
     }
 }
 
-impl<E, EM, S, Z> StatsStage<E, EM, S, Z>
+impl<E, EM, Z> StatsStage<E, EM, Z>
 where
-    S: HasCorpus + HasRand,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
     Z: Evaluator<E, EM>,
 {
     pub fn new() -> Self {

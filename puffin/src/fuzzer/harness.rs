@@ -6,7 +6,7 @@ use rand::Rng;
 use crate::{
     algebra::signature::Signature,
     error::Error,
-    //fuzzer::stats_stage::*,
+    fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
     put::PutOptions,
     trace::{Action, Trace, TraceContext},
@@ -30,12 +30,12 @@ pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()
 pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> ExitKind {
     let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
 
-    //TRACE_LENGTH.update(input.steps.len());
+    TRACE_LENGTH.update(input.steps.len());
 
     for step in &input.steps {
         match &step.action {
             Action::Input(input) => {
-                //TERM_SIZE.update(input.recipe.size());
+                TERM_SIZE.update(input.recipe.size());
             }
             Action::Output(_) => {}
         }
@@ -43,18 +43,17 @@ pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> Ex
 
     if let Err(err) = input.execute(&mut ctx) {
         match &err {
-            //Error::Fn(_) => FN_ERROR.increment(),
-            //Error::Term(_e) => TERM.increment(),
-            //Error::Put(_) => PUT.increment(),
-            //Error::IO(_) => IO.increment(),
-            //Error::Agent(_) => AGENT.increment(),
-            //Error::Stream(_) => STREAM.increment(),
-            //Error::Extraction() => EXTRACTION.increment(),
+            Error::Fn(_) => FN_ERROR.increment(),
+            Error::Term(_e) => TERM.increment(),
+            Error::Put(_) => PUT.increment(),
+            Error::IO(_) => IO.increment(),
+            Error::Agent(_) => AGENT.increment(),
+            Error::Stream(_) => STREAM.increment(),
+            Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
                 warn!("{}", msg);
                 std::process::abort()
             }
-            _ => {}
         }
 
         trace!("{}", err);
