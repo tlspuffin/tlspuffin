@@ -4,7 +4,7 @@
 
 experiments/
 experiments*/
-tlspuffin-log.json
+tlspuffin.log
 log.json
 
 venv

@@ -29,7 +29,7 @@ mod tests {
             subgraphs.join("\n")
         );
 
-        let all_functions = crate::tls::TLS_SIGNATURE
+        let all_functions = TLS_SIGNATURE
             .functions
             .iter()
             .map(|(shape, _)| shape.name.to_string())

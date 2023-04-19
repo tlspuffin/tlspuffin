@@ -8,25 +8,28 @@ use std::{
 
 use clap::{arg, crate_authors, crate_name, crate_version, Command};
 use libafl::inputs::Input;
-use log::{error, info};
+use log::{error, info, LevelFilter};
 
 use crate::{
-    algebra::set_deserialize_signature,
+    algebra::{error::FnError, set_deserialize_signature},
+    codec::Codec,
     experiment::*,
     fuzzer::{
+        harness::{default_put_options, set_default_put_options},
         sanitizer::asan::{asan_info, setup_asan_env},
         start, FuzzerConfig,
     },
     graphviz::write_graphviz,
     log::create_stdout_config,
-    protocol::ProtocolBehavior,
+    protocol::{ProtocolBehavior, ProtocolMessage},
+    put::PutOptions,
     put_registry::PutRegistry,
-    trace::{Trace, TraceContext},
+    trace::{Action, Trace, TraceContext},
 };
 
 fn create_app() -> Command<'static> {
     Command::new(crate_name!())
-        .version(crate_version!())
+        .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
@@ -35,6 +38,7 @@ fn create_app() -> Command<'static> {
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
@@ -52,14 +56,18 @@ fn create_app() -> Command<'static> {
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
                 .about("Executes a trace stored in a file")
+                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))   ,
+            Command::new("binary-attack")
+                .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(<output> "The file to write serialized data to"))
         ])
 }
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,
 ) -> ExitCode {
-    let handle = match log4rs::init_config(create_stdout_config()) {
+    let handle = match log4rs::init_config(create_stdout_config(LevelFilter::Info)) {
         Ok(handle) => handle,
         Err(err) => {
             error!("Failed to init logging: {:?}", err);
@@ -76,8 +84,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     let minimizer = matches.is_present("minimizer");
     let monitor = matches.is_present("monitor");
     let no_launcher = matches.is_present("no-launcher");
+    let put_use_clear = matches.is_present("put-use-clear");
 
-    info!("Version: {}", crate::GIT_REF);
+    info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
     for version in put_registry.version_strings() {
         info!("{}", version);
@@ -86,8 +95,18 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     asan_info();
     setup_asan_env();
 
+    // Initialize global state
+
     if set_deserialize_signature(PB::signature()).is_err() {
         error!("Failed to initialize deserialization");
+    }
+
+    let mut options: Vec<(String, String)> = Vec::new();
+    if put_use_clear {
+        options.push(("use_clear".to_string(), put_use_clear.to_string()))
+    }
+    if set_default_put_options(PutOptions::new(options)).is_err() {
+        error!("Failed to initialize default put options");
     }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
@@ -108,11 +127,25 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        // Parse arguments
-        let input = matches.value_of("input").unwrap();
+        let inputs = matches.values_of("inputs").unwrap();
+        let mut failed = false;
+        for input in inputs {
+            error!("Executing: {}", input);
+            if let Err(err) = execute(input, put_registry) {
+                error!("Failed to execute trace: {:?}", err);
+                failed = true
+            }
+        }
 
-        if let Err(err) = execute(input, put_registry) {
-            error!("Failed to execute trace: {:?}", err);
+        if failed {
+            return ExitCode::FAILURE;
+        }
+    } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
+        let input = matches.value_of("input").unwrap();
+        let output = matches.value_of("output").unwrap();
+
+        if let Err(err) = binary_attack(input, output, put_registry) {
+            error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else {
@@ -173,7 +206,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
             monitor_file: experiment_path.join("stats.json"),
-            log_file: experiment_path.join("log.json"),
+            log_file: experiment_path.join("tlspuffin.log"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
@@ -254,7 +287,45 @@ fn execute<PB: ProtocolBehavior>(
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new(put_registry);
+    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
     trace.execute(&mut ctx)?;
+    Ok(())
+}
+
+fn binary_attack<PB: ProtocolBehavior>(
+    input: &str,
+    output: &str,
+    put_registry: &'static PutRegistry<PB>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+
+    info!("Agents: {:?}", &trace.descriptors);
+
+    let mut f = File::create(output).expect("Unable to create file");
+
+    for step in trace.steps {
+        match step.action {
+            Action::Input(input) => {
+                if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
+                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                        let mut data: Vec<u8> = Vec::new();
+                        msg.create_opaque().encode(&mut data);
+                        f.write_all(&data).expect("Unable to write data");
+                    } else if let Some(opaque_message) = evaluated
+                        .as_ref()
+                        .downcast_ref::<PB::OpaqueProtocolMessage>()
+                    {
+                        let mut data: Vec<u8> = Vec::new();
+                        opaque_message.encode(&mut data);
+                        f.write_all(&data).expect("Unable to write data");
+                    } else {
+                        error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
+                    }
+                }
+            }
+            Action::Output(_) => {}
+        }
+    }
     Ok(())
 }

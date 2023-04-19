@@ -553,6 +553,7 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
+        put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},
@@ -631,10 +632,13 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let mut context = TraceContext::new(&PutRegistry::<TestProtocolBehavior> {
-            factories: &[dummy_factory],
-            default: dummy_factory,
-        });
+        let mut context = TraceContext::new(
+            &PutRegistry::<TestProtocolBehavior> {
+                factories: &[dummy_factory],
+                default: dummy_factory,
+            },
+            PutOptions::default(),
+        );
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),
             matcher: None,

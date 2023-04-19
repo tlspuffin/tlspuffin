@@ -6,6 +6,8 @@ build = "build.rs"
 
 [features]
 
+vendored-libssh0104 = []
+
 [dependencies]
 
 [dev-dependencies]
