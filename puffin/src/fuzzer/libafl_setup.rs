@@ -1,44 +1,16 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::{
-    bolts::{
-        core_affinity::Cores,
-        rands::{Rand, StdRand},
-        shmem::{ShMemProvider, StdShMemProvider},
-        tuples::tuple_list,
-        HasLen,
-    },
-    corpus::{
-        ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, InMemoryCorpus, OnDiskCorpus,
-    },
-    events::{
-        setup_restarting_mgr_std, EventConfig, EventFirer, EventManager, EventRestarter,
-        HasEventManagerId, LlmpRestartingEventManager, ProgressReporter,
-    },
-    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
-    feedback_or,
-    feedbacks::{
-        CombinedFeedback, CrashFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback,
-        MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
-    },
-    fuzzer::{Fuzzer, StdFuzzer},
-    inputs::Input,
-    monitors::tui::TuiMonitor,
-    mutators::{MutatorsTuple, StdScheduledMutator},
-    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
-    prelude::*,
-    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    stages::StdMutationalStage,
-    state::{HasCorpus, HasRand, StdState},
-    Evaluator,
-};
+use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::TuiMonitor, prelude::*};
 use log::{info, trace, warn, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
 use crate::{
-    fuzzer::mutations::{trace_mutations, util::TermConstraints},
+    fuzzer::{
+        mutations::{trace_mutations, util::TermConstraints},
+        stats_monitor::StatsMonitor,
+    },
     log::create_file_config,
     protocol::ProtocolBehavior,
     trace::Trace,
@@ -221,7 +193,7 @@ where
         self
     }
 
-    fn run_client(mut self) -> Result<(), libafl::Error> {
+    fn run_client(mut self) -> Result<(), Error> {
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -358,9 +330,9 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
 where
     ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
     I: Input + HasLen,
-    C: Corpus + UsesInput<Input = I> + std::fmt::Debug,
+    C: Corpus + UsesInput<Input = I> + fmt::Debug,
     R: Rand,
-    SC: Corpus + UsesInput<Input = I> + std::fmt::Debug,
+    SC: Corpus + UsesInput<Input = I> + fmt::Debug,
     H: FnMut(&I) -> ExitKind,
     OF: Feedback<ConcreteState<C, R, SC, I>>,
     CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
@@ -429,7 +401,7 @@ where
 pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     config: FuzzerConfig,
     log_handle: Handle,
-) -> Result<(), libafl::Error> {
+) -> Result<(), Error> {
     let FuzzerConfig {
         core_definition,
         corpus_dir,
@@ -455,7 +427,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _unknown: usize|
-     -> Result<(), libafl::Error> {
+     -> Result<(), Error> {
         let harness_fn = &mut harness::harness::<PB>;
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
@@ -504,7 +476,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             builder = builder
                 .with_feedback(feedback)
                 .with_observers(observer)
-                .with_scheduler(libafl::schedulers::RandScheduler::new());
+                .with_scheduler(RandScheduler::new());
         }
 
         log_handle
@@ -516,14 +488,13 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     if *no_launcher {
         let (state, restarting_mgr) = setup_restarting_mgr_std(
-            // StatsMonitor::new(
-            //     |s| {
-            //         info!("{}", s);
-            //     },
-            //     monitor_file.clone(),
-            // )
-            // .unwrap(),
-            NopMonitor::default(),
+            StatsMonitor::new(
+                |s| {
+                    info!("{}", s);
+                },
+                monitor_file.clone(),
+            )
+            .unwrap(),
             *broker_port,
             EventConfig::AlwaysUnique,
         )?;
@@ -535,7 +506,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
         if *monitor {
-            libafl::bolts::launcher::Launcher::builder()
+            Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
                 .monitor(TuiMonitor::new("test".to_string(), false))
@@ -546,19 +517,18 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .build()
                 .launch()
         } else {
-            libafl::bolts::launcher::Launcher::builder()
+            Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                //.monitor(
-                //    StatsMonitor::new(
-                //        |s| {
-                //            info!("{}", s);
-                //        },
-                //        monitor_file.clone(),
-                //    )
-                //    .unwrap(),
-                //)
-                .monitor(NopMonitor::default())
+                .monitor(
+                    StatsMonitor::new(
+                        |s| {
+                            info!("{}", s);
+                        },
+                        monitor_file.clone(),
+                    )
+                    .unwrap(),
+                )
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)

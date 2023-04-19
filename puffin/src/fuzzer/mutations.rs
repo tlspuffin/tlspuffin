@@ -1,12 +1,4 @@
-use libafl::{
-    bolts::{
-        rands::Rand,
-        tuples::{tuple_list, tuple_list_type, Named},
-    },
-    mutators::{MutationResult, Mutator},
-    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
-    Error,
-};
+use libafl::prelude::*;
 use util::{Choosable, *};
 
 use crate::{
