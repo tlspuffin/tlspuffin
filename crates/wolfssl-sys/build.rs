@@ -99,13 +99,10 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("keygen", None) // Support for RSA certs
         .enable("certgen", None) // Support x509 decoding
         .enable("tls13", None)
-        .enable("aesni", None)
         .enable("dtls", None)
         .enable("sp", None)
-        .enable("sp-asm", None)
         .enable("dtls-mtu", None)
         .disable("sha3", None)
-        .enable("intelasm", None)
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
         .enable("psk", None) // FIXME: Only 4.3.0
@@ -115,6 +112,14 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
         .cflag("-fPIC");
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        config
+            .enable("intelasm", None)
+            .enable("sp-asm", None)
+            .enable("aesni", None);
+    }
 
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     {
