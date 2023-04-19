@@ -168,7 +168,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
 }
 
 fn main() -> std::io::Result<()> {
-    let _source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = env::var("OUT_DIR").unwrap();
     clone_wolfssl(&out_dir)?;
 
@@ -180,6 +180,9 @@ fn main() -> std::io::Result<()> {
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-39173.patch").unwrap();
     #[cfg(feature = "fix-CVE-2022-42905")]
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-42905.patch").unwrap();
+
+    // Make sure source_dir is used, so clippy does not remove it.
+    let _ = source_dir.to_str();
 
     let dst = build_wolfssl(&out_dir);
 
