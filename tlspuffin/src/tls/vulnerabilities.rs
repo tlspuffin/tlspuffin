@@ -1218,6 +1218,10 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(seed_cve_2022_39173.build_trace(), PutOptions::default());
     }
 
@@ -1229,6 +1233,10 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_full() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
             PutOptions::default(),
@@ -1243,6 +1251,10 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_minimized() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
             PutOptions::default(),
