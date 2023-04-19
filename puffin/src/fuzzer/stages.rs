@@ -45,7 +45,7 @@ where
 
     /// Gets the number of iterations as a random number
     fn iterations(&self, state: &mut Z::State, _corpus_idx: CorpusId) -> Result<u64, Error> {
-        Ok(1 + state.rand_mut().below(self.max_iterations_per_stage) as u64)
+        Ok(1 + state.rand_mut().below(self.max_iterations_per_stage))
     }
 }
 

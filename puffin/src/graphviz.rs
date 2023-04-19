@@ -34,7 +34,7 @@ const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
     let mut child = Command::new("dot")
-        .args(&["-o", output, "-T", format])
+        .args(["-o", output, "-T", format])
         .stdin(Stdio::piped())
         .spawn()
         .map_err(|err| {

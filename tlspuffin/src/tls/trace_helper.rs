@@ -32,7 +32,7 @@ impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
     fn store_to_seeds(self) {
         let name = self.fn_name();
         let path = format!("../seeds/{}", name);
-        std::fs::create_dir_all(format!("../seeds")).unwrap();
+        std::fs::create_dir_all("../seeds").unwrap();
         File::create(&path).unwrap();
         self.build_trace().to_file(path).unwrap();
     }

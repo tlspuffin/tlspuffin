@@ -1790,7 +1790,7 @@ impl HasServerExtensions for EncryptedExtensions {
 
 impl HasServerExtensions for Vec<ServerExtension> {
     fn get_extensions(&self) -> &[ServerExtension] {
-        &self
+        self
     }
 }
 

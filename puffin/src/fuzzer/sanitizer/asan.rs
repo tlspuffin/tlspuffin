@@ -1,6 +1,6 @@
 //! Helpers for asan
 
-use std::{env, ffi::CStr, ptr};
+use std::{env, ffi::CStr};
 
 use log::info;
 

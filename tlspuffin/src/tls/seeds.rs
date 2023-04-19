@@ -10,7 +10,6 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -695,7 +694,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor {
             name: client,
@@ -776,9 +775,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -868,7 +865,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor {
             name: server,
@@ -935,9 +932,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -979,7 +974,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1009,9 +1004,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
             },
             OutputAction::new_step(server),
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -1250,7 +1243,7 @@ pub fn seed_session_resumption_dhe(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1279,9 +1272,7 @@ pub fn seed_session_resumption_dhe(
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_session_resumption_ke(
@@ -1376,7 +1367,7 @@ pub fn seed_session_resumption_ke(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1405,9 +1396,7 @@ pub fn seed_session_resumption_ke(
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -1761,7 +1750,7 @@ pub fn seed_session_resumption_dhe_full(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1805,9 +1794,7 @@ pub fn seed_session_resumption_dhe_full(
                 }),
             },*/
         ],
-    };
-
-    trace
+    }
 }
 
 macro_rules! corpus {
@@ -1847,16 +1834,12 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::io::Write;
 
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::*;
-    use crate::{
-        put_registry::TLS_PUT_REGISTRY,
-        tls::trace_helper::{TraceExecutor, TraceHelper},
-    };
+    use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
 
     #[test]
     fn test_version() {
@@ -2188,13 +2171,8 @@ pub mod tests {
             00 01 00 02 00 03 00 0f  00 10 00 11 00 23 00 00
             00 0f 00 01 01";
 
-            let hello_client = hex::decode(
-                hello_client_hex
-                    .to_string()
-                    .replace(' ', "")
-                    .replace('\n', ""),
-            )
-            .unwrap();
+            let hello_client =
+                hex::decode(hello_client_hex.to_string().replace([' ', '\n'], "")).unwrap();
             //hexdump::hexdump(&hello_client);
 
             let opaque_message =
