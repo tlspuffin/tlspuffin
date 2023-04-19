@@ -933,7 +933,7 @@ mod tests {
     };
 
     fn create_state(
-    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
