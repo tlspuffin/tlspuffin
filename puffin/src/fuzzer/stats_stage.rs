@@ -191,22 +191,20 @@ impl Fire for MinMaxMean {
 }
 
 #[derive(Clone, Debug)]
-pub struct StatsStage<E, EM, I, S, Z>
+pub struct StatsStage<E, EM, S, Z>
 where
-    I: Input,
-    S: HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasCorpus + HasRand,
+    Z: Evaluator<E, EM, S>,
 {
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(E, EM, I, S, Z)>,
+    phantom: PhantomData<(E, EM, S, Z)>,
 }
 
-impl<E, EM, I, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, I, S, Z>
+impl<E, EM, S, Z> Stage<E, EM, S, Z> for StatsStage<E, EM, S, Z>
 where
-    I: Input,
-    EM: EventFirer<I>,
-    S: HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    EM: EventFirer,
+    S: HasCorpus + HasRand,
+    Z: Evaluator<E, EM, S>,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -235,11 +233,10 @@ where
     }
 }
 
-impl<E, EM, I, S, Z> StatsStage<E, EM, I, S, Z>
+impl<E, EM, S, Z> StatsStage<E, EM, S, Z>
 where
-    I: Input,
-    S: HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasCorpus + HasRand,
+    Z: Evaluator<E, EM>,
 {
     pub fn new() -> Self {
         Self {

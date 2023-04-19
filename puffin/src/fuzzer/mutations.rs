@@ -31,7 +31,7 @@ pub fn trace_mutations<S, M: Matcher>(
        SwapMutator<S>
    )
 where
-    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
