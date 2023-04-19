@@ -1,5 +1,6 @@
 use std::{
     ffi::c_int,
+    fs,
     io::{ErrorKind, Read, Write},
     os::unix::{
         io::{IntoRawFd, RawFd},
@@ -85,11 +86,20 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             context: &TraceContext<SshProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
-            let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
-            let listener = UnixListener::bind_addr(&addr).unwrap();
+            // FIXME: Switch to UDS with stabilization in Rust 1.70
+            //let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
+            //let listener = UnixListener::bind_addr(&addr).unwrap();
+            let path = format!("socket_{}", agent_descriptor.name);
+            let listener = UnixListener::bind(&path).unwrap();
             listener.set_nonblocking(true).unwrap();
 
-            let mut fuzz_stream = UnixStream::connect_addr(&addr).unwrap();
+            // FIXME: Switch to UDS with stabilization in Rust 1.70
+            // let mut fuzz_stream = UnixStream::connect_addr(&addr).unwrap();
+            let mut fuzz_stream = UnixStream::connect(&path).unwrap();
+
+            // Unlink directly as we have the addresses now
+            fs::remove_file(&path).unwrap();
+
             fuzz_stream.set_nonblocking(true).unwrap();
 
             let put_stream = listener.incoming().next().unwrap().unwrap();
