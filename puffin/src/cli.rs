@@ -6,7 +6,7 @@ use std::{
     process::ExitCode,
 };
 
-use clap::{arg, crate_authors, crate_name, crate_version, Command};
+use clap::{arg, crate_authors, crate_name, crate_version, parser::ValuesRef, Command};
 use libafl::inputs::Input;
 use log::{error, info, LevelFilter};
 
@@ -27,7 +27,7 @@ use crate::{
     trace::{Action, Trace, TraceContext},
 };
 
-fn create_app() -> Command<'static> {
+fn create_app() -> Command {
     Command::new(crate_name!())
         .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
@@ -56,7 +56,7 @@ fn create_app() -> Command<'static> {
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
                 .about("Executes a trace stored in a file")
-                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))   ,
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))   ,
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -77,14 +77,15 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
     let matches = create_app().get_matches();
 
-    let core_definition = matches.value_of("cores").unwrap_or("0");
-    let port: u16 = matches.value_of_t("port").unwrap_or(1337);
-    let static_seed: Option<u64> = matches.value_of_t("seed").ok();
-    let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
-    let minimizer = matches.is_present("minimizer");
-    let monitor = matches.is_present("monitor");
-    let no_launcher = matches.is_present("no-launcher");
-    let put_use_clear = matches.is_present("put-use-clear");
+    let first_core = "0".to_string();
+    let core_definition = matches.get_one("cores").unwrap_or(&first_core);
+    let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
+    let static_seed: Option<u64> = matches.get_one("seed").copied();
+    let max_iters: Option<u64> = matches.get_one("max-iters").copied();
+    let minimizer = matches.get_flag("minimizer");
+    let monitor = matches.get_flag("monitor");
+    let no_launcher = matches.get_flag("no-launcher");
+    let put_use_clear = matches.get_flag("put-use-clear");
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -116,18 +117,18 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
-        let output_prefix: &str = matches.value_of("output_prefix").unwrap();
-        let input = matches.value_of("input").unwrap();
-        let format = matches.value_of("format").unwrap();
-        let is_multiple = matches.is_present("multiple");
-        let is_tree = matches.is_present("tree");
+        let output_prefix: &String = matches.get_one("output_prefix").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+        let format: &String = matches.get_one("format").unwrap();
+        let is_multiple = matches.get_flag("multiple");
+        let is_tree = matches.get_flag("tree");
 
         if let Err(err) = plot::<PB>(input, format, output_prefix, is_multiple, is_tree) {
             error!("Failed to plot trace: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        let inputs = matches.values_of("inputs").unwrap();
+        let inputs: ValuesRef<&String> = matches.get_many("inputs").unwrap();
         let mut failed = false;
         for input in inputs {
             error!("Executing: {}", input);
@@ -141,8 +142,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
-        let input = matches.value_of("input").unwrap();
-        let output = matches.value_of("output").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+        let output: &String = matches.get_one("output").unwrap();
 
         if let Err(err) = binary_attack(input, output, put_registry) {
             error!("Failed to create trace output: {:?}", err);
@@ -150,8 +151,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title = matches.value_of("title").unwrap();
-            let description = matches.value_of("description").unwrap();
+            let title: &String = matches.get_one("title").unwrap();
+            let description: &String = matches.get_one("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
             let experiment_path = experiments_root.join(format_title(Some(title), None));
             if experiment_path.as_path().exists() {
