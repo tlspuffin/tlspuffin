@@ -296,7 +296,7 @@ type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
 
 type ConcreteObservers<'a> = (
     TimeObserver,
-    (HitcountsMapObserver<StdMapObserver<'a, u8, false>>, ()), // FIXME: Check differential
+    (HitcountsMapObserver<StdMapObserver<'a, u8, false>>, ()),
 );
 
 type ConcreteFeedback<'a, S> = CombinedFeedback<
