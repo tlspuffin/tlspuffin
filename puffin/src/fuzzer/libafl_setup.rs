@@ -21,7 +21,7 @@ const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
 type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
 
-type ConcreteState<C, R, SC, I: Input> = StdState<I, C, R, SC>;
+type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
 #[derive(Clone)]
 pub struct FuzzerConfig {
