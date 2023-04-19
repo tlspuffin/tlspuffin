@@ -8,11 +8,7 @@ use puffin::{
 
 use crate::{
     query::TlsQueryMatcher,
-    tls::{
-        fn_impl::*,
-        rustls::msgs::enums::HandshakeType,
-        seeds::{_seed_client_attacker12, _seed_client_attacker_full, seed_client_attacker},
-    },
+    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
 };
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
@@ -1070,7 +1066,9 @@ pub mod tests {
 
     use test_log::test;
 
-    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
+    use crate::tls::{
+        seeds::seed_successful12_with_tickets, trace_helper::TraceHelper, vulnerabilities::*,
+    };
 
     #[test]
     fn test_term_sizes() {
@@ -1113,6 +1111,10 @@ pub mod tests {
     #[test]
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(seed_freak.build_trace(), PutOptions::default());
     }
 
@@ -1120,6 +1122,10 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_heartbleed() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(seed_heartbleed.build_trace(), PutOptions::default());
     }
 
@@ -1127,6 +1133,10 @@ pub mod tests {
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
+        use puffin::put::PutOptions;
+
+        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+
         expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
     }
 
@@ -1137,6 +1147,8 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1148,6 +1160,8 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1159,6 +1173,8 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1168,6 +1184,10 @@ pub mod tests {
     #[cfg(feature = "wolfssl540")]
     #[cfg(feature = "wolfssl-disable-postauth")]
     fn test_seed_cve_2022_38152() {
+        use puffin::put::PutOptions;
+
+        use crate::test_utils::expect_trace_crash;
+
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
             PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
@@ -1179,6 +1199,10 @@ pub mod tests {
     #[cfg(feature = "tls12-session-resumption")]
     #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
+        use puffin::put::PutOptions;
+
+        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+
         for i in 0..50 {
             seed_successful12_with_tickets.execute_trace();
         }
@@ -1235,8 +1259,8 @@ pub mod tests {
 
         use crate::{
             put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-            tcp::tcp_puts::{openssl_server, wolfssl_client},
-            tls::{trace_helper::TraceHelper, vulnerabilities::seed_cve_2022_38153},
+            tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
+            tls::{trace_helper::TraceHelper, vulnerabilities::*},
         };
 
         #[test]
@@ -1276,7 +1300,6 @@ pub mod tests {
         }
 
         #[test]
-        #[cfg(feature = "wolfssl540")]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_cve_2022_39173() {
             let port = 44338;
