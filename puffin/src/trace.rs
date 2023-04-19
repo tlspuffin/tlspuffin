@@ -33,7 +33,7 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
-    put::PutDescriptor,
+    put::{PutDescriptor, PutOptions},
     put_registry::{Factory, PutRegistry},
     variable_data::VariableData,
 };
@@ -101,14 +101,17 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     knowledge: Vec<Knowledge<PB::Matcher>>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
-    put_descriptors: HashMap<AgentName, PutDescriptor>,
+
     put_registry: &'static PutRegistry<PB>,
-    deterministic: bool,
+    deterministic_put: bool,
+    default_put_options: PutOptions,
+    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
+
     phantom: PhantomData<PB>,
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &'static PutRegistry<PB>) -> Self {
+    pub fn new(put_registry: &'static PutRegistry<PB>, default_put_options: PutOptions) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -117,10 +120,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge: vec![],
             agents: vec![],
             claims,
-            put_descriptors: Default::default(),
+            non_default_put_descriptors: Default::default(),
             put_registry,
-            deterministic: false,
+            deterministic_put: false,
             phantom: Default::default(),
+            default_put_options,
         }
     }
 
@@ -260,27 +264,31 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         })
     }
 
-    /// Gets the PUT which should be used for all agents
+    /// Gets the PUT descriptor which should be used for all agents
     pub fn put_descriptor(&self, agent_descriptor: &AgentDescriptor) -> PutDescriptor {
-        self.put_descriptors
+        self.non_default_put_descriptors
             .get(&agent_descriptor.name)
             .cloned()
-            .unwrap_or_else(|| {
-                let factory = (self.put_registry.default)();
-                PutDescriptor {
-                    name: factory.name(),
-                    options: Default::default(),
-                }
-            })
+            .unwrap_or_else(|| self.default_put_descriptor())
+    }
+
+    fn default_put_descriptor(&self) -> PutDescriptor {
+        let factory = (self.put_registry.default)();
+        PutDescriptor {
+            name: factory.name(),
+            options: self.default_put_options.clone(),
+        }
     }
 
     /// Makes agents use the non-default PUT
     pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
-        self.put_descriptors.insert(agent_name, put_descriptor);
+        self.non_default_put_descriptors
+            .insert(agent_name, put_descriptor);
     }
 
     pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
-        self.put_descriptors.extend(descriptors.iter().cloned());
+        self.non_default_put_descriptors
+            .extend(descriptors.iter().cloned());
     }
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
@@ -297,7 +305,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn set_deterministic(&mut self, deterministic: bool) {
-        self.deterministic = deterministic;
+        self.deterministic_put = deterministic;
     }
 }
 
@@ -329,7 +337,7 @@ impl<M: Matcher> Trace<M> {
                 ctx.new_agent(descriptor)?
             };
 
-            if ctx.deterministic {
+            if ctx.deterministic_put {
                 if let Ok(agent) = ctx.find_agent_mut(name) {
                     if let Err(err) = agent.put_mut().set_deterministic() {
                         warn!("Unable to make agent {} deterministic: {}", name, err)
@@ -368,9 +376,9 @@ impl<M: Matcher> Trace<M> {
             }
 
             ctx.claims.deref_borrow().log();
-        }
 
-        ctx.verify_security_violations()?;
+            ctx.verify_security_violations()?;
+        }
 
         Ok(())
     }
@@ -378,30 +386,31 @@ impl<M: Matcher> Trace<M> {
     pub fn execute_deterministic<PB>(
         &self,
         put_registry: &'static PutRegistry<PB>,
-    ) -> TraceContext<PB>
+        default_put_options: PutOptions,
+    ) -> Result<TraceContext<PB>, Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry);
+        let mut ctx = TraceContext::new(put_registry, default_put_options);
         ctx.set_deterministic(true);
-        self.execute(&mut ctx).unwrap();
-        ctx
+        self.execute(&mut ctx)?;
+        Ok(ctx)
     }
 
-    pub fn execute_with_puts<PB>(
+    pub fn execute_with_non_default_puts<PB>(
         &self,
         put_registry: &'static PutRegistry<PB>,
         descriptors: &[(AgentName, PutDescriptor)],
-    ) -> TraceContext<PB>
+    ) -> Result<TraceContext<PB>, Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry);
+        let mut ctx = TraceContext::new(put_registry, PutOptions::default());
 
         ctx.set_non_default_puts(descriptors);
 
-        self.execute(&mut ctx).unwrap();
-        ctx
+        self.execute(&mut ctx)?;
+        Ok(ctx)
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -586,7 +595,7 @@ impl<M: Matcher> InputAction<M> {
             ctx.add_to_inbound(step.agent, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
             ))
             .into());
         }

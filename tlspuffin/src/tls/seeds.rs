@@ -1836,7 +1836,7 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
         seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
-        seed_client_attacker12: cfg(feature = "tls13"),
+        seed_client_attacker12: cfg(feature = "tls12"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
@@ -1901,6 +1901,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
         let ctx = seed_session_resumption_dhe.execute_trace();
@@ -1908,6 +1909,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         let ctx = seed_session_resumption_dhe_full.execute_trace();
@@ -1915,6 +1917,7 @@ pub mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_ke() {
         let ctx = seed_session_resumption_ke.execute_trace();
@@ -1973,21 +1976,62 @@ pub mod tests {
     }
 
     #[test]
+    fn test_corpus_file_sizes() {
+        let client = AgentName::first();
+        let _server = client.next();
+
+        for (trace, name) in create_corpus() {
+            for step in &trace.steps {
+                match &step.action {
+                    Action::Input(input) => {
+                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        let terms = input.recipe.size();
+                        assert!(
+                            terms < 300,
+                            "{} has step with too large term size {}!",
+                            name,
+                            terms
+                        );
+                    }
+                    Action::Output(_) => {}
+                }
+            }
+        }
+    }
+
+    #[test]
     fn test_term_sizes() {
         let client = AgentName::first();
         let _server = client.next();
 
-        for trace in [
-            seed_successful12.build_trace(),
-            seed_successful.build_trace(),
-            seed_client_attacker12.build_trace(),
-            seed_client_attacker.build_trace(),
+        for (name, trace) in [
+            seed_successful_client_auth.build_named_trace(),
+            seed_successful.build_named_trace(),
+            seed_successful_mitm.build_named_trace(),
+            seed_successful12_with_tickets.build_named_trace(),
+            seed_successful12.build_named_trace(),
+            seed_successful_with_ccs.build_named_trace(),
+            seed_successful_with_tickets.build_named_trace(),
+            seed_server_attacker_full.build_named_trace(),
+            seed_client_attacker_auth.build_named_trace(),
+            seed_client_attacker.build_named_trace(),
+            seed_client_attacker12.build_named_trace(),
+            seed_session_resumption_dhe.build_named_trace(),
+            seed_session_resumption_ke.build_named_trace(),
+            seed_client_attacker_full.build_named_trace(),
+            // _full can be large: seed_session_resumption_dhe_full.build_named_trace(),
         ] {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below 200, else we should increase max_term_size in fuzzer setup
-                        assert!(input.recipe.size() < 200);
+                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        let terms = input.recipe.size();
+                        assert!(
+                            terms < 300,
+                            "{} has step with too large term size {}!",
+                            name,
+                            terms
+                        );
                     }
                     Action::Output(_) => {}
                 }

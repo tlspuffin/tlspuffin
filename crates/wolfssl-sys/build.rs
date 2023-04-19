@@ -2,9 +2,10 @@ use std::{
     collections::HashSet,
     env,
     fs::{canonicalize, File},
-    io::Write,
+    io,
+    io::{ErrorKind, Write},
     path::PathBuf,
-    process::Command,
+    process::{Command, ExitStatus},
 };
 
 use autotools::Config;
@@ -38,9 +39,23 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "master"
 };
 
+fn patch_wolfssl(source_dir: &PathBuf, out_dir: &str, patch: &str) -> std::io::Result<()> {
+    let status = Command::new("git")
+        .current_dir(out_dir)
+        .arg("am")
+        .arg(source_dir.join("patches").join(patch).to_str().unwrap())
+        .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
+
+    Ok(())
+}
+
 fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
-    Command::new("git")
+    let status = Command::new("git")
         .arg("clone")
         .arg("--depth")
         .arg("1")
@@ -49,6 +64,10 @@ fn clone_wolfssl(dest: &str) -> std::io::Result<()> {
         .arg("https://github.com/wolfSSL/wolfssl.git")
         .arg(dest)
         .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
 
     Ok(())
 }
@@ -77,28 +96,35 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("opensslall", None)
         .enable("opensslextra", None)
         .enable("context-extra-user-data", None)
-        //.enable("all", None) // FIXME: Do not use this as its non-default
-        //.enable("opensslcoexist", None) // FIXME: not needed
         .enable("keygen", None) // Support for RSA certs
         .enable("certgen", None) // Support x509 decoding
         .enable("tls13", None)
         .enable("aesni", None)
         .enable("dtls", None)
-        .enable("sp", None) // FIXME: Fixes a memory leak?
+        .enable("sp", None)
         .enable("sp-asm", None)
         .enable("dtls-mtu", None)
         .disable("sha3", None)
         .enable("intelasm", None)
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
-        .enable("postauth", None) // FIXME; else the session resumption crashes? SEGV?
         .enable("psk", None) // FIXME: Only 4.3.0
         .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
-        //.cflag("-g")// FIXME: Reenable?
+        .cflag("-g")
         .cflag("-fPIC");
+
+    #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    {
+        config.enable("postauth", None);
+    }
+
+    #[cfg(feature = "wolfssl-disable-postauth")]
+    {
+        config.disable("postauth", None);
+    }
 
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
@@ -137,8 +163,19 @@ fn build_wolfssl(dest: &str) -> PathBuf {
 }
 
 fn main() -> std::io::Result<()> {
+    let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = env::var("OUT_DIR").unwrap();
     clone_wolfssl(&out_dir)?;
+
+    #[cfg(feature = "fix-CVE-2022-25640")]
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25640.patch").unwrap();
+    #[cfg(feature = "fix-CVE-2022-25638")]
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-25638.patch").unwrap();
+    #[cfg(feature = "fix-CVE-2022-39173")]
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-39173.patch").unwrap();
+    #[cfg(feature = "fix-CVE-2022-42905")]
+    patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-42905.patch").unwrap();
+
     let dst = build_wolfssl(&out_dir);
 
     // Block some macros:https://github.com/rust-lang/rust-bindgen/issues/687

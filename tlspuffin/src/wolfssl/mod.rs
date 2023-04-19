@@ -12,6 +12,7 @@ use std::{
 };
 
 use foreign_types::{ForeignType, ForeignTypeRef};
+use log::warn;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
@@ -66,8 +67,8 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             let options = &put_descriptor.options;
 
             let use_clear = options
-                .get_option("clear")
-                .map(|value| value.parse::<bool>().unwrap_or(false))
+                .get_option("use_clear")
+                .map(|value| value.parse().unwrap_or(false))
                 .unwrap_or(false);
 
             let config = TlsPutConfig {

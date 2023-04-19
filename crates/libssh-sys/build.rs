@@ -22,8 +22,8 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = if cfg!(feature = "vendored-libssh096") {
-    "libssh-0.9.6"
+const REF: &str = if cfg!(feature = "vendored-libssh0104") {
+    "libssh-0.10.4"
 } else {
     "master"
 };
@@ -50,10 +50,11 @@ fn build(source_dir: &str) -> PathBuf {
     let config = config
         .define("CMAKE_C_COMPILER", cc)
         .define("WITH_GSSAPI", "OFF")
-        .define("BUILD_STATIC_LIB", "ON");
+        .define("BUILD_STATIC_LIB", "ON")
+        .cflag("-Wno-error,-Wstrict-prototypes");
 
     if cfg!(feature = "sancov") {
-        config.cflag("-fsanitize-coverage=trace-pc-guard");
+        config.cflag("-fsanicmtize-coverage=trace-pc-guard");
     }
 
     if cfg!(feature = "asan") {

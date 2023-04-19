@@ -54,6 +54,12 @@ jobs:
           - name: wolfssl510
             crate: tlspuffin
             features: wolfssl510
+          - name: wolfssl510-sig
+            crate: tlspuffin
+            features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
+          - name: wolfssl510-skip
+            crate: tlspuffin
+            features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
           - name: wolfssl520
             crate: tlspuffin
             features: wolfssl520
@@ -69,9 +75,30 @@ jobs:
           - name: wolfssl540
             crate: tlspuffin
             features: wolfssl540
+          - name: wolfssl540-sdos2
+            crate: tlspuffin
+            features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
+          - name: wolfssl530-cdos
+            crate: tlspuffin
+            features: wolfssl530,fix-CVE-2022-39173
           - name: wolfssl540_asan
             crate: tlspuffin
             features: wolfssl540,asan
+          - name: wolfssl540-buf
+            crate: tlspuffin
+            features: wolfssl540,fix-CVE-2022-42905
+          - name: wolfssl540-heap
+            crate: tlspuffin
+            features: wolfssl540,asan,fix-CVE-2022-39173
+          - name: wolfssl540_asan-perf
+            crate: tlspuffin
+            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
+          - name: wolfssl540-perf
+            crate: tlspuffin
+            features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+          - name: wolfssl540_asan-perf
+            crate: tlspuffin
+            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
           - name: libssh
             crate: sshpuffin
             features: ""
@@ -85,9 +112,14 @@ jobs:
             cargo-flags: "--no-default-features"
     name: Build "${{ matrix.name }}"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
+      - name: Setup Git
+        shell: bash
+        run: |
+          git config --global user.email "tlspuffin@tlspuffin"
+          git config --global user.name "tlspuffin"
       - name: Setup
         uses: ./.github/actions/setup
         with:
@@ -106,12 +138,12 @@ jobs:
         shell: bash
         run: just build ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }} --timings"
       - name: Upload Build Timings
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cargo-timings-${{ matrix.name }}
           path: target/cargo-timings/cargo-timing.html
       - name: Upload Build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.crate }}-${{ matrix.name }}
           path: target/x86_64-unknown-linux-gnu/release/${{ matrix.crate }}

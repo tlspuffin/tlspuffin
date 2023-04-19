@@ -73,7 +73,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let certificate_verify_rsa = term! {
         fn_certificate_verify(
-            (fn_invalid_signature_algorithm),
+            fn_invalid_signature_algorithm,
             // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
             //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
@@ -292,6 +292,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
+/// https://nvd.nist.gov/vuln/detail/cve-2021-3449
 pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
     let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
@@ -1081,21 +1082,11 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-    use nix::{
-        sys::{
-            signal::Signal,
-            wait::{
-                waitpid, WaitPidFlag,
-                WaitStatus::{Exited, Signaled},
-            },
-        },
-        unistd::{fork, ForkResult},
-    };
-    use puffin::put::{PutDescriptor, PutOptions};
+    use puffin::put::PutOptions;
     use test_log::test;
 
     use crate::{
-        put_registry::{TLS_PUT_REGISTRY, WOLFSSL520_PUT},
+        test_utils::expect_trace_crash,
         tls::{
             seeds::{seed_session_resumption_dhe_full, seed_successful12_with_tickets},
             trace_helper::{TraceExecutor, TraceHelper},
@@ -1103,31 +1094,38 @@ pub mod tests {
         },
     };
 
-    fn expect_crash<R>(mut func: R)
-    where
-        R: FnMut(),
-    {
-        match unsafe { fork() } {
-            Ok(ForkResult::Parent { child, .. }) => {
-                let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+    #[test]
+    fn test_term_sizes() {
+        let client = AgentName::first();
+        let _server = client.next();
 
-                if let Signaled(_, signal, _) = status {
-                    if signal != Signal::SIGSEGV && signal != Signal::SIGABRT {
-                        panic!("Trace did not crash with SIGSEGV/SIGABRT!")
+        for (name, trace) in [
+            seed_cve_2022_25638.build_named_trace(),
+            seed_cve_2022_25640.build_named_trace(),
+            seed_cve_2021_3449.build_named_trace(),
+            seed_heartbleed.build_named_trace(),
+            seed_freak.build_named_trace(),
+            seed_cve_2022_25640_simple.build_named_trace(),
+            seed_cve_2022_38153.build_named_trace(),
+            // TODO: 685 seed_cve_2022_39173.build_named_trace(),
+            // TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),
+            // TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),
+        ] {
+            for step in &trace.steps {
+                match &step.action {
+                    Action::Input(input) => {
+                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        let terms = input.recipe.size();
+                        assert!(
+                            terms < 300,
+                            "{} has step with too large term size {}!",
+                            name,
+                            terms
+                        );
                     }
-                } else if let Exited(_, code) = status {
-                    if code == 0 {
-                        panic!("Trace did not crash exit with non-zero code (AddressSanitizer)!")
-                    }
-                } else {
-                    panic!("Trace did not signal!")
+                    Action::Output(_) => {}
                 }
             }
-            Ok(ForkResult::Child) => {
-                func();
-                std::process::exit(0);
-            }
-            Err(_) => panic!("Fork failed"),
         }
     }
 
@@ -1137,33 +1135,28 @@ pub mod tests {
     #[test]
     #[ignore] // We can not check for this vulnerability right now
     fn test_seed_freak() {
-        expect_crash(|| {
-            seed_freak.execute_trace();
-        });
+        expect_trace_crash(seed_freak.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_heartbleed() {
-        expect_crash(|| {
-            seed_heartbleed.execute_trace();
-        })
+        expect_trace_crash(seed_heartbleed.build_trace(), PutOptions::default());
     }
 
     #[test]
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        expect_crash(|| {
-            seed_cve_2021_3449.execute_trace();
-        });
+        expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
     }
 
     #[test]
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640() {
         let ctx = seed_cve_2022_25640.execute_trace();
@@ -1174,6 +1167,7 @@ pub mod tests {
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
         let ctx = seed_cve_2022_25640_simple.execute_trace();
@@ -1184,6 +1178,7 @@ pub mod tests {
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
         let ctx = seed_cve_2022_25638.execute_trace();
@@ -1192,24 +1187,13 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
-    #[ignore] // Disabled because requires: disable("postauth", None) in wolfSSL build.rs
-    /// Internal ID was "Finding 1"
+    #[cfg(feature = "wolfssl540")]
+    #[cfg(feature = "wolfssl-disable-postauth")]
     fn test_seed_cve_2022_38152() {
-        let put = PutDescriptor {
-            name: WOLFSSL520_PUT,
-            options: PutOptions::new(vec![("clear", "true")]),
-        };
-
-        let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.descriptors[0].name;
-        let server = trace.prior_traces[0].descriptors[0].name;
-
-        expect_crash(move || {
-            trace.execute_with_puts(
-                &TLS_PUT_REGISTRY,
-                &[(initial_server, put.clone()), (server, put.clone())],
-            );
-        });
+        expect_trace_crash(
+            seed_session_resumption_dhe_full.build_trace(),
+            PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+        );
     }
 
     #[test]
@@ -1221,36 +1205,46 @@ pub mod tests {
             seed_successful12_with_tickets.execute_trace();
         }
 
-        expect_crash(|| {
-            seed_cve_2022_38153.execute_trace();
-        });
+        expect_trace_crash(seed_cve_2022_38153.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173() {
-        expect_crash(|| {
-            seed_cve_2022_39173.execute_trace();
-        })
+        expect_trace_crash(seed_cve_2022_39173.build_trace(), PutOptions::default());
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_full() {
-        expect_crash(|| {
-            seed_cve_2022_39173_full.execute_trace();
-        });
+        expect_trace_crash(
+            seed_cve_2022_39173_full.build_trace(),
+            PutOptions::default(),
+        );
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(feature = "wolfssl540", feature = "asan"))]
+    #[cfg(all(
+        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
+        feature = "asan"
+    ))]
+    #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_minimized() {
-        expect_crash(|| {
-            seed_cve_2022_39173_minimized.execute_trace();
-        });
+        expect_trace_crash(
+            seed_cve_2022_39173_minimized.build_trace(),
+            PutOptions::default(),
+        );
     }
 
     mod tcp {
@@ -1293,10 +1287,12 @@ pub mod tests {
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
-            let mut context = trace.execute_with_puts(
-                &TLS_PUT_REGISTRY,
-                &[(client_name, client.clone()), (server_name, server.clone())],
-            );
+            let mut context = trace
+                .execute_with_non_default_puts(
+                    &TLS_PUT_REGISTRY,
+                    &[(client_name, client.clone()), (server_name, server.clone())],
+                )
+                .unwrap();
 
             let client = AgentName::first();
             let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
@@ -1318,10 +1314,12 @@ pub mod tests {
             let trace = seed_cve_2022_39173_full.build_trace();
             let initial_server = trace.prior_traces[0].descriptors[0].name;
             let server = trace.descriptors[0].name;
-            let mut context = trace.execute_with_puts(
-                &TLS_PUT_REGISTRY,
-                &[(initial_server, put.clone()), (server, put)],
-            );
+            let mut context = trace
+                .execute_with_non_default_puts(
+                    &TLS_PUT_REGISTRY,
+                    &[(initial_server, put.clone()), (server, put)],
+                )
+                .unwrap();
 
             let server = AgentName::first().next();
             let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
