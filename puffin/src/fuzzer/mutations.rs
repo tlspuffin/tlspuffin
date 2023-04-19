@@ -109,7 +109,7 @@ pub fn trace_mutations<S, M: Matcher>(
     signature: &'static Signature,
 ) -> AllMuts<S,M>
 where
-    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
 {
     #[cfg(feature = "no-repeat")]
     let l = tuple_list!(

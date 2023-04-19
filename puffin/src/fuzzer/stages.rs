@@ -7,6 +7,7 @@ use libafl::{
     stages::{MutationalStage, Stage},
     state::{HasClientPerfMonitor, HasCorpus, HasRand},
     Error, Evaluator,
+    prelude::UsesState
 };
 
 /// The default mutational stage
@@ -15,8 +16,8 @@ pub struct PuffinMutationalStage<E, EM, I, M, S, Z>
 where
     M: Mutator<I, S>,
     I: Input,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasClientPerfMonitor + HasCorpus + HasRand,
+    Z: Evaluator<E, EM>,
 {
     mutator: M,
     #[allow(clippy::type_complexity)]
@@ -24,13 +25,15 @@ where
     max_iterations_per_stage: u64,
 }
 
-impl<E, EM, I, M, S, Z> MutationalStage<E, EM, I, M, S, Z>
+impl<E, EM, I, M, S, Z> MutationalStage<E, EM, I, M, Z>
     for PuffinMutationalStage<E, EM, I, M, S, Z>
 where
     M: Mutator<I, S>,
     I: Input,
-    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus + HasRand,
+    E: UsesState,
+    EM: UsesState,
+    Z: Evaluator<E, EM>,
 {
     /// The mutator, added to this stage
     #[inline]
@@ -50,12 +53,14 @@ where
     }
 }
 
-impl<E, EM, I, M, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<E, EM, I, M, S, Z>
+impl<E, EM, I, M, S, Z> Stage<E, EM, Z> for PuffinMutationalStage<E, EM, I, M, S, Z>
 where
     M: Mutator<I, S>,
     I: Input,
-    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus + HasRand,
+    E: UsesState,
+    EM: UsesState,
+    Z: Evaluator<E, EM>,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -78,10 +83,12 @@ where
 
 impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, M, S, Z>
 where
+ I: Input,
+ E: UsesState,
+ EM: UsesState,
     M: Mutator<I, S>,
-    I: Input,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    S: HasClientPerfMonitor + HasCorpus + HasRand,
+    Z: Evaluator<E, EM>,
 {
     /// Creates a new default mutational stage
     pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {

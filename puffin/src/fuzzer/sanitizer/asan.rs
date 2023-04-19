@@ -4,6 +4,7 @@ use std::{env, ffi::CStr, ptr};
 
 use log::info;
 
+#[cfg(target_os = "linux")]
 unsafe extern "C" fn iter_libs(
     info: *mut libc::dl_phdr_info,
     _size: libc::size_t,
@@ -37,6 +38,10 @@ pub fn setup_asan_env() {
     );
 }
 
+#[cfg(not(target_os = "linux"))]
+pub fn asan_info() {}
+
+#[cfg(target_os = "linux")]
 pub fn asan_info() {
     let defaults = unsafe {
         if libc::dl_iterate_phdr(Some(iter_libs), ptr::null_mut()) > 0 {
