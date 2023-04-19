@@ -44,7 +44,7 @@ pub fn asan_info() {}
 #[cfg(target_os = "linux")]
 pub fn asan_info() {
     let defaults = unsafe {
-        if libc::dl_iterate_phdr(Some(iter_libs), ptr::null_mut()) > 0 {
+        if libc::dl_iterate_phdr(Some(iter_libs), std::ptr::null_mut()) > 0 {
             info!("Running with ASAN support.",)
         } else {
             info!("Running WITHOUT ASAN support.")
