@@ -56,7 +56,7 @@ impl<F> StatsMonitor<F>
 where
     F: FnMut(String),
 {
-    fn client(&mut self, event_msg: &String, sender_id: u32) {
+    fn client(&mut self, event_msg: &String, sender_id: ClientId) {
         let client = self.client_stats_mut_for(sender_id);
 
         #[cfg(feature = "introspection")]
@@ -135,7 +135,7 @@ where
         (self.print_fn)(fmt);
 
         Statistics::Client(ClientStatistics {
-            id: sender_id,
+            id: sender_id.0,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
@@ -428,7 +428,7 @@ where
         self.start_time
     }
 
-    fn display(&mut self, event_msg: String, sender_id: u32) {
+    fn display(&mut self, event_msg: String, sender_id: ClientId) {
         self.log_count += 1;
 
         if self.log_count % 100 != 0 {
