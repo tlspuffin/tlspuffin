@@ -4,7 +4,6 @@ use once_cell::sync::OnceCell;
 use rand::Rng;
 
 use crate::{
-    algebra::signature::Signature,
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,

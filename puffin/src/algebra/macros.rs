@@ -51,7 +51,7 @@ macro_rules! term {
         let mut i = 0;
 
         #[allow(unused_assignments)]
-        #[allow(clippy::eval_order_dependence)]
+        #[allow(clippy::mixed_read_write_in_expression)]
         let arguments = vec![$({
             #[allow(unused)]
             if let Some(argument) = func.shape().argument_types.get(i) {

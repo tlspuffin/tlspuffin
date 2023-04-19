@@ -209,7 +209,7 @@ macro_rules! dynamic_fn {
 
                 let result: Result<$res, FnError> = self($(
                        #[allow(unused_assignments)]
-                       #[allow(clippy::eval_order_dependence)]
+                       #[allow(clippy::mixed_read_write_in_expression)]
                        {
                            if let Some(arg_) = args.get(index)
                                     .ok_or_else(|| {

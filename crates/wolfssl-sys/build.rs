@@ -5,7 +5,7 @@ use std::{
     io,
     io::{ErrorKind, Write},
     path::PathBuf,
-    process::{Command, ExitStatus},
+    process::Command,
 };
 
 use autotools::Config;
@@ -168,7 +168,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
 }
 
 fn main() -> std::io::Result<()> {
-    let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let _source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = env::var("OUT_DIR").unwrap();
     clone_wolfssl(&out_dir)?;
 

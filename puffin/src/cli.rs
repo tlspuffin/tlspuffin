@@ -11,7 +11,7 @@ use libafl::inputs::Input;
 use log::{error, info, LevelFilter};
 
 use crate::{
-    algebra::{error::FnError, set_deserialize_signature},
+    algebra::set_deserialize_signature,
     codec::Codec,
     experiment::*,
     fuzzer::{
@@ -272,7 +272,7 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
-        let trace = trace.to_file(format!("./seeds/{}.trace", name))?;
+        trace.to_file(format!("./seeds/{}.trace", name))?;
 
         info!("Generated seed traces into the directory ./corpus")
     }
@@ -298,7 +298,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     info!("Agents: {:?}", &trace.descriptors);
 

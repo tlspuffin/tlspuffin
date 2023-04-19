@@ -2,7 +2,7 @@ use std::process::Command;
 
 pub fn get_git_ref() -> String {
     Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
@@ -14,7 +14,7 @@ pub fn get_git_ref() -> String {
 
 pub fn get_git_msg() -> String {
     Command::new("git")
-        .args(&["log", "-1", "--pretty=%B"])
+        .args(["log", "-1", "--pretty=%B"])
         .output()
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())

@@ -2,7 +2,7 @@ use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
 use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::TuiMonitor, prelude::*};
-use log::{info, trace, warn, LevelFilter};
+use log::{info, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
@@ -214,8 +214,8 @@ where
             max_iters,
             mutation_stage_config:
                 MutationStageConfig {
-                    max_iterations_per_stage,
-                    max_mutations_per_iteration,
+                    max_iterations_per_stage: _,
+                    max_mutations_per_iteration: _,
                 },
             ..
         } = self.config;
@@ -405,8 +405,8 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     let FuzzerConfig {
         core_definition,
         corpus_dir,
-        objective_dir,
-        static_seed,
+        objective_dir: _,
+        static_seed: _,
         log_file,
         monitor_file,
         broker_port,

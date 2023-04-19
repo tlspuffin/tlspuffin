@@ -1,5 +1,4 @@
 use std::{
-    any::TypeId,
     cell::{Ref, RefMut},
     cmp,
     ffi::{CStr, CString},
@@ -19,9 +18,9 @@ use wolfssl_sys as wolf;
 
 use crate::{
     bio,
-    callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry, UserData},
+    callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry},
     error::{ErrorCode, ErrorStack, InnerError, SslError},
-    util::{cvt, cvt_n, cvt_p},
+    util::{cvt, cvt_p},
     x509::X509Ref,
     TLSVersion,
 };

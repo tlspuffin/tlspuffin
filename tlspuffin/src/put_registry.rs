@@ -1,31 +1,9 @@
 use puffin::{
-    algebra::{signature::Signature, Matcher},
-    error::Error,
-    protocol::{
-        MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer,
-    },
-    put::{PutDescriptor, PutName},
+    put::PutName,
     put_registry::{Factory, PutRegistry},
-    trace::Trace,
-    variable_data::VariableData,
 };
 
-use crate::{
-    claims::TlsClaim,
-    debug::{debug_message_with_info, debug_opaque_message_with_info},
-    protocol::TLSProtocolBehavior,
-    query::TlsQueryMatcher,
-    tls::{
-        rustls::{
-            msgs,
-            msgs::message::{Message, OpaqueMessage},
-        },
-        seeds::create_corpus,
-        violation::TlsSecurityViolationPolicy,
-        TLS_SIGNATURE,
-    },
-};
+use crate::protocol::TLSProtocolBehavior;
 
 pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
 pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);

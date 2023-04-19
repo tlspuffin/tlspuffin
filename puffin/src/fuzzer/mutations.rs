@@ -421,7 +421,7 @@ where
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
-        (&mut trace.steps).insert(insert_index, step);
+        trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
 }
@@ -778,8 +778,7 @@ mod tests {
             test_signature::{TestTrace, *},
             AnyMatcher, Term,
         },
-        graphviz::write_graphviz,
-        trace::{Action, Step, Trace},
+        trace::{Action, Step},
     };
 
     fn create_state(
