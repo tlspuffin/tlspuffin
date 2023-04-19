@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/monitors/tui/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/monitors/tui/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
@@ -420,20 +420,32 @@
 <span id="414">414</span>
 <span id="415">415</span>
 <span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Monitor based on tui-rs</span>
 
-<span class="kw">use</span> <span class="ident">crossterm</span>::{
-    <span class="ident">event</span>::{<span class="self">self</span>, <span class="ident">DisableMouseCapture</span>, <span class="ident">EnableMouseCapture</span>, <span class="ident">Event</span>, <span class="ident">KeyCode</span>},
-    <span class="ident">execute</span>,
-    <span class="ident">terminal</span>::{<span class="ident">disable_raw_mode</span>, <span class="ident">enable_raw_mode</span>, <span class="ident">EnterAlternateScreen</span>, <span class="ident">LeaveAlternateScreen</span>},
-};
-<span class="kw">use</span> <span class="ident">hashbrown::HashMap</span>;
-<span class="kw">use</span> <span class="ident">tui</span>::{<span class="ident">backend::CrosstermBackend</span>, <span class="ident">Terminal</span>};
-
+<span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">collections::VecDeque</span>,
     <span class="ident">fmt::Write</span>,
     <span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">BufRead</span>},
+    <span class="ident">panic</span>,
     <span class="ident">string::String</span>,
     <span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>},
     <span class="ident">thread</span>,
@@ -441,9 +453,17 @@
     <span class="ident">vec::Vec</span>,
 };
 
+<span class="kw">use</span> <span class="ident">crossterm</span>::{
+    <span class="ident">cursor</span>::{<span class="ident">EnableBlinking</span>, <span class="ident">Show</span>},
+    <span class="ident">event</span>::{<span class="self">self</span>, <span class="ident">DisableMouseCapture</span>, <span class="ident">EnableMouseCapture</span>, <span class="ident">Event</span>, <span class="ident">KeyCode</span>},
+    <span class="ident">execute</span>,
+    <span class="ident">terminal</span>::{<span class="ident">disable_raw_mode</span>, <span class="ident">enable_raw_mode</span>, <span class="ident">EnterAlternateScreen</span>, <span class="ident">LeaveAlternateScreen</span>},
+};
+<span class="kw">use</span> <span class="ident">hashbrown::HashMap</span>;
+<span class="kw">use</span> <span class="ident">tui</span>::{<span class="ident">backend::CrosstermBackend</span>, <span class="ident">Terminal</span>};
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;introspection&quot;</span>)]</span>
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ClientPerfMonitor</span>, <span class="ident">PerfFeature</span>};
-
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">bolts</span>::{<span class="ident">current_time</span>, <span class="ident">format_duration_hms</span>},
     <span class="ident">monitors</span>::{<span class="ident">ClientStats</span>, <span class="ident">Monitor</span>, <span class="ident">UserStats</span>},
@@ -556,7 +576,7 @@
 
                 <span class="comment">// Get the actual feature from the feature index for printing its name</span>
                 <span class="kw">let</span> <span class="ident">feature</span>: <span class="ident">PerfFeature</span> <span class="op">=</span> <span class="ident">feature_index</span>.<span class="ident">into</span>();
-                <span class="ident">features_percentages</span>.<span class="ident">push</span>((<span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">feature</span>), <span class="ident">feature_percent</span>));
+                <span class="ident">features_percentages</span>.<span class="ident">push</span>((<span class="macro">format!</span>(<span class="string">&quot;{feature:?}&quot;</span>), <span class="ident">feature_percent</span>));
             }
 
             <span class="self">self</span>.<span class="ident">stages</span>.<span class="ident">push</span>(<span class="ident">features_percentages</span>);
@@ -696,19 +716,19 @@
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">client_stats_mut_for</span>(<span class="ident">sender_id</span>);
         <span class="kw">let</span> <span class="ident">exec_sec</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">execs_per_sec</span>(<span class="ident">cur_time</span>);
 
-        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;#{}&quot;</span>, <span class="ident">sender_id</span>);
+        <span class="kw">let</span> <span class="ident">sender</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;#{sender_id}&quot;</span>);
         <span class="kw">let</span> <span class="ident">pad</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">event_msg</span>.<span class="ident">len</span>() <span class="op">+</span> <span class="ident">sender</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="number">13</span> {
             <span class="string">&quot; &quot;</span>.<span class="ident">repeat</span>(<span class="number">13</span> <span class="op">-</span> <span class="ident">event_msg</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">sender</span>.<span class="ident">len</span>())
         } <span class="kw">else</span> {
             <span class="ident">String::new</span>()
         };
-        <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}{} {}&quot;</span>, <span class="ident">event_msg</span>, <span class="ident">pad</span>, <span class="ident">sender</span>);
+        <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{event_msg}{pad} {sender}&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fmt</span> <span class="op">=</span> <span class="macro">format!</span>(
             <span class="string">&quot;[{}] corpus: {}, objectives: {}, executions: {}, exec/sec: {}&quot;</span>,
             <span class="ident">head</span>, <span class="ident">client</span>.<span class="ident">corpus_size</span>, <span class="ident">client</span>.<span class="ident">objective_size</span>, <span class="ident">client</span>.<span class="ident">executions</span>, <span class="ident">exec_sec</span>
         );
         <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">val</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">client</span>.<span class="ident">user_monitor</span> {
-            <span class="macro">write!</span>(<span class="ident">fmt</span>, <span class="string">&quot;, {}: {}&quot;</span>, <span class="ident">key</span>, <span class="ident">val</span>).<span class="ident">unwrap</span>();
+            <span class="macro">write!</span>(<span class="ident">fmt</span>, <span class="string">&quot;, {key}: {val}&quot;</span>).<span class="ident">unwrap</span>();
         }
 
         {
@@ -783,6 +803,22 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_tick</span> <span class="op">=</span> <span class="ident">Instant::now</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cnt</span> <span class="op">=</span> <span class="number">0</span>;
+
+        <span class="comment">// Catching panics when the main thread dies</span>
+        <span class="kw">let</span> <span class="ident">old_hook</span> <span class="op">=</span> <span class="ident">panic::take_hook</span>();
+        <span class="ident">panic::set_hook</span>(<span class="ident">Box::new</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">panic_info</span><span class="op">|</span> {
+            <span class="ident">disable_raw_mode</span>().<span class="ident">unwrap</span>();
+            <span class="macro">execute!</span>(
+                <span class="ident">io::stdout</span>(),
+                <span class="ident">LeaveAlternateScreen</span>,
+                <span class="ident">DisableMouseCapture</span>,
+                <span class="ident">Show</span>,
+                <span class="ident">EnableBlinking</span>,
+            )
+            .<span class="ident">unwrap</span>();
+            <span class="ident">old_hook</span>(<span class="ident">panic_info</span>);
+        }));
+
         <span class="kw">loop</span> {
             <span class="comment">// to avoid initial ui glitches</span>
             <span class="kw">if</span> <span class="ident">cnt</span> <span class="op">&lt;</span> <span class="number">8</span> {

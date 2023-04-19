@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/rangemap-0.1.14/src/inclusive_map.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>inclusive_map.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../rangemap/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/rangemap-1.0.3/src/inclusive_map.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>inclusive_map.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../rangemap/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../rangemap/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -1403,6 +1403,12 @@
 <span id="1397">1397</span>
 <span id="1398">1398</span>
 <span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident"><span class="kw">super</span>::range_wrapper::RangeInclusiveStartWrapper</span>;
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::std_ext</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">alloc::collections::BTreeMap</span>;
@@ -1705,7 +1711,7 @@
             .<span class="ident">filter</span>(<span class="op">|</span>(<span class="ident">stored_range_start_wrapper</span>, <span class="ident">_stored_value</span>)<span class="op">|</span> {
                 <span class="comment">// Does the only candidate range overlap</span>
                 <span class="comment">// the range to insert?</span>
-                <span class="ident">stored_range_start_wrapper</span>.<span class="ident">range</span>.<span class="ident">overlaps</span>(<span class="kw-2">&amp;</span><span class="ident">range</span>)
+                <span class="ident">stored_range_start_wrapper</span>.<span class="ident">range</span>.<span class="ident">overlaps</span>(<span class="ident">range</span>)
             })
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">stored_range_start_wrapper</span>, <span class="ident">stored_value</span>)<span class="op">|</span> {
                 (<span class="ident">stored_range_start_wrapper</span>.<span class="ident">clone</span>(), <span class="ident">stored_value</span>.<span class="ident">clone</span>())
@@ -1714,7 +1720,7 @@
             <span class="self">self</span>.<span class="ident">adjust_overlapping_ranges_for_remove</span>(
                 <span class="ident">stored_range_start_wrapper</span>,
                 <span class="ident">stored_value</span>,
-                <span class="kw-2">&amp;</span><span class="ident">range</span>,
+                <span class="ident">range</span>,
             );
         }
 
@@ -1742,7 +1748,7 @@
             <span class="self">self</span>.<span class="ident">adjust_overlapping_ranges_for_remove</span>(
                 <span class="ident">stored_range_start_wrapper</span>,
                 <span class="ident">stored_value</span>,
-                <span class="kw-2">&amp;</span><span class="ident">range</span>,
+                <span class="ident">range</span>,
             );
         }
     }
@@ -1837,51 +1843,15 @@
     <span class="doccomment">/// any range stored in the map.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The iterator element type is `RangeInclusive&lt;K&gt;`.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// NOTE: Calling `gaps` eagerly finds the first gap,</span>
-    <span class="doccomment">/// even if the iterator is never consumed.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">gaps</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">outer_range</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>) -&gt; <span class="ident">Gaps</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">StepFnsT</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">btm</span>.<span class="ident">keys</span>().<span class="ident">peekable</span>();
-
-        <span class="comment">// Find the first potential gap.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">candidate_start</span> <span class="op">=</span> <span class="ident">outer_range</span>.<span class="ident">start</span>().<span class="ident">clone</span>();
-        <span class="comment">// We might be already done from the start,</span>
-        <span class="comment">// but not be able to represent it using</span>
-        <span class="comment">// `candidate_start` alone if we&#39;re at the end</span>
-        <span class="comment">// of the key domain.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">done</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="ident">keys</span>.<span class="ident">peek</span>() {
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">end</span>() <span class="op">&lt;</span> <span class="ident">outer_range</span>.<span class="ident">start</span>() {
-                <span class="comment">// This range sits entirely before the start of</span>
-                <span class="comment">// the outer range; just skip it.</span>
-                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">keys</span>.<span class="ident">next</span>();
-            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">start</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="ident">outer_range</span>.<span class="ident">start</span>() {
-                <span class="comment">// This range overlaps the start of the</span>
-                <span class="comment">// outer range, so the first possible candidate</span>
-                <span class="comment">// range begins immediately after its end.</span>
-                <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">end</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="ident">outer_range</span>.<span class="ident">end</span>() {
-                    <span class="comment">// There&#39;s a risk of overflowing;</span>
-                    <span class="comment">// use our extra &quot;done&quot; flag to represent</span>
-                    <span class="comment">// that the iterator is already done.</span>
-                    <span class="comment">// (Don&#39;t worry about `candidate_start`</span>
-                    <span class="comment">// we&#39;ll ignore everything else if `done`</span>
-                    <span class="comment">// is `true`.)</span>
-                    <span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                } <span class="kw">else</span> {
-                    <span class="ident">candidate_start</span> <span class="op">=</span> <span class="ident">StepFnsT::add_one</span>(<span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">end</span>());
-                }
-                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">keys</span>.<span class="ident">next</span>();
-            } <span class="kw">else</span> {
-                <span class="comment">// The rest of the items might contribute to gaps.</span>
-                <span class="kw">break</span>;
-            }
-        }
-
         <span class="ident">Gaps</span> {
-            <span class="ident">done</span>,
+            <span class="ident">done</span>: <span class="bool-val">false</span>,
             <span class="ident">outer_range</span>,
-            <span class="ident">keys</span>,
-            <span class="ident">candidate_start</span>,
+            <span class="ident">keys</span>: <span class="self">self</span>.<span class="ident">btm</span>.<span class="ident">keys</span>(),
+            <span class="comment">// We&#39;ll start the candidate range at the start of the outer range</span>
+            <span class="comment">// without checking what&#39;s there. Each time we yield an item,</span>
+            <span class="comment">// we&#39;ll skip any ranges we find before the next gap.</span>
+            <span class="ident">candidate_start</span>: <span class="ident">outer_range</span>.<span class="ident">start</span>().<span class="ident">clone</span>(),
             <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
         }
     }
@@ -2070,9 +2040,7 @@
     <span class="doccomment">/// All other things here are ignored if `done` is `true`.</span>
     <span class="ident">done</span>: <span class="ident">bool</span>,
     <span class="ident">outer_range</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>,
-    <span class="ident">keys</span>: <span class="ident">core::iter::Peekable</span><span class="op">&lt;</span>
-        <span class="ident">alloc::collections::btree_map::Keys</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">RangeInclusiveStartWrapper</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>, <span class="ident">V</span><span class="op">&gt;</span>,
-    <span class="op">&gt;</span>,
+    <span class="ident">keys</span>: <span class="ident">alloc::collections::btree_map::Keys</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">RangeInclusiveStartWrapper</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>, <span class="ident">V</span><span class="op">&gt;</span>,
     <span class="ident">candidate_start</span>: <span class="ident">K</span>,
     <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">StepFnsT</span><span class="op">&gt;</span>,
 }
@@ -2093,49 +2061,49 @@
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">RangeInclusive</span><span class="op">&lt;</span><span class="ident">K</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::Item</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">done</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">candidate_start</span> <span class="op">&gt;</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">done</span> {
             <span class="comment">// We&#39;ve already passed the end of the outer range;</span>
             <span class="comment">// there are no more gaps to find.</span>
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class="comment">// Figure out where this gap ends.</span>
-        <span class="kw">let</span> (<span class="ident">end</span>, <span class="ident">next_candidate_start</span>) <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">keys</span>.<span class="ident">next</span>() {
-            <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">start</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
-                <span class="comment">// The gap goes up until just before the start of the next item,</span>
-                <span class="comment">// and the next candidate starts after it.</span>
-                (
-                    <span class="ident">StepFnsT::sub_one</span>(<span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">start</span>()),
-                    <span class="ident">StepFnsT::add_one</span>(<span class="ident">item</span>.<span class="ident">range</span>.<span class="ident">end</span>()),
-                )
-            } <span class="kw">else</span> {
-                <span class="comment">// The item sits after the end of the outer range,</span>
-                <span class="comment">// so this gap ends at the end of the outer range.</span>
-                <span class="comment">// This also means there will be no more gaps.</span>
-                <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                (
-                    <span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>().<span class="ident">clone</span>(),
-                    <span class="comment">// This value will be ignored.</span>
-                    <span class="self">self</span>.<span class="ident">candidate_start</span>.<span class="ident">clone</span>(),
-                )
+        <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">keys</span> {
+            <span class="kw">let</span> <span class="ident">range</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">item</span>.<span class="ident">range</span>;
+            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">range</span>.<span class="ident">end</span>() <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">candidate_start</span> {
+                <span class="comment">// We&#39;re already completely past it; ignore it.</span>
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">range</span>.<span class="ident">start</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">candidate_start</span> {
+                <span class="comment">// We&#39;re inside it; move past it.</span>
+                <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">range</span>.<span class="ident">end</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
+                    <span class="comment">// Special case: it goes all the way to the end so we</span>
+                    <span class="comment">// can&#39;t safely skip past it. (Might overflow.)</span>
+                    <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                    <span class="kw">return</span> <span class="prelude-val">None</span>;
+                }
+                <span class="self">self</span>.<span class="ident">candidate_start</span> <span class="op">=</span> <span class="ident">StepFnsT::add_one</span>(<span class="ident">range</span>.<span class="ident">end</span>());
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">range</span>.<span class="ident">start</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
+                <span class="comment">// It starts before the end of the outer range,</span>
+                <span class="comment">// so move past it and then yield a gap.</span>
+                <span class="kw">let</span> <span class="ident">gap</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">candidate_start</span>.<span class="ident">clone</span>()..<span class="op">=</span><span class="ident">StepFnsT::sub_one</span>(<span class="ident">range</span>.<span class="ident">start</span>());
+                <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">range</span>.<span class="ident">end</span>() <span class="op">&gt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
+                    <span class="comment">// Special case: it goes all the way to the end so we</span>
+                    <span class="comment">// can&#39;t safely skip past it. (Might overflow.)</span>
+                    <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                } <span class="kw">else</span> {
+                    <span class="self">self</span>.<span class="ident">candidate_start</span> <span class="op">=</span> <span class="ident">StepFnsT::add_one</span>(<span class="ident">range</span>.<span class="ident">end</span>());
+                }
+                <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">gap</span>);
             }
-        } <span class="kw">else</span> {
-            <span class="comment">// There&#39;s no next item; the end is at the</span>
-            <span class="comment">// end of the outer range.</span>
-            <span class="comment">// This also means there will be no more gaps.</span>
-            <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
-            (
-                <span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>().<span class="ident">clone</span>(),
-                <span class="comment">// This value will be ignored.</span>
-                <span class="self">self</span>.<span class="ident">candidate_start</span>.<span class="ident">clone</span>(),
-            )
-        };
+        }
 
-        <span class="comment">// Move the next candidate gap start past the end</span>
-        <span class="comment">// of this gap, and yield the gap we found.</span>
-        <span class="kw">let</span> <span class="ident">gap</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">candidate_start</span>.<span class="ident">clone</span>()..<span class="op">=</span><span class="ident">end</span>;
-        <span class="self">self</span>.<span class="ident">candidate_start</span> <span class="op">=</span> <span class="ident">next_candidate_start</span>;
-        <span class="prelude-val">Some</span>(<span class="ident">gap</span>)
+        <span class="comment">// Now that we&#39;ve run out of items, the only other possible</span>
+        <span class="comment">// gap is one at the end of the outer range.</span>
+        <span class="self">self</span>.<span class="ident">done</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">candidate_start</span> <span class="op">&lt;</span><span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>() {
+            <span class="comment">// There&#39;s a gap at the end!</span>
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">candidate_start</span>.<span class="ident">clone</span>()..<span class="op">=</span><span class="self">self</span>.<span class="ident">outer_range</span>.<span class="ident">end</span>().<span class="ident">clone</span>())
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
+        }
     }
 }
 
@@ -2315,7 +2283,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="comment">// Test every permutation of a bunch of touching and overlapping ranges.</span>
     <span class="kw">fn</span> <span class="ident">lots_of_interesting_ranges</span>() {
-        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::stupid_range_map::StupidU32RangeMap</span>;
+        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::dense::DenseU32RangeMap</span>;
         <span class="kw">use</span> <span class="ident">permutator::Permutation</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ranges_with_values</span> <span class="op">=</span> [
@@ -2335,16 +2303,17 @@
 
         <span class="ident">ranges_with_values</span>.<span class="ident">permutation</span>().<span class="ident">for_each</span>(<span class="op">|</span><span class="ident">permutation</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">range_map</span>: <span class="ident">RangeInclusiveMap</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RangeInclusiveMap::new</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stupid</span>: <span class="ident">StupidU32RangeMap</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">StupidU32RangeMap::new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dense</span>: <span class="ident">DenseU32RangeMap</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">DenseU32RangeMap::new</span>();
 
             <span class="kw">for</span> (<span class="ident">k</span>, <span class="ident">v</span>) <span class="kw">in</span> <span class="ident">permutation</span> {
                 <span class="comment">// Insert it into both maps.</span>
                 <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="ident">k</span>.<span class="ident">clone</span>(), <span class="ident">v</span>);
-                <span class="ident">stupid</span>.<span class="ident">insert</span>(<span class="ident">k</span>, <span class="ident">v</span>);
+                <span class="ident">dense</span>.<span class="ident">insert</span>(<span class="ident">k</span>, <span class="ident">v</span>);
 
                 <span class="comment">// At every step, both maps should contain the same stuff.</span>
-                <span class="kw">let</span> <span class="ident">stupid2</span>: <span class="ident">StupidU32RangeMap</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">range_map</span>.<span class="ident">clone</span>().<span class="ident">into</span>();
-                <span class="macro">assert_eq!</span>(<span class="ident">stupid</span>, <span class="ident">stupid2</span>);
+                <span class="kw">let</span> <span class="ident">sparse</span> <span class="op">=</span> <span class="ident">range_map</span>.<span class="ident">to_vec</span>();
+                <span class="kw">let</span> <span class="ident">dense</span> <span class="op">=</span> <span class="ident">dense</span>.<span class="ident">to_vec</span>();
+                <span class="macro">assert_eq!</span>(<span class="ident">sparse</span>, <span class="ident">dense</span>);
             }
         });
     }
@@ -2727,6 +2696,31 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">no_empty_gaps</span>() {
+        <span class="comment">// Make two ranges different values so they don&#39;t</span>
+        <span class="comment">// get coalesced.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">range_map</span>: <span class="ident">RangeInclusiveMap</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RangeInclusiveMap::new</span>();
+        <span class="comment">// 0 1 2 3 4 5 6 7 8 9</span>
+        <span class="comment">// ◌ ◌ ◌ ◌ ◆-◆ ◌ ◌ ◌ ◌</span>
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">4</span>..<span class="op">=</span><span class="number">5</span>, <span class="bool-val">true</span>);
+        <span class="comment">// 0 1 2 3 4 5 6 7 8 9</span>
+        <span class="comment">// ◌ ◌ ◆-◆ ◌ ◌ ◌ ◌ ◌ ◌</span>
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">2</span>..<span class="op">=</span><span class="number">3</span>, <span class="bool-val">false</span>);
+        <span class="comment">// 0 1 2 3 4 5 6 7 8 9</span>
+        <span class="comment">// ◌ ●-------------● ◌</span>
+        <span class="kw">let</span> <span class="ident">outer_range</span> <span class="op">=</span> <span class="number">1</span>..<span class="op">=</span><span class="number">8</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">gaps</span> <span class="op">=</span> <span class="ident">range_map</span>.<span class="ident">gaps</span>(<span class="kw-2">&amp;</span><span class="ident">outer_range</span>);
+        <span class="comment">// Should yield gaps at start and end, but not between the</span>
+        <span class="comment">// two touching items.</span>
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="number">1</span>..<span class="op">=</span><span class="number">1</span>));
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="number">6</span>..<span class="op">=</span><span class="number">8</span>));
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
+        <span class="comment">// Gaps iterator should be fused.</span>
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">no_overflow_finding_gaps_at_key_domain_extremes</span>() {
         <span class="comment">// Items and outer range both at extremes.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">range_map</span>: <span class="ident">RangeInclusiveMap</span><span class="op">&lt;</span><span class="ident">u8</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RangeInclusiveMap::new</span>();
@@ -2751,6 +2745,24 @@
         <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">1</span>..<span class="op">=</span><span class="number">254</span>, <span class="bool-val">false</span>);
         <span class="ident">range_map</span>.<span class="ident">gaps</span>(<span class="kw-2">&amp;</span>(<span class="number">0</span>..<span class="op">=</span><span class="number">5</span>));
         <span class="ident">range_map</span>.<span class="ident">gaps</span>(<span class="kw-2">&amp;</span>(<span class="number">250</span>..<span class="op">=</span><span class="number">255</span>));
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">adjacent_unit_width_items</span>() {
+        <span class="comment">// Items two items next to each other at the start, and at the end.</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">range_map</span>: <span class="ident">RangeInclusiveMap</span><span class="op">&lt;</span><span class="ident">u8</span>, <span class="ident">bool</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RangeInclusiveMap::new</span>();
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">0</span>..<span class="op">=</span><span class="number">0</span>, <span class="bool-val">false</span>);
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">1</span>..<span class="op">=</span><span class="number">1</span>, <span class="bool-val">true</span>);
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">254</span>..<span class="op">=</span><span class="number">254</span>, <span class="bool-val">false</span>);
+        <span class="ident">range_map</span>.<span class="ident">insert</span>(<span class="number">255</span>..<span class="op">=</span><span class="number">255</span>, <span class="bool-val">true</span>);
+
+        <span class="kw">let</span> <span class="ident">outer_range</span> <span class="op">=</span> <span class="number">0</span>..<span class="op">=</span><span class="number">255</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">gaps</span> <span class="op">=</span> <span class="ident">range_map</span>.<span class="ident">gaps</span>(<span class="kw-2">&amp;</span><span class="ident">outer_range</span>);
+        <span class="comment">// Should yield one big gap in the middle.</span>
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">Some</span>(<span class="number">2</span>..<span class="op">=</span><span class="number">253</span>));
+        <span class="comment">// Gaps iterator should be fused.</span>
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">gaps</span>.<span class="ident">next</span>(), <span class="prelude-val">None</span>);
     }
 
     <span class="doccomment">///</span>

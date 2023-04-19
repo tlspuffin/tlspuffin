@@ -1050,63 +1050,12 @@
 <span id="1044">1044</span>
 <span id="1045">1045</span>
 <span id="1046">1046</span>
-<span id="1047">1047</span>
-<span id="1048">1048</span>
-<span id="1049">1049</span>
-<span id="1050">1050</span>
-<span id="1051">1051</span>
-<span id="1052">1052</span>
-<span id="1053">1053</span>
-<span id="1054">1054</span>
-<span id="1055">1055</span>
-<span id="1056">1056</span>
-<span id="1057">1057</span>
-<span id="1058">1058</span>
-<span id="1059">1059</span>
-<span id="1060">1060</span>
-<span id="1061">1061</span>
-<span id="1062">1062</span>
-<span id="1063">1063</span>
-<span id="1064">1064</span>
-<span id="1065">1065</span>
-<span id="1066">1066</span>
-<span id="1067">1067</span>
-<span id="1068">1068</span>
-<span id="1069">1069</span>
-<span id="1070">1070</span>
-<span id="1071">1071</span>
-<span id="1072">1072</span>
-<span id="1073">1073</span>
-<span id="1074">1074</span>
-<span id="1075">1075</span>
-<span id="1076">1076</span>
-<span id="1077">1077</span>
-<span id="1078">1078</span>
-<span id="1079">1079</span>
-<span id="1080">1080</span>
-<span id="1081">1081</span>
-<span id="1082">1082</span>
-<span id="1083">1083</span>
-<span id="1084">1084</span>
-<span id="1085">1085</span>
-<span id="1086">1086</span>
-<span id="1087">1087</span>
-<span id="1088">1088</span>
-<span id="1089">1089</span>
-<span id="1090">1090</span>
-<span id="1091">1091</span>
-<span id="1092">1092</span>
-<span id="1093">1093</span>
-<span id="1094">1094</span>
-<span id="1095">1095</span>
-<span id="1096">1096</span>
-<span id="1097">1097</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">libafl</span>::{
     <span class="ident">bolts</span>::{
         <span class="ident">rands::Rand</span>,
-        <span class="ident">tuples</span>::{<span class="ident">tuple_list</span>, <span class="ident">tuple_list_type</span>},
+        <span class="ident">tuples</span>::{<span class="ident">tuple_list</span>, <span class="ident">tuple_list_type</span>, <span class="ident">Named</span>},
     },
-    <span class="ident">mutators::MutationResult</span>,
+    <span class="ident">mutators</span>::{<span class="ident">MutationResult</span>, <span class="ident">Mutator</span>},
     <span class="ident">state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasMaxSize</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasRand</span>},
     <span class="ident">Error</span>,
 };
@@ -1171,7 +1120,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1203,7 +1152,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">MutationResult::Skipped</span>)
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">SwapMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1236,7 +1185,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1283,7 +1232,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">RemoveAndLiftMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1322,7 +1271,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1371,7 +1320,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">ReplaceMatchMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1404,7 +1353,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1430,7 +1379,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">ReplaceReuseMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1460,7 +1409,7 @@
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1483,7 +1432,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">MutationResult::Mutated</span>)
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">SkipMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1512,7 +1461,7 @@
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1536,7 +1485,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">MutationResult::Mutated</span>)
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">RepeatMutator</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1579,7 +1528,7 @@
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::mutators::Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
@@ -1612,9 +1561,9 @@
         }
     }
 }
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">libafl::bolts::tuples::Named</span> <span class="kw">for</span> <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span><span class="op">&gt;</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Named</span> <span class="kw">for</span> <span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span><span class="op">&gt;</span>
 <span class="kw">where</span>
-    <span class="ident">S</span>: <span class="ident">libafl::state::HasRand</span>,
+    <span class="ident">S</span>: <span class="ident">HasRand</span>,
 {
     <span class="kw">fn</span> <span class="ident">name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">str</span> {
         <span class="ident">std::any::type_name</span>::<span class="op">&lt;</span><span class="ident">GenerateMutator</span><span class="op">&lt;</span><span class="ident">S</span>, <span class="ident">M</span><span class="op">&gt;</span><span class="op">&gt;</span>()
@@ -2130,12 +2079,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stats</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">u32</span>, <span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
 
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10000</span> {
-            <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident"><span class="kw">crate</span>::fuzzer::mutations::util::choose</span>(
-                <span class="kw-2">&amp;</span><span class="ident">trace</span>,
-                <span class="ident">TermConstraints::default</span>(),
-                <span class="kw-2">&amp;mut</span> <span class="ident">rand</span>,
-            )
-            .<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">choose</span>(<span class="kw-2">&amp;</span><span class="ident">trace</span>, <span class="ident">TermConstraints::default</span>(), <span class="kw-2">&amp;mut</span> <span class="ident">rand</span>).<span class="ident">unwrap</span>();
 
             <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">term</span>.<span class="number">0</span>.<span class="ident">resistant_id</span>();
 
@@ -2150,52 +2094,6 @@
 
         <span class="macro">assert!</span>(<span class="ident">std_dev</span> <span class="op">&lt;</span> <span class="number">30.0</span>);
         <span class="macro">assert_eq!</span>(<span class="ident">term_size</span>, <span class="ident">stats</span>.<span class="ident">len</span>());
-    }
-
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count_functions_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">find_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="ident">usize</span> {
-            <span class="self">self</span>.<span class="ident">steps</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">step</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">action</span> {
-                    <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; <span class="ident">input</span>.<span class="ident">recipe</span>.<span class="ident">count_functions_by_name</span>(<span class="ident">find_name</span>),
-                    <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; <span class="number">0</span>,
-                })
-                .<span class="ident">sum</span>()
-        }
-
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count_functions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
-            <span class="self">self</span>.<span class="ident">steps</span>
-                .<span class="ident">iter</span>()
-                .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">step</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">action</span> {
-                    <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">input</span>.<span class="ident">recipe</span>),
-                    <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-                })
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">term</span><span class="op">|</span> <span class="ident">term</span>.<span class="ident">size</span>())
-                .<span class="ident">sum</span>()
-        }
-
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_plots</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">u16</span>) {
-            <span class="ident">write_graphviz</span>(
-                <span class="macro">format!</span>(<span class="string">&quot;test_mutation{}.svg&quot;</span>, <span class="ident">i</span>).<span class="ident">as_str</span>(),
-                <span class="string">&quot;svg&quot;</span>,
-                <span class="self">self</span>.<span class="ident">dot_graph</span>(<span class="bool-val">true</span>).<span class="ident">as_str</span>(),
-            )
-            .<span class="ident">unwrap</span>();
-        }
-    }
-
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">M</span>: <span class="ident">Matcher</span><span class="op">&gt;</span> <span class="ident">Term</span><span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span> {
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">count_functions_by_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">find_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; <span class="ident">usize</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">found</span> <span class="op">=</span> <span class="number">0</span>;
-            <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">into_iter</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Term::Application</span>(<span class="ident">func</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">term</span> {
-                    <span class="kw">if</span> <span class="ident">func</span>.<span class="ident">name</span>() <span class="op">==</span> <span class="ident">find_name</span> {
-                        <span class="ident">found</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
-                    }
-                }
-            }
-            <span class="ident">found</span>
-        }
     }
 }
 </code></pre></div>

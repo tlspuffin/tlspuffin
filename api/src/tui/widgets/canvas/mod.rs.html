@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.16.0/src/widgets/canvas/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.18.0/src/widgets/canvas/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
@@ -506,6 +506,7 @@
 <span id="500">500</span>
 <span id="501">501</span>
 <span id="502">502</span>
+<span id="503">503</span>
 </pre><pre class="rust"><code><span class="kw">mod</span> <span class="ident">line</span>;
 <span class="kw">mod</span> <span class="ident">map</span>;
 <span class="kw">mod</span> <span class="ident">points</span>;
@@ -522,6 +523,7 @@
     <span class="ident">layout::Rect</span>,
     <span class="ident">style</span>::{<span class="ident">Color</span>, <span class="ident">Style</span>},
     <span class="ident">symbols</span>,
+    <span class="ident">text::Spans</span>,
     <span class="ident">widgets</span>::{<span class="ident">Block</span>, <span class="ident">Widget</span>},
 };
 <span class="kw">use</span> <span class="ident">std::fmt::Debug</span>;
@@ -534,10 +536,9 @@
 <span class="doccomment">/// Label to draw some text on the canvas</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Label</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="ident">x</span>: <span class="ident">f64</span>,
-    <span class="kw">pub</span> <span class="ident">y</span>: <span class="ident">f64</span>,
-    <span class="kw">pub</span> <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>,
-    <span class="kw">pub</span> <span class="ident">color</span>: <span class="ident">Color</span>,
+    <span class="ident">x</span>: <span class="ident">f64</span>,
+    <span class="ident">y</span>: <span class="ident">f64</span>,
+    <span class="ident">spans</span>: <span class="ident">Spans</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
@@ -801,8 +802,15 @@
     }
 
     <span class="doccomment">/// Print a string on the canvas at the given position</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">print</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">x</span>: <span class="ident">f64</span>, <span class="ident">y</span>: <span class="ident">f64</span>, <span class="ident">text</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>, <span class="ident">color</span>: <span class="ident">Color</span>) {
-        <span class="self">self</span>.<span class="ident">labels</span>.<span class="ident">push</span>(<span class="ident">Label</span> { <span class="ident">x</span>, <span class="ident">y</span>, <span class="ident">text</span>, <span class="ident">color</span> });
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">print</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">x</span>: <span class="ident">f64</span>, <span class="ident">y</span>: <span class="ident">f64</span>, <span class="ident">spans</span>: <span class="ident">T</span>)
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Into</span><span class="op">&lt;</span><span class="ident">Spans</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    {
+        <span class="self">self</span>.<span class="ident">labels</span>.<span class="ident">push</span>(<span class="ident">Label</span> {
+            <span class="ident">x</span>,
+            <span class="ident">y</span>,
+            <span class="ident">spans</span>: <span class="ident">spans</span>.<span class="ident">into</span>(),
+        });
     }
 
     <span class="doccomment">/// Push the last layer if necessary</span>
@@ -941,6 +949,8 @@
             <span class="prelude-val">None</span> =&gt; <span class="ident">area</span>,
         };
 
+        <span class="ident">buf</span>.<span class="ident">set_style</span>(<span class="ident">canvas_area</span>, <span class="ident">Style::default</span>().<span class="ident">bg</span>(<span class="self">self</span>.<span class="ident">background_color</span>));
+
         <span class="kw">let</span> <span class="ident">width</span> <span class="op">=</span> <span class="ident">canvas_area</span>.<span class="ident">width</span> <span class="kw">as</span> <span class="ident">usize</span>;
 
         <span class="kw">let</span> <span class="ident">painter</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">painter</span> {
@@ -972,14 +982,12 @@
                     <span class="kw">let</span> (<span class="ident">x</span>, <span class="ident">y</span>) <span class="op">=</span> (<span class="ident">i</span> <span class="op">%</span> <span class="ident">width</span>, <span class="ident">i</span> <span class="op">/</span> <span class="ident">width</span>);
                     <span class="ident">buf</span>.<span class="ident">get_mut</span>(<span class="ident">x</span> <span class="kw">as</span> <span class="ident">u16</span> <span class="op">+</span> <span class="ident">canvas_area</span>.<span class="ident">left</span>(), <span class="ident">y</span> <span class="kw">as</span> <span class="ident">u16</span> <span class="op">+</span> <span class="ident">canvas_area</span>.<span class="ident">top</span>())
                         .<span class="ident">set_char</span>(<span class="ident">ch</span>)
-                        .<span class="ident">set_fg</span>(<span class="ident">color</span>)
-                        .<span class="ident">set_bg</span>(<span class="self">self</span>.<span class="ident">background_color</span>);
+                        .<span class="ident">set_fg</span>(<span class="ident">color</span>);
                 }
             }
         }
 
         <span class="comment">// Finally draw the labels</span>
-        <span class="kw">let</span> <span class="ident">style</span> <span class="op">=</span> <span class="ident">Style::default</span>().<span class="ident">bg</span>(<span class="self">self</span>.<span class="ident">background_color</span>);
         <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">x_bounds</span>[<span class="number">0</span>];
         <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">x_bounds</span>[<span class="number">1</span>];
         <span class="kw">let</span> <span class="ident">top</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">y_bounds</span>[<span class="number">1</span>];
@@ -998,13 +1006,7 @@
         {
             <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> ((<span class="ident">label</span>.<span class="ident">x</span> <span class="op">-</span> <span class="ident">left</span>) <span class="op">*</span> <span class="ident">resolution</span>.<span class="number">0</span> <span class="op">/</span> <span class="ident">width</span>) <span class="kw">as</span> <span class="ident">u16</span> <span class="op">+</span> <span class="ident">canvas_area</span>.<span class="ident">left</span>();
             <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> ((<span class="ident">top</span> <span class="op">-</span> <span class="ident">label</span>.<span class="ident">y</span>) <span class="op">*</span> <span class="ident">resolution</span>.<span class="number">1</span> <span class="op">/</span> <span class="ident">height</span>) <span class="kw">as</span> <span class="ident">u16</span> <span class="op">+</span> <span class="ident">canvas_area</span>.<span class="ident">top</span>();
-            <span class="ident">buf</span>.<span class="ident">set_stringn</span>(
-                <span class="ident">x</span>,
-                <span class="ident">y</span>,
-                <span class="ident">label</span>.<span class="ident">text</span>,
-                (<span class="ident">canvas_area</span>.<span class="ident">right</span>() <span class="op">-</span> <span class="ident">x</span>) <span class="kw">as</span> <span class="ident">usize</span>,
-                <span class="ident">style</span>.<span class="ident">fg</span>(<span class="ident">label</span>.<span class="ident">color</span>),
-            );
+            <span class="ident">buf</span>.<span class="ident">set_spans</span>(<span class="ident">x</span>, <span class="ident">y</span>, <span class="kw-2">&amp;</span><span class="ident">label</span>.<span class="ident">spans</span>, <span class="ident">canvas_area</span>.<span class="ident">right</span>() <span class="op">-</span> <span class="ident">x</span>);
         }
     }
 }

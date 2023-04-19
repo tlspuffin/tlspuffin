@@ -48,57 +48,49 @@
 <span id="42">42</span>
 <span id="43">43</span>
 <span id="44">44</span>
-<span id="45">45</span>
-<span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">env</span>, <span class="ident">path::PathBuf</span>, <span class="ident">str::FromStr</span>};
 
 <span class="kw">use</span> <span class="ident">log::LevelFilter</span>;
 <span class="kw">use</span> <span class="ident">log4rs</span>::{
-    <span class="ident">append</span>::{<span class="ident">console::ConsoleAppender</span>, <span class="ident">file::FileAppender</span>},
+    <span class="ident">append</span>::{<span class="ident">console::ConsoleAppender</span>, <span class="ident">file::FileAppender</span>, <span class="ident">Append</span>},
     <span class="ident">config</span>::{<span class="ident">Appender</span>, <span class="ident">Root</span>},
     <span class="ident">encode</span>::{<span class="ident">json::JsonEncoder</span>, <span class="ident">pattern::PatternEncoder</span>},
     <span class="ident">Config</span>,
 };
 
-<span class="kw">fn</span> <span class="ident">get_level_filter</span>() -&gt; <span class="ident">LevelFilter</span> {
-    <span class="ident">env::var</span>(<span class="string">&quot;RUST_LOG&quot;</span>)
+<span class="kw">fn</span> <span class="ident">create_config</span>(
+    <span class="ident">default_level</span>: <span class="ident">LevelFilter</span>,
+    <span class="ident">appender_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    <span class="ident">appender</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">Append</span><span class="op">&gt;</span>,
+) -&gt; <span class="ident">Config</span> {
+    <span class="kw">let</span> <span class="ident">level</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="string">&quot;RUST_LOG&quot;</span>)
         .<span class="ident">ok</span>()
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">level</span><span class="op">|</span> <span class="ident">LevelFilter::from_str</span>(<span class="kw-2">&amp;</span><span class="ident">level</span>).<span class="ident">ok</span>())
-        .<span class="ident">unwrap_or</span>(<span class="ident">LevelFilter::Info</span>)
+        .<span class="ident">unwrap_or</span>(<span class="ident">default_level</span>);
+
+    <span class="ident">Config::builder</span>()
+        .<span class="ident">appender</span>(<span class="ident">Appender::builder</span>().<span class="ident">build</span>(<span class="ident">appender_name</span>, <span class="ident">appender</span>))
+        .<span class="ident">build</span>(<span class="ident">Root::builder</span>().<span class="ident">appender</span>(<span class="ident">appender_name</span>).<span class="ident">build</span>(<span class="ident">level</span>))
+        .<span class="ident">unwrap</span>()
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_stdout_config</span>() -&gt; <span class="ident">Config</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_stdout_config</span>(<span class="ident">default_level</span>: <span class="ident">LevelFilter</span>) -&gt; <span class="ident">Config</span> {
     <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">ConsoleAppender::builder</span>()
         .<span class="ident">encoder</span>(<span class="ident">Box::new</span>(<span class="ident">PatternEncoder::new</span>(
             <span class="string">&quot;{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}&quot;</span>,
         )))
         .<span class="ident">build</span>();
-    <span class="ident">Config::builder</span>()
-        .<span class="ident">appender</span>(<span class="ident">Appender::builder</span>().<span class="ident">build</span>(<span class="string">&quot;stdout&quot;</span>, <span class="ident">Box::new</span>(<span class="ident">stdout</span>)))
-        .<span class="ident">build</span>(
-            <span class="ident">Root::builder</span>()
-                .<span class="ident">appenders</span>(<span class="macro">vec!</span>[<span class="string">&quot;stdout&quot;</span>])
-                .<span class="ident">build</span>(<span class="ident">get_level_filter</span>()),
-        )
-        .<span class="ident">unwrap</span>()
+
+    <span class="ident">create_config</span>(<span class="ident">default_level</span>, <span class="string">&quot;stdout&quot;</span>, <span class="ident">Box::new</span>(<span class="ident">stdout</span>))
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_file_config</span>(<span class="ident">log_path</span>: <span class="kw-2">&amp;</span><span class="ident">PathBuf</span>) -&gt; <span class="ident">Config</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_file_config</span>(<span class="ident">default_level</span>: <span class="ident">LevelFilter</span>, <span class="ident">log_path</span>: <span class="kw-2">&amp;</span><span class="ident">PathBuf</span>) -&gt; <span class="ident">Config</span> {
     <span class="kw">let</span> <span class="ident">file_appender</span> <span class="op">=</span> <span class="ident">FileAppender::builder</span>()
-        .<span class="ident">encoder</span>(<span class="ident">Box::new</span>(<span class="ident">JsonEncoder::new</span>()))
+        .<span class="ident">encoder</span>(<span class="ident">Box::new</span>(<span class="ident">PatternEncoder::new</span>(<span class="string">&quot;{d}\t{l}\t{m}{n}&quot;</span>)))
         .<span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="ident">log_path</span>)
         .<span class="ident">unwrap</span>();
 
-    <span class="ident">Config::builder</span>()
-        .<span class="ident">appender</span>(<span class="ident">Appender::builder</span>().<span class="ident">build</span>(<span class="string">&quot;file&quot;</span>, <span class="ident">Box::new</span>(<span class="ident">file_appender</span>)))
-        .<span class="ident">build</span>(
-            <span class="ident">Root::builder</span>()
-                .<span class="ident">appenders</span>(<span class="macro">vec!</span>[<span class="string">&quot;file&quot;</span>])
-                .<span class="ident">build</span>(<span class="ident">get_level_filter</span>()),
-        )
-        .<span class="ident">unwrap</span>()
+    <span class="ident">create_config</span>(<span class="ident">default_level</span>, <span class="string">&quot;file&quot;</span>, <span class="ident">Box::new</span>(<span class="ident">file_appender</span>))
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="puffin" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.64.0-nightly (2643b1646 2022-07-27)" ></div>

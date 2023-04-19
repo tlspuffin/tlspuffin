@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/bolts/shmem.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>shmem.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/bolts/shmem.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>shmem.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -1443,22 +1443,27 @@
 <span id="1437">1437</span>
 <span id="1438">1438</span>
 <span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
+<span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
 </pre><pre class="rust"><code><span class="doccomment">//! A generic shared memory region to be used by any functions (queues or feedbacks</span>
 <span class="doccomment">//! too.)</span>
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::pipes::Pipe</span>;
-<span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">bolts</span>::{<span class="ident">AsMutSlice</span>, <span class="ident">AsSlice</span>},
-    <span class="ident">Error</span>,
-};
 <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">rc::Rc</span>, <span class="ident">string::ToString</span>};
 <span class="kw">use</span> <span class="ident">core</span>::{
     <span class="ident">cell::RefCell</span>,
     <span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Display</span>},
     <span class="ident">mem::ManuallyDrop</span>,
 };
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std::env</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
@@ -1466,17 +1471,22 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std::io::Write</span>;
 
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>, <span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>)))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">unix_shmem</span>::{<span class="ident">MmapShMem</span>, <span class="ident">MmapShMemProvider</span>};
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">unix_shmem</span>::{<span class="ident">UnixShMem</span>, <span class="ident">UnixShMemProvider</span>};
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">win32_shmem</span>::{<span class="ident">Win32ShMem</span>, <span class="ident">Win32ShMemProvider</span>};
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::pipes::Pipe</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::unix_shmem_server</span>::{<span class="ident">ServedShMemProvider</span>, <span class="ident">ShMemService</span>};
+<span class="kw">use</span> <span class="kw">crate</span>::{
+    <span class="ident">bolts</span>::{<span class="ident">AsMutSlice</span>, <span class="ident">AsSlice</span>},
+    <span class="ident">Error</span>,
+};
 
 <span class="doccomment">/// The standard sharedmem provider</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
@@ -1655,9 +1665,9 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_to_env</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">map_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">len</span>();
-        <span class="kw">let</span> <span class="ident">map_size_env</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{}_SIZE&quot;</span>, <span class="ident">env_name</span>);
+        <span class="kw">let</span> <span class="ident">map_size_env</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;{env_name}_SIZE&quot;</span>);
         <span class="ident">env::set_var</span>(<span class="ident">env_name</span>, <span class="self">self</span>.<span class="ident">id</span>().<span class="ident">to_string</span>());
-        <span class="ident">env::set_var</span>(<span class="ident">map_size_env</span>, <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">map_size</span>));
+        <span class="ident">env::set_var</span>(<span class="ident">map_size_env</span>, <span class="macro">format!</span>(<span class="string">&quot;{map_size}&quot;</span>));
         <span class="prelude-val">Ok</span>(())
     }
 }
@@ -1708,7 +1718,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">existing_from_env</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident"><span class="self">Self</span>::ShMem</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">map_shm_str</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="ident">env_name</span>)<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">map_size</span> <span class="op">=</span> <span class="ident">str::parse</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">env::var</span>(<span class="macro">format!</span>(<span class="string">&quot;{}_SIZE&quot;</span>, <span class="ident">env_name</span>))<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">map_size</span> <span class="op">=</span> <span class="ident">str::parse</span>::<span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">env::var</span>(<span class="macro">format!</span>(<span class="string">&quot;{env_name}_SIZE&quot;</span>))<span class="question-mark">?</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">shmem_from_description</span>(<span class="ident">ShMemDescription::from_string_and_size</span>(
             <span class="kw-2">&amp;</span><span class="ident">map_shm_str</span>,
             <span class="ident">map_size</span>,
@@ -1986,11 +1996,12 @@
 
         <span class="kw">use</span> <span class="ident">alloc::string::ToString</span>;
         <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">ptr</span>, <span class="ident">slice</span>};
+        <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">io::Write</span>, <span class="ident">process</span>};
+
         <span class="kw">use</span> <span class="ident">libc</span>::{
             <span class="ident">c_int</span>, <span class="ident">c_long</span>, <span class="ident">c_uchar</span>, <span class="ident">c_uint</span>, <span class="ident">c_ulong</span>, <span class="ident">c_ushort</span>, <span class="ident">close</span>, <span class="ident">ftruncate</span>, <span class="ident">mmap</span>, <span class="ident">munmap</span>,
             <span class="ident">perror</span>, <span class="ident">shm_open</span>, <span class="ident">shm_unlink</span>, <span class="ident">shmat</span>, <span class="ident">shmctl</span>, <span class="ident">shmget</span>,
         };
-        <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">io::Write</span>, <span class="ident">process</span>};
 
         <span class="kw">use</span> <span class="kw">crate</span>::{
             <span class="ident">bolts</span>::{
@@ -2112,7 +2123,7 @@
                         <span class="ident">map</span>: <span class="ident">map</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>,
                         <span class="ident">map_size</span>,
                         <span class="ident">shm_fd</span>,
-                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">shm_fd</span>)),
+                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{shm_fd}&quot;</span>)),
                     })
                 }
             }
@@ -2144,7 +2155,7 @@
                         <span class="ident">map</span>: <span class="ident">map</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>,
                         <span class="ident">map_size</span>,
                         <span class="ident">shm_fd</span>,
-                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">shm_fd</span>)),
+                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{shm_fd}&quot;</span>)),
                     })
                 }
             }
@@ -2246,16 +2257,26 @@
 
         <span class="kw">impl</span> <span class="ident">CommonUnixShMem</span> {
             <span class="doccomment">/// Create a new shared memory mapping, using shmget/shmat</span>
+            <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_qualifications</span>)]</span>
             <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">map_size</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>))]</span>
+                <span class="kw">const</span> <span class="ident">SHM_R</span>: <span class="ident">libc::c_int</span> <span class="op">=</span> <span class="number">0o400</span>;
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>)))]</span>
+                <span class="kw">const</span> <span class="ident">SHM_R</span>: <span class="ident">libc::c_int</span> <span class="op">=</span> <span class="ident">libc::SHM_R</span>;
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>))]</span>
+                <span class="kw">const</span> <span class="ident">SHM_W</span>: <span class="ident">libc::c_int</span> <span class="op">=</span> <span class="number">0o200</span>;
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>)))]</span>
+                <span class="kw">const</span> <span class="ident">SHM_W</span>: <span class="ident">libc::c_int</span> <span class="op">=</span> <span class="ident">libc::SHM_W</span>;
+
                 <span class="kw">unsafe</span> {
                     <span class="kw">let</span> <span class="ident">os_id</span> <span class="op">=</span> <span class="ident">shmget</span>(
                         <span class="ident">libc::IPC_PRIVATE</span>,
                         <span class="ident">map_size</span>,
-                        <span class="ident">libc::IPC_CREAT</span> <span class="op">|</span> <span class="ident">libc::IPC_EXCL</span> <span class="op">|</span> <span class="ident">libc::SHM_R</span> <span class="op">|</span> <span class="ident">libc::SHM_W</span>,
+                        <span class="ident">libc::IPC_CREAT</span> <span class="op">|</span> <span class="ident">libc::IPC_EXCL</span> <span class="op">|</span> <span class="ident">SHM_R</span> <span class="op">|</span> <span class="ident">SHM_W</span>,
                     );
 
                     <span class="kw">if</span> <span class="ident">os_id</span> <span class="op">&lt;</span> <span class="number">0_i32</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(<span class="string">&quot;Failed to allocate a shared mapping of size {} - check OS limits (i.e shmall, shmmax)&quot;</span>, <span class="ident">map_size</span>)));
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(<span class="string">&quot;Failed to allocate a shared mapping of size {map_size} - check OS limits (i.e shmall, shmmax)&quot;</span>)));
                     }
 
                     <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">shmat</span>(<span class="ident">os_id</span>, <span class="ident">ptr::null</span>(), <span class="number">0</span>) <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">c_uchar</span>;
@@ -2367,11 +2388,12 @@
     <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">ashmem</span> {
         <span class="kw">use</span> <span class="ident">alloc::string::ToString</span>;
         <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">ptr</span>, <span class="ident">slice</span>};
+        <span class="kw">use</span> <span class="ident">std::ffi::CString</span>;
+
         <span class="kw">use</span> <span class="ident">libc</span>::{
             <span class="ident">c_uint</span>, <span class="ident">c_ulong</span>, <span class="ident">c_void</span>, <span class="ident">close</span>, <span class="ident">ioctl</span>, <span class="ident">mmap</span>, <span class="ident">open</span>, <span class="ident">MAP_SHARED</span>, <span class="ident">O_RDWR</span>, <span class="ident">PROT_READ</span>,
             <span class="ident">PROT_WRITE</span>,
         };
-        <span class="kw">use</span> <span class="ident">std::ffi::CString</span>;
 
         <span class="kw">use</span> <span class="kw">crate</span>::{
             <span class="ident">bolts</span>::{
@@ -2410,8 +2432,7 @@
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">boot_id</span>) <span class="op">=</span>
                             <span class="ident">std::fs::read_to_string</span>(<span class="string">&quot;/proc/sys/kernel/random/boot_id&quot;</span>)
                         {
-                            <span class="kw">let</span> <span class="ident">path_str</span> <span class="op">=</span>
-                                <span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, <span class="string">&quot;/dev/ashmem&quot;</span>, <span class="ident">boot_id</span>).<span class="ident">trim</span>().<span class="ident">to_string</span>();
+                            <span class="kw">let</span> <span class="ident">path_str</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;/dev/ashmem{boot_id}&quot;</span>).<span class="ident">trim</span>().<span class="ident">to_string</span>();
                             <span class="kw">if</span> <span class="ident">std::path::Path::new</span>(<span class="kw-2">&amp;</span><span class="ident">path_str</span>).<span class="ident">exists</span>() {
                                 <span class="ident">path_str</span>
                             } <span class="kw">else</span> {
@@ -2460,7 +2481,7 @@
                     }
 
                     <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">fd</span>)),
+                        <span class="ident">id</span>: <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{fd}&quot;</span>)),
                         <span class="ident">map</span>: <span class="ident">map</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">u8</span>,
                         <span class="ident">map_size</span>,
                     })
@@ -2591,6 +2612,15 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">windows</span>))]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">win32_shmem</span> {
 
+    <span class="kw">use</span> <span class="ident">alloc::string::String</span>;
+    <span class="kw">use</span> <span class="ident">core</span>::{
+        <span class="ident">ffi::c_void</span>,
+        <span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Formatter</span>},
+        <span class="ident">ptr</span>, <span class="ident">slice</span>,
+    };
+
+    <span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
+
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">bolts</span>::{
             <span class="ident">shmem</span>::{<span class="ident">ShMem</span>, <span class="ident">ShMemId</span>, <span class="ident">ShMemProvider</span>},
@@ -2599,22 +2629,16 @@
         <span class="ident">Error</span>,
     };
 
-    <span class="kw">use</span> <span class="ident">alloc::string::String</span>;
-    <span class="kw">use</span> <span class="ident">core</span>::{
-        <span class="ident">ffi::c_void</span>,
-        <span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Formatter</span>},
-        <span class="ident">ptr</span>, <span class="ident">slice</span>,
-    };
-    <span class="kw">use</span> <span class="ident">uuid::Uuid</span>;
-
     <span class="kw">const</span> <span class="ident">INVALID_HANDLE_VALUE</span>: <span class="ident">isize</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 
     <span class="kw">use</span> <span class="ident">windows</span>::{
         <span class="ident">core::PCSTR</span>,
-        <span class="ident">Win32::Foundation</span>::{<span class="ident">CloseHandle</span>, <span class="ident">BOOL</span>, <span class="ident">HANDLE</span>},
-        <span class="ident">Win32::System::Memory</span>::{
-            <span class="ident">CreateFileMappingA</span>, <span class="ident">MapViewOfFile</span>, <span class="ident">OpenFileMappingA</span>, <span class="ident">UnmapViewOfFile</span>,
-            <span class="ident">FILE_MAP_ALL_ACCESS</span>, <span class="ident">PAGE_READWRITE</span>,
+        <span class="ident">Win32</span>::{
+            <span class="ident">Foundation</span>::{<span class="ident">CloseHandle</span>, <span class="ident">BOOL</span>, <span class="ident">HANDLE</span>},
+            <span class="ident">System::Memory</span>::{
+                <span class="ident">CreateFileMappingA</span>, <span class="ident">MapViewOfFile</span>, <span class="ident">OpenFileMappingA</span>, <span class="ident">UnmapViewOfFile</span>,
+                <span class="ident">FILE_MAP_ALL_ACCESS</span>, <span class="ident">PAGE_READWRITE</span>,
+            },
         },
     };
 
@@ -2642,7 +2666,7 @@
         <span class="kw">fn</span> <span class="ident">new_shmem</span>(<span class="ident">map_size</span>: <span class="ident">usize</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
             <span class="kw">unsafe</span> {
                 <span class="kw">let</span> <span class="ident">uuid</span> <span class="op">=</span> <span class="ident">Uuid::new_v4</span>();
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_str</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;libafl_{}&quot;</span>, <span class="ident">uuid</span>.<span class="ident">to_simple</span>());
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_str</span> <span class="op">=</span> <span class="macro">format!</span>(<span class="string">&quot;libafl_{}&quot;</span>, <span class="ident">uuid</span>.<span class="ident">simple</span>());
                 <span class="kw">let</span> <span class="ident">map_str_bytes</span> <span class="op">=</span> <span class="ident">map_str</span>.<span class="ident">as_mut_vec</span>();
                 <span class="ident">map_str_bytes</span>[<span class="number">19</span>] <span class="op">=</span> <span class="number">0</span>; <span class="comment">// Trucate to size 20</span>
                 <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="ident">CreateFileMappingA</span>(
@@ -2842,7 +2866,7 @@
             <span class="ident">std::io::SeekFrom::Start</span>(<span class="ident">s</span>) =&gt; <span class="ident">s</span>,
             <span class="ident">std::io::SeekFrom::End</span>(<span class="ident">offset</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">map_len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>();
-                <span class="macro">assert!</span>(<span class="ident">i64::try_from</span>(<span class="ident">map_len</span>).<span class="ident">is_ok</span>());
+                <span class="ident">i64::try_from</span>(<span class="ident">map_len</span>).<span class="ident">unwrap</span>();
                 <span class="kw">let</span> <span class="ident">signed_pos</span> <span class="op">=</span> <span class="ident">map_len</span> <span class="kw">as</span> <span class="ident">i64</span>;
                 <span class="kw">let</span> <span class="ident">effective</span> <span class="op">=</span> <span class="ident">signed_pos</span>.<span class="ident">checked_add</span>(<span class="ident">offset</span>).<span class="ident">unwrap</span>();
                 <span class="macro">assert!</span>(<span class="ident">effective</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span>);
@@ -2850,14 +2874,14 @@
             }
             <span class="ident">std::io::SeekFrom::Current</span>(<span class="ident">offset</span>) =&gt; {
                 <span class="kw">let</span> <span class="ident">current_pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">pos</span>;
-                <span class="macro">assert!</span>(<span class="ident">i64::try_from</span>(<span class="ident">current_pos</span>).<span class="ident">is_ok</span>());
+                <span class="ident">i64::try_from</span>(<span class="ident">current_pos</span>).<span class="ident">unwrap</span>();
                 <span class="kw">let</span> <span class="ident">signed_pos</span> <span class="op">=</span> <span class="ident">current_pos</span> <span class="kw">as</span> <span class="ident">i64</span>;
                 <span class="kw">let</span> <span class="ident">effective</span> <span class="op">=</span> <span class="ident">signed_pos</span>.<span class="ident">checked_add</span>(<span class="ident">offset</span>).<span class="ident">unwrap</span>();
                 <span class="macro">assert!</span>(<span class="ident">effective</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">0</span>);
                 <span class="ident">effective</span>.<span class="ident">try_into</span>().<span class="ident">unwrap</span>()
             }
         };
-        <span class="macro">assert!</span>(<span class="ident">usize::try_from</span>(<span class="ident">effective_new_pos</span>).<span class="ident">is_ok</span>());
+        <span class="ident">usize::try_from</span>(<span class="ident">effective_new_pos</span>).<span class="ident">unwrap</span>();
         <span class="self">self</span>.<span class="ident">pos</span> <span class="op">=</span> <span class="ident">effective_new_pos</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">effective_new_pos</span>)
     }

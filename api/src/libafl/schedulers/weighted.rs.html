@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/schedulers/weighted.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>weighted.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/schedulers/weighted.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>weighted.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -313,6 +313,43 @@
 <span id="307">307</span>
 <span id="308">308</span>
 <span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The queue corpus scheduler with weighted queue item selection from aflpp (`https://github.com/AFLplusplus/AFLplusplus/blob/1d4f1e48797c064ee71441ba555b29fc3f467983/src/afl-fuzz-queue.c#L32`)</span>
 <span class="doccomment">//! This queue corpus scheduler needs calibration stage.</span>
 
@@ -320,10 +357,13 @@
     <span class="ident">string</span>::{<span class="ident">String</span>, <span class="ident">ToString</span>},
     <span class="ident">vec::Vec</span>,
 };
+<span class="kw">use</span> <span class="ident">core::marker::PhantomData</span>;
+
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">bolts::rands::Rand</span>,
-    <span class="ident">corpus</span>::{<span class="ident">Corpus</span>, <span class="ident">SchedulerTestcaseMetaData</span>},
+    <span class="ident">corpus</span>::{<span class="ident">Corpus</span>, <span class="ident">SchedulerTestcaseMetaData</span>, <span class="ident">Testcase</span>},
     <span class="ident">inputs::Input</span>,
     <span class="ident">schedulers</span>::{
         <span class="ident">powersched</span>::{<span class="ident">PowerSchedule</span>, <span class="ident">SchedulerMetadata</span>},
@@ -333,8 +373,6 @@
     <span class="ident">state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasRand</span>},
     <span class="ident">Error</span>,
 };
-<span class="kw">use</span> <span class="ident">core::marker::PhantomData</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 
@@ -408,17 +446,37 @@
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">F</span>, <span class="ident">I</span>, <span class="ident">S</span>)<span class="op">&gt;</span>,
 }
 
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">WeightedScheduler</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">F</span>: <span class="ident">TestcaseScore</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">S</span>: <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasMetadata</span> <span class="op">+</span> <span class="ident">HasRand</span>,
+{
+    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::new</span>()
+    }
+}
+
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="ident">WeightedScheduler</span><span class="op">&lt;</span><span class="ident">F</span>, <span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">F</span>: <span class="ident">TestcaseScore</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
     <span class="ident">I</span>: <span class="ident">Input</span>,
     <span class="ident">S</span>: <span class="ident">HasCorpus</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasMetadata</span> <span class="op">+</span> <span class="ident">HasRand</span>,
 {
+    <span class="doccomment">/// Create a new [`WeightedScheduler`] without any scheduling strategy</span>
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">strat</span>: <span class="prelude-val">None</span>,
+            <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
+        }
+    }
+
     <span class="doccomment">/// Create a new [`WeightedScheduler`]</span>
     <span class="attribute">#[<span class="ident">must_use</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">strat</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PowerSchedule</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_schedule</span>(<span class="ident">strat</span>: <span class="ident">PowerSchedule</span>) -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">strat</span>,
+            <span class="ident">strat</span>: <span class="prelude-val">Some</span>(<span class="ident">strat</span>),
             <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
         }
     }
@@ -558,6 +616,22 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn</span> <span class="ident">on_replace</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>, <span class="ident">idx</span>: <span class="ident">usize</span>, <span class="ident">_testcase</span>: <span class="kw-2">&amp;</span><span class="ident">Testcase</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="comment">// Recreate the alias table</span>
+        <span class="self">self</span>.<span class="ident">on_add</span>(<span class="ident">state</span>, <span class="ident">idx</span>)
+    }
+
+    <span class="kw">fn</span> <span class="ident">on_remove</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>,
+        <span class="ident">_idx</span>: <span class="ident">usize</span>,
+        <span class="ident">_testcase</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Testcase</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="comment">// Recreate the alias table</span>
+        <span class="self">self</span>.<span class="ident">create_alias_table</span>(<span class="ident">state</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::similar_names</span>, <span class="ident">clippy::cast_precision_loss</span>)]</span>
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>() <span class="op">==</span> <span class="number">0</span> {
@@ -577,7 +651,7 @@
 
             <span class="kw">let</span> <span class="ident">current_cycles</span> <span class="op">=</span> <span class="ident">wsmeta</span>.<span class="ident">runs_in_current_cycle</span>();
 
-            <span class="kw">if</span> <span class="ident">current_cycles</span> <span class="op">&gt;</span> <span class="ident">corpus_counts</span> {
+            <span class="kw">if</span> <span class="ident">current_cycles</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">corpus_counts</span> {
                 <span class="ident">wsmeta</span>.<span class="ident">set_runs_current_cycle</span>(<span class="number">0</span>);
             } <span class="kw">else</span> {
                 <span class="ident">wsmeta</span>.<span class="ident">set_runs_current_cycle</span>(<span class="ident">current_cycles</span> <span class="op">+</span> <span class="number">1</span>);

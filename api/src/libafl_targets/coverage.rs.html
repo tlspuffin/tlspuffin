@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl_targets-0.8.0/src/coverage.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>coverage.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../libafl_targets/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl_targets-0.8.2/src/coverage.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>coverage.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../libafl_targets/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../libafl_targets/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -95,14 +95,12 @@
 <span id="89">89</span>
 <span id="90">90</span>
 <span id="91">91</span>
-<span id="92">92</span>
-<span id="93">93</span>
-<span id="94">94</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Coverage maps as static mut array</span>
 
-<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">ACCOUNTING_MAP_SIZE</span>, <span class="ident">EDGES_MAP_SIZE</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">libafl</span>::{<span class="ident">mutators::Tokens</span>, <span class="ident">Error</span>};
+
+<span class="kw">use</span> <span class="kw">crate</span>::{<span class="ident">ACCOUNTING_MAP_SIZE</span>, <span class="ident">EDGES_MAP_SIZE</span>};
 
 <span class="doccomment">/// The map for edges.</span>
 <span class="attribute">#[<span class="ident">no_mangle</span>]</span>
@@ -125,30 +123,26 @@
     <span class="kw">pub</span> <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">__afl_acc_memop_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">u32</span>;
 
     <span class="doccomment">/// Start of libafl token section</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">__token_start</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>;
 
     <span class="doccomment">/// End of libafl token section</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">__token_stop</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>;
 }
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">__afl_acc_memop_ptr</span> <span class="kw">as</span> <span class="ident">ACCOUNTING_MEMOP_MAP_PTR</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">__afl_area_ptr</span> <span class="kw">as</span> <span class="ident">EDGES_MAP_PTR</span>;
 
 <span class="doccomment">/// Return Tokens from the compile-time token section</span>
-<span class="doccomment">/// Will return `Error::IllegalState` if no token section was found</span>
-<span class="doccomment">/// In this case, the compilation probably did not include an `AutoTokens`-pass</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Safety</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This fn is safe to call, as long as the compilation did not break, previously</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">autotokens</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Tokens</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
     <span class="kw">unsafe</span> {
         <span class="kw">if</span> <span class="ident">__token_start</span>.<span class="ident">is_null</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">__token_stop</span>.<span class="ident">is_null</span>() {
-            <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_state</span>(
-                <span class="string">&quot;AutoTokens section not found, likely the target is not compiled with AutoTokens&quot;</span>,
-            ))
+            <span class="prelude-val">Ok</span>(<span class="ident">Tokens::default</span>())
         } <span class="kw">else</span> {
             <span class="comment">// we can safely unwrap</span>
             <span class="ident">Tokens::from_ptrs</span>(<span class="ident">__token_start</span>, <span class="ident">__token_stop</span>)

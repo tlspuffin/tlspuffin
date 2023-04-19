@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/bolts/os/unix_shmem_server.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unix_shmem_server.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/bolts/os/unix_shmem_server.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>unix_shmem_server.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div>
@@ -744,10 +744,6 @@
 <span id="738">738</span>
 <span id="739">739</span>
 <span id="740">740</span>
-<span id="741">741</span>
-<span id="742">742</span>
-<span id="743">743</span>
-<span id="744">744</span>
 </pre><pre class="rust"><code><span class="doccomment">/*!
 On `Android`, we can only share maps between processes by serializing fds over sockets.
 On `MacOS`, we cannot rely on reference counting for Maps.
@@ -755,24 +751,15 @@ Hence, the `unix_shmem_server` keeps track of existing maps, creates new maps fo
 and forwards them over unix domain sockets.
 */</span>
 
-<span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">bolts</span>::{
-        <span class="ident">shmem</span>::{<span class="ident">ShMem</span>, <span class="ident">ShMemDescription</span>, <span class="ident">ShMemId</span>, <span class="ident">ShMemProvider</span>},
-        <span class="ident">AsMutSlice</span>, <span class="ident">AsSlice</span>,
-    },
-    <span class="ident">Error</span>,
-};
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">alloc</span>::{
     <span class="ident">string</span>::{<span class="ident">String</span>, <span class="ident">ToString</span>},
     <span class="ident">vec::Vec</span>,
 };
 <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">mem::ManuallyDrop</span>, <span class="ident">ptr::addr_of</span>};
-<span class="kw">use</span> <span class="ident">hashbrown::HashMap</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">std::fs</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{
-    <span class="ident">borrow::BorrowMut</span>,
     <span class="ident">cell::RefCell</span>,
     <span class="ident">env</span>,
     <span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>},
@@ -781,13 +768,6 @@ and forwards them over unix domain sockets.
     <span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">Condvar</span>, <span class="ident">Mutex</span>},
     <span class="ident">thread::JoinHandle</span>,
 };
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">std::fs</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
-<span class="kw">use</span> <span class="ident">nix::poll</span>::{<span class="ident">poll</span>, <span class="ident">PollFd</span>, <span class="ident">PollFlags</span>};
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">os::unix</span>::{
@@ -797,8 +777,20 @@ and forwards them over unix domain sockets.
     <span class="ident">thread</span>,
 };
 
+<span class="kw">use</span> <span class="ident">hashbrown::HashMap</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
+<span class="kw">use</span> <span class="ident">nix::poll</span>::{<span class="ident">poll</span>, <span class="ident">PollFd</span>, <span class="ident">PollFlags</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">uds</span>::{<span class="ident">UnixListenerExt</span>, <span class="ident">UnixSocketAddr</span>, <span class="ident">UnixStreamExt</span>};
+
+<span class="kw">use</span> <span class="kw">crate</span>::{
+    <span class="ident">bolts</span>::{
+        <span class="ident">shmem</span>::{<span class="ident">ShMem</span>, <span class="ident">ShMemDescription</span>, <span class="ident">ShMemId</span>, <span class="ident">ShMemProvider</span>},
+        <span class="ident">AsMutSlice</span>, <span class="ident">AsSlice</span>,
+    },
+    <span class="ident">Error</span>,
+};
 
 <span class="doccomment">/// The default server name for our abstract shmem server</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">not</span>(<span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>)))]</span>
@@ -841,7 +833,7 @@ and forwards them over unix domain sockets.
 {
     <span class="kw">fn</span> <span class="ident">id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">ShMemId</span> {
         <span class="kw">let</span> <span class="ident">client_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">id</span>();
-        <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}:{}&quot;</span>, <span class="self">self</span>.<span class="ident">server_fd</span>, <span class="ident">client_id</span>))
+        <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}:{client_id}&quot;</span>, <span class="self">self</span>.<span class="ident">server_fd</span>))
     }
 
     <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
@@ -945,10 +937,12 @@ and forwards them over unix domain sockets.
         <span class="kw">let</span> (<span class="ident">server_fd</span>, <span class="ident">client_fd</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">send_receive</span>(<span class="ident">ServedShMemRequest::NewMap</span>(<span class="ident">map_size</span>))<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(<span class="ident">ServedShMem</span> {
-            <span class="ident">inner</span>: <span class="ident">ManuallyDrop::new</span>(<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">shmem_from_id_and_size</span>(
-                <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_fd</span>)),
-                <span class="ident">map_size</span>,
-            )<span class="question-mark">?</span>),
+            <span class="ident">inner</span>: <span class="ident">ManuallyDrop::new</span>(
+                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">shmem_from_id_and_size</span>(
+                    <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{client_fd}&quot;</span>)),
+                    <span class="ident">map_size</span>,
+                )<span class="question-mark">?</span>,
+            ),
             <span class="ident">server_fd</span>,
         })
     }
@@ -961,10 +955,8 @@ and forwards them over unix domain sockets.
         ))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">ServedShMem</span> {
             <span class="ident">inner</span>: <span class="ident">ManuallyDrop::new</span>(
-                <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">shmem_from_id_and_size</span>(
-                    <span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">client_fd</span>)),
-                    <span class="ident">size</span>,
-                )<span class="question-mark">?</span>,
+                <span class="self">self</span>.<span class="ident">inner</span>
+                    .<span class="ident">shmem_from_id_and_size</span>(<span class="ident">ShMemId::from_string</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{client_fd}&quot;</span>)), <span class="ident">size</span>)<span class="question-mark">?</span>,
             ),
             <span class="ident">server_fd</span>,
         })
@@ -978,8 +970,8 @@ and forwards them over unix domain sockets.
     <span class="kw">fn</span> <span class="ident">post_fork</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">is_child</span>: <span class="ident">bool</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">is_child</span> {
             <span class="comment">// After fork, only the parent keeps the join handle.</span>
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ShMemService::Started</span> { <span class="ident">bg_thread</span>, .. } <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">service</span> {
-                <span class="ident">bg_thread</span>.<span class="ident">borrow_mut</span>().<span class="ident">lock</span>().<span class="ident">unwrap</span>().<span class="ident">join_handle</span> <span class="op">=</span> <span class="prelude-val">None</span>;
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">ShMemService::Started</span> { <span class="ident">bg_thread</span>, .. } <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">service</span> {
+                <span class="ident">bg_thread</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>().<span class="ident">join_handle</span> <span class="op">=</span> <span class="prelude-val">None</span>;
             }
             <span class="comment">//fn connect(&amp;mut self) -&gt; Result&lt;Self, Error&gt; {</span>
             <span class="comment">//self.stream = UnixStream::connect_to_unix_addr(&amp;UnixSocketAddr::new(UNIX_SERVER_NAME)?)?,</span>
@@ -1124,7 +1116,7 @@ and forwards them over unix domain sockets.
                 .<span class="ident">expect</span>(<span class="string">&quot;Error in ShMemService background thread!&quot;</span>);
             <span class="comment">// try to remove the file from fs, and ignore errors.</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>)]</span>
-            <span class="ident">fs::remove_file</span>(<span class="kw-2">&amp;</span><span class="ident">UNIX_SERVER_NAME</span>).<span class="ident">unwrap</span>();
+            <span class="ident">fs::remove_file</span>(<span class="ident">UNIX_SERVER_NAME</span>).<span class="ident">unwrap</span>();
 
             <span class="ident">env::remove_var</span>(<span class="ident">AFL_SHMEM_SERVICE_STARTED</span>);
         }
@@ -1159,12 +1151,12 @@ and forwards them over unix domain sockets.
                     <span class="kw-2">*</span><span class="ident">lock</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>() <span class="op">=</span> <span class="ident">ShMemServiceStatus::Failed</span>;
                     <span class="ident">cvar</span>.<span class="ident">notify_one</span>();
 
-                    <span class="macro">println!</span>(<span class="string">&quot;Error creating ShMemService: {:?}&quot;</span>, <span class="ident">e</span>);
+                    <span class="macro">println!</span>(<span class="string">&quot;Error creating ShMemService: {e:?}&quot;</span>);
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>);
                 }
             };
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">worker</span>.<span class="ident">listen</span>(<span class="ident">UNIX_SERVER_NAME</span>, <span class="kw-2">&amp;</span><span class="ident">childsyncpair</span>) {
-                <span class="macro">println!</span>(<span class="string">&quot;Error spawning ShMemService: {:?}&quot;</span>, <span class="ident">e</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;Error spawning ShMemService: {e:?}&quot;</span>);
                 <span class="prelude-val">Err</span>(<span class="ident">e</span>)
             } <span class="kw">else</span> {
                 <span class="prelude-val">Ok</span>(())
@@ -1201,7 +1193,7 @@ and forwards them over unix domain sockets.
                 <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">err</span>.<span class="ident">expect_err</span>(<span class="string">&quot;Expected service start to have failed, but it didn&#39;t?&quot;</span>);
 
                 <span class="ident"><span class="self">Self</span>::Failed</span> {
-                    <span class="ident">err_msg</span>: <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">err</span>),
+                    <span class="ident">err_msg</span>: <span class="macro">format!</span>(<span class="string">&quot;{err}&quot;</span>),
                     <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
                 }
             }
@@ -1396,7 +1388,7 @@ and forwards them over unix domain sockets.
                 <span class="ident">cvar</span>.<span class="ident">notify_one</span>();
 
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(
-                    <span class="string">&quot;The ShMem server appears to already be running. We are probably a client. Error: {:?}&quot;</span>, <span class="ident">err</span>)));
+                    <span class="string">&quot;The ShMem server appears to already be running. We are probably a client. Error: {err:?}&quot;</span>)));
             }
         };
 
@@ -1414,7 +1406,7 @@ and forwards them over unix domain sockets.
                 <span class="prelude-val">Ok</span>(<span class="ident">num_fds</span>) <span class="kw">if</span> <span class="ident">num_fds</span> <span class="op">&gt;</span> <span class="number">0</span> =&gt; (),
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="kw">continue</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                    <span class="macro">println!</span>(<span class="string">&quot;Error polling for activity: {:?}&quot;</span>, <span class="ident">e</span>);
+                    <span class="macro">println!</span>(<span class="string">&quot;Error polling for activity: {e:?}&quot;</span>);
                     <span class="kw">continue</span>;
                 }
             };
@@ -1438,12 +1430,12 @@ and forwards them over unix domain sockets.
                         <span class="kw">let</span> (<span class="ident">stream</span>, <span class="ident">_addr</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">listener</span>.<span class="ident">accept_unix_addr</span>() {
                             <span class="prelude-val">Ok</span>(<span class="ident">stream_val</span>) =&gt; <span class="ident">stream_val</span>,
                             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                                <span class="macro">println!</span>(<span class="string">&quot;Error accepting client: {:?}&quot;</span>, <span class="ident">e</span>);
+                                <span class="macro">println!</span>(<span class="string">&quot;Error accepting client: {e:?}&quot;</span>);
                                 <span class="kw">continue</span>;
                             }
                         };
 
-                        <span class="macro">println!</span>(<span class="string">&quot;Recieved connection from {:?}&quot;</span>, <span class="ident">_addr</span>);
+                        <span class="macro">println!</span>(<span class="string">&quot;Recieved connection from {_addr:?}&quot;</span>);
                         <span class="kw">let</span> <span class="ident">pollfd</span> <span class="op">=</span> <span class="ident">PollFd::new</span>(
                             <span class="ident">stream</span>.<span class="ident">as_raw_fd</span>(),
                             <span class="ident">PollFlags::POLLIN</span> <span class="op">|</span> <span class="ident">PollFlags::POLLRDNORM</span> <span class="op">|</span> <span class="ident">PollFlags::POLLRDBAND</span>,

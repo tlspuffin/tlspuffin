@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.16.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.18.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -163,6 +163,20 @@
 <span id="157">157</span>
 <span id="158">158</span>
 <span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
 </pre><pre class="rust"><code><span class="doccomment">//! [tui](https://github.com/fdehau/tui-rs) is a library used to build rich</span>
 <span class="doccomment">//! terminal users interfaces and dashboards.</span>
 <span class="doccomment">//!</span>
@@ -174,18 +188,19 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [dependencies]</span>
-<span class="doccomment">//! tui = &quot;0.16&quot;</span>
-<span class="doccomment">//! termion = &quot;1.5&quot;</span>
+<span class="doccomment">//! tui = &quot;0.18&quot;</span>
+<span class="doccomment">//! crossterm = &quot;0.23&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! The crate is using the `termion` backend by default but if for example you want your</span>
-<span class="doccomment">//! application to work on Windows, you might want to use the `crossterm` backend instead. This can</span>
-<span class="doccomment">//! be done by changing your dependencies specification to the following:</span>
+<span class="doccomment">//! The crate is using the `crossterm` backend by default that works on most platforms. But if for</span>
+<span class="doccomment">//! example you want to use the `termion` backend instead. This can be done by changing your</span>
+<span class="doccomment">//! dependencies specification to the following:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [dependencies]</span>
-<span class="doccomment">//! crossterm = &quot;0.20&quot;</span>
-<span class="doccomment">//! tui = { version = &quot;0.16&quot;, default-features = false, features = [&#39;crossterm&#39;] }</span>
+<span class="doccomment">//! termion = &quot;1.5&quot;</span>
+<span class="doccomment">//! tui = { version = &quot;0.18&quot;, default-features = false, features = [&#39;termion&#39;] }</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The same logic applies for all other available backends.</span>
@@ -198,29 +213,27 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust,no_run</span>
 <span class="doccomment">//! use std::io;</span>
-<span class="doccomment">//! use tui::Terminal;</span>
-<span class="doccomment">//! use tui::backend::TermionBackend;</span>
-<span class="doccomment">//! use termion::raw::IntoRawMode;</span>
+<span class="doccomment">//! use tui::{backend::CrosstermBackend, Terminal};</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! fn main() -&gt; Result&lt;(), io::Error&gt; {</span>
-<span class="doccomment">//!     let stdout = io::stdout().into_raw_mode()?;</span>
-<span class="doccomment">//!     let backend = TermionBackend::new(stdout);</span>
+<span class="doccomment">//!     let stdout = io::stdout();</span>
+<span class="doccomment">//!     let backend = CrosstermBackend::new(stdout);</span>
 <span class="doccomment">//!     let mut terminal = Terminal::new(backend)?;</span>
 <span class="doccomment">//!     Ok(())</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! If you had previously chosen `crossterm` as a backend, the terminal can be created in a similar</span>
+<span class="doccomment">//! If you had previously chosen `termion` as a backend, the terminal can be created in a similar</span>
 <span class="doccomment">//! way:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust,ignore</span>
 <span class="doccomment">//! use std::io;</span>
-<span class="doccomment">//! use tui::Terminal;</span>
-<span class="doccomment">//! use tui::backend::CrosstermBackend;</span>
+<span class="doccomment">//! use tui::{backend::TermionBackend, Terminal};</span>
+<span class="doccomment">//! use termion::raw::IntoRawMode;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! fn main() -&gt; Result&lt;(), io::Error&gt; {</span>
-<span class="doccomment">//!     let stdout = io::stdout();</span>
-<span class="doccomment">//!     let backend = CrosstermBackend::new(stdout);</span>
+<span class="doccomment">//!     let stdout = io::stdout().into_raw_mode()?;</span>
+<span class="doccomment">//!     let backend = TermionBackend::new(stdout);</span>
 <span class="doccomment">//!     let mut terminal = Terminal::new(backend)?;</span>
 <span class="doccomment">//!     Ok(())</span>
 <span class="doccomment">//! }</span>
@@ -242,17 +255,27 @@
 <span class="doccomment">//! The following example renders a block of the size of the terminal:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust,no_run</span>
-<span class="doccomment">//! use std::io;</span>
-<span class="doccomment">//! use termion::raw::IntoRawMode;</span>
-<span class="doccomment">//! use tui::Terminal;</span>
-<span class="doccomment">//! use tui::backend::TermionBackend;</span>
-<span class="doccomment">//! use tui::widgets::{Widget, Block, Borders};</span>
-<span class="doccomment">//! use tui::layout::{Layout, Constraint, Direction};</span>
+<span class="doccomment">//! use std::{io, thread, time::Duration};</span>
+<span class="doccomment">//! use tui::{</span>
+<span class="doccomment">//!     backend::CrosstermBackend,</span>
+<span class="doccomment">//!     widgets::{Widget, Block, Borders},</span>
+<span class="doccomment">//!     layout::{Layout, Constraint, Direction},</span>
+<span class="doccomment">//!     Terminal</span>
+<span class="doccomment">//! };</span>
+<span class="doccomment">//! use crossterm::{</span>
+<span class="doccomment">//!     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},</span>
+<span class="doccomment">//!     execute,</span>
+<span class="doccomment">//!     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},</span>
+<span class="doccomment">//! };</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! fn main() -&gt; Result&lt;(), io::Error&gt; {</span>
-<span class="doccomment">//!     let stdout = io::stdout().into_raw_mode()?;</span>
-<span class="doccomment">//!     let backend = TermionBackend::new(stdout);</span>
+<span class="doccomment">//!     // setup terminal</span>
+<span class="doccomment">//!     enable_raw_mode()?;</span>
+<span class="doccomment">//!     let mut stdout = io::stdout();</span>
+<span class="doccomment">//!     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;</span>
+<span class="doccomment">//!     let backend = CrosstermBackend::new(stdout);</span>
 <span class="doccomment">//!     let mut terminal = Terminal::new(backend)?;</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!     terminal.draw(|f| {</span>
 <span class="doccomment">//!         let size = f.size();</span>
 <span class="doccomment">//!         let block = Block::default()</span>
@@ -260,6 +283,18 @@
 <span class="doccomment">//!             .borders(Borders::ALL);</span>
 <span class="doccomment">//!         f.render_widget(block, size);</span>
 <span class="doccomment">//!     })?;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!     thread::sleep(Duration::from_millis(5000));</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!     // restore terminal</span>
+<span class="doccomment">//!     disable_raw_mode()?;</span>
+<span class="doccomment">//!     execute!(</span>
+<span class="doccomment">//!         terminal.backend_mut(),</span>
+<span class="doccomment">//!         LeaveAlternateScreen,</span>
+<span class="doccomment">//!         DisableMouseCapture</span>
+<span class="doccomment">//!     )?;</span>
+<span class="doccomment">//!     terminal.show_cursor()?;</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//!     Ok(())</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
@@ -271,39 +306,32 @@
 <span class="doccomment">//! full customization. And `Layout` is no exception:</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust,no_run</span>
-<span class="doccomment">//! use std::io;</span>
-<span class="doccomment">//! use termion::raw::IntoRawMode;</span>
-<span class="doccomment">//! use tui::Terminal;</span>
-<span class="doccomment">//! use tui::backend::TermionBackend;</span>
-<span class="doccomment">//! use tui::widgets::{Widget, Block, Borders};</span>
-<span class="doccomment">//! use tui::layout::{Layout, Constraint, Direction};</span>
-<span class="doccomment">//!</span>
-<span class="doccomment">//! fn main() -&gt; Result&lt;(), io::Error&gt; {</span>
-<span class="doccomment">//!     let stdout = io::stdout().into_raw_mode()?;</span>
-<span class="doccomment">//!     let backend = TermionBackend::new(stdout);</span>
-<span class="doccomment">//!     let mut terminal = Terminal::new(backend)?;</span>
-<span class="doccomment">//!     terminal.draw(|f| {</span>
-<span class="doccomment">//!         let chunks = Layout::default()</span>
-<span class="doccomment">//!             .direction(Direction::Vertical)</span>
-<span class="doccomment">//!             .margin(1)</span>
-<span class="doccomment">//!             .constraints(</span>
-<span class="doccomment">//!                 [</span>
-<span class="doccomment">//!                     Constraint::Percentage(10),</span>
-<span class="doccomment">//!                     Constraint::Percentage(80),</span>
-<span class="doccomment">//!                     Constraint::Percentage(10)</span>
-<span class="doccomment">//!                 ].as_ref()</span>
-<span class="doccomment">//!             )</span>
-<span class="doccomment">//!             .split(f.size());</span>
-<span class="doccomment">//!         let block = Block::default()</span>
-<span class="doccomment">//!              .title(&quot;Block&quot;)</span>
-<span class="doccomment">//!              .borders(Borders::ALL);</span>
-<span class="doccomment">//!         f.render_widget(block, chunks[0]);</span>
-<span class="doccomment">//!         let block = Block::default()</span>
-<span class="doccomment">//!              .title(&quot;Block 2&quot;)</span>
-<span class="doccomment">//!              .borders(Borders::ALL);</span>
-<span class="doccomment">//!         f.render_widget(block, chunks[1]);</span>
-<span class="doccomment">//!     })?;</span>
-<span class="doccomment">//!     Ok(())</span>
+<span class="doccomment">//! use tui::{</span>
+<span class="doccomment">//!     backend::Backend,</span>
+<span class="doccomment">//!     layout::{Constraint, Direction, Layout},</span>
+<span class="doccomment">//!     widgets::{Block, Borders},</span>
+<span class="doccomment">//!     Frame,</span>
+<span class="doccomment">//! };</span>
+<span class="doccomment">//! fn ui&lt;B: Backend&gt;(f: &amp;mut Frame&lt;B&gt;) {</span>
+<span class="doccomment">//!    let chunks = Layout::default()</span>
+<span class="doccomment">//!         .direction(Direction::Vertical)</span>
+<span class="doccomment">//!         .margin(1)</span>
+<span class="doccomment">//!         .constraints(</span>
+<span class="doccomment">//!             [</span>
+<span class="doccomment">//!                 Constraint::Percentage(10),</span>
+<span class="doccomment">//!                 Constraint::Percentage(80),</span>
+<span class="doccomment">//!                 Constraint::Percentage(10)</span>
+<span class="doccomment">//!             ].as_ref()</span>
+<span class="doccomment">//!         )</span>
+<span class="doccomment">//!         .split(f.size());</span>
+<span class="doccomment">//!     let block = Block::default()</span>
+<span class="doccomment">//!          .title(&quot;Block&quot;)</span>
+<span class="doccomment">//!          .borders(Borders::ALL);</span>
+<span class="doccomment">//!     f.render_widget(block, chunks[0]);</span>
+<span class="doccomment">//!     let block = Block::default()</span>
+<span class="doccomment">//!          .title(&quot;Block 2&quot;)</span>
+<span class="doccomment">//!          .borders(Borders::ALL);</span>
+<span class="doccomment">//!     f.render_widget(block, chunks[1]);</span>
 <span class="doccomment">//! }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>

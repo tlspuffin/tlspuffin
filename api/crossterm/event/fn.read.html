@@ -28,7 +28,7 @@
 <span class="kw">fn</span> <span class="ident">print_events</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
     <span class="kw">loop</span> {
         <span class="kw">if</span> <span class="ident">poll</span>(<span class="ident">Duration::from_millis</span>(<span class="number">100</span>))<span class="question-mark">?</span> {
-            <span class="comment">// It&#39;s guaranteed that `read` wont block, because `poll` returned</span>
+            <span class="comment">// It&#39;s guaranteed that `read` won&#39;t block, because `poll` returned</span>
             <span class="comment">// `Ok(true)`.</span>
             <span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">read</span>()<span class="question-mark">?</span>);
         } <span class="kw">else</span> {

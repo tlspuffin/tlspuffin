@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.20.0/src/cursor.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cursor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.24.0/src/cursor.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>cursor.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -496,6 +496,13 @@
 <span id="490">490</span>
 <span id="491">491</span>
 <span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
 </pre><pre class="rust"><code><span class="doccomment">//! # Cursor</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The `cursor` module provides functionality to work with the terminal cursor.</span>
@@ -553,7 +560,6 @@
 <span class="doccomment">/// A command that moves the terminal cursor to the given position (column, row).</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
 <span class="doccomment">/// * Top left cell is represented as `0,0`.</span>
 <span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
@@ -574,19 +580,24 @@
 <span class="doccomment">/// and moves it to the first column.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveToNextLine(1)` moves to the next line.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveToNextLine</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveToNextLine</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}E&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}E&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
     <span class="kw">fn</span> <span class="ident">execute_winapi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">sys::move_to_next_line</span>(<span class="self">self</span>.<span class="number">0</span>)
+        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="ident">sys::move_to_next_line</span>(<span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -594,33 +605,39 @@
 <span class="doccomment">/// and moves it to the first column.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveToPreviousLine(1)` moves to the previous line.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveToPreviousLine</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveToPreviousLine</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}F&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}F&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
     <span class="kw">fn</span> <span class="ident">execute_winapi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="ident">sys::move_to_previous_line</span>(<span class="self">self</span>.<span class="number">0</span>)
+        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
+            <span class="ident">sys::move_to_previous_line</span>(<span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="doccomment">/// A command that moves the terminal cursor to the given column on the current row.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 0 based, meaning 0 is the leftmost column.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveToColumn</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveToColumn</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}G&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}G&quot;</span>), <span class="self">self</span>.<span class="number">0</span> <span class="op">+</span> <span class="number">1</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
@@ -632,14 +649,15 @@
 <span class="doccomment">/// A command that moves the terminal cursor to the given row on the current column.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 0 based, meaning 0 is the topmost row.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveToRow</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveToRow</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}d&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}d&quot;</span>), <span class="self">self</span>.<span class="number">0</span> <span class="op">+</span> <span class="number">1</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
@@ -651,16 +669,15 @@
 <span class="doccomment">/// A command that moves the terminal cursor a given number of rows up.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveUp(1)` moves the cursor up one cell.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveUp</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveUp</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}A&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
-        }
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}A&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -673,16 +690,15 @@
 <span class="doccomment">/// A command that moves the terminal cursor a given number of columns to the right.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveRight(1)` moves the cursor right one cell.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveRight</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveRight</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}C&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
-        }
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}C&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -695,16 +711,15 @@
 <span class="doccomment">/// A command that moves the terminal cursor a given number of rows down.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveDown(1)` moves the cursor down one cell.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveDown</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveDown</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}B&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
-        }
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}B&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -717,16 +732,15 @@
 <span class="doccomment">/// A command that moves the terminal cursor a given number of columns to the left.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// Commands must be executed/queued for execution otherwise they do nothing.</span>
+<span class="doccomment">/// * This command is 1 based, meaning `MoveLeft(1)` moves the cursor left one cell.</span>
+<span class="doccomment">/// * Most terminals default 0 argument to 1.</span>
+<span class="doccomment">/// * Commands must be executed/queued for execution otherwise they do nothing.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MoveLeft</span>(<span class="kw">pub</span> <span class="ident">u16</span>);
 
 <span class="kw">impl</span> <span class="ident">Command</span> <span class="kw">for</span> <span class="ident">MoveLeft</span> {
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}D&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
-        }
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="macro">csi!</span>(<span class="string">&quot;{}D&quot;</span>), <span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 

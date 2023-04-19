@@ -2,21 +2,22 @@
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></div>
-        </a><h2 class="location"><a href="#">Crate tui</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 0.16.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul></div><section><div class="block"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../tui/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
+        </a><h2 class="location"><a href="#">Crate tui</a></h2><div class="sidebar-elems"><div class="block"><ul><li class="version">Version 0.18.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul></div><section><div class="block"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../tui/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
                                 <a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div>
                         </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
-    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">tui</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/tui/lib.rs.html#1-159">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><a href="https://github.com/fdehau/tui-rs">tui</a> is a library used to build rich
+    <h1 class="fqn"><span class="in-band">Crate <a class="mod" href="#">tui</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/tui/lib.rs.html#1-173">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><a href="https://github.com/fdehau/tui-rs">tui</a> is a library used to build rich
 terminal users interfaces and dashboards.</p>
 <p><img src="https://raw.githubusercontent.com/fdehau/tui-rs/master/assets/demo.gif" alt="" /></p>
 <h2 id="get-started"><a href="#get-started">Get started</a></h2><h3 id="adding-tui-as-a-dependency"><a href="#adding-tui-as-a-dependency">Adding <code>tui</code> as a dependency</a></h3><div class="example-wrap"><pre class="language-toml"><code>[dependencies]
-tui = &quot;0.16&quot;
-termion = &quot;1.5&quot;</code></pre></div>
-<p>The crate is using the <code>termion</code> backend by default but if for example you want your
-application to work on Windows, you might want to use the <code>crossterm</code> backend instead. This can
-be done by changing your dependencies specification to the following:</p>
+tui = &quot;0.18&quot;
+crossterm = &quot;0.23&quot;</code></pre></div>
+<p>The crate is using the <code>crossterm</code> backend by default that works on most platforms. But if for
+example you want to use the <code>termion</code> backend instead. This can be done by changing your
+dependencies specification to the following:</p>
 <div class="example-wrap"><pre class="language-toml"><code>[dependencies]
-crossterm = &quot;0.20&quot;
-tui = { version = &quot;0.16&quot;, default-features = false, features = [&#39;crossterm&#39;] }</code></pre></div>
+termion = &quot;1.5&quot;
+tui = { version = &quot;0.18&quot;, default-features = false, features = [&#39;termion&#39;] }
+</code></pre></div>
 <p>The same logic applies for all other available backends.</p>
 <h3 id="creating-a-terminal"><a href="#creating-a-terminal">Creating a <code>Terminal</code></a></h3>
 <p>Every application using <code>tui</code> should start by instantiating a <code>Terminal</code>. It is a light
@@ -24,26 +25,24 @@ abstraction over available backends that provides basic functionalities such as 
 screen, hiding the cursor, etc.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">tui::Terminal</span>;
-<span class="kw">use</span> <span class="ident">tui::backend::TermionBackend</span>;
+<span class="kw">use</span> <span class="ident">tui</span>::{<span class="ident">backend::CrosstermBackend</span>, <span class="ident">Terminal</span>};
+
+<span class="kw">fn</span> <span class="ident">main</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>();
+    <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">CrosstermBackend::new</span>(<span class="ident">stdout</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terminal</span> <span class="op">=</span> <span class="ident">Terminal::new</span>(<span class="ident">backend</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div>
+<p>If you had previously chosen <code>termion</code> as a backend, the terminal can be created in a similar
+way:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">use</span> <span class="ident">std::io</span>;
+<span class="kw">use</span> <span class="ident">tui</span>::{<span class="ident">backend::TermionBackend</span>, <span class="ident">Terminal</span>};
 <span class="kw">use</span> <span class="ident">termion::raw::IntoRawMode</span>;
 
 <span class="kw">fn</span> <span class="ident">main</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>().<span class="ident">into_raw_mode</span>()<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">TermionBackend::new</span>(<span class="ident">stdout</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terminal</span> <span class="op">=</span> <span class="ident">Terminal::new</span>(<span class="ident">backend</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(())
-}</code></pre></div>
-<p>If you had previously chosen <code>crossterm</code> as a backend, the terminal can be created in a similar
-way:</p>
-
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">tui::Terminal</span>;
-<span class="kw">use</span> <span class="ident">tui::backend::CrosstermBackend</span>;
-
-<span class="kw">fn</span> <span class="ident">main</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>();
-    <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">CrosstermBackend::new</span>(<span class="ident">stdout</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terminal</span> <span class="op">=</span> <span class="ident">Terminal::new</span>(<span class="ident">backend</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }</code></pre></div>
@@ -58,17 +57,27 @@ to customize them. The widget is then rendered using <a href="terminal/struct.Fr
 your widget instance and an area to draw to.</p>
 <p>The following example renders a block of the size of the terminal:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">termion::raw::IntoRawMode</span>;
-<span class="kw">use</span> <span class="ident">tui::Terminal</span>;
-<span class="kw">use</span> <span class="ident">tui::backend::TermionBackend</span>;
-<span class="kw">use</span> <span class="ident">tui::widgets</span>::{<span class="ident">Widget</span>, <span class="ident">Block</span>, <span class="ident">Borders</span>};
-<span class="kw">use</span> <span class="ident">tui::layout</span>::{<span class="ident">Layout</span>, <span class="ident">Constraint</span>, <span class="ident">Direction</span>};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">io</span>, <span class="ident">thread</span>, <span class="ident">time::Duration</span>};
+<span class="kw">use</span> <span class="ident">tui</span>::{
+    <span class="ident">backend::CrosstermBackend</span>,
+    <span class="ident">widgets</span>::{<span class="ident">Widget</span>, <span class="ident">Block</span>, <span class="ident">Borders</span>},
+    <span class="ident">layout</span>::{<span class="ident">Layout</span>, <span class="ident">Constraint</span>, <span class="ident">Direction</span>},
+    <span class="ident">Terminal</span>
+};
+<span class="kw">use</span> <span class="ident">crossterm</span>::{
+    <span class="ident">event</span>::{<span class="self">self</span>, <span class="ident">DisableMouseCapture</span>, <span class="ident">EnableMouseCapture</span>, <span class="ident">Event</span>, <span class="ident">KeyCode</span>},
+    <span class="ident">execute</span>,
+    <span class="ident">terminal</span>::{<span class="ident">disable_raw_mode</span>, <span class="ident">enable_raw_mode</span>, <span class="ident">EnterAlternateScreen</span>, <span class="ident">LeaveAlternateScreen</span>},
+};
 
 <span class="kw">fn</span> <span class="ident">main</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>().<span class="ident">into_raw_mode</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">TermionBackend::new</span>(<span class="ident">stdout</span>);
+    <span class="comment">// setup terminal</span>
+    <span class="ident">enable_raw_mode</span>()<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>();
+    <span class="macro">execute!</span>(<span class="ident">stdout</span>, <span class="ident">EnterAlternateScreen</span>, <span class="ident">EnableMouseCapture</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">CrosstermBackend::new</span>(<span class="ident">stdout</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terminal</span> <span class="op">=</span> <span class="ident">Terminal::new</span>(<span class="ident">backend</span>)<span class="question-mark">?</span>;
+
     <span class="ident">terminal</span>.<span class="ident">draw</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> {
         <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">size</span>();
         <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block::default</span>()
@@ -76,6 +85,18 @@ your widget instance and an area to draw to.</p>
             .<span class="ident">borders</span>(<span class="ident">Borders::ALL</span>);
         <span class="ident">f</span>.<span class="ident">render_widget</span>(<span class="ident">block</span>, <span class="ident">size</span>);
     })<span class="question-mark">?</span>;
+
+    <span class="ident">thread::sleep</span>(<span class="ident">Duration::from_millis</span>(<span class="number">5000</span>));
+
+    <span class="comment">// restore terminal</span>
+    <span class="ident">disable_raw_mode</span>()<span class="question-mark">?</span>;
+    <span class="macro">execute!</span>(
+        <span class="ident">terminal</span>.<span class="ident">backend_mut</span>(),
+        <span class="ident">LeaveAlternateScreen</span>,
+        <span class="ident">DisableMouseCapture</span>
+    )<span class="question-mark">?</span>;
+    <span class="ident">terminal</span>.<span class="ident">show_cursor</span>()<span class="question-mark">?</span>;
+
     <span class="prelude-val">Ok</span>(())
 }</code></pre></div>
 <h3 id="layout-1"><a href="#layout-1">Layout</a></h3>
@@ -83,39 +104,32 @@ your widget instance and an area to draw to.</p>
 see below and in the examples, the library makes heavy use of the builder pattern to provide
 full customization. And <code>Layout</code> is no exception:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::io</span>;
-<span class="kw">use</span> <span class="ident">termion::raw::IntoRawMode</span>;
-<span class="kw">use</span> <span class="ident">tui::Terminal</span>;
-<span class="kw">use</span> <span class="ident">tui::backend::TermionBackend</span>;
-<span class="kw">use</span> <span class="ident">tui::widgets</span>::{<span class="ident">Widget</span>, <span class="ident">Block</span>, <span class="ident">Borders</span>};
-<span class="kw">use</span> <span class="ident">tui::layout</span>::{<span class="ident">Layout</span>, <span class="ident">Constraint</span>, <span class="ident">Direction</span>};
-
-<span class="kw">fn</span> <span class="ident">main</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">io::Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">io::stdout</span>().<span class="ident">into_raw_mode</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">backend</span> <span class="op">=</span> <span class="ident">TermionBackend::new</span>(<span class="ident">stdout</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terminal</span> <span class="op">=</span> <span class="ident">Terminal::new</span>(<span class="ident">backend</span>)<span class="question-mark">?</span>;
-    <span class="ident">terminal</span>.<span class="ident">draw</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> {
-        <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">Layout::default</span>()
-            .<span class="ident">direction</span>(<span class="ident">Direction::Vertical</span>)
-            .<span class="ident">margin</span>(<span class="number">1</span>)
-            .<span class="ident">constraints</span>(
-                [
-                    <span class="ident">Constraint::Percentage</span>(<span class="number">10</span>),
-                    <span class="ident">Constraint::Percentage</span>(<span class="number">80</span>),
-                    <span class="ident">Constraint::Percentage</span>(<span class="number">10</span>)
-                ].<span class="ident">as_ref</span>()
-            )
-            .<span class="ident">split</span>(<span class="ident">f</span>.<span class="ident">size</span>());
-        <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block::default</span>()
-             .<span class="ident">title</span>(<span class="string">&quot;Block&quot;</span>)
-             .<span class="ident">borders</span>(<span class="ident">Borders::ALL</span>);
-        <span class="ident">f</span>.<span class="ident">render_widget</span>(<span class="ident">block</span>, <span class="ident">chunks</span>[<span class="number">0</span>]);
-        <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block::default</span>()
-             .<span class="ident">title</span>(<span class="string">&quot;Block 2&quot;</span>)
-             .<span class="ident">borders</span>(<span class="ident">Borders::ALL</span>);
-        <span class="ident">f</span>.<span class="ident">render_widget</span>(<span class="ident">block</span>, <span class="ident">chunks</span>[<span class="number">1</span>]);
-    })<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(())
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">tui</span>::{
+    <span class="ident">backend::Backend</span>,
+    <span class="ident">layout</span>::{<span class="ident">Constraint</span>, <span class="ident">Direction</span>, <span class="ident">Layout</span>},
+    <span class="ident">widgets</span>::{<span class="ident">Block</span>, <span class="ident">Borders</span>},
+    <span class="ident">Frame</span>,
+};
+<span class="kw">fn</span> <span class="ident">ui</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">Backend</span><span class="op">&gt;</span>(<span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Frame</span><span class="op">&lt;</span><span class="ident">B</span><span class="op">&gt;</span>) {
+   <span class="kw">let</span> <span class="ident">chunks</span> <span class="op">=</span> <span class="ident">Layout::default</span>()
+        .<span class="ident">direction</span>(<span class="ident">Direction::Vertical</span>)
+        .<span class="ident">margin</span>(<span class="number">1</span>)
+        .<span class="ident">constraints</span>(
+            [
+                <span class="ident">Constraint::Percentage</span>(<span class="number">10</span>),
+                <span class="ident">Constraint::Percentage</span>(<span class="number">80</span>),
+                <span class="ident">Constraint::Percentage</span>(<span class="number">10</span>)
+            ].<span class="ident">as_ref</span>()
+        )
+        .<span class="ident">split</span>(<span class="ident">f</span>.<span class="ident">size</span>());
+    <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block::default</span>()
+         .<span class="ident">title</span>(<span class="string">&quot;Block&quot;</span>)
+         .<span class="ident">borders</span>(<span class="ident">Borders::ALL</span>);
+    <span class="ident">f</span>.<span class="ident">render_widget</span>(<span class="ident">block</span>, <span class="ident">chunks</span>[<span class="number">0</span>]);
+    <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="ident">Block::default</span>()
+         .<span class="ident">title</span>(<span class="string">&quot;Block 2&quot;</span>)
+         .<span class="ident">borders</span>(<span class="ident">Borders::ALL</span>);
+    <span class="ident">f</span>.<span class="ident">render_widget</span>(<span class="ident">block</span>, <span class="ident">chunks</span>[<span class="number">1</span>]);
 }</code></pre></div>
 <p>This let you describe responsive terminal UI by nesting layouts. You should note that by
 default the computed layout tries to fill the available space completely. So if for any reason

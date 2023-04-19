@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.16.0/src/widgets/list.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>list.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/tui-0.18.0/src/widgets/list.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>list.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../tui/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -261,6 +261,13 @@
 <span id="255">255</span>
 <span id="256">256</span>
 <span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">buffer::Buffer</span>,
     <span class="ident">layout</span>::{<span class="ident">Corner</span>, <span class="ident">Rect</span>},
@@ -270,19 +277,10 @@
 };
 <span class="kw">use</span> <span class="ident">unicode_width::UnicodeWidthStr</span>;
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ListState</span> {
     <span class="ident">offset</span>: <span class="ident">usize</span>,
     <span class="ident">selected</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
-}
-
-<span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">ListState</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">ListState</span> {
-        <span class="ident">ListState</span> {
-            <span class="ident">offset</span>: <span class="number">0</span>,
-            <span class="ident">selected</span>: <span class="prelude-val">None</span>,
-        }
-    }
 }
 
 <span class="kw">impl</span> <span class="ident">ListState</span> {
@@ -350,6 +348,8 @@
     <span class="ident">highlight_style</span>: <span class="ident">Style</span>,
     <span class="doccomment">/// Symbol in front of the selected item (Shift all items to the right)</span>
     <span class="ident">highlight_symbol</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span>,
+    <span class="doccomment">/// Whether to repeat the highlight symbol for each line of the selected item</span>
+    <span class="ident">repeat_highlight_symbol</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">List</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
@@ -364,6 +364,7 @@
             <span class="ident">start_corner</span>: <span class="ident">Corner::TopLeft</span>,
             <span class="ident">highlight_style</span>: <span class="ident">Style::default</span>(),
             <span class="ident">highlight_symbol</span>: <span class="prelude-val">None</span>,
+            <span class="ident">repeat_highlight_symbol</span>: <span class="bool-val">false</span>,
         }
     }
 
@@ -384,6 +385,11 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">highlight_style</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">style</span>: <span class="ident">Style</span>) -&gt; <span class="ident">List</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">highlight_style</span> <span class="op">=</span> <span class="ident">style</span>;
+        <span class="self">self</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">repeat_highlight_symbol</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">repeat</span>: <span class="ident">bool</span>) -&gt; <span class="ident">List</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">repeat_highlight_symbol</span> <span class="op">=</span> <span class="ident">repeat</span>;
         <span class="self">self</span>
     }
 
@@ -490,19 +496,27 @@
             <span class="ident">buf</span>.<span class="ident">set_style</span>(<span class="ident">area</span>, <span class="ident">item_style</span>);
 
             <span class="kw">let</span> <span class="ident">is_selected</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">selected</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span> <span class="op">==</span> <span class="ident">i</span>).<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>);
-            <span class="kw">let</span> <span class="ident">elem_x</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">has_selection</span> {
-                <span class="kw">let</span> <span class="ident">symbol</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_selected</span> {
+            <span class="kw">for</span> (<span class="ident">j</span>, <span class="ident">line</span>) <span class="kw">in</span> <span class="ident">item</span>.<span class="ident">content</span>.<span class="ident">lines</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+                <span class="comment">// if the item is selected, we need to display the hightlight symbol:</span>
+                <span class="comment">// - either for the first line of the item only,</span>
+                <span class="comment">// - or for each line of the item if the appropriate option is set</span>
+                <span class="kw">let</span> <span class="ident">symbol</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_selected</span> <span class="op">&amp;&amp;</span> (<span class="ident">j</span> <span class="op">==</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">repeat_highlight_symbol</span>) {
                     <span class="ident">highlight_symbol</span>
                 } <span class="kw">else</span> {
                     <span class="kw-2">&amp;</span><span class="ident">blank_symbol</span>
                 };
-                <span class="kw">let</span> (<span class="ident">x</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">set_stringn</span>(<span class="ident">x</span>, <span class="ident">y</span>, <span class="ident">symbol</span>, <span class="ident">list_area</span>.<span class="ident">width</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">item_style</span>);
-                <span class="ident">x</span>
-            } <span class="kw">else</span> {
-                <span class="ident">x</span>
-            };
-            <span class="kw">let</span> <span class="ident">max_element_width</span> <span class="op">=</span> (<span class="ident">list_area</span>.<span class="ident">width</span> <span class="op">-</span> (<span class="ident">elem_x</span> <span class="op">-</span> <span class="ident">x</span>)) <span class="kw">as</span> <span class="ident">usize</span>;
-            <span class="kw">for</span> (<span class="ident">j</span>, <span class="ident">line</span>) <span class="kw">in</span> <span class="ident">item</span>.<span class="ident">content</span>.<span class="ident">lines</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+                <span class="kw">let</span> (<span class="ident">elem_x</span>, <span class="ident">max_element_width</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">has_selection</span> {
+                    <span class="kw">let</span> (<span class="ident">elem_x</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">set_stringn</span>(
+                        <span class="ident">x</span>,
+                        <span class="ident">y</span> <span class="op">+</span> <span class="ident">j</span> <span class="kw">as</span> <span class="ident">u16</span>,
+                        <span class="ident">symbol</span>,
+                        <span class="ident">list_area</span>.<span class="ident">width</span> <span class="kw">as</span> <span class="ident">usize</span>,
+                        <span class="ident">item_style</span>,
+                    );
+                    (<span class="ident">elem_x</span>, (<span class="ident">list_area</span>.<span class="ident">width</span> <span class="op">-</span> (<span class="ident">elem_x</span> <span class="op">-</span> <span class="ident">x</span>)) <span class="kw">as</span> <span class="ident">u16</span>)
+                } <span class="kw">else</span> {
+                    (<span class="ident">x</span>, <span class="ident">list_area</span>.<span class="ident">width</span>)
+                };
                 <span class="ident">buf</span>.<span class="ident">set_spans</span>(<span class="ident">elem_x</span>, <span class="ident">y</span> <span class="op">+</span> <span class="ident">j</span> <span class="kw">as</span> <span class="ident">u16</span>, <span class="ident">line</span>, <span class="ident">max_element_width</span> <span class="kw">as</span> <span class="ident">u16</span>);
             }
             <span class="kw">if</span> <span class="ident">is_selected</span> {

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/monitors/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/monitors/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -974,10 +974,6 @@
 <span id="968">968</span>
 <span id="969">969</span>
 <span id="970">970</span>
-<span id="971">971</span>
-<span id="972">972</span>
-<span id="973">973</span>
-<span id="974">974</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Keep stats, and display them to the user. Usually used in a broker, or main node, of some sort.</span>
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">multi</span>;
@@ -989,15 +985,11 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">disk</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">disk::OnDiskTOMLMonitor</span>;
-
 <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">fmt::Debug</span>, <span class="ident">string::String</span>, <span class="ident">vec::Vec</span>};
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;introspection&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">alloc::string::ToString</span>;
-
 <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">fmt</span>, <span class="ident">time::Duration</span>};
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">disk</span>::{<span class="ident">OnDiskJSONMonitor</span>, <span class="ident">OnDiskTOMLMonitor</span>};
 <span class="kw">use</span> <span class="ident">hashbrown::HashMap</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
@@ -1023,14 +1015,14 @@
 <span class="kw">impl</span> <span class="ident">fmt::Display</span> <span class="kw">for</span> <span class="ident">UserStats</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">fmt::Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">UserStats::Number</span>(<span class="ident">n</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">n</span>),
-            <span class="ident">UserStats::Float</span>(<span class="ident">n</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">n</span>),
-            <span class="ident">UserStats::String</span>(<span class="ident">s</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>),
+            <span class="ident">UserStats::Number</span>(<span class="ident">n</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{n}&quot;</span>),
+            <span class="ident">UserStats::Float</span>(<span class="ident">n</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{n}&quot;</span>),
+            <span class="ident">UserStats::String</span>(<span class="ident">s</span>) =&gt; <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{s}&quot;</span>),
             <span class="ident">UserStats::Ratio</span>(<span class="ident">a</span>, <span class="ident">b</span>) =&gt; {
                 <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">b</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}/{}&quot;</span>, <span class="ident">a</span>, <span class="ident">b</span>)
+                    <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{a}/{b}&quot;</span>)
                 } <span class="kw">else</span> {
-                    <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{}/{} ({}%)&quot;</span>, <span class="ident">a</span>, <span class="ident">b</span>, <span class="ident">a</span> <span class="op">*</span> <span class="number">100</span> <span class="op">/</span> <span class="ident">b</span>)
+                    <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;{a}/{b} ({}%)&quot;</span>, <span class="ident">a</span> <span class="op">*</span> <span class="number">100</span> <span class="op">/</span> <span class="ident">b</span>)
                 }
             }
         }
@@ -1038,7 +1030,7 @@
 }
 
 <span class="doccomment">/// A simple struct to keep track of client monitor</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Default</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Default</span>, <span class="ident">Serialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ClientStats</span> {
     <span class="comment">// monitor (maybe we need a separated struct?)</span>
     <span class="doccomment">/// The corpus size for this client</span>
@@ -1219,7 +1211,7 @@
 
 <span class="doccomment">/// Monitor that print exactly nothing.</span>
 <span class="doccomment">/// Not good for debuging, very good for speed.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NopMonitor</span> {
     <span class="ident">start_time</span>: <span class="ident">Duration</span>,
     <span class="ident">client_stats</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ClientStats</span><span class="op">&gt;</span>,
@@ -1328,7 +1320,7 @@
             (<span class="self">self</span>.<span class="ident">print_fn</span>)(<span class="ident">fmt</span>);
 
             <span class="comment">// Separate the spacing just a bit</span>
-            (<span class="self">self</span>.<span class="ident">print_fn</span>)(<span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>());
+            (<span class="self">self</span>.<span class="ident">print_fn</span>)(<span class="ident">String::new</span>());
         }
     }
 }
@@ -1497,7 +1489,7 @@
             <span class="number">7</span> =&gt; <span class="ident">PerfFeature::PostExecObservers</span>,
             <span class="number">8</span> =&gt; <span class="ident">PerfFeature::GetFeedbackInterestingAll</span>,
             <span class="number">9</span> =&gt; <span class="ident">PerfFeature::GetObjectivesInterestingAll</span>,
-            <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown PerfFeature: {}&quot;</span>, <span class="ident">val</span>),
+            <span class="kw">_</span> =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Unknown PerfFeature: {val}&quot;</span>),
         }
     }
 }
@@ -1757,7 +1749,7 @@
         <span class="comment">// Make sure we only iterate over used stages</span>
         <span class="kw">for</span> (<span class="ident">stage_index</span>, <span class="ident">features</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">used_stages</span>() {
             <span class="comment">// Write the stage header</span>
-            <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;  Stage {}:&quot;</span>, <span class="ident">stage_index</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;  Stage {stage_index}:&quot;</span>)<span class="question-mark">?</span>;
 
             <span class="kw">for</span> (<span class="ident">feature_index</span>, <span class="ident">feature</span>) <span class="kw">in</span> <span class="ident">features</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                 <span class="comment">// Calculate this current stage&#39;s percentage</span>
@@ -1775,7 +1767,7 @@
                 <span class="kw">let</span> <span class="ident">feature</span>: <span class="ident">PerfFeature</span> <span class="op">=</span> <span class="ident">feature_index</span>.<span class="ident">into</span>();
 
                 <span class="comment">// Write the percentage for this feature</span>
-                <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;    {:6.4}: {:?}&quot;</span>, <span class="ident">feature_percent</span>, <span class="ident">feature</span>)<span class="question-mark">?</span>;
+                <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;    {feature_percent:6.4}: {feature:?}&quot;</span>)<span class="question-mark">?</span>;
             }
         }
 
@@ -1794,10 +1786,10 @@
             <span class="ident">other_percent</span> <span class="op">-</span><span class="op">=</span> <span class="ident">feedback_percent</span>;
 
             <span class="comment">// Write the percentage for this feedback</span>
-            <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;    {:6.4}: {}&quot;</span>, <span class="ident">feedback_percent</span>, <span class="ident">feedback_name</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(<span class="ident">f</span>, <span class="string">&quot;    {feedback_percent:6.4}: {feedback_name}&quot;</span>)<span class="question-mark">?</span>;
         }
 
-        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;  {:6.4}: Not Measured&quot;</span>, <span class="ident">other_percent</span>)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(<span class="ident">f</span>, <span class="string">&quot;  {other_percent:6.4}: Not Measured&quot;</span>)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1814,13 +1806,13 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;python&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">pybind</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::monitors</span>::{<span class="ident">Monitor</span>, <span class="ident">SimpleMonitor</span>};
-    <span class="kw">use</span> <span class="ident">pyo3::prelude</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">pyo3::types::PyUnicode</span>;
-
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::ClientStats</span>;
     <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">boxed::Box</span>, <span class="ident">string::String</span>, <span class="ident">vec::Vec</span>};
     <span class="kw">use</span> <span class="ident">core::time::Duration</span>;
+
+    <span class="kw">use</span> <span class="ident">pyo3</span>::{<span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">types::PyUnicode</span>};
+
+    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::ClientStats</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::monitors</span>::{<span class="ident">Monitor</span>, <span class="ident">SimpleMonitor</span>};
 
     <span class="comment">// TODO create a PyObjectFnMut to pass, track stabilization of https://github.com/rust-lang/rust/issues/29625</span>
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/stages/calibrate.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>calibrate.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/stages/calibrate.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>calibrate.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -257,10 +257,99 @@
 <span id="251">251</span>
 <span id="252">252</span>
 <span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The calibration stage. The fuzzer measures the average exec time and the bitmap size.</span>
 
+<span class="kw">use</span> <span class="ident">alloc</span>::{
+    <span class="ident">string</span>::{<span class="ident">String</span>, <span class="ident">ToString</span>},
+    <span class="ident">vec::Vec</span>,
+};
+<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">fmt::Debug</span>, <span class="ident">marker::PhantomData</span>, <span class="ident">time::Duration</span>};
+
+<span class="kw">use</span> <span class="ident">hashbrown::HashSet</span>;
+<span class="kw">use</span> <span class="ident">num_traits::Bounded</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
 <span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">bolts</span>::{<span class="ident">current_time</span>, <span class="ident">tuples::Named</span>, <span class="ident">AsRefIterator</span>},
+    <span class="ident">bolts</span>::{<span class="ident">current_time</span>, <span class="ident">tuples::Named</span>, <span class="ident">AsIter</span>},
     <span class="ident">corpus</span>::{<span class="ident">Corpus</span>, <span class="ident">SchedulerTestcaseMetaData</span>},
     <span class="ident">events</span>::{<span class="ident">EventFirer</span>, <span class="ident">LogSeverity</span>},
     <span class="ident">executors</span>::{<span class="ident">Executor</span>, <span class="ident">ExitKind</span>, <span class="ident">HasObservers</span>},
@@ -276,10 +365,39 @@
     <span class="ident">state</span>::{<span class="ident">HasClientPerfMonitor</span>, <span class="ident">HasCorpus</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasNamedMetadata</span>},
     <span class="ident">Error</span>,
 };
-<span class="kw">use</span> <span class="ident">alloc::string</span>::{<span class="ident">String</span>, <span class="ident">ToString</span>};
-<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">fmt::Debug</span>, <span class="ident">marker::PhantomData</span>, <span class="ident">time::Duration</span>};
-<span class="kw">use</span> <span class="ident">num_traits::Bounded</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="macro">crate::impl_serdeany!</span>(<span class="ident">UnstableEntriesMetadata</span>);
+<span class="doccomment">/// The metadata to keep unstable entries</span>
+<span class="doccomment">/// In libafl, the stability is the number of the unstable entries divided by the size of the map</span>
+<span class="doccomment">/// This is different from AFL++, which shows the number of the unstable entries divided by the number of filled entries.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">UnstableEntriesMetadata</span> {
+    <span class="ident">unstable_entries</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
+    <span class="ident">map_len</span>: <span class="ident">usize</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">UnstableEntriesMetadata</span> {
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="doccomment">/// Create a new [`struct@UnstableEntriesMetadata`]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">entries</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">map_len</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span> {
+        <span class="self">Self</span> {
+            <span class="ident">unstable_entries</span>: <span class="ident">entries</span>,
+            <span class="ident">map_len</span>,
+        }
+    }
+
+    <span class="doccomment">/// Getter</span>
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unstable_entries</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">unstable_entries</span>
+    }
+
+    <span class="doccomment">/// Getter</span>
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">map_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">map_len</span>
+    }
+}
 
 <span class="doccomment">/// The calibration stage will measure the average exec time and the target&#39;s stability for this input.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
@@ -293,11 +411,12 @@
     <span class="ident">map_observer_name</span>: <span class="ident">String</span>,
     <span class="ident">map_name</span>: <span class="ident">String</span>,
     <span class="ident">stage_max</span>: <span class="ident">usize</span>,
+    <span class="ident">track_stability</span>: <span class="ident">bool</span>,
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">I</span>, <span class="ident">O</span>, <span class="ident">OT</span>, <span class="ident">S</span>)<span class="op">&gt;</span>,
 }
 
-<span class="kw">const</span> <span class="ident">CAL_STAGE_START</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span>;
-<span class="kw">const</span> <span class="ident">CAL_STAGE_MAX</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">16</span>;
+<span class="kw">const</span> <span class="ident">CAL_STAGE_START</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span>; <span class="comment">// AFL++&#39;s CAL_CYCLES_FAST + 1</span>
+<span class="kw">const</span> <span class="ident">CAL_STAGE_MAX</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">8</span>; <span class="comment">// AFL++&#39;s CAL_CYCLES + 1</span>
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">O</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">Stage</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">EM</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">CalibrationStage</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">O</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -362,12 +481,13 @@
             .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::key_not_found</span>(<span class="string">&quot;MapObserver not found&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
             .<span class="ident">to_vec</span>();
 
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unstable_entries</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec!</span>[];
+        <span class="kw">let</span> <span class="ident">map_len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">map_first</span>.<span class="ident">len</span>();
         <span class="comment">// Run CAL_STAGE_START - 1 times, increase by 2 for every time a new</span>
         <span class="comment">// run is found to be unstable, with CAL_STAGE_MAX total runs.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">has_errors</span> <span class="op">=</span> <span class="bool-val">false</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unstable_entries</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">let</span> <span class="ident">map_len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">map_first</span>.<span class="ident">len</span>();
+
         <span class="kw">while</span> <span class="ident">i</span> <span class="op">&lt;</span> <span class="ident">iter</span> {
             <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">state</span>
                 .<span class="ident">corpus</span>()
@@ -402,40 +522,58 @@
                 .<span class="ident">observers_mut</span>()
                 .<span class="ident">post_exec_all</span>(<span class="ident">state</span>, <span class="kw-2">&amp;</span><span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="ident">exit_kind</span>)<span class="question-mark">?</span>;
 
-            <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">executor</span>
-                .<span class="ident">observers</span>()
-                .<span class="ident">match_name</span>::<span class="op">&lt;</span><span class="ident">O</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">map_observer_name</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::key_not_found</span>(<span class="string">&quot;MapObserver not found&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
-                .<span class="ident">to_vec</span>();
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">track_stability</span> {
+                <span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">executor</span>
+                    .<span class="ident">observers</span>()
+                    .<span class="ident">match_name</span>::<span class="op">&lt;</span><span class="ident">O</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">map_observer_name</span>)
+                    .<span class="ident">ok_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="ident">Error::key_not_found</span>(<span class="string">&quot;MapObserver not found&quot;</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>
+                    .<span class="ident">to_vec</span>();
 
-            <span class="kw">let</span> <span class="ident">history_map</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>
-                .<span class="ident">named_metadata_mut</span>()
-                .<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">MapFeedbackMetadata</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">map_name</span>)
-                .<span class="ident">unwrap</span>()
-                .<span class="ident">history_map</span>;
+                <span class="kw">let</span> <span class="ident">history_map</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">state</span>
+                    .<span class="ident">named_metadata_mut</span>()
+                    .<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">MapFeedbackMetadata</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">map_name</span>)
+                    .<span class="ident">unwrap</span>()
+                    .<span class="ident">history_map</span>;
 
-            <span class="kw">if</span> <span class="ident">history_map</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">map_len</span> {
-                <span class="ident">history_map</span>.<span class="ident">resize</span>(<span class="ident">map_len</span>, <span class="ident">O::Entry::default</span>());
+                <span class="kw">if</span> <span class="ident">history_map</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">map_len</span> {
+                    <span class="ident">history_map</span>.<span class="ident">resize</span>(<span class="ident">map_len</span>, <span class="ident">O::Entry::default</span>());
+                }
+
+                <span class="kw">for</span> (<span class="ident">idx</span>, (<span class="ident">first</span>, (<span class="ident">cur</span>, <span class="ident">history</span>))) <span class="kw">in</span> <span class="ident">map_first</span>
+                    .<span class="ident">iter</span>()
+                    .<span class="ident">zip</span>(<span class="ident">map</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">history_map</span>.<span class="ident">iter_mut</span>()))
+                    .<span class="ident">enumerate</span>()
+                {
+                    <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">first</span> <span class="op">!</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">cur</span> <span class="op">&amp;&amp;</span> <span class="kw-2">*</span><span class="ident">history</span> <span class="op">!</span><span class="op">=</span> <span class="ident">O::Entry::max_value</span>() {
+                        <span class="kw-2">*</span><span class="ident">history</span> <span class="op">=</span> <span class="ident">O::Entry::max_value</span>();
+                        <span class="ident">unstable_entries</span>.<span class="ident">push</span>(<span class="ident">idx</span>);
+                    };
+                }
+
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">unstable_entries</span>.<span class="ident">is_empty</span>() <span class="op">&amp;&amp;</span> <span class="ident">iter</span> <span class="op">&lt;</span> <span class="ident">CAL_STAGE_MAX</span> {
+                    <span class="ident">iter</span> <span class="op">+</span><span class="op">=</span> <span class="number">2</span>;
+                }
             }
-
-            <span class="kw">for</span> (<span class="ident">first</span>, (<span class="ident">cur</span>, <span class="ident">history</span>)) <span class="kw">in</span>
-                <span class="ident">map_first</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">map</span>.<span class="ident">iter</span>().<span class="ident">zip</span>(<span class="ident">history_map</span>.<span class="ident">iter_mut</span>()))
-            {
-                <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">first</span> <span class="op">!</span><span class="op">=</span> <span class="kw-2">*</span><span class="ident">cur</span> <span class="op">&amp;&amp;</span> <span class="kw-2">*</span><span class="ident">history</span> <span class="op">!</span><span class="op">=</span> <span class="ident">O::Entry::max_value</span>() {
-                    <span class="kw-2">*</span><span class="ident">history</span> <span class="op">=</span> <span class="ident">O::Entry::max_value</span>();
-                    <span class="ident">unstable_entries</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
-                };
-            }
-
             <span class="ident">i</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
         }
 
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">clippy::cast_precision_loss</span>)]</span>
-        <span class="kw">if</span> <span class="ident">unstable_entries</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="kw-2">*</span><span class="ident">state</span>.<span class="ident">stability_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>((<span class="ident">map_len</span> <span class="op">-</span> <span class="ident">unstable_entries</span>) <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> (<span class="ident">map_len</span> <span class="kw">as</span> <span class="ident">f32</span>));
-
-            <span class="kw">if</span> <span class="ident">iter</span> <span class="op">&lt;</span> <span class="ident">CAL_STAGE_MAX</span> {
-                <span class="ident">iter</span> <span class="op">+</span><span class="op">=</span> <span class="number">2</span>;
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">unstable_entries</span>.<span class="ident">is_empty</span>() {
+            <span class="comment">// If we see new stable entries executing this new corpus entries, then merge with the existing one</span>
+            <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">has_metadata</span>::<span class="op">&lt;</span><span class="ident">UnstableEntriesMetadata</span><span class="op">&gt;</span>() {
+                <span class="kw">let</span> <span class="ident">existing</span> <span class="op">=</span> <span class="ident">state</span>
+                    .<span class="ident">metadata_mut</span>()
+                    .<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">UnstableEntriesMetadata</span><span class="op">&gt;</span>()
+                    .<span class="ident">unwrap</span>();
+                <span class="kw">for</span> <span class="ident">item</span> <span class="kw">in</span> <span class="ident">unstable_entries</span> {
+                    <span class="ident">existing</span>.<span class="ident">unstable_entries</span>.<span class="ident">insert</span>(<span class="ident">item</span>); <span class="comment">// Insert newly found items</span>
+                }
+                <span class="ident">existing</span>.<span class="ident">map_len</span> <span class="op">=</span> <span class="ident">map_len</span>;
+            } <span class="kw">else</span> {
+                <span class="ident">state</span>.<span class="ident">add_metadata</span>::<span class="op">&lt;</span><span class="ident">UnstableEntriesMetadata</span><span class="op">&gt;</span>(<span class="ident">UnstableEntriesMetadata::new</span>(
+                    <span class="ident">HashSet::from_iter</span>(<span class="ident">unstable_entries</span>),
+                    <span class="ident">map_len</span>,
+                ));
             }
         };
 
@@ -499,13 +637,33 @@
         <span class="ident">O::Entry</span>:
             <span class="ident">PartialEq</span> <span class="op">+</span> <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Copy</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Serialize</span> <span class="op">+</span> <span class="ident">serde::de::DeserializeOwned</span> <span class="op">+</span> <span class="ident">Debug</span>,
         <span class="ident">R</span>: <span class="ident">Reducer</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span>,
-        <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span><span class="op">&gt;</span> <span class="ident">O</span>: <span class="ident">AsRefIterator</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span>, <span class="ident">Item</span> <span class="op">=</span> <span class="ident">O::Entry</span><span class="op">&gt;</span>,
+        <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span><span class="op">&gt;</span> <span class="ident">O</span>: <span class="ident">AsIter</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span>, <span class="ident">Item</span> <span class="op">=</span> <span class="ident">O::Entry</span><span class="op">&gt;</span>,
         <span class="ident">N</span>: <span class="ident">IsNovel</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span>,
     {
         <span class="self">Self</span> {
             <span class="ident">map_observer_name</span>: <span class="ident">map_feedback</span>.<span class="ident">observer_name</span>().<span class="ident">to_string</span>(),
             <span class="ident">map_name</span>: <span class="ident">map_feedback</span>.<span class="ident">name</span>().<span class="ident">to_string</span>(),
             <span class="ident">stage_max</span>: <span class="ident">CAL_STAGE_START</span>,
+            <span class="ident">track_stability</span>: <span class="bool-val">true</span>,
+            <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
+        }
+    }
+
+    <span class="doccomment">/// Create a new [`CalibrationStage`], but without checking stability.</span>
+    <span class="attribute">#[<span class="ident">must_use</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ignore_stability</span><span class="op">&lt;</span><span class="ident">N</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">map_feedback</span>: <span class="kw-2">&amp;</span><span class="ident">MapFeedback</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">N</span>, <span class="ident">O</span>, <span class="ident">R</span>, <span class="ident">S</span>, <span class="ident">O::Entry</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span>
+    <span class="kw">where</span>
+        <span class="ident">O::Entry</span>:
+            <span class="ident">PartialEq</span> <span class="op">+</span> <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Copy</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Serialize</span> <span class="op">+</span> <span class="ident">serde::de::DeserializeOwned</span> <span class="op">+</span> <span class="ident">Debug</span>,
+        <span class="ident">R</span>: <span class="ident">Reducer</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span>,
+        <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span><span class="op">&gt;</span> <span class="ident">O</span>: <span class="ident">AsIter</span><span class="op">&lt;</span><span class="lifetime">&#39;it</span>, <span class="ident">Item</span> <span class="op">=</span> <span class="ident">O::Entry</span><span class="op">&gt;</span>,
+        <span class="ident">N</span>: <span class="ident">IsNovel</span><span class="op">&lt;</span><span class="ident">O::Entry</span><span class="op">&gt;</span>,
+    {
+        <span class="self">Self</span> {
+            <span class="ident">map_observer_name</span>: <span class="ident">map_feedback</span>.<span class="ident">observer_name</span>().<span class="ident">to_string</span>(),
+            <span class="ident">map_name</span>: <span class="ident">map_feedback</span>.<span class="ident">name</span>().<span class="ident">to_string</span>(),
+            <span class="ident">stage_max</span>: <span class="ident">CAL_STAGE_START</span>,
+            <span class="ident">track_stability</span>: <span class="bool-val">false</span>,
             <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
         }
     }

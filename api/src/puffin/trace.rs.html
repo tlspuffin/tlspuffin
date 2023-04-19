@@ -606,6 +606,15 @@
 <span id="600">600</span>
 <span id="601">601</span>
 <span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
 </pre><pre class="rust"><code><span class="doccomment">//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an</span>
 <span class="doccomment">//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between</span>
 <span class="doccomment">//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by</span>
@@ -641,7 +650,7 @@
     <span class="ident">claims</span>::{<span class="ident">Claim</span>, <span class="ident">GlobalClaimList</span>, <span class="ident">SecurityViolationPolicy</span>},
     <span class="ident">error::Error</span>,
     <span class="ident">protocol</span>::{<span class="ident">MessageResult</span>, <span class="ident">OpaqueProtocolMessage</span>, <span class="ident">ProtocolBehavior</span>, <span class="ident">ProtocolMessage</span>},
-    <span class="ident">put::PutDescriptor</span>,
+    <span class="ident">put</span>::{<span class="ident">PutDescriptor</span>, <span class="ident">PutOptions</span>},
     <span class="ident">put_registry</span>::{<span class="ident">Factory</span>, <span class="ident">PutRegistry</span>},
     <span class="ident">variable_data::VariableData</span>,
 };
@@ -709,14 +718,17 @@
     <span class="ident">knowledge</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Knowledge</span><span class="op">&lt;</span><span class="ident">PB::Matcher</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">agents</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Agent</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">claims</span>: <span class="ident">GlobalClaimList</span><span class="op">&lt;</span><span class="ident">PB::Claim</span><span class="op">&gt;</span>,
-    <span class="ident">put_descriptors</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">AgentName</span>, <span class="ident">PutDescriptor</span><span class="op">&gt;</span>,
+
     <span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
-    <span class="ident">deterministic</span>: <span class="ident">bool</span>,
+    <span class="ident">deterministic_put</span>: <span class="ident">bool</span>,
+    <span class="ident">default_put_options</span>: <span class="ident">PutOptions</span>,
+    <span class="ident">non_default_put_descriptors</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">AgentName</span>, <span class="ident">PutDescriptor</span><span class="op">&gt;</span>,
+
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span><span class="op">&gt;</span> <span class="ident">TraceContext</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>) -&gt; <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>, <span class="ident">default_put_options</span>: <span class="ident">PutOptions</span>) -&gt; <span class="self">Self</span> {
         <span class="comment">// We keep a global list of all claims throughout the execution. Each claim is identified</span>
         <span class="comment">// by the AgentName. A rename of an Agent does not interfere with this.</span>
         <span class="kw">let</span> <span class="ident">claims</span> <span class="op">=</span> <span class="ident">GlobalClaimList::new</span>();
@@ -725,10 +737,11 @@
             <span class="ident">knowledge</span>: <span class="macro">vec!</span>[],
             <span class="ident">agents</span>: <span class="macro">vec!</span>[],
             <span class="ident">claims</span>,
-            <span class="ident">put_descriptors</span>: <span class="ident">Default::default</span>(),
+            <span class="ident">non_default_put_descriptors</span>: <span class="ident">Default::default</span>(),
             <span class="ident">put_registry</span>,
-            <span class="ident">deterministic</span>: <span class="bool-val">false</span>,
+            <span class="ident">deterministic_put</span>: <span class="bool-val">false</span>,
             <span class="ident">phantom</span>: <span class="ident">Default::default</span>(),
+            <span class="ident">default_put_options</span>,
         }
     }
 
@@ -868,27 +881,31 @@
         })
     }
 
-    <span class="doccomment">/// Gets the PUT which should be used for all agents</span>
+    <span class="doccomment">/// Gets the PUT descriptor which should be used for all agents</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">put_descriptor</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">agent_descriptor</span>: <span class="kw-2">&amp;</span><span class="ident">AgentDescriptor</span>) -&gt; <span class="ident">PutDescriptor</span> {
-        <span class="self">self</span>.<span class="ident">put_descriptors</span>
+        <span class="self">self</span>.<span class="ident">non_default_put_descriptors</span>
             .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">agent_descriptor</span>.<span class="ident">name</span>)
             .<span class="ident">cloned</span>()
-            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">put_registry</span>.<span class="ident">default</span>)();
-                <span class="ident">PutDescriptor</span> {
-                    <span class="ident">name</span>: <span class="ident">factory</span>.<span class="ident">name</span>(),
-                    <span class="ident">options</span>: <span class="ident">Default::default</span>(),
-                }
-            })
+            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">default_put_descriptor</span>())
+    }
+
+    <span class="kw">fn</span> <span class="ident">default_put_descriptor</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">PutDescriptor</span> {
+        <span class="kw">let</span> <span class="ident">factory</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">put_registry</span>.<span class="ident">default</span>)();
+        <span class="ident">PutDescriptor</span> {
+            <span class="ident">name</span>: <span class="ident">factory</span>.<span class="ident">name</span>(),
+            <span class="ident">options</span>: <span class="self">self</span>.<span class="ident">default_put_options</span>.<span class="ident">clone</span>(),
+        }
     }
 
     <span class="doccomment">/// Makes agents use the non-default PUT</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_non_default_put</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">agent_name</span>: <span class="ident">AgentName</span>, <span class="ident">put_descriptor</span>: <span class="ident">PutDescriptor</span>) {
-        <span class="self">self</span>.<span class="ident">put_descriptors</span>.<span class="ident">insert</span>(<span class="ident">agent_name</span>, <span class="ident">put_descriptor</span>);
+        <span class="self">self</span>.<span class="ident">non_default_put_descriptors</span>
+            .<span class="ident">insert</span>(<span class="ident">agent_name</span>, <span class="ident">put_descriptor</span>);
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_non_default_puts</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">descriptors</span>: <span class="kw-2">&amp;</span>[(<span class="ident">AgentName</span>, <span class="ident">PutDescriptor</span>)]) {
-        <span class="self">self</span>.<span class="ident">put_descriptors</span>.<span class="ident">extend</span>(<span class="ident">descriptors</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>());
+        <span class="self">self</span>.<span class="ident">non_default_put_descriptors</span>
+            .<span class="ident">extend</span>(<span class="ident">descriptors</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>());
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset_agents</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
@@ -905,7 +922,7 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_deterministic</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">deterministic</span>: <span class="ident">bool</span>) {
-        <span class="self">self</span>.<span class="ident">deterministic</span> <span class="op">=</span> <span class="ident">deterministic</span>;
+        <span class="self">self</span>.<span class="ident">deterministic_put</span> <span class="op">=</span> <span class="ident">deterministic</span>;
     }
 }
 
@@ -937,7 +954,7 @@
                 <span class="ident">ctx</span>.<span class="ident">new_agent</span>(<span class="ident">descriptor</span>)<span class="question-mark">?</span>
             };
 
-            <span class="kw">if</span> <span class="ident">ctx</span>.<span class="ident">deterministic</span> {
+            <span class="kw">if</span> <span class="ident">ctx</span>.<span class="ident">deterministic_put</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">agent</span>) <span class="op">=</span> <span class="ident">ctx</span>.<span class="ident">find_agent_mut</span>(<span class="ident">name</span>) {
                     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">agent</span>.<span class="ident">put_mut</span>().<span class="ident">set_deterministic</span>() {
                         <span class="macro">warn!</span>(<span class="string">&quot;Unable to make agent {} deterministic: {}&quot;</span>, <span class="ident">name</span>, <span class="ident">err</span>)
@@ -976,9 +993,9 @@
             }
 
             <span class="ident">ctx</span>.<span class="ident">claims</span>.<span class="ident">deref_borrow</span>().<span class="ident">log</span>();
-        }
 
-        <span class="ident">ctx</span>.<span class="ident">verify_security_violations</span>()<span class="question-mark">?</span>;
+            <span class="ident">ctx</span>.<span class="ident">verify_security_violations</span>()<span class="question-mark">?</span>;
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -986,30 +1003,31 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">execute_deterministic</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
-    ) -&gt; <span class="ident">TraceContext</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>
+        <span class="ident">default_put_options</span>: <span class="ident">PutOptions</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TraceContext</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span><span class="op">&lt;</span><span class="ident">Matcher</span> <span class="op">=</span> <span class="ident">M</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>, <span class="ident">default_put_options</span>);
         <span class="ident">ctx</span>.<span class="ident">set_deterministic</span>(<span class="bool-val">true</span>);
-        <span class="self">self</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
-        <span class="ident">ctx</span>
+        <span class="self">self</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">ctx</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">execute_with_puts</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">execute_with_non_default_puts</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
         <span class="ident">descriptors</span>: <span class="kw-2">&amp;</span>[(<span class="ident">AgentName</span>, <span class="ident">PutDescriptor</span>)],
-    ) -&gt; <span class="ident">TraceContext</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TraceContext</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span><span class="op">&lt;</span><span class="ident">Matcher</span> <span class="op">=</span> <span class="ident">M</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>, <span class="ident">PutOptions::default</span>());
 
         <span class="ident">ctx</span>.<span class="ident">set_non_default_puts</span>(<span class="ident">descriptors</span>);
 
-        <span class="self">self</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>).<span class="ident">unwrap</span>();
-        <span class="ident">ctx</span>
+        <span class="self">self</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">ctx</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize_postcard</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">postcard::Error</span><span class="op">&gt;</span> {
@@ -1194,7 +1212,7 @@
             <span class="ident">ctx</span>.<span class="ident">add_to_inbound</span>(<span class="ident">step</span>.<span class="ident">agent</span>, <span class="ident">opaque_message</span>)<span class="question-mark">?</span>;
         } <span class="kw">else</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FnError::Unknown</span>(<span class="ident">String::from</span>(
-                <span class="string">&quot;Recipe is not a `Message`, `OpaqueMessage` or `MultiMessage`!&quot;</span>,
+                <span class="string">&quot;Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!&quot;</span>,
             ))
             .<span class="ident">into</span>());
         }

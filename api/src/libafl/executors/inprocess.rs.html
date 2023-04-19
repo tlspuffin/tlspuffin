@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/executors/inprocess.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>inprocess.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/executors/inprocess.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>inprocess.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -1756,54 +1756,326 @@
 <span id="1750">1750</span>
 <span id="1751">1751</span>
 <span id="1752">1752</span>
+<span id="1753">1753</span>
+<span id="1754">1754</span>
+<span id="1755">1755</span>
+<span id="1756">1756</span>
+<span id="1757">1757</span>
+<span id="1758">1758</span>
+<span id="1759">1759</span>
+<span id="1760">1760</span>
+<span id="1761">1761</span>
+<span id="1762">1762</span>
+<span id="1763">1763</span>
+<span id="1764">1764</span>
+<span id="1765">1765</span>
+<span id="1766">1766</span>
+<span id="1767">1767</span>
+<span id="1768">1768</span>
+<span id="1769">1769</span>
+<span id="1770">1770</span>
+<span id="1771">1771</span>
+<span id="1772">1772</span>
+<span id="1773">1773</span>
+<span id="1774">1774</span>
+<span id="1775">1775</span>
+<span id="1776">1776</span>
+<span id="1777">1777</span>
+<span id="1778">1778</span>
+<span id="1779">1779</span>
+<span id="1780">1780</span>
+<span id="1781">1781</span>
+<span id="1782">1782</span>
+<span id="1783">1783</span>
+<span id="1784">1784</span>
+<span id="1785">1785</span>
+<span id="1786">1786</span>
+<span id="1787">1787</span>
+<span id="1788">1788</span>
+<span id="1789">1789</span>
+<span id="1790">1790</span>
+<span id="1791">1791</span>
+<span id="1792">1792</span>
+<span id="1793">1793</span>
+<span id="1794">1794</span>
+<span id="1795">1795</span>
+<span id="1796">1796</span>
+<span id="1797">1797</span>
+<span id="1798">1798</span>
+<span id="1799">1799</span>
+<span id="1800">1800</span>
+<span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
+<span id="1804">1804</span>
+<span id="1805">1805</span>
+<span id="1806">1806</span>
+<span id="1807">1807</span>
+<span id="1808">1808</span>
+<span id="1809">1809</span>
+<span id="1810">1810</span>
+<span id="1811">1811</span>
+<span id="1812">1812</span>
+<span id="1813">1813</span>
+<span id="1814">1814</span>
+<span id="1815">1815</span>
+<span id="1816">1816</span>
+<span id="1817">1817</span>
+<span id="1818">1818</span>
+<span id="1819">1819</span>
+<span id="1820">1820</span>
+<span id="1821">1821</span>
+<span id="1822">1822</span>
+<span id="1823">1823</span>
+<span id="1824">1824</span>
+<span id="1825">1825</span>
+<span id="1826">1826</span>
+<span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
+<span id="1842">1842</span>
+<span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
+<span id="1846">1846</span>
+<span id="1847">1847</span>
+<span id="1848">1848</span>
+<span id="1849">1849</span>
+<span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
+<span id="1861">1861</span>
+<span id="1862">1862</span>
+<span id="1863">1863</span>
+<span id="1864">1864</span>
+<span id="1865">1865</span>
+<span id="1866">1866</span>
+<span id="1867">1867</span>
+<span id="1868">1868</span>
+<span id="1869">1869</span>
+<span id="1870">1870</span>
+<span id="1871">1871</span>
+<span id="1872">1872</span>
+<span id="1873">1873</span>
+<span id="1874">1874</span>
+<span id="1875">1875</span>
+<span id="1876">1876</span>
+<span id="1877">1877</span>
+<span id="1878">1878</span>
+<span id="1879">1879</span>
+<span id="1880">1880</span>
+<span id="1881">1881</span>
+<span id="1882">1882</span>
+<span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
+<span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
+<span id="1915">1915</span>
+<span id="1916">1916</span>
+<span id="1917">1917</span>
+<span id="1918">1918</span>
+<span id="1919">1919</span>
+<span id="1920">1920</span>
+<span id="1921">1921</span>
+<span id="1922">1922</span>
+<span id="1923">1923</span>
+<span id="1924">1924</span>
+<span id="1925">1925</span>
+<span id="1926">1926</span>
+<span id="1927">1927</span>
+<span id="1928">1928</span>
+<span id="1929">1929</span>
+<span id="1930">1930</span>
+<span id="1931">1931</span>
+<span id="1932">1932</span>
+<span id="1933">1933</span>
+<span id="1934">1934</span>
+<span id="1935">1935</span>
+<span id="1936">1936</span>
+<span id="1937">1937</span>
+<span id="1938">1938</span>
+<span id="1939">1939</span>
+<span id="1940">1940</span>
+<span id="1941">1941</span>
+<span id="1942">1942</span>
+<span id="1943">1943</span>
+<span id="1944">1944</span>
+<span id="1945">1945</span>
+<span id="1946">1946</span>
+<span id="1947">1947</span>
+<span id="1948">1948</span>
+<span id="1949">1949</span>
+<span id="1950">1950</span>
+<span id="1951">1951</span>
+<span id="1952">1952</span>
+<span id="1953">1953</span>
+<span id="1954">1954</span>
+<span id="1955">1955</span>
+<span id="1956">1956</span>
+<span id="1957">1957</span>
+<span id="1958">1958</span>
+<span id="1959">1959</span>
+<span id="1960">1960</span>
+<span id="1961">1961</span>
+<span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
+<span id="1965">1965</span>
+<span id="1966">1966</span>
+<span id="1967">1967</span>
+<span id="1968">1968</span>
+<span id="1969">1969</span>
+<span id="1970">1970</span>
+<span id="1971">1971</span>
+<span id="1972">1972</span>
+<span id="1973">1973</span>
+<span id="1974">1974</span>
+<span id="1975">1975</span>
+<span id="1976">1976</span>
+<span id="1977">1977</span>
+<span id="1978">1978</span>
+<span id="1979">1979</span>
+<span id="1980">1980</span>
+<span id="1981">1981</span>
+<span id="1982">1982</span>
+<span id="1983">1983</span>
+<span id="1984">1984</span>
+<span id="1985">1985</span>
+<span id="1986">1986</span>
+<span id="1987">1987</span>
+<span id="1988">1988</span>
+<span id="1989">1989</span>
+<span id="1990">1990</span>
+<span id="1991">1991</span>
+<span id="1992">1992</span>
+<span id="1993">1993</span>
+<span id="1994">1994</span>
+<span id="1995">1995</span>
+<span id="1996">1996</span>
+<span id="1997">1997</span>
+<span id="1998">1998</span>
+<span id="1999">1999</span>
+<span id="2000">2000</span>
+<span id="2001">2001</span>
+<span id="2002">2002</span>
+<span id="2003">2003</span>
+<span id="2004">2004</span>
+<span id="2005">2005</span>
+<span id="2006">2006</span>
+<span id="2007">2007</span>
+<span id="2008">2008</span>
+<span id="2009">2009</span>
+<span id="2010">2010</span>
+<span id="2011">2011</span>
+<span id="2012">2012</span>
+<span id="2013">2013</span>
+<span id="2014">2014</span>
+<span id="2015">2015</span>
+<span id="2016">2016</span>
+<span id="2017">2017</span>
+<span id="2018">2018</span>
+<span id="2019">2019</span>
+<span id="2020">2020</span>
+<span id="2021">2021</span>
+<span id="2022">2022</span>
+<span id="2023">2023</span>
+<span id="2024">2024</span>
+<span id="2025">2025</span>
+<span id="2026">2026</span>
+<span id="2027">2027</span>
+<span id="2028">2028</span>
+<span id="2029">2029</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The [`InProcessExecutor`] is a libfuzzer-like executor, that will simply call a function.</span>
 <span class="doccomment">//! It should usually be paired with extra error-handling, such as a restarting event manager, to be effective.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! Needs the `fork` feature flag.</span>
 
+<span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="kw">use</span> <span class="ident">alloc::vec::Vec</span>;
 <span class="kw">use</span> <span class="ident">core</span>::{
     <span class="ident">borrow::BorrowMut</span>,
     <span class="ident">ffi::c_void</span>,
     <span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Formatter</span>},
     <span class="ident">marker::PhantomData</span>,
-    <span class="ident">ptr</span>,
+    <span class="ident">ptr</span>::{<span class="self">self</span>, <span class="ident">null_mut</span>},
 };
-
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">ptr::addr_of_mut</span>, <span class="ident">time::Duration</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)))]</span>
 <span class="kw">use</span> <span class="ident">core</span>::{
     <span class="ident">ptr::write_volatile</span>,
     <span class="ident">sync::atomic</span>::{<span class="ident">compiler_fence</span>, <span class="ident">Ordering</span>},
 };
-
-<span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">alloc::vec::Vec</span>;
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">use</span> <span class="ident">std::intrinsics::transmute</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">use</span> <span class="ident">libc::siginfo_t</span>;
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">use</span> <span class="ident">nix</span>::{
     <span class="ident">sys::wait</span>::{<span class="ident">waitpid</span>, <span class="ident">WaitStatus</span>},
     <span class="ident">unistd</span>::{<span class="ident">fork</span>, <span class="ident">ForkResult</span>},
 };
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
+<span class="kw">use</span> <span class="ident">windows::Win32::System::Threading::SetThreadStackGuarantee</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">unix</span>)]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::unix_signals::setup_signal_handler</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::unix_signals</span>::{<span class="ident">ucontext_t</span>, <span class="ident">Handler</span>, <span class="ident">Signal</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::windows_exceptions::setup_exception_handler</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::shmem::ShMemProvider</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-<span class="kw">use</span> <span class="ident">windows::Win32::System::Threading::SetThreadStackGuarantee</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::unix_signals</span>::{<span class="ident">ucontext_t</span>, <span class="ident">Handler</span>, <span class="ident">Signal</span>};
-
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">events</span>::{<span class="ident">EventFirer</span>, <span class="ident">EventRestarter</span>},
     <span class="ident">executors</span>::{<span class="ident">Executor</span>, <span class="ident">ExitKind</span>, <span class="ident">HasObservers</span>},
@@ -1997,8 +2269,10 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InProcessHandlers</span> {
     <span class="doccomment">/// On crash C function pointer</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="ident">crash_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
     <span class="doccomment">/// On timeout C function pointer</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="ident">timeout_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
 }
 
@@ -2125,20 +2399,26 @@
                 <span class="op">&gt;</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">c_void</span>,
             })
         }
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))))]</span>
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-            <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
-            <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
-        })
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)))]</span>
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {})
     }
 
     <span class="doccomment">/// Replace the handlers with `nop` handlers, deactivating the handlers</span>
     <span class="attribute">#[<span class="ident">must_use</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nop</span>() -&gt; <span class="self">Self</span> {
-        <span class="self">Self</span> {
-            <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
-            <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
+        <span class="kw">let</span> <span class="ident">ret</span>;
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+        {
+            <span class="ident">ret</span> <span class="op">=</span> <span class="self">Self</span> {
+                <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
+                <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
+            };
         }
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)))]</span>
+        {
+            <span class="ident">ret</span> <span class="op">=</span> <span class="self">Self</span> {};
+        }
+        <span class="ident">ret</span>
     }
 }
 
@@ -2151,53 +2431,58 @@
     <span class="ident">executor_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
     <span class="kw">pub</span> <span class="ident">current_input_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
     <span class="doccomment">/// The timeout handler</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span> <span class="comment">// for no_std</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="ident">crash_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
     <span class="doccomment">/// The timeout handler</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span> <span class="comment">// for no_std</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="ident">timeout_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">tp_timer</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">in_target</span>: <span class="ident">u64</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">critical</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="kw">pub</span> <span class="ident">timeout_input_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">tp_timer</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">in_target</span>: <span class="ident">u64</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">critical</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="ident">timeout_input_ptr</span>: <span class="kw-2">*mut</span> <span class="ident">c_void</span>,
 }
 
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">InProcessExecutorHandlerData</span> {}
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">InProcessExecutorHandlerData</span> {}
 
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused</span>)]</span>
 <span class="kw">impl</span> <span class="ident">InProcessExecutorHandlerData</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">executor_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">E</span> {
         <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">executor_ptr</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">E</span>).<span class="ident">as_mut</span>().<span class="ident">unwrap</span>() }
     }
 
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">state_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">S</span> {
         <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">state_ptr</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">S</span>).<span class="ident">as_mut</span>().<span class="ident">unwrap</span>() }
     }
 
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">event_mgr_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">EM</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">EM</span> {
         <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">event_mgr_ptr</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">EM</span>).<span class="ident">as_mut</span>().<span class="ident">unwrap</span>() }
     }
 
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">fuzzer_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Z</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Z</span> {
         <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">fuzzer_ptr</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">Z</span>).<span class="ident">as_mut</span>().<span class="ident">unwrap</span>() }
     }
 
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">current_input</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">I</span> {
         <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">current_input_ptr</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">I</span>).<span class="ident">as_ref</span>().<span class="ident">unwrap</span>() }
     }
 
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">take_current_input</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">I</span> {
         <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="kw">unsafe</span> { (<span class="self">self</span>.<span class="ident">current_input_ptr</span> <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">I</span>).<span class="ident">as_ref</span>().<span class="ident">unwrap</span>() };
         <span class="self">self</span>.<span class="ident">current_input_ptr</span> <span class="op">=</span> <span class="ident">ptr::null</span>();
         <span class="ident">r</span>
     }
 
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="kw">fn</span> <span class="ident">is_valid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">in_target</span> <span class="op">==</span> <span class="number">1</span>
     }
@@ -2211,27 +2496,29 @@
 <span class="doccomment">/// Exception handling needs some nasty unsafe.</span>
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">GLOBAL_STATE</span>: <span class="ident">InProcessExecutorHandlerData</span> <span class="op">=</span> <span class="ident">InProcessExecutorHandlerData</span> {
     <span class="doccomment">/// The state ptr for signal handling</span>
-    <span class="ident">state_ptr</span>: <span class="ident">ptr::null_mut</span>(),
+    <span class="ident">state_ptr</span>: <span class="ident">null_mut</span>(),
     <span class="doccomment">/// The event manager ptr for signal handling</span>
-    <span class="ident">event_mgr_ptr</span>: <span class="ident">ptr::null_mut</span>(),
+    <span class="ident">event_mgr_ptr</span>: <span class="ident">null_mut</span>(),
     <span class="doccomment">/// The fuzzer ptr for signal handling</span>
-    <span class="ident">fuzzer_ptr</span>: <span class="ident">ptr::null_mut</span>(),
+    <span class="ident">fuzzer_ptr</span>: <span class="ident">null_mut</span>(),
     <span class="doccomment">/// The executor ptr for signal handling</span>
     <span class="ident">executor_ptr</span>: <span class="ident">ptr::null</span>(),
     <span class="doccomment">/// The current input for signal handling</span>
     <span class="ident">current_input_ptr</span>: <span class="ident">ptr::null</span>(),
     <span class="doccomment">/// The crash handler fn</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
     <span class="doccomment">/// The timeout handler fn</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="ident">tp_timer</span>: <span class="ident">ptr::null_mut</span>(),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="ident">tp_timer</span>: <span class="ident">null_mut</span>(),
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
     <span class="ident">in_target</span>: <span class="number">0</span>,
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="ident">critical</span>: <span class="ident">ptr::null_mut</span>(),
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
-    <span class="ident">timeout_input_ptr</span>: <span class="ident">ptr::null_mut</span>(),
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="ident">critical</span>: <span class="ident">null_mut</span>(),
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">windows</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+    <span class="ident">timeout_input_ptr</span>: <span class="ident">null_mut</span>(),
 };
 
 <span class="doccomment">/// Get the inprocess [`crate::state::State`]</span>
@@ -2270,12 +2557,13 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">boxed::Box</span>, <span class="ident">string::String</span>};
     <span class="kw">use</span> <span class="ident">core::mem::transmute</span>;
-    <span class="kw">use</span> <span class="ident">libc::siginfo_t</span>;
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">std</span>::{
         <span class="ident">io</span>::{<span class="ident">stdout</span>, <span class="ident">Write</span>},
         <span class="ident">panic</span>,
     };
+
+    <span class="kw">use</span> <span class="ident">libc::siginfo_t</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">bolts::os::unix_signals</span>::{<span class="ident">ucontext_t</span>, <span class="ident">Handler</span>, <span class="ident">Signal</span>},
@@ -2513,7 +2801,7 @@
             <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">libc::c_void</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">ucontext_t</span>);
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-        <span class="macro">eprintln!</span>(<span class="string">&quot;Crashed with {}&quot;</span>, <span class="ident">signal</span>);
+        <span class="macro">eprintln!</span>(<span class="string">&quot;Crashed with {signal}&quot;</span>);
         <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">is_valid</span>() {
             <span class="kw">let</span> <span class="ident">executor</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">executor_mut</span>::<span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>();
             <span class="comment">// disarms timeout in case of TimeoutExecutor</span>
@@ -2618,15 +2906,20 @@
 <span class="kw">mod</span> <span class="ident">windows_exception_handler</span> {
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
-    <span class="kw">use</span> <span class="ident">alloc::string::String</span>;
-    <span class="kw">use</span> <span class="ident">alloc::vec::Vec</span>;
-    <span class="kw">use</span> <span class="ident">core::ffi::c_void</span>;
-    <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">mem::transmute</span>, <span class="ident">ptr</span>};
+    <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">string::String</span>, <span class="ident">vec::Vec</span>};
+    <span class="kw">use</span> <span class="ident">core</span>::{
+        <span class="ident">ffi::c_void</span>,
+        <span class="ident">mem::transmute</span>,
+        <span class="ident">ptr</span>,
+        <span class="ident">sync::atomic</span>::{<span class="ident">compiler_fence</span>, <span class="ident">Ordering</span>},
+    };
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">std</span>::{
         <span class="ident">io</span>::{<span class="ident">stdout</span>, <span class="ident">Write</span>},
         <span class="ident">panic</span>,
     };
+
+    <span class="kw">use</span> <span class="ident">windows::Win32::System::Threading::ExitProcess</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">bolts::os::windows_exceptions</span>::{
@@ -2644,9 +2937,6 @@
         <span class="ident">observers::ObserversTuple</span>,
         <span class="ident">state</span>::{<span class="ident">HasClientPerfMonitor</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasSolutions</span>},
     };
-
-    <span class="kw">use</span> <span class="ident">core::sync::atomic</span>::{<span class="ident">compiler_fence</span>, <span class="ident">Ordering</span>};
-    <span class="kw">use</span> <span class="ident">windows::Win32::System::Threading::ExitProcess</span>;
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">HandlerFuncPtr</span> <span class="op">=</span>
         <span class="kw">unsafe</span> <span class="kw">fn</span>(<span class="kw-2">*mut</span> <span class="ident">EXCEPTION_POINTERS</span>, <span class="kw-2">&amp;mut</span> <span class="ident">InProcessExecutorHandlerData</span>);
@@ -3016,6 +3306,8 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">InChildProcessHandlers</span> {
     <span class="doccomment">/// On crash C function pointer</span>
     <span class="kw">pub</span> <span class="ident">crash_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
+    <span class="doccomment">/// On timeout C function pointer</span>
+    <span class="kw">pub</span> <span class="ident">timeout_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
@@ -3034,6 +3326,7 @@
             );
             <span class="ident">write_volatile</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>.<span class="ident">state_ptr</span>, <span class="ident">state</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*mut</span> <span class="ident">c_void</span>);
             <span class="ident">data</span>.<span class="ident">crash_handler</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">crash_handler</span>;
+            <span class="ident">data</span>.<span class="ident">timeout_handler</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">timeout_handler</span>;
             <span class="ident">compiler_fence</span>(<span class="ident">Ordering::SeqCst</span>);
         }
     }
@@ -3047,11 +3340,33 @@
     {
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>;
-            <span class="ident">child_signal_handlers::setup_child_panic_hook</span>::<span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>();
+            <span class="comment">// child_signal_handlers::setup_child_panic_hook::&lt;E, I, OT, S&gt;();</span>
             <span class="ident">setup_signal_handler</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
             <span class="ident">compiler_fence</span>(<span class="ident">Ordering::SeqCst</span>);
             <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
                 <span class="ident">crash_handler</span>: <span class="ident">child_signal_handlers::child_crash_handler</span>::<span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>
+                    <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">c_void</span>,
+                <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
+            })
+        }
+    }
+
+    <span class="doccomment">/// Create new [`InChildProcessHandlers`].</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_timeout</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">I</span>: <span class="ident">Input</span>,
+        <span class="ident">E</span>: <span class="ident">HasObservers</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+        <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">unsafe</span> {
+            <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>;
+            <span class="comment">// child_signal_handlers::setup_child_panic_hook::&lt;E, I, OT, S&gt;();</span>
+            <span class="ident">setup_signal_handler</span>(<span class="ident">data</span>)<span class="question-mark">?</span>;
+            <span class="ident">compiler_fence</span>(<span class="ident">Ordering::SeqCst</span>);
+            <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
+                <span class="ident">crash_handler</span>: <span class="ident">child_signal_handlers::child_crash_handler</span>::<span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>
+                    <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">c_void</span>,
+                <span class="ident">timeout_handler</span>: <span class="ident">child_signal_handlers::child_timeout_handler</span>::<span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>
                     <span class="kw">as</span> <span class="kw-2">*const</span> <span class="ident">c_void</span>,
             })
         }
@@ -3062,6 +3377,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nop</span>() -&gt; <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
+            <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
         }
     }
 }
@@ -3078,6 +3394,8 @@
     <span class="kw">pub</span> <span class="ident">current_input_ptr</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
     <span class="doccomment">/// Stores a pointer to the crash_handler function</span>
     <span class="kw">pub</span> <span class="ident">crash_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
+    <span class="doccomment">/// Stores a pointer to the timeout_handler function</span>
+    <span class="kw">pub</span> <span class="ident">timeout_handler</span>: <span class="kw-2">*const</span> <span class="ident">c_void</span>,
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
@@ -3115,16 +3433,23 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>: <span class="ident">InProcessForkExecutorGlobalData</span> <span class="op">=</span>
     <span class="ident">InProcessForkExecutorGlobalData</span> {
         <span class="ident">executor_ptr</span>: <span class="ident">ptr::null</span>(),
-        <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
         <span class="ident">state_ptr</span>: <span class="ident">ptr::null</span>(),
         <span class="ident">current_input_ptr</span>: <span class="ident">ptr::null</span>(),
+        <span class="ident">crash_handler</span>: <span class="ident">ptr::null</span>(),
+        <span class="ident">timeout_handler</span>: <span class="ident">ptr::null</span>(),
     };
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">impl</span> <span class="ident">Handler</span> <span class="kw">for</span> <span class="ident">InProcessForkExecutorGlobalData</span> {
     <span class="kw">fn</span> <span class="ident">handle</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">signal</span>: <span class="ident">Signal</span>, <span class="ident">info</span>: <span class="ident">siginfo_t</span>, <span class="ident">context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ucontext_t</span>) {
         <span class="kw">match</span> <span class="ident">signal</span> {
-            <span class="ident">Signal::SigUser2</span> <span class="op">|</span> <span class="ident">Signal::SigAlarm</span> =&gt; (),
+            <span class="ident">Signal::SigUser2</span> <span class="op">|</span> <span class="ident">Signal::SigAlarm</span> =&gt; <span class="kw">unsafe</span> {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>.<span class="ident">timeout_handler</span>.<span class="ident">is_null</span>() {
+                    <span class="kw">let</span> <span class="ident">func</span>: <span class="ident">ForkHandlerFuncPtr</span> <span class="op">=</span>
+                        <span class="ident">transmute</span>(<span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>.<span class="ident">timeout_handler</span>);
+                    (<span class="ident">func</span>)(<span class="ident">signal</span>, <span class="ident">info</span>, <span class="ident">context</span>, <span class="kw-2">&amp;mut</span> <span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>);
+                }
+            },
             <span class="kw">_</span> =&gt; <span class="kw">unsafe</span> {
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>.<span class="ident">crash_handler</span>.<span class="ident">is_null</span>() {
                     <span class="kw">let</span> <span class="ident">func</span>: <span class="ident">ForkHandlerFuncPtr</span> <span class="op">=</span>
@@ -3166,6 +3491,23 @@
     <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">I</span>, <span class="ident">S</span>)<span class="op">&gt;</span>,
 }
 
+<span class="doccomment">/// Timeout executor for [`InProcessForkExecutor`]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TimeoutInProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SP</span>: <span class="ident">ShMemProvider</span>,
+{
+    <span class="ident">harness_fn</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">H</span>,
+    <span class="ident">shmem_provider</span>: <span class="ident">SP</span>,
+    <span class="ident">observers</span>: <span class="ident">OT</span>,
+    <span class="ident">handlers</span>: <span class="ident">InChildProcessHandlers</span>,
+    <span class="ident">itimerspec</span>: <span class="ident">libc::itimerspec</span>,
+    <span class="ident">phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span>(<span class="ident">I</span>, <span class="ident">S</span>)<span class="op">&gt;</span>,
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">InProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -3178,6 +3520,23 @@
         <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;InProcessForkExecutor&quot;</span>)
             .<span class="ident">field</span>(<span class="string">&quot;observers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">observers</span>)
             .<span class="ident">field</span>(<span class="string">&quot;shmem_provider&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">shmem_provider</span>)
+            .<span class="ident">finish</span>()
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">TimeoutInProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SP</span>: <span class="ident">ShMemProvider</span>,
+{
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;_</span><span class="op">&gt;</span>) -&gt; <span class="ident">fmt::Result</span> {
+        <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;TimeoutInProcessForkExecutor&quot;</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;observers&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">observers</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;shmem_provider&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">shmem_provider</span>)
+            .<span class="ident">field</span>(<span class="string">&quot;itimerspec&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">itimerspec</span>)
             .<span class="ident">finish</span>()
     }
 }
@@ -3249,6 +3608,93 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">EM</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span>, <span class="ident">Z</span><span class="op">&gt;</span> <span class="ident">Executor</span><span class="op">&lt;</span><span class="ident">EM</span>, <span class="ident">I</span>, <span class="ident">S</span>, <span class="ident">Z</span><span class="op">&gt;</span>
+    <span class="kw">for</span> <span class="ident">TimeoutInProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SP</span>: <span class="ident">ShMemProvider</span>,
+{
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unreachable_code</span>)]</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">run_target</span>(
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>,
+        <span class="ident">_fuzzer</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Z</span>,
+        <span class="ident">state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>,
+        <span class="ident">_mgr</span>: <span class="kw-2">&amp;mut</span> <span class="ident">EM</span>,
+        <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">I</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ExitKind</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">unsafe</span> {
+            <span class="self">self</span>.<span class="ident">shmem_provider</span>.<span class="ident">pre_fork</span>()<span class="question-mark">?</span>;
+            <span class="kw">match</span> <span class="ident">fork</span>() {
+                <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Child</span>) =&gt; {
+                    <span class="comment">// Child</span>
+                    <span class="self">self</span>.<span class="ident">shmem_provider</span>.<span class="ident">post_fork</span>(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+
+                    <span class="self">self</span>.<span class="ident">handlers</span>.<span class="ident">pre_run_target</span>(<span class="self">self</span>, <span class="ident">state</span>, <span class="ident">input</span>);
+
+                    <span class="self">self</span>.<span class="ident">observers</span>
+                        .<span class="ident">pre_exec_child_all</span>(<span class="ident">state</span>, <span class="ident">input</span>)
+                        .<span class="ident">expect</span>(<span class="string">&quot;Failed to run post_exec on observers&quot;</span>);
+
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timerid</span>: <span class="ident">libc::timer_t</span> <span class="op">=</span> <span class="ident">null_mut</span>();
+                    <span class="comment">// creates a new per-process interval timer</span>
+                    <span class="comment">// we can&#39;t do this from the parent, timerid is unique to each process.</span>
+                    <span class="ident">libc::timer_create</span>(<span class="ident">libc::CLOCK_MONOTONIC</span>, <span class="ident">null_mut</span>(), <span class="macro">addr_of_mut!</span>(<span class="ident">timerid</span>));
+
+                    <span class="macro">println!</span>(<span class="string">&quot;Set timer! {:#?} {timerid:#?}&quot;</span>, <span class="self">self</span>.<span class="ident">itimerspec</span>);
+                    <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span>
+                        <span class="ident">libc::timer_settime</span>(<span class="ident">timerid</span>, <span class="number">0</span>, <span class="macro">addr_of_mut!</span>(<span class="self">self</span>.<span class="ident">itimerspec</span>), <span class="ident">null_mut</span>());
+                    <span class="macro">println!</span>(<span class="string">&quot;{v:#?} {}&quot;</span>, <span class="ident">nix::errno::errno</span>());
+                    (<span class="self">self</span>.<span class="ident">harness_fn</span>)(<span class="ident">input</span>);
+
+                    <span class="self">self</span>.<span class="ident">observers</span>
+                        .<span class="ident">post_exec_child_all</span>(<span class="ident">state</span>, <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="ident">ExitKind::Ok</span>)
+                        .<span class="ident">expect</span>(<span class="string">&quot;Failed to run post_exec on observers&quot;</span>);
+
+                    <span class="ident">std::process::exit</span>(<span class="number">0</span>);
+
+                    <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Ok</span>)
+                }
+                <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Parent</span> { <span class="ident">child</span> }) =&gt; {
+                    <span class="comment">// Parent</span>
+                    <span class="comment">// println!(&quot;from parent {} child is {}&quot;, std::process::id(), child);</span>
+                    <span class="self">self</span>.<span class="ident">shmem_provider</span>.<span class="ident">post_fork</span>(<span class="bool-val">false</span>)<span class="question-mark">?</span>;
+
+                    <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">waitpid</span>(<span class="ident">child</span>, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
+                    <span class="macro">println!</span>(<span class="string">&quot;{res:#?}&quot;</span>);
+                    <span class="kw">match</span> <span class="ident">res</span> {
+                        <span class="ident">WaitStatus::Signaled</span>(<span class="kw">_</span>, <span class="ident">signal</span>, <span class="kw">_</span>) =&gt; <span class="kw">match</span> <span class="ident">signal</span> {
+                            <span class="ident">nix::sys::signal::Signal::SIGALRM</span>
+                            <span class="op">|</span> <span class="ident">nix::sys::signal::Signal::SIGUSR2</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Timeout</span>),
+                            <span class="kw">_</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Crash</span>),
+                        },
+                        <span class="ident">WaitStatus::Exited</span>(<span class="kw">_</span>, <span class="ident">code</span>) =&gt; {
+                            <span class="kw">if</span> <span class="ident">code</span> <span class="op">&gt;</span> <span class="number">128</span> <span class="op">&amp;&amp;</span> <span class="ident">code</span> <span class="op">&lt;</span> <span class="number">160</span> {
+                                <span class="comment">// Signal exit codes</span>
+                                <span class="kw">let</span> <span class="ident">signal</span> <span class="op">=</span> <span class="ident">code</span> <span class="op">-</span> <span class="number">128</span>;
+                                <span class="kw">if</span> <span class="ident">signal</span> <span class="op">==</span> <span class="ident">Signal::SigAlarm</span> <span class="kw">as</span> <span class="ident">libc::c_int</span>
+                                    <span class="op">|</span><span class="op">|</span> <span class="ident">signal</span> <span class="op">==</span> <span class="ident">Signal::SigUser2</span> <span class="kw">as</span> <span class="ident">libc::c_int</span>
+                                {
+                                    <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Timeout</span>)
+                                } <span class="kw">else</span> {
+                                    <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Crash</span>)
+                                }
+                            } <span class="kw">else</span> {
+                                <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Ok</span>)
+                            }
+                        }
+                        <span class="kw">_</span> =&gt; <span class="prelude-val">Ok</span>(<span class="ident">ExitKind::Ok</span>),
+                    }
+                }
+                <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="prelude-val">Err</span>(<span class="ident">Error::from</span>(<span class="ident">e</span>)),
+            }
+        }
+    }
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">InProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
 <span class="kw">where</span>
@@ -3295,8 +3741,90 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">TimeoutInProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SP</span>: <span class="ident">ShMemProvider</span>,
+{
+    <span class="doccomment">/// Creates a new [`TimeoutInProcessForkExecutor`]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">EM</span>, <span class="ident">OF</span>, <span class="ident">Z</span><span class="op">&gt;</span>(
+        <span class="ident">harness_fn</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">H</span>,
+        <span class="ident">observers</span>: <span class="ident">OT</span>,
+        <span class="ident">_fuzzer</span>: <span class="kw-2">&amp;mut</span> <span class="ident">Z</span>,
+        <span class="ident">_state</span>: <span class="kw-2">&amp;mut</span> <span class="ident">S</span>,
+        <span class="ident">_event_mgr</span>: <span class="kw-2">&amp;mut</span> <span class="ident">EM</span>,
+        <span class="ident">timeout</span>: <span class="ident">Duration</span>,
+        <span class="ident">shmem_provider</span>: <span class="ident">SP</span>,
+    ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">EM</span>: <span class="ident">EventFirer</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">EventRestarter</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>,
+        <span class="ident">OF</span>: <span class="ident">Feedback</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+        <span class="ident">S</span>: <span class="ident">HasSolutions</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">HasClientPerfMonitor</span>,
+        <span class="ident">Z</span>: <span class="ident">HasObjective</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">OF</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">let</span> <span class="ident">handlers</span> <span class="op">=</span> <span class="ident">InChildProcessHandlers::with_timeout</span>::<span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">milli_sec</span> <span class="op">=</span> <span class="ident">timeout</span>.<span class="ident">as_millis</span>();
+        <span class="kw">let</span> <span class="ident">it_value</span> <span class="op">=</span> <span class="ident">libc::timespec</span> {
+            <span class="ident">tv_sec</span>: (<span class="ident">milli_sec</span> <span class="op">/</span> <span class="number">1000</span>) <span class="kw">as</span> <span class="kw">_</span>,
+            <span class="ident">tv_nsec</span>: ((<span class="ident">milli_sec</span> <span class="op">%</span> <span class="number">1000</span>) <span class="op">*</span> <span class="number">1000</span> <span class="op">*</span> <span class="number">1000</span>) <span class="kw">as</span> <span class="kw">_</span>,
+        };
+        <span class="kw">let</span> <span class="ident">it_interval</span> <span class="op">=</span> <span class="ident">libc::timespec</span> {
+            <span class="ident">tv_sec</span>: <span class="number">0</span>,
+            <span class="ident">tv_nsec</span>: <span class="number">0</span>,
+        };
+        <span class="kw">let</span> <span class="ident">itimerspec</span> <span class="op">=</span> <span class="ident">libc::itimerspec</span> {
+            <span class="ident">it_interval</span>,
+            <span class="ident">it_value</span>,
+        };
+
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
+            <span class="ident">harness_fn</span>,
+            <span class="ident">shmem_provider</span>,
+            <span class="ident">observers</span>,
+            <span class="ident">handlers</span>,
+            <span class="ident">itimerspec</span>,
+            <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
+        })
+    }
+
+    <span class="doccomment">/// Retrieve the harness function.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">harness</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">H</span> {
+        <span class="self">self</span>.<span class="ident">harness_fn</span>
+    }
+
+    <span class="doccomment">/// Retrieve the harness function for a mutable reference.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">harness_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">H</span> {
+        <span class="self">self</span>.<span class="ident">harness_fn</span>
+    }
+}
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">HasObservers</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">InProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
+    <span class="ident">I</span>: <span class="ident">Input</span>,
+    <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+    <span class="ident">SP</span>: <span class="ident">ShMemProvider</span>,
+{
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">observers</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">OT</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">observers</span>
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">observers_mut</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut</span> <span class="ident">OT</span> {
+        <span class="kw-2">&amp;mut</span> <span class="self">self</span>.<span class="ident">observers</span>
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span> <span class="ident">HasObservers</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>
+    <span class="kw">for</span> <span class="ident">TimeoutInProcessForkExecutor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">H</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span>, <span class="ident">SP</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">H</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="ident">I</span>) -&gt; <span class="ident">ExitKind</span> <span class="op">+</span> <span class="question-mark">?</span><span class="ident">Sized</span>,
     <span class="ident">I</span>: <span class="ident">Input</span>,
@@ -3318,12 +3846,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">unix</span>))]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">child_signal_handlers</span> {
     <span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
-    <span class="kw">use</span> <span class="ident">libc::siginfo_t</span>;
     <span class="kw">use</span> <span class="ident">std::panic</span>;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::InProcessForkExecutorGlobalData</span>;
+    <span class="kw">use</span> <span class="ident">libc::siginfo_t</span>;
 
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::FORK_EXECUTOR_GLOBAL_DATA</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">InProcessForkExecutorGlobalData</span>, <span class="ident">FORK_EXECUTOR_GLOBAL_DATA</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">bolts::os::unix_signals</span>::{<span class="ident">ucontext_t</span>, <span class="ident">Signal</span>},
         <span class="ident">executors</span>::{<span class="ident">ExitKind</span>, <span class="ident">HasObservers</span>},
@@ -3386,11 +3913,36 @@
 
         <span class="ident">libc::_exit</span>(<span class="number">128</span> <span class="op">+</span> (<span class="ident">_signal</span> <span class="kw">as</span> <span class="ident">i32</span>));
     }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">unix</span>)]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">child_timeout_handler</span><span class="op">&lt;</span><span class="ident">E</span>, <span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>(
+        <span class="ident">_signal</span>: <span class="ident">Signal</span>,
+        <span class="ident">_info</span>: <span class="ident">siginfo_t</span>,
+        <span class="ident">_context</span>: <span class="kw-2">&amp;mut</span> <span class="ident">ucontext_t</span>,
+        <span class="ident">data</span>: <span class="kw-2">&amp;mut</span> <span class="ident">InProcessForkExecutorGlobalData</span>,
+    ) <span class="kw">where</span>
+        <span class="ident">E</span>: <span class="ident">HasObservers</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">OT</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+        <span class="ident">OT</span>: <span class="ident">ObserversTuple</span><span class="op">&lt;</span><span class="ident">I</span>, <span class="ident">S</span><span class="op">&gt;</span>,
+        <span class="ident">I</span>: <span class="ident">Input</span>,
+    {
+        <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">is_valid</span>() {
+            <span class="kw">let</span> <span class="ident">executor</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">executor_mut</span>::<span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>();
+            <span class="kw">let</span> <span class="ident">observers</span> <span class="op">=</span> <span class="ident">executor</span>.<span class="ident">observers_mut</span>();
+            <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">state_mut</span>::<span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>();
+            <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">take_current_input</span>::<span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span>();
+            <span class="ident">observers</span>
+                .<span class="ident">post_exec_child_all</span>(<span class="ident">state</span>, <span class="ident">input</span>, <span class="kw-2">&amp;</span><span class="ident">ExitKind::Timeout</span>)
+                .<span class="ident">expect</span>(<span class="string">&quot;Failed to run post_exec on observers&quot;</span>);
+        }
+        <span class="ident">libc::_exit</span>(<span class="number">128</span> <span class="op">+</span> (<span class="ident">_signal</span> <span class="kw">as</span> <span class="ident">i32</span>));
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">core::marker::PhantomData</span>;
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fork&quot;</span>, <span class="ident">unix</span>))]</span>
     <span class="kw">use</span> <span class="ident">serial_test::serial</span>;
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fork&quot;</span>, <span class="ident">unix</span>))]</span>
@@ -3415,9 +3967,9 @@
             <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
         };
         <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">NopInput</span> {};
-        <span class="macro">assert!</span>(<span class="ident">in_process_executor</span>
+        <span class="ident">in_process_executor</span>
             .<span class="ident">run_target</span>(<span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;</span><span class="ident">input</span>)
-            .<span class="ident">is_ok</span>());
+            .<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -3437,9 +3989,9 @@
             <span class="ident">phantom</span>: <span class="ident">PhantomData</span>,
         };
         <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">NopInput</span> {};
-        <span class="macro">assert!</span>(<span class="ident">in_process_fork_executor</span>
+        <span class="ident">in_process_fork_executor</span>
             .<span class="ident">run_target</span>(<span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;mut</span> (), <span class="kw-2">&amp;</span><span class="ident">input</span>)
-            .<span class="ident">is_ok</span>());
+            .<span class="ident">unwrap</span>();
     }
 }
 
@@ -3447,6 +3999,10 @@
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="doccomment">/// `InProcess` Python bindings</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">pybind</span> {
+    <span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
+
+    <span class="kw">use</span> <span class="ident">pyo3</span>::{<span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">types::PyBytes</span>};
+
     <span class="kw">use</span> <span class="kw">crate</span>::{
         <span class="ident">events::pybind::PythonEventManager</span>,
         <span class="ident">executors</span>::{<span class="ident">inprocess::OwnedInProcessExecutor</span>, <span class="ident">pybind::PythonExecutor</span>, <span class="ident">ExitKind</span>},
@@ -3455,8 +4011,6 @@
         <span class="ident">observers::pybind::PythonObserversTuple</span>,
         <span class="ident">state::pybind</span>::{<span class="ident">PythonStdState</span>, <span class="ident">PythonStdStateWrapper</span>},
     };
-    <span class="kw">use</span> <span class="ident">alloc::boxed::Box</span>;
-    <span class="kw">use</span> <span class="ident">pyo3</span>::{<span class="ident">prelude</span>::<span class="kw-2">*</span>, <span class="ident">types::PyBytes</span>};
 
     <span class="attribute">#[<span class="ident">pyclass</span>(<span class="ident">unsendable</span>, <span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;InProcessExecutor&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>

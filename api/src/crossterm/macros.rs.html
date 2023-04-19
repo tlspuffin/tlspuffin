@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.20.0/src/macros.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>macros.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.24.0/src/macros.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>macros.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -376,10 +376,6 @@
 <span id="370">370</span>
 <span id="371">371</span>
 <span id="372">372</span>
-<span id="373">373</span>
-<span id="374">374</span>
-<span id="375">375</span>
-<span id="376">376</span>
 </pre><pre class="rust"><code><span class="doccomment">/// Append a the first few characters of an ANSI escape code to the given string.</span>
 <span class="attribute">#[<span class="ident">macro_export</span>]</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
@@ -398,7 +394,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Arguments</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// - [std::io::Writer](https://doc.rust-lang.org/std/io/trait.Write.html)</span>
+<span class="doccomment">/// - [std::io::Writer](std::io::Write)</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     ANSI escape codes are written on the given &#39;writer&#39;, after which they are flushed.</span>
 <span class="doccomment">///</span>
@@ -412,23 +408,21 @@
 <span class="doccomment">/// use std::io::{Write, stdout};</span>
 <span class="doccomment">/// use crossterm::{queue, style::Print};</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// fn main() {</span>
-<span class="doccomment">///     let mut stdout = stdout();</span>
+<span class="doccomment">/// let mut stdout = stdout();</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///     // `Print` will executed executed when `flush` is called.</span>
-<span class="doccomment">///     queue!(stdout, Print(&quot;foo&quot;.to_string()));</span>
+<span class="doccomment">/// // `Print` will executed executed when `flush` is called.</span>
+<span class="doccomment">/// queue!(stdout, Print(&quot;foo&quot;.to_string()));</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///     // some other code (no execution happening here) ...</span>
+<span class="doccomment">/// // some other code (no execution happening here) ...</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///     // when calling `flush` on `stdout`, all commands will be written to the stdout and therefore executed.</span>
-<span class="doccomment">///     stdout.flush();</span>
+<span class="doccomment">/// // when calling `flush` on `stdout`, all commands will be written to the stdout and therefore executed.</span>
+<span class="doccomment">/// stdout.flush();</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///     // ==== Output ====</span>
-<span class="doccomment">///     // foo</span>
-<span class="doccomment">/// }</span>
+<span class="doccomment">/// // ==== Output ====</span>
+<span class="doccomment">/// // foo</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Have a look over at the [Command API](./#command-api) for more details.</span>
+<span class="doccomment">/// Have a look over at the [Command API](./index.html#command-api) for more details.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
 <span class="doccomment">///</span>
@@ -454,7 +448,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Arguments</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// - [std::io::Writer](https://doc.rust-lang.org/std/io/trait.Write.html)</span>
+<span class="doccomment">/// - [std::io::Writer](std::io::Write)</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     ANSI escape codes are written on the given &#39;writer&#39;, after which they are flushed.</span>
 <span class="doccomment">///</span>
@@ -468,20 +462,18 @@
 <span class="doccomment">/// use std::io::{Write, stdout};</span>
 <span class="doccomment">/// use crossterm::{execute, style::Print};</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///  fn main() {</span>
-<span class="doccomment">///      // will be executed directly</span>
-<span class="doccomment">///      execute!(stdout(), Print(&quot;sum:\n&quot;.to_string()));</span>
+<span class="doccomment">/// // will be executed directly</span>
+<span class="doccomment">/// execute!(stdout(), Print(&quot;sum:\n&quot;.to_string()));</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///      // will be executed directly</span>
-<span class="doccomment">///      execute!(stdout(), Print(&quot;1 + 1= &quot;.to_string()), Print((1+1).to_string()));</span>
+<span class="doccomment">/// // will be executed directly</span>
+<span class="doccomment">/// execute!(stdout(), Print(&quot;1 + 1= &quot;.to_string()), Print((1+1).to_string()));</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///      // ==== Output ====</span>
-<span class="doccomment">///      // sum:</span>
-<span class="doccomment">///      // 1 + 1 = 2</span>
-<span class="doccomment">///  }</span>
+<span class="doccomment">/// // ==== Output ====</span>
+<span class="doccomment">/// // sum:</span>
+<span class="doccomment">/// // 1 + 1 = 2</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Have a look over at the [Command API](./#command-api) for more details.</span>
+<span class="doccomment">/// Have a look over at the [Command API](./index.html#command-api) for more details.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
 <span class="doccomment">///</span>

@@ -264,6 +264,77 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">env</span>, <span class="ident">fs</span>,
     <span class="ident">fs::File</span>,
@@ -274,25 +345,28 @@
 
 <span class="kw">use</span> <span class="ident">clap</span>::{<span class="ident">arg</span>, <span class="ident">crate_authors</span>, <span class="ident">crate_name</span>, <span class="ident">crate_version</span>, <span class="ident">Command</span>};
 <span class="kw">use</span> <span class="ident">libafl::inputs::Input</span>;
-<span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">error</span>, <span class="ident">info</span>};
+<span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">error</span>, <span class="ident">info</span>, <span class="ident">LevelFilter</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
-    <span class="ident">algebra::set_deserialize_signature</span>,
+    <span class="ident">algebra</span>::{<span class="ident">error::FnError</span>, <span class="ident">set_deserialize_signature</span>},
+    <span class="ident">codec::Codec</span>,
     <span class="ident">experiment</span>::<span class="kw-2">*</span>,
     <span class="ident">fuzzer</span>::{
+        <span class="ident">harness</span>::{<span class="ident">default_put_options</span>, <span class="ident">set_default_put_options</span>},
         <span class="ident">sanitizer::asan</span>::{<span class="ident">asan_info</span>, <span class="ident">setup_asan_env</span>},
         <span class="ident">start</span>, <span class="ident">FuzzerConfig</span>,
     },
     <span class="ident">graphviz::write_graphviz</span>,
     <span class="ident">log::create_stdout_config</span>,
-    <span class="ident">protocol::ProtocolBehavior</span>,
+    <span class="ident">protocol</span>::{<span class="ident">ProtocolBehavior</span>, <span class="ident">ProtocolMessage</span>},
+    <span class="ident">put::PutOptions</span>,
     <span class="ident">put_registry::PutRegistry</span>,
-    <span class="ident">trace</span>::{<span class="ident">Trace</span>, <span class="ident">TraceContext</span>},
+    <span class="ident">trace</span>::{<span class="ident">Action</span>, <span class="ident">Trace</span>, <span class="ident">TraceContext</span>},
 };
 
 <span class="kw">fn</span> <span class="ident">create_app</span>() -&gt; <span class="ident">Command</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
     <span class="ident">Command::new</span>(<span class="macro">crate_name!</span>())
-        .<span class="ident">version</span>(<span class="macro">crate_version!</span>())
+        .<span class="ident">version</span>(<span class="ident"><span class="kw">crate</span>::MAYBE_GIT_REF</span>.<span class="ident">unwrap_or</span>( <span class="macro">crate_version!</span>()))
         .<span class="ident">author</span>(<span class="macro">crate_authors!</span>())
         .<span class="ident">about</span>(<span class="string">&quot;Fuzzes OpenSSL on a symbolic level&quot;</span>)
         .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="ident">c</span> <span class="op">-</span><span class="op">-</span><span class="ident">cores</span> [<span class="ident">spec</span>] <span class="string">&quot;Sets the cores to use during fuzzing&quot;</span>))
@@ -301,6 +375,7 @@
         .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="ident">i</span> <span class="op">-</span><span class="op">-</span><span class="string">&quot;max-iters&quot;</span> [<span class="ident">i</span>] <span class="string">&quot;Maximum iterations to do&quot;</span>))
         .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="op">-</span><span class="ident">minimizer</span> <span class="string">&quot;Use a minimizer&quot;</span>))
         .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="op">-</span><span class="ident">monitor</span> <span class="string">&quot;Use a monitor&quot;</span>))
+        .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="op">-</span><span class="string">&quot;put-use-clear&quot;</span> <span class="string">&quot;Use clearing functionality instead of recreating puts&quot;</span>))
         .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="op">-</span><span class="string">&quot;no-launcher&quot;</span> <span class="string">&quot;Do not use the convenient launcher&quot;</span>))
         .<span class="ident">subcommands</span>(<span class="macro">vec!</span>[
             <span class="ident">Command::new</span>(<span class="string">&quot;quick-experiment&quot;</span>).<span class="ident">about</span>(<span class="string">&quot;Starts a new experiment and writes the results out&quot;</span>),
@@ -318,14 +393,18 @@
                 .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">-</span><span class="op">-</span><span class="ident">tree</span> <span class="string">&quot;Whether want to use tree mode in the combined view&quot;</span>)),
             <span class="ident">Command::new</span>(<span class="string">&quot;execute&quot;</span>)
                 .<span class="ident">about</span>(<span class="string">&quot;Executes a trace stored in a file&quot;</span>)
+                .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">&lt;</span><span class="ident">inputs</span><span class="op">&gt;</span> <span class="string">&quot;The file which stores a trace&quot;</span>).<span class="ident">min_values</span>(<span class="number">1</span>))   ,
+            <span class="ident">Command::new</span>(<span class="string">&quot;binary-attack&quot;</span>)
+                .<span class="ident">about</span>(<span class="string">&quot;Serializes a trace as much as possible and output its&quot;</span>)
                 .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">&lt;</span><span class="ident">input</span><span class="op">&gt;</span> <span class="string">&quot;The file which stores a trace&quot;</span>))
+                .<span class="ident">arg</span>(<span class="macro">arg!</span>(<span class="op">&lt;</span><span class="ident">output</span><span class="op">&gt;</span> <span class="string">&quot;The file to write serialized data to&quot;</span>))
         ])
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">main</span><span class="op">&lt;</span><span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span> <span class="op">+</span> <span class="ident">Clone</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(
     <span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
 ) -&gt; <span class="ident">ExitCode</span> {
-    <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">log4rs::init_config</span>(<span class="ident">create_stdout_config</span>()) {
+    <span class="kw">let</span> <span class="ident">handle</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">log4rs::init_config</span>(<span class="ident">create_stdout_config</span>(<span class="ident">LevelFilter::Info</span>)) {
         <span class="prelude-val">Ok</span>(<span class="ident">handle</span>) =&gt; <span class="ident">handle</span>,
         <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
             <span class="macro">error!</span>(<span class="string">&quot;Failed to init logging: {:?}&quot;</span>, <span class="ident">err</span>);
@@ -342,8 +421,9 @@
     <span class="kw">let</span> <span class="ident">minimizer</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;minimizer&quot;</span>);
     <span class="kw">let</span> <span class="ident">monitor</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;monitor&quot;</span>);
     <span class="kw">let</span> <span class="ident">no_launcher</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;no-launcher&quot;</span>);
+    <span class="kw">let</span> <span class="ident">put_use_clear</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">is_present</span>(<span class="string">&quot;put-use-clear&quot;</span>);
 
-    <span class="macro">info!</span>(<span class="string">&quot;Version: {}&quot;</span>, <span class="ident"><span class="kw">crate</span>::GIT_REF</span>);
+    <span class="macro">info!</span>(<span class="string">&quot;Git Version: {}&quot;</span>, <span class="ident"><span class="kw">crate</span>::GIT_REF</span>);
     <span class="macro">info!</span>(<span class="string">&quot;Put Versions:&quot;</span>);
     <span class="kw">for</span> <span class="ident">version</span> <span class="kw">in</span> <span class="ident">put_registry</span>.<span class="ident">version_strings</span>() {
         <span class="macro">info!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">version</span>);
@@ -352,8 +432,18 @@
     <span class="ident">asan_info</span>();
     <span class="ident">setup_asan_env</span>();
 
+    <span class="comment">// Initialize global state</span>
+
     <span class="kw">if</span> <span class="ident">set_deserialize_signature</span>(<span class="ident">PB::signature</span>()).<span class="ident">is_err</span>() {
         <span class="macro">error!</span>(<span class="string">&quot;Failed to initialize deserialization&quot;</span>);
+    }
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">options</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">String</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">if</span> <span class="ident">put_use_clear</span> {
+        <span class="ident">options</span>.<span class="ident">push</span>((<span class="string">&quot;use_clear&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">put_use_clear</span>.<span class="ident">to_string</span>()))
+    }
+    <span class="kw">if</span> <span class="ident">set_default_put_options</span>(<span class="ident">PutOptions::new</span>(<span class="ident">options</span>)).<span class="ident">is_err</span>() {
+        <span class="macro">error!</span>(<span class="string">&quot;Failed to initialize default put options&quot;</span>);
     }
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">_matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;seed&quot;</span>) {
@@ -374,11 +464,25 @@
             <span class="kw">return</span> <span class="ident">ExitCode::FAILURE</span>;
         }
     } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;execute&quot;</span>) {
-        <span class="comment">// Parse arguments</span>
-        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;input&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">inputs</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">values_of</span>(<span class="string">&quot;inputs&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">failed</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">for</span> <span class="ident">input</span> <span class="kw">in</span> <span class="ident">inputs</span> {
+            <span class="macro">error!</span>(<span class="string">&quot;Executing: {}&quot;</span>, <span class="ident">input</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">execute</span>(<span class="ident">input</span>, <span class="ident">put_registry</span>) {
+                <span class="macro">error!</span>(<span class="string">&quot;Failed to execute trace: {:?}&quot;</span>, <span class="ident">err</span>);
+                <span class="ident">failed</span> <span class="op">=</span> <span class="bool-val">true</span>
+            }
+        }
 
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">execute</span>(<span class="ident">input</span>, <span class="ident">put_registry</span>) {
-            <span class="macro">error!</span>(<span class="string">&quot;Failed to execute trace: {:?}&quot;</span>, <span class="ident">err</span>);
+        <span class="kw">if</span> <span class="ident">failed</span> {
+            <span class="kw">return</span> <span class="ident">ExitCode::FAILURE</span>;
+        }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">matches</span>) <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">subcommand_matches</span>(<span class="string">&quot;binary-attack&quot;</span>) {
+        <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;input&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">output</span> <span class="op">=</span> <span class="ident">matches</span>.<span class="ident">value_of</span>(<span class="string">&quot;output&quot;</span>).<span class="ident">unwrap</span>();
+
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">binary_attack</span>(<span class="ident">input</span>, <span class="ident">output</span>, <span class="ident">put_registry</span>) {
+            <span class="macro">error!</span>(<span class="string">&quot;Failed to create trace output: {:?}&quot;</span>, <span class="ident">err</span>);
             <span class="kw">return</span> <span class="ident">ExitCode::FAILURE</span>;
         }
     } <span class="kw">else</span> {
@@ -439,7 +543,7 @@
             <span class="ident">objective_dir</span>: <span class="ident">experiment_path</span>.<span class="ident">join</span>(<span class="string">&quot;objective&quot;</span>),
             <span class="ident">broker_port</span>: <span class="ident">port</span>,
             <span class="ident">monitor_file</span>: <span class="ident">experiment_path</span>.<span class="ident">join</span>(<span class="string">&quot;stats.json&quot;</span>),
-            <span class="ident">log_file</span>: <span class="ident">experiment_path</span>.<span class="ident">join</span>(<span class="string">&quot;log.json&quot;</span>),
+            <span class="ident">log_file</span>: <span class="ident">experiment_path</span>.<span class="ident">join</span>(<span class="string">&quot;tlspuffin.log&quot;</span>),
             <span class="ident">minimizer</span>,
             <span class="ident">mutation_stage_config</span>: <span class="ident">Default::default</span>(),
             <span class="ident">mutation_config</span>: <span class="ident">Default::default</span>(),
@@ -520,8 +624,46 @@
 
     <span class="macro">info!</span>(<span class="string">&quot;Agents: {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">descriptors</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>, <span class="ident">default_put_options</span>().<span class="ident">clone</span>());
     <span class="ident">trace</span>.<span class="ident">execute</span>(<span class="kw-2">&amp;mut</span> <span class="ident">ctx</span>)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="kw">fn</span> <span class="ident">binary_attack</span><span class="op">&lt;</span><span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span><span class="op">&gt;</span>(
+    <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">put_registry</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutRegistry</span><span class="op">&lt;</span><span class="ident">PB</span><span class="op">&gt;</span>,
+) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">std::error::Error</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">Trace</span>::<span class="op">&lt;</span><span class="ident">PB::Matcher</span><span class="op">&gt;</span><span class="ident">::from_file</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">put_registry</span>, <span class="ident">default_put_options</span>().<span class="ident">clone</span>());
+
+    <span class="macro">info!</span>(<span class="string">&quot;Agents: {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">descriptors</span>);
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">File::create</span>(<span class="ident">output</span>).<span class="ident">expect</span>(<span class="string">&quot;Unable to create file&quot;</span>);
+
+    <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="ident">trace</span>.<span class="ident">steps</span> {
+        <span class="kw">match</span> <span class="ident">step</span>.<span class="ident">action</span> {
+            <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">evaluated</span>) <span class="op">=</span> <span class="ident">input</span>.<span class="ident">recipe</span>.<span class="ident">evaluate</span>(<span class="kw-2">&amp;</span><span class="ident">ctx</span>) {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">msg</span>) <span class="op">=</span> <span class="ident">evaluated</span>.<span class="ident">as_ref</span>().<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">PB::ProtocolMessage</span><span class="op">&gt;</span>() {
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+                        <span class="ident">msg</span>.<span class="ident">create_opaque</span>().<span class="ident">encode</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>);
+                        <span class="ident">f</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">expect</span>(<span class="string">&quot;Unable to write data&quot;</span>);
+                    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">opaque_message</span>) <span class="op">=</span> <span class="ident">evaluated</span>
+                        .<span class="ident">as_ref</span>()
+                        .<span class="ident">downcast_ref</span>::<span class="op">&lt;</span><span class="ident">PB::OpaqueProtocolMessage</span><span class="op">&gt;</span>()
+                    {
+                        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+                        <span class="ident">opaque_message</span>.<span class="ident">encode</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>);
+                        <span class="ident">f</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>).<span class="ident">expect</span>(<span class="string">&quot;Unable to write data&quot;</span>);
+                    } <span class="kw">else</span> {
+                        <span class="macro">error!</span>(<span class="string">&quot;Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!&quot;</span>)
+                    }
+                }
+            }
+            <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; {}
+        }
+    }
     <span class="prelude-val">Ok</span>(())
 }
 </code></pre></div>

@@ -828,6 +828,14 @@
 <span id="822">822</span>
 <span id="823">823</span>
 <span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">ffi::OsStr</span>,
     <span class="ident">io</span>,
@@ -1352,7 +1360,7 @@
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">cwd</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">cwd</span> {
                 <span class="ident">options</span>.<span class="ident">push</span>((<span class="string">&quot;cwd&quot;</span>, <span class="ident">cwd</span>));
             }
-            <span class="ident">PutOptions::new</span>(<span class="ident">options</span>)
+            <span class="ident">PutOptions::from_slice_vec</span>(<span class="ident">options</span>)
         }
     }
 
@@ -1515,7 +1523,7 @@
     <span class="kw">use</span> <span class="ident">log::info</span>;
     <span class="kw">use</span> <span class="ident">puffin</span>::{
         <span class="ident">agent</span>::{<span class="ident">AgentName</span>, <span class="ident">TLSVersion</span>},
-        <span class="ident">put::PutDescriptor</span>,
+        <span class="ident">put</span>::{<span class="ident">PutDescriptor</span>, <span class="ident">PutOptions</span>},
     };
     <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
@@ -1543,10 +1551,12 @@
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe_full</span>.<span class="ident">build_trace</span>();
         <span class="kw">let</span> <span class="ident">initial_server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">prior_traces</span>[<span class="number">0</span>].<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-            <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-            <span class="kw-2">&amp;</span>[(<span class="ident">initial_server</span>, <span class="ident">put</span>.<span class="ident">clone</span>()), (<span class="ident">server</span>, <span class="ident">put</span>)],
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+            .<span class="ident">execute_with_non_default_puts</span>(
+                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
+                <span class="kw-2">&amp;</span>[(<span class="ident">initial_server</span>, <span class="ident">put</span>.<span class="ident">clone</span>()), (<span class="ident">server</span>, <span class="ident">put</span>)],
+            )
+            .<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>().<span class="ident">next</span>();
         <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();
@@ -1566,7 +1576,9 @@
 
         <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_client_attacker_full</span>.<span class="ident">build_trace</span>();
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(<span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>, <span class="kw-2">&amp;</span>[(<span class="ident">server</span>, <span class="ident">put</span>)]);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+            .<span class="ident">execute_with_non_default_puts</span>(<span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>, <span class="kw-2">&amp;</span>[(<span class="ident">server</span>, <span class="ident">put</span>)])
+            .<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();
@@ -1597,10 +1609,12 @@
         <span class="kw">let</span> <span class="ident">descriptors</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">descriptors</span>;
         <span class="kw">let</span> <span class="ident">client_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
         <span class="kw">let</span> <span class="ident">server_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">1</span>].<span class="ident">name</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-            <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-            <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+            .<span class="ident">execute_with_non_default_puts</span>(
+                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
+                <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
+            )
+            .<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();
@@ -1636,10 +1650,12 @@
         <span class="kw">let</span> <span class="ident">descriptors</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">descriptors</span>;
         <span class="kw">let</span> <span class="ident">client_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
         <span class="kw">let</span> <span class="ident">server_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">1</span>].<span class="ident">name</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-            <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-            <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+            .<span class="ident">execute_with_non_default_puts</span>(
+                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
+                <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
+            )
+            .<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
         <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();

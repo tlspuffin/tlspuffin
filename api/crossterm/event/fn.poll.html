@@ -8,7 +8,7 @@
     <h1 class="fqn"><span class="in-band">Function <a href="../index.html">crossterm</a>::<wbr><a href="index.html">event</a>::<wbr><a class="fn" href="#">poll</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../../src/crossterm/event.rs.html#157-159">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><pre class="rust fn"><code>pub fn poll(timeout: <a class="struct" href="https://doc.rust-lang.org/nightly/core/time/struct.Duration.html" title="struct core::time::Duration">Duration</a>) -&gt; <a class="type" href="../type.Result.html" title="type crossterm::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>&gt;</code></pre></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Checks if there is an <a href="enum.Event.html"><code>Event</code></a> available.</p>
 <p>Returns <code>Ok(true)</code> if an <a href="enum.Event.html"><code>Event</code></a> is available otherwise it returns <code>Ok(false)</code>.</p>
 <p><code>Ok(true)</code> guarantees that subsequent call to the <a href="fn.read.html"><code>read</code></a> function
-wont block.</p>
+won’t block.</p>
 <h2 id="arguments"><a href="#arguments">Arguments</a></h2>
 <ul>
 <li><code>timeout</code> - maximum waiting time for event availability</li>

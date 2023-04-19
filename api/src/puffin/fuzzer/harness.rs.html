@@ -61,19 +61,55 @@
 <span id="55">55</span>
 <span id="56">56</span>
 <span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">libafl::executors::ExitKind</span>;
 <span class="kw">use</span> <span class="ident">log</span>::{<span class="ident">info</span>, <span class="ident">trace</span>, <span class="ident">warn</span>};
+<span class="kw">use</span> <span class="ident">once_cell::sync::OnceCell</span>;
 <span class="kw">use</span> <span class="ident">rand::Rng</span>;
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
+    <span class="ident">algebra::signature::Signature</span>,
     <span class="ident">error::Error</span>,
     <span class="ident">fuzzer::stats_stage</span>::<span class="kw-2">*</span>,
     <span class="ident">protocol::ProtocolBehavior</span>,
+    <span class="ident">put::PutOptions</span>,
     <span class="ident">trace</span>::{<span class="ident">Action</span>, <span class="ident">Trace</span>, <span class="ident">TraceContext</span>},
 };
 
+<span class="kw">static</span> <span class="ident">DEFAULT_PUT_OPTIONS</span>: <span class="ident">OnceCell</span><span class="op">&lt;</span><span class="ident">PutOptions</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">OnceCell::new</span>();
+
+<span class="doccomment">/// Returns the current default put options which are used</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default_put_options</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">PutOptions</span> {
+    <span class="ident">DEFAULT_PUT_OPTIONS</span>
+        .<span class="ident">get</span>()
+        .<span class="ident">expect</span>(<span class="string">&quot;current default put options needs to be set&quot;</span>)
+}
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_default_put_options</span>(<span class="ident">default_put_options</span>: <span class="ident">PutOptions</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
+    <span class="ident">DEFAULT_PUT_OPTIONS</span>
+        .<span class="ident">set</span>(<span class="ident">default_put_options</span>)
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">_err</span><span class="op">|</span> ())
+}
+
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">harness</span><span class="op">&lt;</span><span class="ident">PB</span>: <span class="ident">ProtocolBehavior</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">PB::Matcher</span><span class="op">&gt;</span>) -&gt; <span class="ident">ExitKind</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">PB::registry</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">TraceContext::new</span>(<span class="ident">PB::registry</span>(), <span class="ident">default_put_options</span>().<span class="ident">clone</span>());
 
     <span class="ident">TRACE_LENGTH</span>.<span class="ident">update</span>(<span class="ident">input</span>.<span class="ident">steps</span>.<span class="ident">len</span>());
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.20.0/src/event.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.24.0/src/event.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>event.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -569,7 +569,7 @@
 <span class="doccomment">//! * use the [`read`](fn.read.html) &amp; [`poll`](fn.poll.html) functions on any, but same, thread</span>
 <span class="doccomment">//! * or the [`EventStream`](struct.EventStream.html).</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! **Make sure to enable raw mode in order for keyboard events to work properly**</span>
+<span class="doccomment">//! **Make sure to enable [raw mode](../terminal/index.html#raw-mode) in order for keyboard events to work properly**</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Mouse Events</span>
 <span class="doccomment">//!</span>
@@ -673,7 +673,7 @@
 <span class="doccomment">/// Returns `Ok(true)` if an [`Event`](enum.Event.html) is available otherwise it returns `Ok(false)`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// `Ok(true)` guarantees that subsequent call to the [`read`](fn.read.html) function</span>
-<span class="doccomment">/// wont block.</span>
+<span class="doccomment">/// won&#39;t block.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Arguments</span>
 <span class="doccomment">///</span>
@@ -742,7 +742,7 @@
 <span class="doccomment">/// fn print_events() -&gt; Result&lt;bool&gt; {</span>
 <span class="doccomment">///     loop {</span>
 <span class="doccomment">///         if poll(Duration::from_millis(100))? {</span>
-<span class="doccomment">///             // It&#39;s guaranteed that `read` wont block, because `poll` returned</span>
+<span class="doccomment">///             // It&#39;s guaranteed that `read` won&#39;t block, because `poll` returned</span>
 <span class="doccomment">///             // `Ok(true)`.</span>
 <span class="doccomment">///             println!(&quot;{:?}&quot;, read()?);</span>
 <span class="doccomment">///         } else {</span>
@@ -949,7 +949,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">KeyEvent</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">code</span>: <span class="ident">KeyCode</span>, <span class="ident">modifiers</span>: <span class="ident">KeyModifiers</span>) -&gt; <span class="ident">KeyEvent</span> {
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">code</span>: <span class="ident">KeyCode</span>, <span class="ident">modifiers</span>: <span class="ident">KeyModifiers</span>) -&gt; <span class="ident">KeyEvent</span> {
         <span class="ident">KeyEvent</span> { <span class="ident">code</span>, <span class="ident">modifiers</span> }
     }
 
@@ -1026,7 +1026,7 @@
     <span class="ident">End</span>,
     <span class="doccomment">/// Page up key.</span>
     <span class="ident">PageUp</span>,
-    <span class="doccomment">/// Page dow key.</span>
+    <span class="doccomment">/// Page down key.</span>
     <span class="ident">PageDown</span>,
     <span class="doccomment">/// Tab key.</span>
     <span class="ident">Tab</span>,

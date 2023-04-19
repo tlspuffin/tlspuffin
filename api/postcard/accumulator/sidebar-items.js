@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["FeedResult","The result of feeding the accumulator."]],"struct":[["CobsAccumulator","An accumulator used to collect chunked COBS data and deserialize it."]]};

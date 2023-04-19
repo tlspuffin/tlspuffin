@@ -107,6 +107,7 @@
 <span id="101">101</span>
 <span id="102">102</span>
 <span id="103">103</span>
+<span id="104">104</span>
 </pre><pre class="rust"><code><span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">any::Any</span>,
     <span class="ident">cell</span>::{<span class="ident">Ref</span>, <span class="ident">RefCell</span>, <span class="ident">RefMut</span>},
@@ -160,6 +161,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">Claim</span><span class="op">&gt;</span> <span class="ident">ClaimList</span><span class="op">&lt;</span><span class="ident">C</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="comment">// TODO: skip logging completely during fuzzing -&gt; more performance</span>
         <span class="macro">debug!</span>(
             <span class="string">&quot;New Claims: {}&quot;</span>,
             <span class="kw-2">&amp;</span><span class="self">self</span>

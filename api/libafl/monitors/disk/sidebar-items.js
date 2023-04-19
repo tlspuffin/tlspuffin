@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["OnDiskTOMLMonitor","Wrap a monitor and log the current state of the monitor into a TOML file."]]};
+window.SIDEBAR_ITEMS = {"struct":[["OnDiskJSONMonitor","Wraps a base monitor and continuously appends the current statistics to a JSON lines file."],["OnDiskTOMLMonitor","Wrap a monitor and log the current state of the monitor into a TOML file."]]};

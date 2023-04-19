@@ -5,7 +5,7 @@
         </a><div class="sidebar-elems"><h2 class="location"><a href="index.html">In crossterm</a></h2></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../crossterm/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
                                 <a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div>
                         </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
-    <h1 class="fqn"><span class="in-band">Macro <a href="index.html">crossterm</a>::<wbr><a class="macro" href="#">queue</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/crossterm/macros.rs.html#60-69">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><div class="example-wrap"><pre class="rust macro"><code><span class="macro">macro_rules!</span> <span class="ident">queue</span> {
+    <h1 class="fqn"><span class="in-band">Macro <a href="index.html">crossterm</a>::<wbr><a class="macro" href="#">queue</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/crossterm/macros.rs.html#58-67">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><div class="example-wrap"><pre class="rust macro"><code><span class="macro">macro_rules!</span> <span class="ident">queue</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">writer</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">command</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span>) =&gt; { ... };
 }</code></pre></div>
 </div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Queues one or more command(s) for further execution.</p>
@@ -19,7 +19,7 @@ This generally happens in the following cases:</p>
 <h2 id="arguments"><a href="#arguments">Arguments</a></h2>
 <ul>
 <li>
-<p><a href="https://doc.rust-lang.org/std/io/trait.Write.html">std::io::Writer</a></p>
+<p><a href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html">std::io::Writer</a></p>
 <p>ANSI escape codes are written on the given ‘writer’, after which they are flushed.</p>
 </li>
 <li>
@@ -31,21 +31,19 @@ This generally happens in the following cases:</p>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">Write</span>, <span class="ident">stdout</span>};
 <span class="kw">use</span> <span class="ident">crossterm</span>::{<span class="ident">queue</span>, <span class="ident">style::Print</span>};
 
-<span class="kw">fn</span> <span class="ident">main</span>() {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">stdout</span>();
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stdout</span> <span class="op">=</span> <span class="ident">stdout</span>();
 
-    <span class="comment">// `Print` will executed executed when `flush` is called.</span>
-    <span class="macro">queue!</span>(<span class="ident">stdout</span>, <span class="ident">Print</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()));
+<span class="comment">// `Print` will executed executed when `flush` is called.</span>
+<span class="macro">queue!</span>(<span class="ident">stdout</span>, <span class="ident">Print</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()));
 
-    <span class="comment">// some other code (no execution happening here) ...</span>
+<span class="comment">// some other code (no execution happening here) ...</span>
 
-    <span class="comment">// when calling `flush` on `stdout`, all commands will be written to the stdout and therefore executed.</span>
-    <span class="ident">stdout</span>.<span class="ident">flush</span>();
+<span class="comment">// when calling `flush` on `stdout`, all commands will be written to the stdout and therefore executed.</span>
+<span class="ident">stdout</span>.<span class="ident">flush</span>();
 
-    <span class="comment">// ==== Output ====</span>
-    <span class="comment">// foo</span>
-}</code></pre></div>
-<p>Have a look over at the <a href="./#command-api">Command API</a> for more details.</p>
+<span class="comment">// ==== Output ====</span>
+<span class="comment">// foo</span></code></pre></div>
+<p>Have a look over at the <a href="./index.html#command-api">Command API</a> for more details.</p>
 <h2 id="notes"><a href="#notes">Notes</a></h2>
 <p>In case of Windows versions lower than 10, a direct WinAPI call will be made.
 The reason for this is that Windows versions lower than 10 do not support ANSI codes,

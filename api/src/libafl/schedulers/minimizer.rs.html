@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/schedulers/minimizer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>minimizer.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/schedulers/minimizer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>minimizer.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -275,8 +275,76 @@
 <span id="269">269</span>
 <span id="270">270</span>
 <span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The Minimizer schedulers are a family of corpus schedulers that feed the fuzzer</span>
-<span class="comment">// with testcases only from a subset of the total corpus.</span>
+<span class="doccomment">//! with testcases only from a subset of the total corpus.</span>
+
+<span class="kw">use</span> <span class="ident">alloc::vec::Vec</span>;
+<span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">cmp::Ordering</span>, <span class="ident">marker::PhantomData</span>};
+
+<span class="kw">use</span> <span class="ident">hashbrown</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">bolts</span>::{<span class="ident">rands::Rand</span>, <span class="ident">serdeany::SerdeAny</span>, <span class="ident">AsSlice</span>, <span class="ident">HasRefCnt</span>},
@@ -287,10 +355,6 @@
     <span class="ident">state</span>::{<span class="ident">HasCorpus</span>, <span class="ident">HasMetadata</span>, <span class="ident">HasRand</span>},
     <span class="ident">Error</span>,
 };
-
-<span class="kw">use</span> <span class="ident">core::marker::PhantomData</span>;
-<span class="kw">use</span> <span class="ident">hashbrown</span>::{<span class="ident">HashMap</span>, <span class="ident">HashSet</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="doccomment">/// Default probability to skip the non-favored values</span>
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">DEFAULT_SKIP_NON_FAVORED_PROB</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">95</span>;
@@ -375,7 +439,67 @@
         <span class="ident">idx</span>: <span class="ident">usize</span>,
         <span class="ident">testcase</span>: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Testcase</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     ) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">base</span>.<span class="ident">on_remove</span>(<span class="ident">state</span>, <span class="ident">idx</span>, <span class="ident">testcase</span>)
+        <span class="self">self</span>.<span class="ident">base</span>.<span class="ident">on_remove</span>(<span class="ident">state</span>, <span class="ident">idx</span>, <span class="ident">testcase</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">entries</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">meta</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">metadata_mut</span>().<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">TopRatedsMetadata</span><span class="op">&gt;</span>() {
+            <span class="kw">let</span> <span class="ident">entries</span> <span class="op">=</span> <span class="ident">meta</span>
+                .<span class="ident">map</span>
+                .<span class="ident">drain_filter</span>(<span class="op">|</span><span class="kw">_</span>, <span class="ident">other_idx</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">other_idx</span> <span class="op">==</span> <span class="ident">idx</span>)
+                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">entry</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">entry</span>)
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>();
+            <span class="ident">meta</span>.<span class="ident">map</span>
+                .<span class="ident">values_mut</span>()
+                .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">other_idx</span><span class="op">|</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">other_idx</span> <span class="op">&gt;</span> <span class="ident">idx</span>)
+                .<span class="ident">for_each</span>(<span class="op">|</span><span class="ident">other_idx</span><span class="op">|</span> {
+                    <span class="kw-2">*</span><span class="ident">other_idx</span> <span class="op">-</span><span class="op">=</span> <span class="number">1</span>;
+                });
+            <span class="ident">entries</span>
+        } <span class="kw">else</span> {
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
+        };
+        <span class="ident">entries</span>.<span class="ident">sort_unstable</span>(); <span class="comment">// this should already be sorted, but just in case</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">count</span>() {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">old</span> <span class="op">=</span> <span class="ident">state</span>.<span class="ident">corpus</span>().<span class="ident">get</span>(<span class="ident">i</span>)<span class="question-mark">?</span>.<span class="ident">borrow_mut</span>();
+            <span class="kw">let</span> <span class="ident">factor</span> <span class="op">=</span> <span class="ident">F::compute</span>(<span class="kw-2">&amp;mut</span> <span class="kw-2">*</span><span class="ident">old</span>, <span class="ident">state</span>)<span class="question-mark">?</span>;
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">old_map</span>) <span class="op">=</span> <span class="ident">old</span>.<span class="ident">metadata_mut</span>().<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">M</span><span class="op">&gt;</span>() {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">e_iter</span> <span class="op">=</span> <span class="ident">entries</span>.<span class="ident">iter</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_iter</span> <span class="op">=</span> <span class="ident">old_map</span>.<span class="ident">as_slice</span>().<span class="ident">iter</span>(); <span class="comment">// ASSERTION: guaranteed to be in order?</span>
+
+                <span class="comment">// manual set intersection</span>
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">entry</span> <span class="op">=</span> <span class="ident">e_iter</span>.<span class="ident">next</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map_entry</span> <span class="op">=</span> <span class="ident">map_iter</span>.<span class="ident">next</span>();
+                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">entry</span> {
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">me</span>) <span class="op">=</span> <span class="ident">map_entry</span> {
+                        <span class="kw">match</span> <span class="ident">e</span>.<span class="ident">cmp</span>(<span class="ident">me</span>) {
+                            <span class="ident">Ordering::Less</span> =&gt; {
+                                <span class="ident">entry</span> <span class="op">=</span> <span class="ident">e_iter</span>.<span class="ident">next</span>();
+                            }
+                            <span class="ident">Ordering::Equal</span> =&gt; {
+                                <span class="comment">// if we found a better factor, prefer it</span>
+                                <span class="ident">map</span>.<span class="ident">entry</span>(<span class="kw-2">*</span><span class="ident">e</span>)
+                                    .<span class="ident">and_modify</span>(<span class="op">|</span>(<span class="ident">f</span>, <span class="ident">idx</span>)<span class="op">|</span> {
+                                        <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">f</span> <span class="op">&gt;</span> <span class="ident">factor</span> {
+                                            <span class="kw-2">*</span><span class="ident">f</span> <span class="op">=</span> <span class="ident">factor</span>;
+                                            <span class="kw-2">*</span><span class="ident">idx</span> <span class="op">=</span> <span class="ident">i</span>;
+                                        }
+                                    })
+                                    .<span class="ident">or_insert</span>((<span class="ident">factor</span>, <span class="ident">i</span>));
+                            }
+                            <span class="ident">Ordering::Greater</span> =&gt; {
+                                <span class="ident">map_entry</span> <span class="op">=</span> <span class="ident">map_iter</span>.<span class="ident">next</span>();
+                            }
+                        }
+                    } <span class="kw">else</span> {
+                        <span class="kw">break</span>;
+                    }
+                }
+            }
+        }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">meta</span>) <span class="op">=</span> <span class="ident">state</span>.<span class="ident">metadata_mut</span>().<span class="ident">get_mut</span>::<span class="op">&lt;</span><span class="ident">TopRatedsMetadata</span><span class="op">&gt;</span>() {
+            <span class="ident">meta</span>.<span class="ident">map</span>
+                .<span class="ident">extend</span>(<span class="ident">map</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">entry</span>, (<span class="kw">_</span>, <span class="ident">idx</span>))<span class="op">|</span> (<span class="ident">entry</span>, <span class="ident">idx</span>)));
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Gets the next entry</span>

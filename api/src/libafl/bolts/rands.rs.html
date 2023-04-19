@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/bolts/rands.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>rands.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/bolts/rands.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>rands.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -521,16 +521,18 @@
 <span id="515">515</span>
 <span id="516">516</span>
 <span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
 </pre><pre class="rust"><code><span class="doccomment">//! The random number generators of `LibAFL`</span>
 <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">debug_assert</span>, <span class="ident">fmt::Debug</span>};
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rand_trait&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">rand_core</span>::{<span class="self">self</span>, <span class="ident">impls::fill_bytes_via_next</span>, <span class="ident">RngCore</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de::DeserializeOwned</span>, <span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="kw">use</span> <span class="ident">xxhash_rust::xxh3::xxh3_64_with_seed</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::current_nanos</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rand_trait&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">rand_core</span>::{<span class="self">self</span>, <span class="ident">impls::fill_bytes_via_next</span>, <span class="ident">RngCore</span>};
 
 <span class="kw">const</span> <span class="ident">HASH_CONST</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">0xa5b35705</span>;
 
@@ -549,7 +551,7 @@
     <span class="doccomment">/// Gets the next 64 bit value</span>
     <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="ident">u64</span>;
 
-    <span class="doccomment">/// Gets a value below the given 64 bit val (inclusive)</span>
+    <span class="doccomment">/// Gets a value below the given 64 bit val (exclusive)</span>
     <span class="kw">fn</span> <span class="ident">below</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">upper_bound_excl</span>: <span class="ident">u64</span>) -&gt; <span class="ident">u64</span> {
         <span class="kw">if</span> <span class="ident">upper_bound_excl</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">1</span> {
             <span class="kw">return</span> <span class="number">0</span>;
@@ -940,8 +942,9 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rand_trait&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_rgn_core_support</span>() {
-        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::rands::StdRand</span>;
         <span class="kw">use</span> <span class="ident">rand_core::RngCore</span>;
+
+        <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::rands::StdRand</span>;
         <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Mutator</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">RngCore</span><span class="op">&gt;</span> {
             <span class="ident">rng</span>: <span class="ident">R</span>,
         }
@@ -958,10 +961,11 @@
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="doccomment">/// `Rand` Python bindings</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">pybind</span> {
-    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::Rand</span>;
-    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts</span>::{<span class="ident">current_nanos</span>, <span class="ident">rands::StdRand</span>};
     <span class="kw">use</span> <span class="ident">pyo3::prelude</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+    <span class="kw">use</span> <span class="ident"><span class="kw">super</span>::Rand</span>;
+    <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts</span>::{<span class="ident">current_nanos</span>, <span class="ident">rands::StdRand</span>};
 
     <span class="attribute">#[<span class="ident">pyclass</span>(<span class="ident">unsendable</span>, <span class="ident">name</span> <span class="op">=</span> <span class="string">&quot;StdRand&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>

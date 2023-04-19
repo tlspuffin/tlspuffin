@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/mutators/token_mutations.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>token_mutations.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/mutators/token_mutations.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>token_mutations.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -635,20 +635,17 @@
 <span id="629">629</span>
 <span id="630">630</span>
 <span id="631">631</span>
+<span id="632">632</span>
 </pre><pre class="rust"><code><span class="doccomment">//! Tokens are what AFL calls extras or dictionaries.</span>
 <span class="doccomment">//! They may be inserted as part of mutations during fuzzing.</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::mutators::str_decode</span>;
 <span class="kw">use</span> <span class="ident">alloc::vec::Vec</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">core::slice::from_raw_parts</span>;
-<span class="kw">use</span> <span class="ident">core::slice::Iter</span>;
 <span class="kw">use</span> <span class="ident">core</span>::{
     <span class="ident">mem::size_of</span>,
     <span class="ident">ops</span>::{<span class="ident">Add</span>, <span class="ident">AddAssign</span>},
+    <span class="ident">slice::Iter</span>,
 };
-<span class="kw">use</span> <span class="ident">hashbrown::HashSet</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">fs::File</span>,
@@ -656,6 +653,11 @@
     <span class="ident">path::Path</span>,
 };
 
+<span class="kw">use</span> <span class="ident">hashbrown::HashSet</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::mutators::str_decode</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">bolts</span>::{<span class="ident">rands::Rand</span>, <span class="ident">AsSlice</span>},
     <span class="ident">inputs</span>::{<span class="ident">HasBytesVec</span>, <span class="ident">Input</span>},
@@ -741,7 +743,7 @@
     <span class="doccomment">/// # Safety</span>
     <span class="doccomment">/// The caller must ensure that the region between `token_start` and `token_stop`</span>
     <span class="doccomment">/// is a valid region, containing autotokens in the exepcted format.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;apple&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_ptrs</span>(<span class="ident">token_start</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>, <span class="ident">token_stop</span>: <span class="kw-2">*const</span> <span class="ident">u8</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::default</span>();
         <span class="kw">if</span> <span class="ident">token_start</span>.<span class="ident">is_null</span>() <span class="op">|</span><span class="op">|</span> <span class="ident">token_stop</span>.<span class="ident">is_null</span>() {
@@ -807,16 +809,16 @@
             }
             <span class="kw">let</span> <span class="ident">pos_quote</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">line</span>.<span class="ident">find</span>(<span class="string">&#39;\&quot;&#39;</span>) {
                 <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {}&quot;</span>, <span class="ident">line</span>))),
+                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {line}&quot;</span>))),
             };
             <span class="kw">if</span> <span class="ident">line</span>.<span class="ident">chars</span>().<span class="ident">nth</span>(<span class="ident">line</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>) <span class="op">!</span><span class="op">=</span> <span class="prelude-val">Some</span>(<span class="string">&#39;&quot;&#39;</span>) {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {}&quot;</span>, <span class="ident">line</span>)));
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {line}&quot;</span>)));
             }
 
             <span class="comment">// extract item</span>
             <span class="kw">let</span> <span class="ident">item</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">line</span>.<span class="ident">get</span>(<span class="ident">pos_quote</span> <span class="op">+</span> <span class="number">1</span>..<span class="ident">line</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>) {
                 <span class="prelude-val">Some</span>(<span class="ident">x</span>) =&gt; <span class="ident">x</span>,
-                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {}&quot;</span>, <span class="ident">line</span>))),
+                <span class="prelude-val">None</span> =&gt; <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Illegal line: {line}&quot;</span>))),
             };
             <span class="kw">if</span> <span class="ident">item</span>.<span class="ident">is_empty</span>() {
                 <span class="kw">continue</span>;
@@ -1259,7 +1261,7 @@ token1=&quot;A\x41A&quot;
 token2=&quot;B&quot;
         &quot;###</span>;
         <span class="ident">fs::write</span>(<span class="string">&quot;test.tkns&quot;</span>, <span class="ident">data</span>).<span class="ident">expect</span>(<span class="string">&quot;Unable to write test.tkns&quot;</span>);
-        <span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="ident">Tokens::from_file</span>(<span class="kw-2">&amp;</span><span class="string">&quot;test.tkns&quot;</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="ident">Tokens::from_file</span>(<span class="string">&quot;test.tkns&quot;</span>).<span class="ident">unwrap</span>();
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
         <span class="macro">println!</span>(<span class="string">&quot;Token file entries: {:?}&quot;</span>, <span class="ident">tokens</span>.<span class="ident">tokens</span>());
         <span class="macro">assert_eq!</span>(<span class="ident">tokens</span>.<span class="ident">tokens</span>().<span class="ident">len</span>(), <span class="number">2</span>);

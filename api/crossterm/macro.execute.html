@@ -5,14 +5,14 @@
         </a><div class="sidebar-elems"><h2 class="location"><a href="index.html">In crossterm</a></h2></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../crossterm/index.html"><img class="rust-logo" src="../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1">
                                 <a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../wheel.svg"></a></div>
                         </div></form></nav></div><section id="main-content" class="content"><div class="main-heading">
-    <h1 class="fqn"><span class="in-band">Macro <a href="index.html">crossterm</a>::<wbr><a class="macro" href="#">execute</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/crossterm/macros.rs.html#113-123">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><div class="example-wrap"><pre class="rust macro"><code><span class="macro">macro_rules!</span> <span class="ident">execute</span> {
+    <h1 class="fqn"><span class="in-band">Macro <a href="index.html">crossterm</a>::<wbr><a class="macro" href="#">execute</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../src/crossterm/macros.rs.html#109-119">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><div class="docblock item-decl"><div class="example-wrap"><pre class="rust macro"><code><span class="macro">macro_rules!</span> <span class="ident">execute</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">writer</span>:<span class="ident">expr</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">command</span>:<span class="ident">expr</span>)<span class="op">*</span> $(,)<span class="question-mark">?</span> ) =&gt; { ... };
 }</code></pre></div>
 </div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Executes one or more command(s).</p>
 <h2 id="arguments"><a href="#arguments">Arguments</a></h2>
 <ul>
 <li>
-<p><a href="https://doc.rust-lang.org/std/io/trait.Write.html">std::io::Writer</a></p>
+<p><a href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html">std::io::Writer</a></p>
 <p>ANSI escape codes are written on the given ‘writer’, after which they are flushed.</p>
 </li>
 <li>
@@ -24,18 +24,16 @@
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::io</span>::{<span class="ident">Write</span>, <span class="ident">stdout</span>};
 <span class="kw">use</span> <span class="ident">crossterm</span>::{<span class="ident">execute</span>, <span class="ident">style::Print</span>};
 
- <span class="kw">fn</span> <span class="ident">main</span>() {
-     <span class="comment">// will be executed directly</span>
-     <span class="macro">execute!</span>(<span class="ident">stdout</span>(), <span class="ident">Print</span>(<span class="string">&quot;sum:\n&quot;</span>.<span class="ident">to_string</span>()));
+<span class="comment">// will be executed directly</span>
+<span class="macro">execute!</span>(<span class="ident">stdout</span>(), <span class="ident">Print</span>(<span class="string">&quot;sum:\n&quot;</span>.<span class="ident">to_string</span>()));
 
-     <span class="comment">// will be executed directly</span>
-     <span class="macro">execute!</span>(<span class="ident">stdout</span>(), <span class="ident">Print</span>(<span class="string">&quot;1 + 1= &quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Print</span>((<span class="number">1</span><span class="op">+</span><span class="number">1</span>).<span class="ident">to_string</span>()));
+<span class="comment">// will be executed directly</span>
+<span class="macro">execute!</span>(<span class="ident">stdout</span>(), <span class="ident">Print</span>(<span class="string">&quot;1 + 1= &quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Print</span>((<span class="number">1</span><span class="op">+</span><span class="number">1</span>).<span class="ident">to_string</span>()));
 
-     <span class="comment">// ==== Output ====</span>
-     <span class="comment">// sum:</span>
-     <span class="comment">// 1 + 1 = 2</span>
- }</code></pre></div>
-<p>Have a look over at the <a href="./#command-api">Command API</a> for more details.</p>
+<span class="comment">// ==== Output ====</span>
+<span class="comment">// sum:</span>
+<span class="comment">// 1 + 1 = 2</span></code></pre></div>
+<p>Have a look over at the <a href="./index.html#command-api">Command API</a> for more details.</p>
 <h2 id="notes"><a href="#notes">Notes</a></h2>
 <ul>
 <li>In the case of UNIX and Windows 10, ANSI codes are written to the given ‘writer’.</li>

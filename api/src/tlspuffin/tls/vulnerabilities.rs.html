@@ -1333,8 +1333,6 @@
 <span id="1327">1327</span>
 <span id="1328">1328</span>
 <span id="1329">1329</span>
-<span id="1330">1330</span>
-<span id="1331">1331</span>
 </pre><pre class="rust"><code><span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
 <span class="kw">use</span> <span class="ident">puffin</span>::{
@@ -1410,7 +1408,7 @@
 
     <span class="kw">let</span> <span class="ident">certificate_verify_rsa</span> <span class="op">=</span> <span class="macro">term!</span> {
         <span class="ident">fn_certificate_verify</span>(
-            (<span class="ident">fn_invalid_signature_algorithm</span>),
+            <span class="ident">fn_invalid_signature_algorithm</span>,
             <span class="comment">// Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):</span>
             <span class="comment">//fn_eve_cert // or fn_empty_bytes_vec</span>
             <span class="comment">// Option 2 (impersonating eve, you have to send eve cert):</span>
@@ -1629,6 +1627,7 @@
     <span class="ident">trace</span>
 }
 
+<span class="doccomment">/// https://nvd.nist.gov/vuln/detail/cve-2021-3449</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seed_cve_2021_3449</span>(<span class="ident">server</span>: <span class="ident">AgentName</span>) -&gt; <span class="ident">Trace</span><span class="op">&lt;</span><span class="ident">TlsQueryMatcher</span><span class="op">&gt;</span> {
     <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">trace</span>, <span class="ident">client_verify_data</span>) <span class="op">=</span> <span class="ident">_seed_client_attacker12</span>(<span class="ident">server</span>);
 
@@ -2418,21 +2417,11 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">nix</span>::{
-        <span class="ident">sys</span>::{
-            <span class="ident">signal::Signal</span>,
-            <span class="ident">wait</span>::{
-                <span class="ident">waitpid</span>, <span class="ident">WaitPidFlag</span>,
-                <span class="ident">WaitStatus</span>::{<span class="ident">Exited</span>, <span class="ident">Signaled</span>},
-            },
-        },
-        <span class="ident">unistd</span>::{<span class="ident">fork</span>, <span class="ident">ForkResult</span>},
-    };
-    <span class="kw">use</span> <span class="ident">puffin::put</span>::{<span class="ident">PutDescriptor</span>, <span class="ident">PutOptions</span>};
+    <span class="kw">use</span> <span class="ident">puffin::put::PutOptions</span>;
     <span class="kw">use</span> <span class="ident">test_log::test</span>;
 
     <span class="kw">use</span> <span class="kw">crate</span>::{
-        <span class="ident">put_registry</span>::{<span class="ident">TLS_PUT_REGISTRY</span>, <span class="ident">WOLFSSL520_PUT</span>},
+        <span class="ident">test_utils::expect_trace_crash</span>,
         <span class="ident">tls</span>::{
             <span class="ident">seeds</span>::{<span class="ident">seed_session_resumption_dhe_full</span>, <span class="ident">seed_successful12_with_tickets</span>},
             <span class="ident">trace_helper</span>::{<span class="ident">TraceExecutor</span>, <span class="ident">TraceHelper</span>},
@@ -2440,31 +2429,38 @@
         },
     };
 
-    <span class="kw">fn</span> <span class="ident">expect_crash</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">func</span>: <span class="ident">R</span>)
-    <span class="kw">where</span>
-        <span class="ident">R</span>: <span class="ident">FnMut</span>(),
-    {
-        <span class="kw">match</span> <span class="kw">unsafe</span> { <span class="ident">fork</span>() } {
-            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Parent</span> { <span class="ident">child</span>, .. }) =&gt; {
-                <span class="kw">let</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">waitpid</span>(<span class="ident">child</span>, <span class="ident">Option::from</span>(<span class="ident">WaitPidFlag::empty</span>())).<span class="ident">unwrap</span>();
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_term_sizes</span>() {
+        <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
+        <span class="kw">let</span> <span class="ident">_server</span> <span class="op">=</span> <span class="ident">client</span>.<span class="ident">next</span>();
 
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Signaled</span>(<span class="kw">_</span>, <span class="ident">signal</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">status</span> {
-                    <span class="kw">if</span> <span class="ident">signal</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Signal::SIGSEGV</span> <span class="op">&amp;&amp;</span> <span class="ident">signal</span> <span class="op">!</span><span class="op">=</span> <span class="ident">Signal::SIGABRT</span> {
-                        <span class="macro">panic!</span>(<span class="string">&quot;Trace did not crash with SIGSEGV/SIGABRT!&quot;</span>)
+        <span class="kw">for</span> (<span class="ident">name</span>, <span class="ident">trace</span>) <span class="kw">in</span> [
+            <span class="ident">seed_cve_2022_25638</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_cve_2022_25640</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_cve_2021_3449</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_heartbleed</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_freak</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_cve_2022_25640_simple</span>.<span class="ident">build_named_trace</span>(),
+            <span class="ident">seed_cve_2022_38153</span>.<span class="ident">build_named_trace</span>(),
+            <span class="comment">// TODO: 685 seed_cve_2022_39173.build_named_trace(),</span>
+            <span class="comment">// TODO: 1695 seed_cve_2022_39173_full.build_named_trace(),</span>
+            <span class="comment">// TODO: 322 seed_cve_2022_39173_minimized.build_named_trace(),</span>
+        ] {
+            <span class="kw">for</span> <span class="ident">step</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">steps</span> {
+                <span class="kw">match</span> <span class="kw-2">&amp;</span><span class="ident">step</span>.<span class="ident">action</span> {
+                    <span class="ident">Action::Input</span>(<span class="ident">input</span>) =&gt; {
+                        <span class="comment">// should be below a certain threshold, else we should increase max_term_size in fuzzer setup</span>
+                        <span class="kw">let</span> <span class="ident">terms</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">recipe</span>.<span class="ident">size</span>();
+                        <span class="macro">assert!</span>(
+                            <span class="ident">terms</span> <span class="op">&lt;</span> <span class="number">300</span>,
+                            <span class="string">&quot;{} has step with too large term size {}!&quot;</span>,
+                            <span class="ident">name</span>,
+                            <span class="ident">terms</span>
+                        );
                     }
-                } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Exited</span>(<span class="kw">_</span>, <span class="ident">code</span>) <span class="op">=</span> <span class="ident">status</span> {
-                    <span class="kw">if</span> <span class="ident">code</span> <span class="op">==</span> <span class="number">0</span> {
-                        <span class="macro">panic!</span>(<span class="string">&quot;Trace did not crash exit with non-zero code (AddressSanitizer)!&quot;</span>)
-                    }
-                } <span class="kw">else</span> {
-                    <span class="macro">panic!</span>(<span class="string">&quot;Trace did not signal!&quot;</span>)
+                    <span class="ident">Action::Output</span>(<span class="kw">_</span>) =&gt; {}
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">ForkResult::Child</span>) =&gt; {
-                <span class="ident">func</span>();
-                <span class="ident">std::process::exit</span>(<span class="number">0</span>);
-            }
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">panic!</span>(<span class="string">&quot;Fork failed&quot;</span>),
         }
     }
 
@@ -2474,33 +2470,28 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">ignore</span>]</span> <span class="comment">// We can not check for this vulnerability right now</span>
     <span class="kw">fn</span> <span class="ident">test_seed_freak</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_freak</span>.<span class="ident">execute_trace</span>();
-        });
+        <span class="ident">expect_trace_crash</span>(<span class="ident">seed_freak</span>.<span class="ident">build_trace</span>(), <span class="ident">PutOptions::default</span>());
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl101-binding&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls12&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_heartbleed</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_heartbleed</span>.<span class="ident">execute_trace</span>();
-        })
+        <span class="ident">expect_trace_crash</span>(<span class="ident">seed_heartbleed</span>.<span class="ident">build_trace</span>(), <span class="ident">PutOptions::default</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;openssl111j&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls12&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2021_3449</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_cve_2021_3449</span>.<span class="ident">execute_trace</span>();
-        });
+        <span class="ident">expect_trace_crash</span>(<span class="ident">seed_cve_2021_3449</span>.<span class="ident">build_trace</span>(), <span class="ident">PutOptions::default</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>)]</span> <span class="comment">// require version which supports TLS 1.3</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;client-authentication-transcript-extraction&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-25640&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Authentication bypass&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_25640</span>() {
         <span class="kw">let</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">seed_cve_2022_25640</span>.<span class="ident">execute_trace</span>();
@@ -2511,6 +2502,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>)]</span> <span class="comment">// require version which supports TLS 1.3</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;client-authentication-transcript-extraction&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-25640&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Authentication bypass&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_25640_simple</span>() {
         <span class="kw">let</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">seed_cve_2022_25640_simple</span>.<span class="ident">execute_trace</span>();
@@ -2521,6 +2513,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>)]</span> <span class="comment">// require version which supports TLS 1.3</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;client-authentication-transcript-extraction&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-25638&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Authentication bypass&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_25638</span>() {
         <span class="kw">let</span> <span class="ident">ctx</span> <span class="op">=</span> <span class="ident">seed_cve_2022_25638</span>.<span class="ident">execute_trace</span>();
@@ -2529,24 +2522,13 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls12&quot;</span>)]</span>
-    <span class="attribute">#[<span class="ident">ignore</span>]</span> <span class="comment">// Disabled because requires: disable(&quot;postauth&quot;, None) in wolfSSL build.rs</span>
-    <span class="doccomment">/// Internal ID was &quot;Finding 1&quot;</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl-disable-postauth&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_38152</span>() {
-        <span class="kw">let</span> <span class="ident">put</span> <span class="op">=</span> <span class="ident">PutDescriptor</span> {
-            <span class="ident">name</span>: <span class="ident">WOLFSSL520_PUT</span>,
-            <span class="ident">options</span>: <span class="ident">PutOptions::new</span>(<span class="macro">vec!</span>[(<span class="string">&quot;clear&quot;</span>, <span class="string">&quot;true&quot;</span>)]),
-        };
-
-        <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_session_resumption_dhe_full</span>.<span class="ident">build_trace</span>();
-        <span class="kw">let</span> <span class="ident">initial_server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
-        <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">prior_traces</span>[<span class="number">0</span>].<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
-
-        <span class="ident">expect_crash</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
-            <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-                <span class="kw-2">&amp;</span>[(<span class="ident">initial_server</span>, <span class="ident">put</span>.<span class="ident">clone</span>()), (<span class="ident">server</span>, <span class="ident">put</span>.<span class="ident">clone</span>())],
-            );
-        });
+        <span class="ident">expect_trace_crash</span>(
+            <span class="ident">seed_session_resumption_dhe_full</span>.<span class="ident">build_trace</span>(),
+            <span class="ident">PutOptions::from_slice_vec</span>(<span class="macro">vec!</span>[(<span class="string">&quot;use_clear&quot;</span>, <span class="kw-2">&amp;</span><span class="bool-val">true</span>.<span class="ident">to_string</span>())]),
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2558,36 +2540,46 @@
             <span class="ident">seed_successful12_with_tickets</span>.<span class="ident">execute_trace</span>();
         }
 
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_cve_2022_38153</span>.<span class="ident">execute_trace</span>();
-        });
+        <span class="ident">expect_trace_crash</span>(<span class="ident">seed_cve_2022_38153</span>.<span class="ident">build_trace</span>(), <span class="ident">PutOptions::default</span>());
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13-session-resumption&quot;</span>))]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+        <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl530&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>),
+        <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>
+    ))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-39173&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_39173</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_cve_2022_39173</span>.<span class="ident">execute_trace</span>();
-        })
+        <span class="ident">expect_trace_crash</span>(<span class="ident">seed_cve_2022_39173</span>.<span class="ident">build_trace</span>(), <span class="ident">PutOptions::default</span>());
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13-session-resumption&quot;</span>))]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+        <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl530&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>),
+        <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>
+    ))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-39173&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_39173_full</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_cve_2022_39173_full</span>.<span class="ident">execute_trace</span>();
-        });
+        <span class="ident">expect_trace_crash</span>(
+            <span class="ident">seed_cve_2022_39173_full</span>.<span class="ident">build_trace</span>(),
+            <span class="ident">PutOptions::default</span>(),
+        );
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;tls13-session-resumption&quot;</span>))]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+        <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl540&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl530&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;wolfssl510&quot;</span>),
+        <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;asan&quot;</span>
+    ))]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;fix-CVE-2022-39173&quot;</span>))]</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_seed_cve_2022_39173_minimized</span>() {
-        <span class="ident">expect_crash</span>(<span class="op">|</span><span class="op">|</span> {
-            <span class="ident">seed_cve_2022_39173_minimized</span>.<span class="ident">execute_trace</span>();
-        });
+        <span class="ident">expect_trace_crash</span>(
+            <span class="ident">seed_cve_2022_39173_minimized</span>.<span class="ident">build_trace</span>(),
+            <span class="ident">PutOptions::default</span>(),
+        );
     }
 
     <span class="kw">mod</span> <span class="ident">tcp</span> {
@@ -2630,10 +2622,12 @@
             <span class="kw">let</span> <span class="ident">descriptors</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">trace</span>.<span class="ident">descriptors</span>;
             <span class="kw">let</span> <span class="ident">client_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
             <span class="kw">let</span> <span class="ident">server_name</span> <span class="op">=</span> <span class="ident">descriptors</span>[<span class="number">1</span>].<span class="ident">name</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-                <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
-            );
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+                .<span class="ident">execute_with_non_default_puts</span>(
+                    <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
+                    <span class="kw-2">&amp;</span>[(<span class="ident">client_name</span>, <span class="ident">client</span>.<span class="ident">clone</span>()), (<span class="ident">server_name</span>, <span class="ident">server</span>.<span class="ident">clone</span>())],
+                )
+                .<span class="ident">unwrap</span>();
 
             <span class="kw">let</span> <span class="ident">client</span> <span class="op">=</span> <span class="ident">AgentName::first</span>();
             <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">client</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();
@@ -2655,10 +2649,12 @@
             <span class="kw">let</span> <span class="ident">trace</span> <span class="op">=</span> <span class="ident">seed_cve_2022_39173_full</span>.<span class="ident">build_trace</span>();
             <span class="kw">let</span> <span class="ident">initial_server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">prior_traces</span>[<span class="number">0</span>].<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
             <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">descriptors</span>[<span class="number">0</span>].<span class="ident">name</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>.<span class="ident">execute_with_puts</span>(
-                <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
-                <span class="kw-2">&amp;</span>[(<span class="ident">initial_server</span>, <span class="ident">put</span>.<span class="ident">clone</span>()), (<span class="ident">server</span>, <span class="ident">put</span>)],
-            );
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">context</span> <span class="op">=</span> <span class="ident">trace</span>
+                .<span class="ident">execute_with_non_default_puts</span>(
+                    <span class="kw-2">&amp;</span><span class="ident">TLS_PUT_REGISTRY</span>,
+                    <span class="kw-2">&amp;</span>[(<span class="ident">initial_server</span>, <span class="ident">put</span>.<span class="ident">clone</span>()), (<span class="ident">server</span>, <span class="ident">put</span>)],
+                )
+                .<span class="ident">unwrap</span>();
 
             <span class="kw">let</span> <span class="ident">server</span> <span class="op">=</span> <span class="ident">AgentName::first</span>().<span class="ident">next</span>();
             <span class="kw">let</span> <span class="ident">shutdown</span> <span class="op">=</span> <span class="ident">context</span>.<span class="ident">find_agent_mut</span>(<span class="ident">server</span>).<span class="ident">unwrap</span>().<span class="ident">put_mut</span>().<span class="ident">shutdown</span>();

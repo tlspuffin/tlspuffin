@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.0/src/bolts/llmp.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>llmp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/libafl-0.8.2/src/bolts/llmp.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>llmp.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../../libafl/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div>
@@ -2801,6 +2801,7 @@
 <span id="2795">2795</span>
 <span id="2796">2796</span>
 <span id="2797">2797</span>
+<span id="2798">2798</span>
 </pre><pre class="rust"><code><span class="doccomment">/*!
 A library for low level message passing
 
@@ -2860,6 +2861,8 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
 
 */</span>
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">alloc::string::ToString</span>;
 <span class="kw">use</span> <span class="ident">alloc</span>::{<span class="ident">string::String</span>, <span class="ident">vec::Vec</span>};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_pointer_width</span> <span class="op">=</span> <span class="string">&quot;64&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">core::sync::atomic::AtomicU32</span>;
@@ -2874,10 +2877,9 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="ident">sync::atomic</span>::{<span class="ident">fence</span>, <span class="ident">AtomicU16</span>, <span class="ident">Ordering</span>},
     <span class="ident">time::Duration</span>,
 };
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">alloc::string::ToString</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>)))]</span>
+<span class="kw">use</span> <span class="ident">std::os::unix::io::AsRawFd</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="ident">env</span>,
@@ -2889,6 +2891,10 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">debug_assertions</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;llmp_debug&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">backtrace::Backtrace</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>)))]</span>
+<span class="kw">use</span> <span class="ident">nix::sys::socket</span>::{<span class="self">self</span>, <span class="ident">sockopt::ReusePort</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">unix</span>)]</span>
 <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::os::unix_signals</span>::{
@@ -2898,10 +2904,6 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="ident">bolts::shmem</span>::{<span class="ident">ShMem</span>, <span class="ident">ShMemDescription</span>, <span class="ident">ShMemId</span>, <span class="ident">ShMemProvider</span>},
     <span class="ident">Error</span>,
 };
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">nix::sys::socket</span>::{<span class="self">self</span>, <span class="ident">sockopt::ReusePort</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">unix</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">std::os::unix::io::AsRawFd</span>;
 
 <span class="doccomment">/// The max number of pages a [`client`] may have mapped that were not yet read by the [`broker`]</span>
 <span class="doccomment">/// Usually, this value should not exceed `1`, else the broker cannot keep up with the amount of incoming messages.</span>
@@ -3117,7 +3119,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
             <span class="ident">Listener::Tcp</span>(<span class="ident">inner</span>) =&gt; <span class="kw">match</span> <span class="ident">inner</span>.<span class="ident">accept</span>() {
                 <span class="prelude-val">Ok</span>(<span class="ident">res</span>) =&gt; <span class="ident">ListenerStream::Tcp</span>(<span class="ident">res</span>.<span class="number">0</span>, <span class="ident">res</span>.<span class="number">1</span>),
                 <span class="prelude-val">Err</span>(<span class="ident">err</span>) =&gt; {
-                    <span class="macro">println!</span>(<span class="string">&quot;Ignoring failed accept: {:?}&quot;</span>, <span class="ident">err</span>);
+                    <span class="macro">println!</span>(<span class="string">&quot;Ignoring failed accept: {err:?}&quot;</span>);
                     <span class="ident">ListenerStream::Empty</span>()
                 }
             },
@@ -3168,7 +3170,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">msg_offset_from_env</span>(<span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">msg_offset_str</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_OFFSET&quot;</span>, <span class="ident">env_name</span>))<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">msg_offset_str</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_OFFSET&quot;</span>))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">msg_offset_str</span> <span class="op">==</span> <span class="ident">_NULL_ENV_STR</span> {
         <span class="prelude-val">None</span>
     } <span class="kw">else</span> {
@@ -3184,6 +3186,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="kw">let</span> <span class="ident">listener</span> <span class="op">=</span> <span class="ident">TcpListener::bind</span>((<span class="ident">_LLMP_BIND_ADDR</span>, <span class="ident">port</span>))<span class="question-mark">?</span>;
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">unix</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;solaris&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;illumos&quot;</span>)))]</span>
     <span class="ident">socket::setsockopt</span>(<span class="ident">listener</span>.<span class="ident">as_raw_fd</span>(), <span class="ident">ReusePort</span>, <span class="kw-2">&amp;</span><span class="bool-val">true</span>)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(<span class="ident">listener</span>)
@@ -3234,7 +3237,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="ident">bytes</span>.<span class="ident">resize</span>(<span class="ident">size</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="number">0_u8</span>);
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;llmp_debug&quot;</span>)]</span>
-    <span class="macro">println!</span>(<span class="string">&quot;LLMP TCP: Receiving payload of size {}&quot;</span>, <span class="ident">size</span>);
+    <span class="macro">println!</span>(<span class="string">&quot;LLMP TCP: Receiving payload of size {size}&quot;</span>);
 
     <span class="ident">stream</span>
         .<span class="ident">read_exact</span>(<span class="kw-2">&amp;mut</span> <span class="ident">bytes</span>)
@@ -3619,7 +3622,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">client_id_from_env</span>(<span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ClientId</span><span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">client_id_str</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_CLIENT_ID&quot;</span>, <span class="ident">env_name</span>))<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">client_id_str</span> <span class="op">=</span> <span class="ident">env::var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_CLIENT_ID&quot;</span>))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">client_id_str</span> <span class="op">==</span> <span class="ident">_NULL_ENV_STR</span> {
             <span class="prelude-val">None</span>
         } <span class="kw">else</span> {
@@ -3630,7 +3633,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="doccomment">/// Writes the `id` to an env var</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">client_id_to_env</span>(<span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">id</span>: <span class="ident">ClientId</span>) {
-        <span class="ident">env::set_var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_CLIENT_ID&quot;</span>, <span class="ident">env_name</span>), <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">id</span>));
+        <span class="ident">env::set_var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_CLIENT_ID&quot;</span>), <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{id}&quot;</span>));
     }
 
     <span class="doccomment">/// Reattach to a vacant `out_shmem`, to with a previous sender stored the information in an env before.</span>
@@ -3757,7 +3760,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="kw">let</span> <span class="ident">page</span> <span class="op">=</span> <span class="ident">map</span>.<span class="ident">page_mut</span>();
         <span class="kw">let</span> <span class="ident">last_msg</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">last_msg_sent</span>;
         <span class="macro">assert!</span>((<span class="kw-2">*</span><span class="ident">page</span>).<span class="ident">size_used</span> <span class="op">+</span> <span class="ident">EOP_MSG_SIZE</span> <span class="op">&lt;</span><span class="op">=</span> (<span class="kw-2">*</span><span class="ident">page</span>).<span class="ident">size_total</span>,
-                <span class="string">&quot;PROGRAM ABORT : BUG: EOP does not fit in page! page {:?}, size_current {:?}, size_total {:?}&quot;</span>, <span class="ident">page</span>,
+                <span class="string">&quot;PROGRAM ABORT : BUG: EOP does not fit in page! page {page:?}, size_current {:?}, size_total {:?}&quot;</span>,
                 <span class="macro">ptr::addr_of!</span>((<span class="kw-2">*</span><span class="ident">page</span>).<span class="ident">size_used</span>), <span class="macro">ptr::addr_of!</span>((<span class="kw-2">*</span><span class="ident">page</span>).<span class="ident">size_total</span>));
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ret</span>: <span class="kw-2">*mut</span> <span class="ident">LlmpMsg</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">last_msg</span>.<span class="ident">is_null</span>() {
@@ -3934,7 +3937,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">new_map</span> <span class="op">=</span> <span class="ident">new_map_shmem</span>.<span class="ident">page_mut</span>();
 
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;llmp_debug&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
-        <span class="macro">println!</span>(<span class="string">&quot;got new map at: {:?}&quot;</span>, <span class="ident">new_map</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;got new map at: {new_map:?}&quot;</span>);
 
         (<span class="kw-2">*</span><span class="ident">new_map</span>).<span class="ident">current_msg_id</span>.<span class="ident">store</span>(
             (<span class="kw-2">*</span><span class="ident">old_map</span>).<span class="ident">current_msg_id</span>.<span class="ident">load</span>(<span class="ident">Ordering::Relaxed</span>),
@@ -4033,7 +4036,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
             <span class="op">-</span> <span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">LlmpMsg</span><span class="op">&gt;</span>();
 
         <span class="kw">if</span> <span class="ident">buf_len_padded</span> <span class="op">&gt;</span> <span class="ident">old_len_padded</span>.<span class="ident">try_into</span>().<span class="ident">unwrap</span>() {
-            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Cannot shrink msg of size {} (paded: {}) to requested larger size of {} (padded: {})!&quot;</span>, (<span class="kw-2">*</span><span class="ident">msg</span>).<span class="ident">buf_len</span>, <span class="ident">old_len_padded</span>, <span class="ident">shrinked_len</span>, <span class="ident">buf_len_padded</span>)));
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_argument</span>(<span class="macro">format!</span>(<span class="string">&quot;Cannot shrink msg of size {} (paded: {old_len_padded}) to requested larger size of {shrinked_len} (padded: {buf_len_padded})!&quot;</span>, (<span class="kw-2">*</span><span class="ident">msg</span>).<span class="ident">buf_len</span>)));
         }
 
         (<span class="kw-2">*</span><span class="ident">msg</span>).<span class="ident">buf_len</span> <span class="op">=</span> <span class="ident">shrinked_len</span> <span class="kw">as</span> <span class="ident">u64</span>;
@@ -4523,10 +4526,10 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">msg_to_env</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">*const</span> <span class="ident">LlmpMsg</span>, <span class="ident">map_env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="ident">msg</span>.<span class="ident">is_null</span>() {
-            <span class="ident">env::set_var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_OFFSET&quot;</span>, <span class="ident">map_env_name</span>), <span class="ident">_NULL_ENV_STR</span>);
+            <span class="ident">env::set_var</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{map_env_name}_OFFSET&quot;</span>), <span class="ident">_NULL_ENV_STR</span>);
         } <span class="kw">else</span> {
             <span class="ident">env::set_var</span>(
-                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_OFFSET&quot;</span>, <span class="ident">map_env_name</span>),
+                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{map_env_name}_OFFSET&quot;</span>),
                 <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">msg_to_offset</span>(<span class="ident">msg</span>)<span class="question-mark">?</span>),
             );
         }
@@ -4658,13 +4661,13 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="ident">A</span>: <span class="ident">ToSocketAddrs</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">TcpStream::connect</span>(<span class="ident">addr</span>)<span class="question-mark">?</span>;
-        <span class="macro">println!</span>(<span class="string">&quot;B2B: Connected to {:?}&quot;</span>, <span class="ident">stream</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;B2B: Connected to {stream:?}&quot;</span>);
 
         <span class="kw">match</span> <span class="ident">recv_tcp_msg</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>)<span class="question-mark">?</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span> {
             <span class="ident">TcpResponse::BrokerConnectHello</span> {
                 <span class="ident">broker_shmem_description</span>: <span class="kw">_</span>,
                 <span class="ident">hostname</span>,
-            } =&gt; <span class="macro">println!</span>(<span class="string">&quot;B2B: Connected to {}&quot;</span>, <span class="ident">hostname</span>),
+            } =&gt; <span class="macro">println!</span>(<span class="string">&quot;B2B: Connected to {hostname}&quot;</span>),
             <span class="kw">_</span> =&gt; {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::illegal_state</span>(
                     <span class="string">&quot;Unexpected response from B2B server received.&quot;</span>.<span class="ident">to_string</span>(),
@@ -4681,7 +4684,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
 
         <span class="kw">let</span> <span class="ident">broker_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">recv_tcp_msg</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>)<span class="question-mark">?</span>.<span class="ident">try_into</span>()<span class="question-mark">?</span> {
             <span class="ident">TcpResponse::RemoteBrokerAccepted</span> { <span class="ident">broker_id</span> } =&gt; {
-                <span class="macro">println!</span>(<span class="string">&quot;B2B: Got Connection Ack, broker_id {}&quot;</span>, <span class="ident">broker_id</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;B2B: Got Connection Ack, broker_id {broker_id}&quot;</span>);
                 <span class="ident">broker_id</span>
             }
             <span class="kw">_</span> =&gt; {
@@ -4692,7 +4695,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         };
 
         <span class="comment">// TODO: use broker ids!</span>
-        <span class="macro">println!</span>(<span class="string">&quot;B2B: We are broker {}&quot;</span>, <span class="ident">broker_id</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;B2B: We are broker {broker_id}&quot;</span>);
 
         <span class="comment">// TODO: handle broker_ids properly/at all.</span>
         <span class="kw">let</span> <span class="ident">map_description</span> <span class="op">=</span> <span class="ident"><span class="self">Self</span>::b2b_thread_on</span>(
@@ -4732,7 +4735,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         (<span class="kw-2">*</span><span class="ident">out</span>).<span class="ident">buf_len_padded</span> <span class="op">=</span> <span class="ident">actual_size</span>;
         <span class="comment">/* We need to replace the message ID with our own */</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">llmp_out</span>.<span class="ident">send</span>(<span class="ident">out</span>, <span class="bool-val">false</span>) {
-            <span class="macro">panic!</span>(<span class="string">&quot;Error sending msg: {:?}&quot;</span>, <span class="ident">e</span>);
+            <span class="macro">panic!</span>(<span class="string">&quot;Error sending msg: {e:?}&quot;</span>);
         }
         <span class="self">self</span>.<span class="ident">llmp_out</span>.<span class="ident">last_msg_sent</span> <span class="op">=</span> <span class="ident">out</span>;
         <span class="prelude-val">Ok</span>(())
@@ -4780,7 +4783,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">_e</span>) <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">setup_signal_handler</span>(<span class="kw-2">&amp;mut</span> <span class="ident">GLOBAL_SIGHANDLER_STATE</span>) } {
             <span class="comment">// We can live without a proper ctrl+c signal handler. Print and ignore.</span>
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-            <span class="macro">println!</span>(<span class="string">&quot;Failed to setup signal handlers: {}&quot;</span>, <span class="ident">_e</span>);
+            <span class="macro">println!</span>(<span class="string">&quot;Failed to setup signal handlers: {_e}&quot;</span>);
         }
 
         <span class="kw">while</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_shutting_down</span>() {
@@ -4818,7 +4821,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">launch_tcp_listener_on</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">port</span>: <span class="ident">u16</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">thread::JoinHandle</span><span class="op">&lt;</span>()<span class="op">&gt;</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">listener</span> <span class="op">=</span> <span class="ident">tcp_bind</span>(<span class="ident">port</span>)<span class="question-mark">?</span>;
         <span class="comment">// accept connections and process them, spawning a new thread for each one</span>
-        <span class="macro">println!</span>(<span class="string">&quot;Server listening on port {}&quot;</span>, <span class="ident">port</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;Server listening on port {port}&quot;</span>);
         <span class="self">self</span>.<span class="ident">launch_listener</span>(<span class="ident">Listener::Tcp</span>(<span class="ident">listener</span>))
     }
 
@@ -4877,7 +4880,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                 <span class="kw">match</span> <span class="ident">LlmpSender::new</span>(<span class="ident">shmem_provider_bg</span>.<span class="ident">clone</span>(), <span class="ident">b2b_client_id</span>, <span class="bool-val">false</span>) {
                     <span class="prelude-val">Ok</span>(<span class="ident">new_sender</span>) =&gt; <span class="ident">new_sender</span>,
                     <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                        <span class="macro">panic!</span>(<span class="string">&quot;B2B: Could not map shared map: {}&quot;</span>, <span class="ident">e</span>);
+                        <span class="macro">panic!</span>(<span class="string">&quot;B2B: Could not map shared map: {e}&quot;</span>);
                     }
                 };
 
@@ -4981,7 +4984,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
             <span class="ident">TcpRequest::LocalClientHello</span> { <span class="ident">shmem_description</span> } =&gt; {
                 <span class="kw">match</span> <span class="ident"><span class="self">Self</span>::announce_new_client</span>(<span class="ident">sender</span>, <span class="ident">shmem_description</span>) {
                     <span class="prelude-val">Ok</span>(()) =&gt; (),
-                    <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;Error forwarding client on map: {:?}&quot;</span>, <span class="ident">e</span>),
+                    <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; <span class="macro">println!</span>(<span class="string">&quot;Error forwarding client on map: {e:?}&quot;</span>),
                 };
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="ident">send_tcp_msg</span>(
@@ -4990,12 +4993,12 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                         <span class="ident">client_id</span>: <span class="kw-2">*</span><span class="ident">current_client_id</span>,
                     },
                 ) {
-                    <span class="macro">println!</span>(<span class="string">&quot;An error occurred sending via tcp {}&quot;</span>, <span class="ident">e</span>);
+                    <span class="macro">println!</span>(<span class="string">&quot;An error occurred sending via tcp {e}&quot;</span>);
                 };
                 <span class="kw-2">*</span><span class="ident">current_client_id</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
             }
             <span class="ident">TcpRequest::RemoteBrokerHello</span> { <span class="ident">hostname</span> } =&gt; {
-                <span class="macro">println!</span>(<span class="string">&quot;B2B new client: {}&quot;</span>, <span class="ident">hostname</span>);
+                <span class="macro">println!</span>(<span class="string">&quot;B2B new client: {hostname}&quot;</span>);
 
                 <span class="comment">// TODO: Clean up broker ids.</span>
                 <span class="kw">if</span> <span class="ident">send_tcp_msg</span>(
@@ -5014,7 +5017,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                     <span class="ident"><span class="self">Self</span>::b2b_thread_on</span>(<span class="ident">stream</span>, <span class="kw-2">*</span><span class="ident">current_client_id</span>, <span class="ident">broker_shmem_description</span>)
                 {
                     <span class="kw">if</span> <span class="ident"><span class="self">Self</span>::announce_new_client</span>(<span class="ident">sender</span>, <span class="kw-2">&amp;</span><span class="ident">shmem_description</span>).<span class="ident">is_err</span>() {
-                        <span class="macro">println!</span>(<span class="string">&quot;B2B: Error announcing client {:?}&quot;</span>, <span class="ident">shmem_description</span>);
+                        <span class="macro">println!</span>(<span class="string">&quot;B2B: Error announcing client {shmem_description:?}&quot;</span>);
                     };
                     <span class="kw-2">*</span><span class="ident">current_client_id</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
                 }
@@ -5085,7 +5088,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                         <span class="kw">match</span> <span class="ident">send_tcp_msg</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>, <span class="kw-2">&amp;</span><span class="ident">broker_hello</span>) {
                             <span class="prelude-val">Ok</span>(()) =&gt; {}
                             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                                <span class="macro">eprintln!</span>(<span class="string">&quot;Error sending initial hello: {:?}&quot;</span>, <span class="ident">e</span>);
+                                <span class="macro">eprintln!</span>(<span class="string">&quot;Error sending initial hello: {e:?}&quot;</span>);
                                 <span class="kw">continue</span>;
                             }
                         }
@@ -5093,14 +5096,14 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                         <span class="kw">let</span> <span class="ident">buf</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">recv_tcp_msg</span>(<span class="kw-2">&amp;mut</span> <span class="ident">stream</span>) {
                             <span class="prelude-val">Ok</span>(<span class="ident">buf</span>) =&gt; <span class="ident">buf</span>,
                             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                                <span class="macro">eprintln!</span>(<span class="string">&quot;Error receving from tcp: {:?}&quot;</span>, <span class="ident">e</span>);
+                                <span class="macro">eprintln!</span>(<span class="string">&quot;Error receving from tcp: {e:?}&quot;</span>);
                                 <span class="kw">continue</span>;
                             }
                         };
                         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">buf</span>.<span class="ident">try_into</span>() {
                             <span class="prelude-val">Ok</span>(<span class="ident">req</span>) =&gt; <span class="ident">req</span>,
                             <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
-                                <span class="macro">eprintln!</span>(<span class="string">&quot;Could not deserialize tcp message: {:?}&quot;</span>, <span class="ident">e</span>);
+                                <span class="macro">eprintln!</span>(<span class="string">&quot;Could not deserialize tcp message: {e:?}&quot;</span>);
                                 <span class="kw">continue</span>;
                             }
                         };
@@ -5148,7 +5151,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
             <span class="kw">match</span> (<span class="kw-2">*</span><span class="ident">msg</span>).<span class="ident">tag</span> {
                 <span class="comment">// first, handle the special, llmp-internal messages</span>
                 <span class="ident">LLMP_SLOW_RECEIVER_PANIC</span> =&gt; {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(<span class="string">&quot;The broker was too slow to handle messages of client {} in time, so it quit. Either the client sent messages too fast, or we (the broker) got stuck!&quot;</span>, <span class="ident">client_id</span>)));
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(<span class="string">&quot;The broker was too slow to handle messages of client {client_id} in time, so it quit. Either the client sent messages too fast, or we (the broker) got stuck!&quot;</span>)));
                 }
                 <span class="ident">LLMP_TAG_NEW_SHM_CLIENT</span> =&gt; {
                     <span class="comment">/* This client informs us about yet another new client
@@ -5187,7 +5190,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                         }
                         <span class="prelude-val">Err</span>(<span class="ident">e</span>) =&gt; {
                             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
-                            <span class="macro">println!</span>(<span class="string">&quot;Error adding client! Ignoring: {:?}&quot;</span>, <span class="ident">e</span>);
+                            <span class="macro">println!</span>(<span class="string">&quot;Error adding client! Ignoring: {e:?}&quot;</span>);
                             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>))]</span>
                             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error::unknown</span>(<span class="macro">format!</span>(
                                 <span class="string">&quot;Error adding client! PANIC! {:?}&quot;</span>,
@@ -5275,11 +5278,11 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
             <span class="ident">sender</span>: <span class="ident">LlmpSender::on_existing_from_env</span>(
                 <span class="ident">shmem_provider</span>.<span class="ident">clone</span>(),
-                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_SENDER&quot;</span>, <span class="ident">env_name</span>),
+                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_SENDER&quot;</span>),
             )<span class="question-mark">?</span>,
             <span class="ident">receiver</span>: <span class="ident">LlmpReceiver::on_existing_from_env</span>(
                 <span class="ident">shmem_provider</span>,
-                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_RECEIVER&quot;</span>, <span class="ident">env_name</span>),
+                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_RECEIVER&quot;</span>),
             )<span class="question-mark">?</span>,
         })
     }
@@ -5288,8 +5291,8 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
     <span class="doccomment">/// A new client can attach to exactly the same state by calling [`LlmpClient::on_existing_shmem()`].</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_env</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">env_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">to_env</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_SENDER&quot;</span>, <span class="ident">env_name</span>))<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">to_env</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}_RECEIVER&quot;</span>, <span class="ident">env_name</span>))
+        <span class="self">self</span>.<span class="ident">sender</span>.<span class="ident">to_env</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_SENDER&quot;</span>))<span class="question-mark">?</span>;
+        <span class="self">self</span>.<span class="ident">receiver</span>.<span class="ident">to_env</span>(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{env_name}_RECEIVER&quot;</span>))
     }
 
     <span class="doccomment">/// Describe this client in a way that it can be recreated, for example after crash</span>
@@ -5480,7 +5483,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
                 }
             }
         };
-        <span class="macro">println!</span>(<span class="string">&quot;Connected to port {}&quot;</span>, <span class="ident">port</span>);
+        <span class="macro">println!</span>(<span class="string">&quot;Connected to port {port}&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">broker_shmem_description</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TcpResponse::BrokerConnectHello</span> {
             <span class="ident">broker_shmem_description</span>,
@@ -5543,7 +5546,6 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="ident">LlmpMsgHookResult::ForwardToClients</span>,
         <span class="ident">Tag</span>,
     };
-
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::bolts::shmem</span>::{<span class="ident">ShMemProvider</span>, <span class="ident">StdShMemProvider</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -5578,7 +5580,7 @@ Check out the `llmp_test` example in ./examples, or build it with `cargo run --e
         <span class="macro">dbg!</span>(<span class="ident">std::env::vars</span>());
 
         <span class="kw">for</span> (<span class="ident">key</span>, <span class="ident">value</span>) <span class="kw">in</span> <span class="ident">std::env::vars_os</span>() {
-            <span class="macro">println!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, <span class="ident">key</span>, <span class="ident">value</span>);
+            <span class="macro">println!</span>(<span class="string">&quot;{key:?}: {value:?}&quot;</span>);
         }
 
         <span class="comment">/* recreate the client from env, check if it still works */</span>

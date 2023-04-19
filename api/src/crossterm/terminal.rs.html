@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.20.0/src/terminal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>terminal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/crossterm-0.24.0/src/terminal.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>terminal.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
         </a><h2 class="location"></h2>
     </nav>
     <nav class="sidebar"><a class="sidebar-logo" href="../../crossterm/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div>
@@ -397,6 +397,55 @@
 <span id="391">391</span>
 <span id="392">392</span>
 <span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
 </pre><pre class="rust"><code><span class="doccomment">//! # Terminal</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The `terminal` module provides functionality to work with the terminal.</span>
@@ -454,8 +503,10 @@
 <span class="doccomment">//! - Input will not be forwarded to screen</span>
 <span class="doccomment">//! - Input will not be processed on enter press</span>
 <span class="doccomment">//! - Input will not be line buffered (input sent byte-by-byte to input buffer)</span>
-<span class="doccomment">//! - Special keys like backspace and CTL+C will not be processed by terminal driver</span>
+<span class="doccomment">//! - Special keys like backspace and CTRL+C will not be processed by terminal driver</span>
 <span class="doccomment">//! - New line character will not be processed therefore `println!` can&#39;t be used, use `write!` instead</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Raw mode can be enabled/disabled with the [enable_raw_mode](terminal::enable_raw_mode) and [disable_raw_mode](terminal::disable_raw_mode) functions.</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ## Examples</span>
 <span class="doccomment">//!</span>
@@ -495,16 +546,31 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod</span> <span class="ident">sys</span>;
 
+<span class="doccomment">/// Tells whether the raw mode is enabled.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Please have a look at the [raw mode](./index.html#raw-mode) section.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_raw_mode_enabled</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">unix</span>)]</span>
+    {
+        <span class="prelude-val">Ok</span>(<span class="ident">sys::is_raw_mode_enabled</span>())
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
+    {
+        <span class="ident">sys::is_raw_mode_enabled</span>()
+    }
+}
+
 <span class="doccomment">/// Enables raw mode.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Please have a look at the [raw mode](./#raw-mode) section.</span>
+<span class="doccomment">/// Please have a look at the [raw mode](./index.html#raw-mode) section.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_raw_mode</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="ident">sys::enable_raw_mode</span>()
 }
 
 <span class="doccomment">/// Disables raw mode.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// Please have a look at the [raw mode](./#raw-mode) section.</span>
+<span class="doccomment">/// Please have a look at the [raw mode](./index.html#raw-mode) section.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">disable_raw_mode</span>() -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="ident">sys::disable_raw_mode</span>()
 }
@@ -636,6 +702,8 @@
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ClearType</span> {
     <span class="doccomment">/// All cells.</span>
     <span class="ident">All</span>,
+    <span class="doccomment">/// All plus history</span>
+    <span class="ident">Purge</span>,
     <span class="doccomment">/// All cells from the cursor position downwards.</span>
     <span class="ident">FromCursorDown</span>,
     <span class="doccomment">/// All cells from the cursor position upwards.</span>
@@ -704,6 +772,7 @@
     <span class="kw">fn</span> <span class="ident">write_ansi</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;mut</span> <span class="kw">impl</span> <span class="ident">fmt::Write</span>) -&gt; <span class="ident">fmt::Result</span> {
         <span class="ident">f</span>.<span class="ident">write_str</span>(<span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
             <span class="ident">ClearType::All</span> =&gt; <span class="macro">csi!</span>(<span class="string">&quot;2J&quot;</span>),
+            <span class="ident">ClearType::Purge</span> =&gt; <span class="macro">csi!</span>(<span class="string">&quot;3J&quot;</span>),
             <span class="ident">ClearType::FromCursorDown</span> =&gt; <span class="macro">csi!</span>(<span class="string">&quot;J&quot;</span>),
             <span class="ident">ClearType::FromCursorUp</span> =&gt; <span class="macro">csi!</span>(<span class="string">&quot;1J&quot;</span>),
             <span class="ident">ClearType::CurrentLine</span> =&gt; <span class="macro">csi!</span>(<span class="string">&quot;2K&quot;</span>),
@@ -717,7 +786,7 @@
     }
 }
 
-<span class="doccomment">/// A command that sets the terminal size `(columns, rows)`.</span>
+<span class="doccomment">/// A command that sets the terminal buffer size `(columns, rows)`.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Notes</span>
 <span class="doccomment">///</span>
@@ -766,7 +835,7 @@
 
     <span class="kw">use</span> <span class="ident"><span class="kw">crate</span>::execute</span>;
 
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">size</span>, <span class="ident">SetSize</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 
     <span class="comment">// Test is disabled, because it&#39;s failing on Travis CI</span>
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -788,6 +857,35 @@
         <span class="ident">thread::sleep</span>(<span class="ident">time::Duration::from_millis</span>(<span class="number">30</span>));
 
         <span class="macro">assert_eq!</span>((<span class="ident">width</span>, <span class="ident">height</span>), <span class="ident">size</span>().<span class="ident">unwrap</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_raw_mode</span>() {
+        <span class="comment">// check we start from normal mode (may fail on some test harnesses)</span>
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_raw_mode_enabled</span>().<span class="ident">unwrap</span>());
+
+        <span class="comment">// enable the raw mode</span>
+        <span class="kw">if</span> <span class="ident">enable_raw_mode</span>().<span class="ident">is_err</span>() {
+            <span class="comment">// Enabling raw mode doesn&#39;t work on the ci</span>
+            <span class="comment">// So we just ignore it</span>
+            <span class="kw">return</span>;
+        }
+
+        <span class="comment">// check it worked (on unix it doesn&#39;t really check the underlying</span>
+        <span class="comment">// tty but rather check that the code is consistent)</span>
+        <span class="macro">assert!</span>(<span class="ident">is_raw_mode_enabled</span>().<span class="ident">unwrap</span>());
+
+        <span class="comment">// enable it again, this should not change anything</span>
+        <span class="ident">enable_raw_mode</span>().<span class="ident">unwrap</span>();
+
+        <span class="comment">// check we&#39;re still in raw mode</span>
+        <span class="macro">assert!</span>(<span class="ident">is_raw_mode_enabled</span>().<span class="ident">unwrap</span>());
+
+        <span class="comment">// now let&#39;s disable it</span>
+        <span class="ident">disable_raw_mode</span>().<span class="ident">unwrap</span>();
+
+        <span class="comment">// check we&#39;re back to normal mode</span>
+        <span class="macro">assert!</span>(<span class="op">!</span><span class="ident">is_raw_mode_enabled</span>().<span class="ident">unwrap</span>());
     }
 }
 </code></pre></div>
