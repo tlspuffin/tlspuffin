@@ -1,11 +1,15 @@
 #!/bin/bash
 
-# if [ "$#" -ne 1 ]; then
-#     echo "Illegal number of parameters"
-#     exit 1
-# fi
+# Arguments
+# - Which branch to pull artifacts from?
+# - How many cores per experiment? Experiments: SDOS1, SIG, SKIP, SDOS2, CDOS, BUF, HEAP
 
-BRANCH="eval22-compare"
+if [ "$#" -ne 2 ]; then
+    echo "Illegal number of parameters"
+    exit 1
+fi
+
+BRANCH="eval22-bitlevel"
 START_CORE=$(( 0 ))
 # Mut be at least 1
 CORES_PER_EXPERIMENT=$(( 2 ))
