@@ -10,6 +10,13 @@ rustflags = [
    "-C", "default-linker-libraries=yes"
 ]
 
+rustdocflags = [
+   "-C", "linker=clang",
+   "-C", "link-arg=-fsanitize=address",
+   "-C", "link-arg=-shared-libasan",
+   "-C", "default-linker-libraries=yes"
+]
+
 [env]
 # We do not focus on leaks -> 0
 # Link order is important -> 1
