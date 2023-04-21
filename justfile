@@ -28,7 +28,7 @@ build PROJECT ARCH FEATURES CARGO_FLAGS="":
   cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
 benchmark:
-  cargo bench -p tlspuffin --features "openssl111"
+  cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111"
 
 install-rustfmt: nightly-toolchain
   rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN
