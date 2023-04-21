@@ -185,7 +185,7 @@ impl Build {
         Artifacts {
             lib_dir: install_dir.join("lib"),
             include_dir: install_dir.join("include"),
-            libs: libs,
+            libs,
         }
     }
 

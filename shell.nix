@@ -3,9 +3,11 @@
 pkgs.mkShell {
   nativeBuildInputs = [
     pkgs.rustup
+    pkgs.just
   
     pkgs.llvmPackages_14.llvm
     pkgs.llvmPackages_14.clang
+    pkgs.darwin.apple_sdk.frameworks.Security
 
     pkgs.cmake
     # wolfSSL

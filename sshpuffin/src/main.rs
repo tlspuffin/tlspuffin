@@ -1,7 +1,3 @@
-#![feature(unix_socket_abstract)]
-
-extern crate core;
-
 mod claim;
 mod libssh;
 mod protocol;
