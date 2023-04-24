@@ -1,3 +1,5 @@
+use std::process::Command;
+
 fn main() {
     if cfg!(feature = "asan") {
         let output = Command::new("clang")
