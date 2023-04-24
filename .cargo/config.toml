@@ -4,17 +4,13 @@
 #rustflags = ["-Z", "sanitizer=address"]
 
 rustflags = [
+   # Required for LLVM ASAN
    "-C", "linker=clang",
-   "-C", "link-arg=-fsanitize=address",
-   "-C", "link-arg=-shared-libasan",
-   "-C", "default-linker-libraries=yes"
 ]
 
 rustdocflags = [
+   # Required for LLVM ASAN
    "-C", "linker=clang",
-   "-C", "link-arg=-fsanitize=address",
-   "-C", "link-arg=-shared-libasan",
-   "-C", "default-linker-libraries=yes"
 ]
 
 [env]
