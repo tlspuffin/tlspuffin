@@ -142,11 +142,11 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .expect("failed to clang to get resource dir");
         let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
 
+        // Important: Make sure to pass these flags to the linker invoked by rustc!
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
             .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
-        println!("cargo:rustc-link-lib=asan");
     }
 
     if cfg!(feature = "additional-headers") {
