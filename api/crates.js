@@ -1,1 +1,1 @@
-window.ALL_CRATES = ["cfg_if","concat_idents","const_random_macro","crunchy","ctor","derivative","getrandom","lazy_static","libafl_derive","libc","num_enum_derive","proc_macro2","proc_macro_hack","quote","rustversion","serde_derive","syn","thiserror_impl","tiny_keccak","typed_builder","unicode_xid"];
+window.ALL_CRATES = ["c2rust_bitfields_derive","ctor","derivative","libafl_derive","num_enum_derive","proc_macro2","quote","rustversion","serde_derive","syn","thiserror_impl","typed_builder","unicode_ident"];
