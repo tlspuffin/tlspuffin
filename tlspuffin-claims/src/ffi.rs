@@ -1,6 +1,7 @@
-#![allow(non_upper_case_globals)]
+#![allow(dead_code)]
 #![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
+#![allow(clippy)]
 
 use std::{ffi::c_void, fmt, fmt::Formatter};
 
@@ -91,7 +92,7 @@ impl fmt::Display for ClaimVersion {
 
 impl fmt::Display for ClaimTranscript {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.data))
+        write!(f, "{}", hex::encode(self.data))
     }
 }
 
@@ -109,7 +110,7 @@ impl fmt::Display for ClaimSessionId {
 
 impl fmt::Display for ClaimRandom {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(&self.data))
+        write!(f, "{}", hex::encode(self.data))
     }
 }
 
@@ -159,7 +160,7 @@ impl fmt::Display for ClaimSecret {
         let secret = self.secret;
         // print if any byte is set
         if secret.iter().any(|v| *v != 0) {
-            write!(f, "{}", hex::encode(&secret))?;
+            write!(f, "{}", hex::encode(secret))?;
         }
 
         Ok(())

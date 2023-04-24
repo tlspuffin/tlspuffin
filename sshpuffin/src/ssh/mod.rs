@@ -1,7 +1,6 @@
 pub mod deframe;
 mod fn_message;
 pub mod message;
-mod russh;
 mod seeds;
 
 #[path = "."]
@@ -17,7 +16,6 @@ use std::fmt::Debug;
 
 use fn_impl::*;
 use puffin::define_signature;
-use russh_keys::encoding::Reader;
 
 define_signature!(
     SSH_SIGNATURE,
