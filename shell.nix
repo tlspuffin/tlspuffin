@@ -1,15 +1,16 @@
 { pkgs ? import <nixpkgs> { } }:
 
-pkgs.mkShell {
+pkgs.llvmPackages_14.stdenv.mkDerivation {
+  name = "llvm_shell";
   nativeBuildInputs = [
     pkgs.rustup
     pkgs.just
-  
     pkgs.llvmPackages_14.llvm
     pkgs.llvmPackages_14.clang
     pkgs.darwin.apple_sdk.frameworks.Security
 
     pkgs.cmake
+
     # wolfSSL
     pkgs.autoconf
     pkgs.automake
@@ -24,13 +25,17 @@ pkgs.mkShell {
     # Old openssl
     pkgs.xorg.makedepend
 
-    pkgs.graphviz 
+    pkgs.graphviz
     pkgs.yajl
     pkgs.python310Packages.pip
     pkgs.python310Packages.virtualenv
+  ] ++
+  pkgs.lib.optionals pkgs.stdenv.isDarwin [
+    pkgs.darwin.apple_sdk.frameworks.Security
   ];
+  # Hardening is not really important for tlspuffina nd might introduce weird compiler flags
+  hardeningDisable = [ "all" ];
   shellHook = ''
-export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
+    export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
   '';
 }
-
