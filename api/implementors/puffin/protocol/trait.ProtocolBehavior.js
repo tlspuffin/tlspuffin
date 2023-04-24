@@ -1,3 +1,0 @@
-(function() {var implementors = {};
-implementors["tlspuffin"] = [{"text":"impl <a class=\"trait\" href=\"puffin/protocol/trait.ProtocolBehavior.html\" title=\"trait puffin::protocol::ProtocolBehavior\">ProtocolBehavior</a> for <a class=\"struct\" href=\"tlspuffin/protocol/struct.TLSProtocolBehavior.html\" title=\"struct tlspuffin::protocol::TLSProtocolBehavior\">TLSProtocolBehavior</a>","synthetic":false,"types":["tlspuffin::protocol::TLSProtocolBehavior"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

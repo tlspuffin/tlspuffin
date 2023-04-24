@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["MultiMonitor","Tracking monitor during fuzzing and display both per-client and cumulative info."]]};

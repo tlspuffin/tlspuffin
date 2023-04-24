@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["ClientTuiContext",""],["PerfTuiContext",""],["TimedStat",""],["TimedStats",""],["TuiContext",""],["TuiMonitor","Tracking monitor during fuzzing and display with tui-rs."]]};

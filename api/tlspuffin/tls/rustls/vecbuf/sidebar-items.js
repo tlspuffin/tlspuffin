@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["ChunkVecBuffer","This is a byte buffer that is built from a vector of byte vectors.  This avoids extra copies when appending a new byte vector, at the expense of more complexity when reading out."]]};

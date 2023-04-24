@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["WithObservers","A wrapper for any [`Executor`] to make it implement [`HasObservers`] using a given [`ObserversTuple`]."]]};

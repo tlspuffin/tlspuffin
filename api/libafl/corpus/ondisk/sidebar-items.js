@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["OnDiskMetadataFormat","Options for the the format of the on-disk metadata"]],"struct":[["OnDiskCorpus","A corpus able to store testcases to disk, and load them from disk, when they are being used."],["OnDiskMetadata","A corpus able to store testcases to disk, and load them from disk, when they are being used."]]};

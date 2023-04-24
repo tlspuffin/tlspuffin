@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["DrCovBasicBlock","A basic block struct"],["DrCovWriter","A writer for `DrCov` files"]]};

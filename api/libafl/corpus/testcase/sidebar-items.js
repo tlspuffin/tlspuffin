@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["SchedulerTestcaseMetaData","The Metadata for each testcase used in power schedules."],["Testcase","An entry in the Testcase Corpus"]]};

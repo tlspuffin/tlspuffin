@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["Automaton","The [`Automaton`]"],["GramatronGenerator","Generates random inputs from a grammar automaton"],["Trigger","A trigger"]]};

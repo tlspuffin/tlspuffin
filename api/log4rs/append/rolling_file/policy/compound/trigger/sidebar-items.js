@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":[["size","The size trigger."]],"trait":[["Trigger","A trait which identifies if the active log file should be rolled over."]]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["GeneralizedItem","An item of the generalized input"]],"struct":[["GeneralizedInput","A bytes input with a generalized version mainly used for Grimoire"]]};

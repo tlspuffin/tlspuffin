@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["DirectionState",""]],"static":[["SEQ_HARD_LIMIT",""],["SEQ_SOFT_LIMIT",""]],"struct":[["RecordLayer",""]]};

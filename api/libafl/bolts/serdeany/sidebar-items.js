@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":[["serdeany_registry","A [`crate::bolts::serdeany`] module."]],"struct":[["DeserializeCallbackSeed","Callback struct for deserialization of a [`SerdeAny`] type."],["Wrap","Wrap a type for serialization"]],"trait":[["SerdeAny","A (de)serializable Any trait"]],"type":[["DeserializeCallback","Callback for [`SerdeAny`] deserialization."]]};

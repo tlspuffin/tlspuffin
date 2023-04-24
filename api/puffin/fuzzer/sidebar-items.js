@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["start","Starts the fuzzing loop"]],"mod":[["harness",""],["mutations",""],["sanitizer",""],["term_zoo","Generates a zoo of terms form a [`Signature`]. For each function symbol in the signature a closed term is generated and added to the zoo."]],"struct":[["FuzzerConfig",""]]};

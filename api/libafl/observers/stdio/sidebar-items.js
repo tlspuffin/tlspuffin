@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["StdErrObserver","An observer that captures stderr of a target. Only works for supported executors."],["StdOutObserver","An observer that captures stdout of a target. Only works for supported executors."]]};

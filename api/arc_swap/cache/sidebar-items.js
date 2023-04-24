@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["Cache","Caching handle for [`ArcSwapAny`][ArcSwapAny]."],["MapCache","An implementation of a cache with a projection into the accessed value."]],"trait":[["Access","Generalization of caches providing access to `T`."]]};

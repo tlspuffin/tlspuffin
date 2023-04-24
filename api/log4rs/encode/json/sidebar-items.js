@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["JsonEncoder","An `Encode`r which writes a JSON object."],["JsonEncoderConfig","The JSON encoder’s configuration"],["JsonEncoderDeserializer","A deserializer for the `JsonEncoder`."]]};

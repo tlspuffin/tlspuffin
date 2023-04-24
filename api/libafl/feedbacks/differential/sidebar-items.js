@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["DiffResult","The result of a differential test between two observers."]],"struct":[["DiffFeedback","A [`DiffFeedback`] compares the content of two [`Observer`]s using the given compare function."]]};

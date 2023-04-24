@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["AshmemShMem","An ashmem based impl for linux/android"],["AshmemShMemProvider","A [`ShMemProvider`] which uses ashmem to provide shared memory mappings."]]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["SyncFromDiskMetadata","Metadata used to store information about disk sync time"],["SyncFromDiskStage","A stage that loads testcases from disk to sync with other fuzzers such as AFL++"]],"type":[["SyncFromDiskFunction","Function type when the callback in `SyncFromDiskStage` is not a lambda"]]};

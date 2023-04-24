@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["GramatronIdxMapMetadata","The metadata used for `gramatron`"],["GramatronRandomMutator","A random mutator for grammar fuzzing"],["GramatronRecursionMutator","A mutator that uses Gramatron for grammar fuzzing and mutation."],["GramatronSpliceMutator","A [`Mutator`] that mutates a [`GramatronInput`] by splicing inputs together."]]};

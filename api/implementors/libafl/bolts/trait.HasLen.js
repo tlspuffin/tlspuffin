@@ -1,4 +1,0 @@
-(function() {var implementors = {};
-implementors["libafl"] = [];
-implementors["puffin"] = [{"text":"impl&lt;M:&nbsp;<a class=\"trait\" href=\"puffin/algebra/trait.Matcher.html\" title=\"trait puffin::algebra::Matcher\">Matcher</a>&gt; <a class=\"trait\" href=\"libafl/bolts/trait.HasLen.html\" title=\"trait libafl::bolts::HasLen\">HasLen</a> for <a class=\"struct\" href=\"puffin/trace/struct.Trace.html\" title=\"struct puffin::trace::Trace\">Trace</a>&lt;M&gt;","synthetic":false,"types":["puffin::trace::Trace"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

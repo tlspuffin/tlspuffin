@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["UnixSeqpacketConn","A non-blocking unix domain sequential-packet connection."],["UnixSeqpacketListener","A non-blocking unix domain listener for sequential-packet connections."]]};

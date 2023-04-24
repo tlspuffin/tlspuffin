@@ -1,4 +1,0 @@
-(function() {var implementors = {};
-implementors["ring"] = [];
-implementors["tlspuffin"] = [{"text":"impl <a class=\"trait\" href=\"ring/hkdf/trait.KeyType.html\" title=\"trait ring::hkdf::KeyType\">KeyType</a> for <a class=\"struct\" href=\"tlspuffin/tls/rustls/cipher/struct.IvLen.html\" title=\"struct tlspuffin::tls::rustls::cipher::IvLen\">IvLen</a>","synthetic":false,"types":["tlspuffin::tls::rustls::cipher::IvLen"]},{"text":"impl <a class=\"trait\" href=\"ring/hkdf/trait.KeyType.html\" title=\"trait ring::hkdf::KeyType\">KeyType</a> for <a class=\"struct\" href=\"tlspuffin/tls/rustls/tls13/key_schedule/struct.PayloadU8Len.html\" title=\"struct tlspuffin::tls::rustls::tls13::key_schedule::PayloadU8Len\">PayloadU8Len</a>","synthetic":false,"types":["tlspuffin::tls::rustls::tls13::key_schedule::PayloadU8Len"]}];
-if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

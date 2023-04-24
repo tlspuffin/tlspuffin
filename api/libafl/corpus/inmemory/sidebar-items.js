@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["InMemoryCorpus","A corpus handling all in memory."]]};

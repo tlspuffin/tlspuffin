@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"macro":[["enum_builder","A macro which defines an enum type."]]};

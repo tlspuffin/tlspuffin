@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["PutDescriptor",""],["PutName",""],["PutOptions",""]],"trait":[["Put","Defines the interface which all programs-under-test need to implement. They need a way to progress, reset and describe their state."]]};

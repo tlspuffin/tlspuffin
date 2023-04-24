@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["CachedOnDiskCorpus","A corpus that keep in memory a maximun number of testcases. The eviction policy is FIFO."]]};

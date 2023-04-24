@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["get_core_ids","This function tries to retrieve information on all the “cores” active on this system."],["parse_core_bind_arg","Parses core binding args from user input. Returns a Vec of CPU IDs."]],"struct":[["CoreId","This represents a CPU core."],["Cores","A list of [`CoreId`] to use for fuzzing"]]};

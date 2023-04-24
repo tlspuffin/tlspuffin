@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["Term","A first-order term: either a [`Variable`] or an application of an [`Function`]."]],"trait":[["Subterms",""]]};

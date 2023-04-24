@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["NoKeyLog","KeyLog that does exactly nothing."]],"trait":[["KeyLog","This trait represents the ability to do something useful with key material, such as logging it to a file for debugging."]]};

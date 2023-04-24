@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["Function","A function symbol with fixed arity and fixed types."],["Variable","A variable symbol with fixed type."]]};

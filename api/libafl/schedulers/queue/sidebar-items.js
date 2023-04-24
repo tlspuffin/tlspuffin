@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["QueueScheduler","Walk the corpus in a queue-like fashion"]]};

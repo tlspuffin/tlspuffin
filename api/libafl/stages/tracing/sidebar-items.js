@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["ShadowTracingStage","A stage that runs the shadow executor using also the shadow observers"],["TracingStage","A stage that runs a tracer executor"]]};

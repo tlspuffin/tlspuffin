@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["WeightedScheduleMetadata","The Metadata for `WeightedScheduler`"],["WeightedScheduler","A corpus scheduler using power schedules with weighted queue item selection algo."]],"type":[["StdWeightedScheduler","The standard corpus weight, same as aflpp"]]};

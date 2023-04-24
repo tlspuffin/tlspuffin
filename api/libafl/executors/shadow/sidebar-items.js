@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["ShadowExecutor","A [`ShadowExecutor`] wraps an executor and a set of shadow observers"]]};

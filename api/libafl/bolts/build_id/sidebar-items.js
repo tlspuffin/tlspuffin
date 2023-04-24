@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["get","Returns a [Uuid] uniquely representing the build of the current binary."]]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["StateRestorer","A [`StateRestorer`] saves and restores bytes to a shared map. If the state gets larger than the preallocated [`ShMem`] shared map, it will instead write to disk, and store the file name into the map. Writing to [`StateRestorer`] multiple times is not allowed."]]};
