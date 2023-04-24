@@ -17,7 +17,3 @@ runs:
     - uses: Swatinem/rust-cache@v1
       with:
         sharedKey: ${{ inputs.key }}
-    - name: Setup LLVM search path
-      shell: bash
-      run: |
-        echo "LD_LIBRARY_PATH=$(dirname $(clang -print-file-name=libclang_rt.asan-x86_64.so))" >> $GITHUB_ENV
