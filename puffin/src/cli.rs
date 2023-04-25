@@ -6,7 +6,9 @@ use std::{
     process::ExitCode,
 };
 
-use clap::{arg, crate_authors, crate_name, crate_version, parser::ValuesRef, Command};
+use clap::{
+    arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
+};
 use libafl::inputs::Input;
 use log::{error, info, LevelFilter};
 
@@ -33,9 +35,12 @@ fn create_app() -> Command {
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
-        .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients"))
-        .arg(arg!(-p --port [n] "Port of the broker"))
-        .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
+        .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
+            .value_parser(value_parser!(u64)))
+        .arg(arg!(-p --port [n] "Port of the broker")
+            .value_parser(value_parser!(u16).range(1..)))
+        .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
+            .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
