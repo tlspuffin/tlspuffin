@@ -1,10 +1,7 @@
 use puffin::{
     algebra::{signature::Signature, Matcher},
     error::Error,
-    protocol::{
-        MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer,
-    },
+    protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer},
     put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,

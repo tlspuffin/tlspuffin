@@ -3,6 +3,16 @@
 # before using this
 #rustflags = ["-Z", "sanitizer=address"]
 
+rustflags = [
+   # Required for LLVM ASAN
+   "-C", "linker=clang",
+]
+
+rustdocflags = [
+   # Required for LLVM ASAN
+   "-C", "linker=clang",
+]
+
 [env]
 # We do not focus on leaks -> 0
 # Link order is important -> 1

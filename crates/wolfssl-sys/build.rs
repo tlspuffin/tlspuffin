@@ -5,7 +5,7 @@ use std::{
     io,
     io::{ErrorKind, Write},
     path::PathBuf,
-    process::{Command, ExitStatus},
+    process::Command,
 };
 
 use autotools::Config;
@@ -99,13 +99,10 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         .enable("keygen", None) // Support for RSA certs
         .enable("certgen", None) // Support x509 decoding
         .enable("tls13", None)
-        .enable("aesni", None)
         .enable("dtls", None)
         .enable("sp", None)
-        .enable("sp-asm", None)
         .enable("dtls-mtu", None)
         .disable("sha3", None)
-        .enable("intelasm", None)
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
         .enable("psk", None) // FIXME: Only 4.3.0
@@ -115,6 +112,14 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
         .cflag("-fPIC");
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        config
+            .enable("intelasm", None)
+            .enable("sp-asm", None)
+            .enable("aesni", None);
+    }
 
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     {
@@ -137,11 +142,11 @@ fn build_wolfssl(dest: &str) -> PathBuf {
             .expect("failed to clang to get resource dir");
         let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
 
+        // Important: Make sure to pass these flags to the linker invoked by rustc!
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
             .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
-        println!("cargo:rustc-link-lib=asan");
     }
 
     if cfg!(feature = "additional-headers") {
@@ -175,6 +180,9 @@ fn main() -> std::io::Result<()> {
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-39173.patch").unwrap();
     #[cfg(feature = "fix-CVE-2022-42905")]
     patch_wolfssl(&source_dir, &out_dir, "fix-CVE-2022-42905.patch").unwrap();
+
+    // Make sure source_dir is used, so clippy does not remove it.
+    let _ = source_dir.to_str();
 
     let dst = build_wolfssl(&out_dir);
 

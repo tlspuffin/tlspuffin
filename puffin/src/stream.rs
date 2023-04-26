@@ -20,7 +20,6 @@
 use std::{
     io,
     io::{ErrorKind, Read, Write},
-    marker::PhantomData,
 };
 
 use log::error;
@@ -28,10 +27,7 @@ use log::error;
 use crate::{
     codec::Codec,
     error::Error,
-    protocol::{
-        MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer,
-    },
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage, ProtocolMessageDeframer},
 };
 
 pub trait Stream<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {

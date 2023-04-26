@@ -8,13 +8,9 @@ use nix::{
     },
     unistd::{fork, ForkResult},
 };
-use puffin::{algebra::Matcher, put::PutOptions, trace::Trace};
+use puffin::{put::PutOptions, trace::Trace};
 
-use crate::{
-    put_registry::TLS_PUT_REGISTRY,
-    query::TlsQueryMatcher,
-    tls::{trace_helper::TraceExecutor, vulnerabilities::seed_cve_2022_38153, TLS_SIGNATURE},
-};
+use crate::{put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher};
 
 pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: PutOptions) {
     expect_crash(move || {
@@ -23,7 +19,7 @@ pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: Pu
     });
 }
 
-pub fn expect_crash<R>(mut func: R)
+pub fn expect_crash<R>(func: R)
 where
     R: FnOnce(),
 {

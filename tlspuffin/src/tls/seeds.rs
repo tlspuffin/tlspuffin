@@ -10,7 +10,6 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -695,7 +694,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor {
             name: client,
@@ -776,9 +775,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -868,7 +865,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor {
             name: server,
@@ -935,9 +932,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -979,7 +974,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1009,9 +1004,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
             },
             OutputAction::new_step(server),
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -1251,7 +1244,7 @@ pub fn seed_session_resumption_dhe(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1280,9 +1273,7 @@ pub fn seed_session_resumption_dhe(
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_session_resumption_ke(
@@ -1378,7 +1369,7 @@ pub fn seed_session_resumption_ke(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1407,9 +1398,7 @@ pub fn seed_session_resumption_ke(
                 }),
             },
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -1764,7 +1753,7 @@ pub fn seed_session_resumption_dhe_full(
         )
     };
 
-    let trace = Trace {
+    Trace {
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
@@ -1808,9 +1797,7 @@ pub fn seed_session_resumption_dhe_full(
                 }),
             },*/
         ],
-    };
-
-    trace
+    }
 }
 
 pub fn seed_resume_twice_dhe(
@@ -2205,16 +2192,12 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::io::Write;
 
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::*;
-    use crate::{
-        put_registry::TLS_PUT_REGISTRY,
-        tls::trace_helper::{TraceExecutor, TraceHelper},
-    };
+    use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
 
     #[test]
     fn test_version() {
@@ -2224,6 +2207,8 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker12.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2232,6 +2217,8 @@ pub mod tests {
     #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
     #[test]
     fn test_seed_client_attacker() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2240,6 +2227,8 @@ pub mod tests {
     #[cfg(feature = "client-authentication-transcript-extraction")]
     #[test]
     fn test_seed_client_attacker_auth() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker_auth.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2247,6 +2236,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_client_attacker_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_client_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2254,6 +2245,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_server_attacker_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_server_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2262,6 +2255,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_dhe.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2270,6 +2265,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_dhe_full.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2278,6 +2275,8 @@ pub mod tests {
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[test]
     fn test_seed_session_resumption_ke() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_session_resumption_ke.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2285,6 +2284,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2292,6 +2293,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_client_auth() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_client_auth.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2303,6 +2306,8 @@ pub mod tests {
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_mitm.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2310,6 +2315,8 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_seed_successful_with_ccs() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_with_ccs.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2319,6 +2326,8 @@ pub mod tests {
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[test]
     fn test_seed_successful_with_tickets() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         let ctx = seed_successful_with_tickets.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -2326,6 +2335,8 @@ pub mod tests {
     #[test]
     #[cfg(feature = "tls12")]
     fn test_seed_successful12() {
+        use crate::tls::trace_helper::TraceExecutor;
+
         #[cfg(feature = "tls12-session-resumption")]
         let ctx = seed_successful12_with_tickets.execute_trace();
         #[cfg(not(feature = "tls12-session-resumption"))]
@@ -2546,13 +2557,8 @@ pub mod tests {
             00 01 00 02 00 03 00 0f  00 10 00 11 00 23 00 00
             00 0f 00 01 01";
 
-            let hello_client = hex::decode(
-                hello_client_hex
-                    .to_string()
-                    .replace(' ', "")
-                    .replace('\n', ""),
-            )
-            .unwrap();
+            let hello_client =
+                hex::decode(hello_client_hex.to_string().replace([' ', '\n'], "")).unwrap();
             //hexdump::hexdump(&hello_client);
 
             let opaque_message =

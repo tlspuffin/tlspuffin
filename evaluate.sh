@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Arguments
+# - Which branch to pull artifacts from?
+# - How many cores per experiment? Experiments: SDOS1, SIG, SKIP, SDOS2, CDOS, BUF, HEAP
+
 if [ "$#" -ne 2 ]; then
     echo "Illegal number of parameters"
     exit 1

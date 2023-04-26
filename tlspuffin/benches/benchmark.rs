@@ -45,8 +45,8 @@ fn benchmark_dynamic(c: &mut Criterion) {
 }
 
 fn create_state() -> StdState<
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
     Trace<TlsQueryMatcher>,
+    InMemoryCorpus<Trace<TlsQueryMatcher>>,
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TlsQueryMatcher>>,
 > {

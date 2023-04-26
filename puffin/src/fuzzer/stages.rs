@@ -1,36 +1,35 @@
 use std::{fmt, fmt::Debug, marker::PhantomData};
 
-use libafl::{
-    bolts::rands::Rand,
-    inputs::Input,
-    mutators::{ComposedByMutations, MutationResult, Mutator, MutatorsTuple, ScheduledMutator},
-    stages::{MutationalStage, Stage},
-    state::{HasClientPerfMonitor, HasCorpus, HasRand},
-    Error, Evaluator,
-};
+use libafl::prelude::{mutational::MutatedTransform, *};
 
 /// The default mutational stage
 #[derive(Clone, Debug)]
-pub struct PuffinMutationalStage<E, EM, I, M, S, Z>
-where
-    M: Mutator<I, S>,
-    I: Input,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
-{
+pub struct PuffinMutationalStage<E, EM, I, M, Z> {
     mutator: M,
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(E, EM, I, S, Z)>,
+    phantom: PhantomData<(E, EM, I, Z)>,
     max_iterations_per_stage: u64,
 }
 
-impl<E, EM, I, M, S, Z> MutationalStage<E, EM, I, M, S, Z>
-    for PuffinMutationalStage<E, EM, I, M, S, Z>
+impl<E, EM, I, M, Z> UsesState for PuffinMutationalStage<E, EM, I, M, Z>
 where
-    M: Mutator<I, S>,
-    I: Input,
-    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    M: Mutator<I, Z::State>,
+    Z: Evaluator<E, EM>,
+    Z::State: HasClientPerfMonitor + HasCorpus + HasRand,
+{
+    type State = Z::State;
+}
+
+impl<E, EM, I, M, Z> MutationalStage<E, EM, I, M, Z> for PuffinMutationalStage<E, EM, I, M, Z>
+where
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    M: Mutator<I, Z::State>,
+    Z: Evaluator<E, EM>,
+    Z::State: HasClientPerfMonitor + HasCorpus + HasRand,
+    I: MutatedTransform<Self::Input, Self::State> + Clone,
 {
     /// The mutator, added to this stage
     #[inline]
@@ -45,17 +44,19 @@ where
     }
 
     /// Gets the number of iterations as a random number
-    fn iterations(&self, state: &mut S, _corpus_idx: usize) -> Result<usize, Error> {
-        Ok(1 + state.rand_mut().below(self.max_iterations_per_stage) as usize)
+    fn iterations(&self, state: &mut Z::State, _corpus_idx: CorpusId) -> Result<u64, Error> {
+        Ok(1 + state.rand_mut().below(self.max_iterations_per_stage))
     }
 }
 
-impl<E, EM, I, M, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<E, EM, I, M, S, Z>
+impl<E, EM, I, M, Z> Stage<E, EM, Z> for PuffinMutationalStage<E, EM, I, M, Z>
 where
-    M: Mutator<I, S>,
-    I: Input,
-    S: HasClientPerfMonitor + HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    M: Mutator<I, Z::State>,
+    Z: Evaluator<E, EM>,
+    Z::State: HasClientPerfMonitor + HasCorpus + HasRand,
+    I: MutatedTransform<Self::Input, Self::State> + Clone,
 {
     #[inline]
     #[allow(clippy::let_and_return)]
@@ -63,9 +64,9 @@ where
         &mut self,
         fuzzer: &mut Z,
         executor: &mut E,
-        state: &mut S,
+        state: &mut Z::State,
         manager: &mut EM,
-        corpus_idx: usize,
+        corpus_idx: CorpusId,
     ) -> Result<(), Error> {
         let ret = self.perform_mutational(fuzzer, executor, state, manager, corpus_idx);
 
@@ -76,12 +77,13 @@ where
     }
 }
 
-impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, M, S, Z>
+impl<E, EM, I, M, Z> PuffinMutationalStage<E, EM, I, M, Z>
 where
-    M: Mutator<I, S>,
     I: Input,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    Z: Evaluator<E, EM, I, S>,
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    M: Mutator<I, Z::State>,
+    Z: Evaluator<E, EM>,
 {
     /// Creates a new default mutational stage
     pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
@@ -171,9 +173,9 @@ where
     }
 
     /// Get the next mutation to apply
-    fn schedule(&self, state: &mut S, _: &I) -> usize {
+    fn schedule(&self, state: &mut S, _: &I) -> MutationId {
         debug_assert!(!self.mutations().is_empty());
-        state.rand_mut().below(self.mutations().len() as u64) as usize
+        (state.rand_mut().below(self.mutations().len() as u64) as usize).into()
     }
 }
 
