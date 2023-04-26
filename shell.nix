@@ -34,5 +34,9 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
   hardeningDisable = [ "all" ];
   shellHook = ''
     export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
-  '';
+  '' +
+  pkgs.lib.optionalString pkgs.stdenv.isDarwin
+    ''
+      export LIBAFL_EDGES_MAP_SIZE=131072 # 2^17
+    '';
 }
