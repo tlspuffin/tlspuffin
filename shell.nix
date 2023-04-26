@@ -36,6 +36,10 @@ pkgs.llvmPackages_15.stdenv.mkDerivation {
   # Hardening is not really important for tlspuffina nd might introduce weird compiler flags
   hardeningDisable = [ "all" ];
   shellHook = ''
-    export LIBCLANG_PATH="${pkgs.llvmPackages_15.libclang.lib}/lib";
-  '';
+    export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
+  '' +
+  pkgs.lib.optionalString pkgs.stdenv.isDarwin
+    ''
+      export LIBAFL_EDGES_MAP_SIZE=131072 # 2^17
+    '';
 }
