@@ -96,9 +96,6 @@ jobs:
           - name: wolfssl540-perf
             crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
-          - name: wolfssl540_asan-perf
-            crate: tlspuffin
-            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
           - name: libssh
             crate: sshpuffin
             features: ""
