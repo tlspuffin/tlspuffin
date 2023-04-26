@@ -471,6 +471,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
         //#[cfg(not(feature = "sancov_libafl"))]
         {
+            // FIXME
             log::error!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
             builder = builder
