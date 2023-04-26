@@ -11,7 +11,7 @@ unsafe extern "C" fn iter_libs(
     _data: *mut libc::c_void,
 ) -> libc::c_int {
     let library_name = CStr::from_ptr((*info).dlpi_name).to_str().unwrap();
-    if library_name.contains("libasan") {
+    if library_name.contains("libasan") || library_name.contains("libclang_rt.asan") {
         1
     } else {
         0
@@ -45,9 +45,9 @@ pub fn asan_info() {}
 pub fn asan_info() {
     let defaults = unsafe {
         if libc::dl_iterate_phdr(Some(iter_libs), std::ptr::null_mut()) > 0 {
-            info!("Running with ASAN support.",)
+            info!("Running with shared ASAN support.",)
         } else {
-            info!("Running WITHOUT ASAN support.")
+            info!("Running WITHOUT shared ASAN support.")
         }
 
         CStr::from_ptr(__asan_default_options()).to_str().unwrap()
