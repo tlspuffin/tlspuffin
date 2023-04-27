@@ -2715,13 +2715,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "wolfssl-sys"
-version = "0.1.7"
+name = "wolfssl-src"
+version = "0.1.0"
 dependencies = [
  "autotools",
  "bindgen 0.60.1",
  "cfg-if",
- "security-claims",
+]
+
+[[package]]
+name = "wolfssl-sys"
+version = "0.1.7"
+dependencies = [
+ "wolfssl-src",
 ]
 
 [[package]]

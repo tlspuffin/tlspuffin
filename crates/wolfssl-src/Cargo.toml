@@ -1,0 +1,13 @@
+[package]
+name = "wolfssl-src"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bindgen = "0.60.1"
+autotools = "0.2.6"
+cfg-if = "1.0.0"
+
+[[bin]]
+name = "build_static"
+path = "src/main.rs"
