@@ -30,3 +30,6 @@ seeds/
 objective/
 
 .direnv
+
+*.profdata
+*.profraw
