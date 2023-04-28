@@ -133,7 +133,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        let inputs: ValuesRef<&String> = matches.get_many("inputs").unwrap();
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let mut failed = false;
         for input in inputs {
             error!("Executing: {}", input);
