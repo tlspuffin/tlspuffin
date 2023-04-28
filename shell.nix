@@ -6,6 +6,8 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
     pkgs.rustup
     pkgs.just
 
+    pkgs.gcovr
+
     pkgs.cmake
 
     # wolfSSL
