@@ -17,4 +17,9 @@ fn main() {
         println!("cargo:rustc-link-arg=-ftest-coverage");
         println!("cargo:rustc-link-arg=-fprofile-arcs");
     }
+
+    if cfg!(feature = "llvm_cov_analysis") {
+        println!("cargo:rustc-link-arg=-fprofile-instr-generate");
+        println!("cargo:rustc-link-arg=-fcoverage-mapping");
+    }
 }
