@@ -35,3 +35,5 @@ objective/
 *.profraw
 *.gcov
 coverage.csv
+*.html
+*.css
