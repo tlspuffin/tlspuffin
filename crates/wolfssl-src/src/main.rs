@@ -19,6 +19,8 @@ fn main() {
         fix_cve_2022_39173: false,
         fix_cve_2022_42905: false,
         wolfssl_disable_postauth: false,
+        gcov_analysis: false,
+        llvm_cov_analysis: false,
         asan: false,
         sancov: true,
         git_ref: "v5.4.0-stable".to_string(),

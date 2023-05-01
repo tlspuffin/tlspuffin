@@ -20,6 +20,9 @@ pub struct WolfSSLOptions {
     pub asan: bool,
     pub sancov: bool,
 
+    pub gcov_analysis: bool,
+    pub llvm_cov_analysis: bool,
+
     pub git_ref: String,
     pub out_dir: PathBuf,
     pub source_dir: PathBuf,
@@ -120,8 +123,16 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         config.enable("postauth", None);
     }
 
-    if options.sancov {
-        config.cflag("-fsanitize-coverage=trace-pc-guard");
+    if options.gcov_analysis {
+        config
+        .cflag("-ftest-coverage")
+        .cflag("-fprofile-arcs"); 
+    }
+
+    if options.llvm_cov_analysis {
+        config
+        .cflag("-fprofile-instr-generate")
+        .cflag("-fcoverage-mapping"); 
     }
 
     if options.asan {
@@ -193,15 +204,6 @@ pub fn build(options: &WolfSSLOptions) -> std::io::Result<()> {
     bindings
         .write_to_file(dst.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-
-    // Linking Time!
-    println!("cargo:rustc-link-lib=static=wolfssl");
-    println!(
-        "cargo:rustc-link-search=native={}",
-        format!("{}/lib/", out_dir.display())
-    );
-    println!("cargo:include={}", out_dir.display());
-    println!("cargo:rerun-if-changed=wrapper.h");
 
     Ok(())
 }
