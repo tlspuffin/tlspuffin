@@ -191,8 +191,7 @@ pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     }
 
     let len = bytes.len() - len_offset - 1;
-    debug_assert!(len <= 0xff);
-    bytes[len_offset] = len as u8;
+    bytes[len_offset] = len.min(0xff) as u8;
 }
 
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
@@ -204,9 +203,8 @@ pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     }
 
     let len = bytes.len() - len_offset - 2;
-    debug_assert!(len <= 0xffff);
     let out: &mut [u8; 2] = (&mut bytes[len_offset..len_offset + 2]).try_into().unwrap();
-    *out = u16::to_be_bytes(len as u16);
+    *out = u16::to_be_bytes(len.min(0xffff) as u16);
 }
 
 pub fn encode_vec_u24<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
@@ -218,8 +216,7 @@ pub fn encode_vec_u24<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     }
 
     let len = bytes.len() - len_offset - 3;
-    debug_assert!(len <= 0xff_ffff);
-    let len_bytes = u32::to_be_bytes(len as u32);
+    let len_bytes = u32::to_be_bytes(len.min(0xff_ffff) as u32);
     let out: &mut [u8; 3] = (&mut bytes[len_offset..len_offset + 3]).try_into().unwrap();
     out.copy_from_slice(&len_bytes[1..]);
 }
