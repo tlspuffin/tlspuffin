@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> { } }:
 
-pkgs.llvmPackages_15.stdenv.mkDerivation {
+pkgs.llvmPackages_14.stdenv.mkDerivation {
   name = "llvm_shell";
   nativeBuildInputs = [
     pkgs.rustup
@@ -9,7 +9,7 @@ pkgs.llvmPackages_15.stdenv.mkDerivation {
     pkgs.gcovr
 
     pkgs.cmake
-    pkgs.llvmPackages_15.llvm
+    pkgs.llvmPackages_14.llvm
 
     # wolfSSL
     pkgs.autoconf
