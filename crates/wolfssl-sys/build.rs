@@ -29,7 +29,7 @@ fn main() {
         sancov: cfg!(feature = "sancov"),
         git_ref: REF.to_string(),
         out_dir: PathBuf::from(env::var("OUT_DIR").unwrap()),
-        source_dir: PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()),
+        source_dir: PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../wolfssl-src"),
     })
     .unwrap();
 }
