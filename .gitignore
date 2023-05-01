@@ -33,3 +33,5 @@ objective/
 
 *.profdata
 *.profraw
+*.gcov
+coverage.csv
