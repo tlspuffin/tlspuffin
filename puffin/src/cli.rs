@@ -2,8 +2,7 @@ use std::{
     env, fs,
     fs::File,
     io::{Read, Write},
-    path::Path,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
@@ -167,7 +166,16 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
 
         if !lookup_paths.is_empty() {
-            println!("{}", fs::metadata(&lookup_paths[0]).unwrap().modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis())
+            println!(
+                "{}",
+                fs::metadata(&lookup_paths[0])
+                    .unwrap()
+                    .modified()
+                    .unwrap()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            )
         }
 
         if end_reached {
