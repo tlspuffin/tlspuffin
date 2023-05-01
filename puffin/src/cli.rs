@@ -2,6 +2,7 @@ use std::{
     env, fs,
     fs::File,
     io::{Read, Write},
+    path::Path,
     path::PathBuf,
     process::ExitCode,
 };
@@ -60,8 +61,11 @@ fn create_app() -> Command {
                 .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
-                .about("Executes a trace stored in a file")
-                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))   ,
+                .about("Executes a trace stored in a file. The exit code describes if more files are available for execution.")
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
+                .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
+                .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -134,17 +138,42 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
-        let mut failed = false;
-        for input in inputs {
-            error!("Executing: {}", input);
-            if let Err(err) = execute(input, put_registry) {
-                error!("Failed to execute trace: {:?}", err);
-                failed = true
+        let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+
+        let mut paths = inputs.map(|input| PathBuf::from(input)).collect::<Vec<_>>();
+        paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
+
+        let mut end_reached = false;
+
+        let lookup_paths = if index < paths.len() {
+            if index + n < paths.len() {
+                &paths[index..index + n]
+            } else {
+                end_reached = true;
+                &paths[index..]
+            }
+        } else {
+            end_reached = true;
+            // empty
+            &paths[0..0]
+        };
+
+        for path in lookup_paths {
+            error!("Executing: {}", path.display());
+            if let Err(err) = execute(&path, put_registry) {
+                error!("Failed to execute trace {}: {:?}", path.display(), err);
             }
         }
 
-        if failed {
+        if !lookup_paths.is_empty() {
+            println!("{}", fs::metadata(&lookup_paths[0]).unwrap().modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis())
+        }
+
+        if end_reached {
             return ExitCode::FAILURE;
+        } else {
+            return ExitCode::SUCCESS;
         }
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
@@ -285,8 +314,8 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior>(
-    input: &str,
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    input: P,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
