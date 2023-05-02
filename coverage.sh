@@ -9,8 +9,8 @@ corpus="/local-unsafe/mammann/2022-tlspuffin-evaluation-paper/evaluation-paper/p
 features="wolfssl520"
 #features="openssl111j"
 
-#excludes=(-e ".*wolf.*" -e ".*test.*" -e ".*apps.*" -e ".*crypt.*" -e ".*include.*" -e ".*engine.*")
-excludes=(-e ".*openssl.*" -e ".*test.*" -e ".*wolfcrypt.*")
+#excludes=(-e ".*wolf.*" -e ".*test.*" -e ".*apps.*" -e ".*include.*" -e ".*engine.*" -e ".*fuzz.*")
+excludes=(-e ".*openssl.*" -e ".*test.*")
 
 gcovr --gcov-executable "llvm-cov gcov" -s -d > /dev/null 2>&1
 
