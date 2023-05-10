@@ -16,8 +16,8 @@ claims = []
 [dependencies]
 
 # LibAFL
-libafl = "0.10.0"
-libafl_targets = "0.10.0"
+libafl = "0.9.0"
+libafl_targets = "0.9.0"
 
 # Logging
 log = "0.4.17"

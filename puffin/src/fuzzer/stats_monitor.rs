@@ -135,7 +135,7 @@ where
         (self.print_fn)(fmt);
 
         Statistics::Client(ClientStatistics {
-            id: sender_id.0,
+            id: sender_id,
             time: SystemTime::now(),
             trace,
             errors: error_counter,

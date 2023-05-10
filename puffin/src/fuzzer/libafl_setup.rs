@@ -426,7 +426,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
-                          _core_id: CoreId|
+                          _core_id: usize|
      -> Result<(), Error> {
         let harness_fn = &mut harness::harness::<PB>;
 
@@ -500,7 +500,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             EventConfig::AlwaysUnique,
         )?;
 
-        run_client(state, restarting_mgr, CoreId(0))
+        run_client(state, restarting_mgr, 0)
     } else {
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();
