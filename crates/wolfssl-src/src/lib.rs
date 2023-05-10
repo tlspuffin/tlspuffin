@@ -102,7 +102,7 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
         .enable("psk", None) // FIXME: Only 4.3.0
-        .disable("examples", None) // Speedup
+       // TODO .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
