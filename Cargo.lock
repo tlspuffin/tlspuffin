@@ -30,6 +30,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
+dependencies = [
+ "cfg-if",
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -969,7 +981,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "serde",
 ]
 
@@ -1161,7 +1173,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6577668a8dd7eb728064f7232cd036b8fdb353535332ddd20ca1aab47de38243"
 dependencies = [
- "ahash",
+ "ahash 0.7.6",
  "backtrace",
  "bincode",
  "byteorder",
@@ -1667,7 +1679,7 @@ dependencies = [
 name = "puffin"
 version = "0.1.0"
 dependencies = [
- "ahash",
+ "ahash 0.8.3",
  "cfg-if",
  "chrono",
  "clap 4.2.4",
