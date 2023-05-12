@@ -1690,6 +1690,7 @@ dependencies = [
  "libc",
  "log",
  "log4rs",
+ "nix",
  "once_cell",
  "postcard",
  "rand",
