@@ -140,7 +140,28 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         let index: usize = *matches.get_one("index").unwrap_or(&0);
         let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
 
-        let mut paths = inputs.map(|input| PathBuf::from(input)).collect::<Vec<_>>();
+        let mut paths = inputs
+            .flat_map(|input| {
+                let input = PathBuf::from(input);
+
+                if input.is_dir() {
+                    fs::read_dir(input)
+                        .expect("failed to read directory")
+                        .map(|entry| entry.expect("failed to read path in directory").path())
+                        .filter(|path| {
+                            !path.file_name()
+                                .unwrap()
+                                .to_str()
+                                .unwrap()
+                                .starts_with(".")
+                        })
+                        .collect()
+                } else {
+                    vec![input]
+                }
+            })
+            .collect::<Vec<_>>();
+
         paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
 
         let mut end_reached = false;
@@ -159,10 +180,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         };
 
         for path in lookup_paths {
-            error!("Executing: {}", path.display());
-            if let Err(err) = execute(&path, put_registry) {
-                error!("Failed to execute trace {}: {:?}", path.display(), err);
-            }
+            info!("Executing: {}", path.display());
+            execute(&path, put_registry);
         }
 
         if !lookup_paths.is_empty() {
@@ -322,16 +341,50 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
+use nix::{
+    sys::{
+        signal::Signal,
+        wait::{
+            waitpid, WaitPidFlag,
+            WaitStatus::{Exited, Signaled},
+        },
+    },
+    unistd::{fork, ForkResult},
+};
+
+pub fn expect_crash<R>(func: R)
+where
+    R: FnOnce(),
+{
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { child, .. }) => {
+            let _status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+        }
+        Ok(ForkResult::Child) => {
+            func();
+            std::process::exit(0);
+        }
+        Err(_) => panic!("Fork failed"),
+    }
+}
+
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-    trace.execute(&mut ctx)?;
+    // When generating coverage a crash means that no coverage is stored
+    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+    expect_crash(move || {
+        let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+        if let Err(err) = trace.execute(&mut ctx) {
+            error!("Failed to execute trace {}: {:?}", input.as_ref().display(), err);
+        }
+    });
+
     Ok(())
 }
 

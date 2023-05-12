@@ -405,7 +405,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     let FuzzerConfig {
         core_definition,
         corpus_dir,
-        objective_dir: _,
+        objective_dir,
         static_seed: _,
         log_file,
         monitor_file,
@@ -452,7 +452,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             )
             .with_objective_corpus(
                 CachedOnDiskCorpus::with_meta_format(
-                    corpus_dir.clone(),
+                    objective_dir.clone(),
                     1000,
                     OnDiskMetadataFormat::Json,
                 )
