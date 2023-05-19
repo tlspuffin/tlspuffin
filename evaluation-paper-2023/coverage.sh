@@ -21,34 +21,31 @@ generate_coverage () {
         exit 1
     fi
 
-    #corpus="/local-unsafe/mammann/2022-tlspuffin-evaluation-paper/evaluation-paper/parallel/experiments/2022-11-16-155256-21-SDOS1-0/corpus"
-    #corpus="/local-unsafe/mammann/2022-tlspuffin-evaluation-paper/evaluation-paper/parallel/experiments/2022-11-16-155256-21-SIG-0/corpus"
     corpus=$1
 
     name=$3
 
     batch=$4
 
-    cov_file="/local-unsafe/mammann/tasks/taskb-tlspuffin/coverage-$features-$name.csv"
-    cob_file="/local-unsafe/mammann/tasks/taskb-tlspuffin/coverage-$features-$name.cobertura"
-    json_file="/local-unsafe/mammann/tasks/taskb-tlspuffin/coverage-$features-$name.json"
-    html_dir="/local-unsafe/mammann/tasks/taskb-tlspuffin/coverage-$features-$name"
-    build_dir="/local-unsafe/mammann/tasks/taskb-tlspuffin/tmp/build-$features-$name"
+    cov_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.csv"
+    cob_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.cobertura"
+    json_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.json"
+    html_dir="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name"
+    build_dir="/local-unsafe/mammann/tasks/taskbc-tlspuffin/tmp/build-$features-$name"
     src_dir=$(pwd)
 
     mkdir $html_dir
     echo "time,b_abs,b_per,b_total,fn_abs,fn_per,fn_total,l_abs,l_per,l_total" >> $cov_file
 
-    #cargo clean
-    #rm -r "$build_dir"
-    #cp -r . "$build_dir"
+    cargo clean
+    rm -r "$build_dir"
+    cp -r . "$build_dir"
 
     cd "$build_dir"
 
-    #cargo clean
-
+    cargo clean
     find -name "*.gcda" -delete
-    #cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov_analysis" --no-default-features
+    cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov_analysis" --no-default-features
 
     $build_dir/target/x86_64-unknown-linux-gnu/debug/tlspuffin execute --index 0 -n 100 "$seeds"
     cov_data=$(gcovr --gcov-executable "llvm-cov gcov" "${excludes[@]}" --json-summary-pretty)
@@ -92,9 +89,6 @@ generate_coverage () {
 generate_coverage "/local-unsafe/mammann/tasks/taskc-tlspuffin/openssl/experiments/2023-05-11-162035-openssl-0/corpus" "openssl" "taskc" 100 "/local-unsafe/mammann/tasks/taskc-tlspuffin/openssl/seeds" &
 generate_coverage "/local-unsafe/mammann/tasks/taskc-tlspuffin/wolfssl/experiments/2023-05-11-161921-wolfssl-0/corpus" "wolfssl" "taskc" 100 "/local-unsafe/mammann/tasks/taskc-tlspuffin/wolfssl/seeds" &
 
-
-#wait
-#exit 0
 
 # taskb
 generate_coverage "/local-unsafe/mammann/tasks/taskb-tlspuffin/wolfssl/experiments/2023-05-15-154835-8-coverage-wolfssl-0/corpus" "wolfssl" "taskb-8" 5 "/local-unsafe/mammann/tasks/taskb-tlspuffin/wolfssl/seeds" &
