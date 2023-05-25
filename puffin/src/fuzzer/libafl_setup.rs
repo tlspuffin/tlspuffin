@@ -1,7 +1,7 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::TuiMonitor, prelude::*};
+use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::{ui::TuiUI, TuiMonitor}, prelude::*};
 use log::{info, LevelFilter};
 use log4rs::Handle;
 
@@ -426,7 +426,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
-                          _core_id: usize|
+                          _core_id: CoreId|
      -> Result<(), Error> {
         let harness_fn = &mut harness::harness::<PB>;
 
@@ -499,7 +499,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             EventConfig::AlwaysUnique,
         )?;
 
-        run_client(state, restarting_mgr, 0)
+        run_client(state, restarting_mgr, CoreId(0))
     } else {
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();
@@ -509,7 +509,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(TuiMonitor::new("test".to_string(), false))
+                .monitor(TuiMonitor::new(TuiUI::new(String::from("test"), false)))
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
