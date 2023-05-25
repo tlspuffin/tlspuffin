@@ -5,6 +5,9 @@
 source ~/venv/bin/activate
 source "$HOME/.cargo/env"
 
+base="/local-unsafe/mammann/tasks/taskbc-tlspuffin-redo"
+mkdir "$base"
+
 generate_coverage () {
     features=""
     excludes=()
@@ -27,23 +30,24 @@ generate_coverage () {
 
     batch=$4
 
-    cov_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.csv"
-    cob_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.cobertura"
-    json_file="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name.json"
-    html_dir="/local-unsafe/mammann/tasks/taskbc-tlspuffin/coverage-$features-$name"
-    build_dir="/local-unsafe/mammann/tasks/taskbc-tlspuffin/tmp/build-$features-$name"
-    src_dir=$(pwd)
+    cov_file="$base/coverage-$features-$name.csv"
+    cob_file="$base/coverage-$features-$name.cobertura"
+    json_file="$base/coverage-$features-$name.json"
+    html_dir="$base/coverage-$features-$name"
+    build_dir="$base/tmp/build-$features-$name"
+    mkdir -p "$build_dir"
+    mkdir -p $html_dir
 
-    mkdir $html_dir
+    src_dir=$(pwd)
+    
     echo "time,b_abs,b_per,b_total,fn_abs,fn_per,fn_total,l_abs,l_per,l_total" >> $cov_file
 
-    cargo clean
-    rm -r "$build_dir"
+    rm -rf "$build_dir"
     cp -r . "$build_dir"
 
     cd "$build_dir"
 
-    cargo clean
+    #cargo clean
     find -name "*.gcda" -delete
     cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov_analysis" --no-default-features
 
@@ -82,6 +86,7 @@ generate_coverage () {
     cd "$src_dir"
 }
 
+cargo clean
 
 # find "$(pwd -P)" -type d -name "corpus" -exec echo "generate_coverage \"{}\" \"\" \"\"" \;
 
