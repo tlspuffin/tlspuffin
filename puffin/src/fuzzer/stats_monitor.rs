@@ -117,8 +117,8 @@ where
         );
 
         // log edges
-        let coverage = if let Some(edges) = client.user_monitor.get(MAP_FEEDBACK_NAME) {
-            fmt += &format!(", {}: {}", "edges", edges);
+            let coverage = if let Some(edges) = client.user_monitor.get(MAP_FEEDBACK_NAME) {
+                fmt += &format!(" EDGE FOUND: , {}: {}", "edges", edges);
 
             if let UserStats::Ratio(a, b) = edges {
                 Some(CoverageStatistics {
@@ -126,11 +126,19 @@ where
                     max: *b,
                 })
             } else {
+                fmt += &format!(" EDGE NOT FOUND");
                 None
             }
         } else {
+            fmt += &format!(" EDGE NOT FOUND");
             None
         };
+
+        fmt += &format!("All keys/values:");
+        for (key, val) in &client.user_monitor {
+            fmt += &format!(", {key}: {val}");
+        }
+
 
         (self.print_fn)(fmt);
 
