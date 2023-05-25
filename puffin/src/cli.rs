@@ -149,11 +149,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                         .expect("failed to read directory")
                         .map(|entry| entry.expect("failed to read path in directory").path())
                         .filter(|path| {
-                            !path.file_name()
-                                .unwrap()
-                                .to_str()
-                                .unwrap()
-                                .starts_with(".")
+                            !path.file_name().unwrap().to_str().unwrap().starts_with(".")
                         })
                         .collect()
                 } else {
@@ -358,7 +354,8 @@ where
 {
     match unsafe { fork() } {
         Ok(ForkResult::Parent { child, .. }) => {
-            let _status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+            info!("Finished executing: {:?}", status);
         }
         Ok(ForkResult::Child) => {
             func();
@@ -381,7 +378,11 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     expect_crash(move || {
         let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
         if let Err(err) = trace.execute(&mut ctx) {
-            error!("Failed to execute trace {}: {:?}", input.as_ref().display(), err);
+            error!(
+                "Failed to execute trace {}: {:?}",
+                input.as_ref().display(),
+                err
+            );
         }
     });
 
