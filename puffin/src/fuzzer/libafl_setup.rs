@@ -454,7 +454,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 //InMemoryCorpus::new(),
                 CachedOnDiskCorpus::with_meta_format(
                     corpus_dir.clone(),
-                    1000,
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
                     OnDiskMetadataFormat::Json,
                 )
                 .unwrap(),
@@ -462,12 +462,16 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             .with_objective_corpus(
                 CachedOnDiskCorpus::with_meta_format(
                     corpus_dir.clone(),
-                    1000,
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
                     OnDiskMetadataFormat::Json,
                 )
                 .unwrap(),
             )
-            .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+            .with_objective(feedback_or_fast!(
+                // don't execute second if first is conclusive, mimicking https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L164
+                CrashFeedback::new(),
+                TimeoutFeedback::new()
+            ));
 
         //#[cfg(feature = "sancov_libafl")]
         //{
@@ -528,7 +532,19 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                .stdout_file(Some("/dev/null"))
+                // tlspuffin never logs or outputs to stdout. It always logs its output
+                // to tlspuffin.log.
+                // We can safely, disable the log output of clients.
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
                 .build()
                 .launch()
         } else {
@@ -550,7 +566,17 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 // tlspuffin never logs or outputs to stdout. It always logs its output
                 // to tlspuffin.log.
                 // We can safely, disable the log output of clients.
-                .stdout_file(Some("/dev/null"))
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
+                //                 .stdout_file(Some("/dev/null"))
                 .build()
                 .launch()
         }
