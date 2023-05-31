@@ -189,6 +189,8 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+verbose = ["puffin/verbose"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }

@@ -1,8 +1,12 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::{ui::TuiUI, TuiMonitor}, prelude::*};
-use log::{info, LevelFilter};
+use libafl::{
+    corpus::ondisk::OnDiskMetadataFormat,
+    monitors::tui::{ui::TuiUI, TuiMonitor},
+    prelude::*,
+};
+use log::{error, info, trace, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
@@ -23,7 +27,7 @@ type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'h
 
 type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
     pub static_seed: Option<u64>,
@@ -41,7 +45,7 @@ pub struct FuzzerConfig {
     pub log_file: PathBuf,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -50,6 +54,7 @@ pub struct MutationStageConfig {
 }
 
 impl Default for MutationStageConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             max_iterations_per_stage: 256,
@@ -58,7 +63,7 @@ impl Default for MutationStageConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
     pub fresh_zoo_after: u64,
     pub max_trace_length: usize,
@@ -70,6 +75,7 @@ pub struct MutationConfig {
 }
 
 impl Default for MutationConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,
@@ -295,8 +301,8 @@ where
 type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
 
 type ConcreteObservers<'a> = (
-    TimeObserver,
-    (HitcountsMapObserver<StdMapObserver<'a, u8, false>>, ()),
+    HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
+    (TimeObserver, ()),
 );
 
 type ConcreteFeedback<'a, S> = CombinedFeedback<
@@ -391,7 +397,7 @@ where
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::with_observer(&time_observer)
             );
-            let observers = tuple_list!(time_observer, edges_observer);
+            let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
         };
     }
@@ -423,6 +429,9 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     } = &config;
 
     info!("Running on cores: {}", &core_definition);
+
+    #[cfg(feature = "verbose")]
+    info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
@@ -471,17 +480,23 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
         //#[cfg(not(feature = "sancov_libafl"))]
         {
-            log::error!("Running without minimizer is unsupported");
+            error!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
             builder = builder
                 .with_feedback(feedback)
                 .with_observers(observer)
                 .with_scheduler(RandScheduler::new());
-        }
+        } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
+        #[cfg(not(feature = "verbose"))]
         log_handle
             .clone()
             .set_config(create_file_config(LevelFilter::Warn, log_file));
+
+        #[cfg(feature = "verbose")]
+        log_handle
+            .clone()
+            .set_config(create_file_config(LevelFilter::Trace, log_file));
 
         builder.run_client()
     };

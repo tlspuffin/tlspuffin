@@ -339,4 +339,12 @@ impl Put<SshProtocolBehavior> for LibSSL {
             "libssh does not support determinism".to_string(),
         ))
     }
+
+    fn register_claimer(&mut self, agent_name: AgentName) {
+        todo!()
+    }
+
+    fn deregister_claimer(&mut self) {
+        todo!()
+    }
 }
