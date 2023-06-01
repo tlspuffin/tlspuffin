@@ -340,6 +340,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         ))
     }
 
+    // TODO: Missing implementations
     fn register_claimer(&mut self, agent_name: AgentName) {
         todo!()
     }

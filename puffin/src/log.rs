@@ -25,13 +25,14 @@ fn create_config(
 }
 
 pub fn create_stdout_config(default_level: LevelFilter) -> Config {
-    let stdout = ConsoleAppender::builder()
+    let stderr = ConsoleAppender::builder()
+        .target(log4rs::append::console::Target::Stderr)
         .encoder(Box::new(PatternEncoder::new(
             "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
         )))
         .build();
 
-    create_config(default_level, "stdout", Box::new(stdout))
+    create_config(default_level, "stderr", Box::new(stderr))
 }
 
 pub fn create_file_config(default_level: LevelFilter, log_path: &PathBuf) -> Config {

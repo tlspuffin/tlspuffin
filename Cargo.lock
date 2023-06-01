@@ -24,6 +24,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
 dependencies = [
  "cfg-if",
+ "getrandom",
  "once_cell",
  "version_check",
 ]
@@ -1633,6 +1634,7 @@ dependencies = [
 name = "puffin"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "cfg-if",
  "chrono",
  "clap 4.3.0",
@@ -1643,6 +1645,7 @@ dependencies = [
  "libc",
  "log",
  "log4rs",
+ "nix 0.25.1",
  "once_cell",
  "postcard",
  "rand",
