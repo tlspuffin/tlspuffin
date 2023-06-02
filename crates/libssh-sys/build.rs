@@ -47,7 +47,7 @@ fn build(source_dir: &str) -> PathBuf {
         .cflag("-Wno-error,-Wstrict-prototypes");
 
     if cfg!(feature = "sancov") {
-        config.cflag("-fsanicmtize-coverage=trace-pc-guard");
+        config.cflag("-fsanitize-coverage=trace-pc-guard");
     }
 
     if cfg!(feature = "asan") {
