@@ -143,6 +143,7 @@ fn build_wolfssl(dest: &str) -> PathBuf {
         let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
 
         // Important: Make sure to pass these flags to the linker invoked by rustc!
+        println!("cargo:rustc-link-lib=asan");
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
