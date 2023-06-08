@@ -4,7 +4,7 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "rust-analyzer.cargo.buildScripts.enable": false,
     "rust-analyzer.procMacro.enable": false,
-
-    "rust-analyzer.cargo.bin": ["tlspuffin"],
-    "rust-analyzer.cargo.features": ["openssl111j", "claims"],
+    "rust-analyzer.cargo.features": [
+        "openssl111j"
+    ]
 }
