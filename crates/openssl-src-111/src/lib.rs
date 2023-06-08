@@ -137,8 +137,6 @@ impl Build {
 
         clone_repo(&inner_dir.to_str().unwrap()).unwrap();
 
-        apply_patches(target, &inner_dir);
-
         let perl_program =
             env::var("OPENSSL_SRC_PERL").unwrap_or(env::var("PERL").unwrap_or("perl".to_string()));
         let mut configure = Command::new(perl_program);
@@ -154,7 +152,7 @@ impl Build {
 
         configure
             // No shared objects, we just want static libraries
-            // TODO .arg("no-dso")
+            .arg("no-dso")
             .arg("no-shared");
         // No need to build tests, we won't run them anyway
         // TODO .arg("no-unit-test")
@@ -189,7 +187,9 @@ impl Build {
         }
 
         let mut cc = "clang".to_owned();
-        let mut cflags = "-fPIC -fPIE".to_owned(); // -fPIC was previously added through Cargo flags
+        let mut cflags = "".to_owned();
+
+        configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
 
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
@@ -228,14 +228,11 @@ impl Build {
         configure.current_dir(&inner_dir);
         self.run_command(configure, "configuring OpenSSL build");
 
-        // TODO let mut depend = self.cmd_make();
-        //depend.arg("depend").current_dir(&inner_dir);
-        //self.run_command(depend, "building OpenSSL dependencies");
+        let mut depend = self.cmd_make();
+        depend.arg("depend").current_dir(&inner_dir);
+        self.run_command(depend, "building OpenSSL dependencies");
 
         let mut build = self.cmd_make();
-
-        // TODO build.arg("build_libs");
-
         build.current_dir(&inner_dir);
 
         #[cfg(feature = "openssl101f")]
@@ -246,10 +243,7 @@ impl Build {
         self.run_command(build, "building OpenSSL");
 
         let mut install = self.cmd_make();
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
-        install.arg("install_sw").current_dir(&inner_dir);
-        #[cfg(not(any(feature = "openssl101f", feature = "openssl102u")))]
-        install.arg("install_dev").current_dir(&inner_dir);
+        install.arg("install").current_dir(&inner_dir);
 
         self.run_command(install, "installing OpenSSL");
 
@@ -286,27 +280,6 @@ Error {}:
             );
         }
     }
-}
-
-fn apply_patches(target: &str, inner: &Path) {
-    apply_patches_musl(target, inner);
-}
-
-fn apply_patches_musl(target: &str, inner: &Path) {
-    if !target.contains("musl") {
-        return;
-    }
-
-    // Undo part of https://github.com/openssl/openssl/commit/c352bd07ed2ff872876534c950a6968d75ef121e on MUSL
-    // since it doesn't have asm/unistd.h
-    let path = inner.join("crypto/rand/rand_unix.c");
-    let buf = fs::read_to_string(&path).unwrap();
-
-    let buf = buf
-        .replace("asm/unistd.h", "sys/syscall.h")
-        .replace("__NR_getrandom", "SYS_getrandom");
-
-    fs::write(path, buf).unwrap();
 }
 
 impl Artifacts {

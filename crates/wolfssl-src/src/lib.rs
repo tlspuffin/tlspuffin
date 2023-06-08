@@ -108,8 +108,8 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
         .cflag("-fPIC");
-    //.cflag("-DWC_RNG_SEED_CB") // TODO: for evaluation equivalence
-    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); // TODO: for evaluation equivalence
+    //.cflag("-DWC_RNG_SEED_CB") // FIXME: makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); // FIXME: makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
 
     #[cfg(target_arch = "x86_64")]
     {
