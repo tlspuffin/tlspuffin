@@ -237,7 +237,7 @@ impl Build {
         self.run_command(build, "building OpenSSL");
 
         let mut install = self.cmd_make();
-        install.arg("install").current_dir(&inner_dir);
+        install.arg("install_sw").current_dir(&inner_dir);
 
         self.run_command(install, "installing OpenSSL");
 
