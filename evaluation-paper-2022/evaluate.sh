@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Arguments
+# - Which branch to pull artifacts from?
+# - How many cores per experiment? Experiments: SDOS1, SIG, SKIP, SDOS2, CDOS, BUF, HEAP
+
 if [ "$#" -ne 2 ]; then
     echo "Illegal number of parameters"
     exit 1
@@ -23,12 +27,20 @@ function check_available  {
 check_available "gh"
 check_available "tmux"
 
+
+
+if ! pgrep -x "tlspuffin" >/dev/null
+then
+    echo "Clearing shared memory"
+    ipcs -m | tail -n +5 | awk '{print $2}' | xargs -i sh -c "ipcrm -m {} || true"
+fi
+
 echo "Downloading latest evaluation build"
 
 rm -rf tlspuffin-*
-to_download=$(gh run list -R trailofbits/tlspuffin-disclosure -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
-echo "https://github.com/trailofbits/tlspuffin-disclosure/actions/runs/$to_download"
-gh run download -p "tlspuffin-*" -R trailofbits/tlspuffin-disclosure "$to_download" || { echo >&2 "Failed to download"; exit 1; }
+to_download=$(gh run list -R tlspuffin/tlspuffin -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
+echo "https://github.com/tlspuffin/tlspuffin/actions/runs/$to_download"
+gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo >&2 "Failed to download"; exit 1; }
 chmod +x tlspuffin-*/tlspuffin
 
 

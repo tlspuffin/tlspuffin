@@ -492,9 +492,12 @@ fn cvt_auth<F: Fallible>(r: c_int, fallible: &F) -> Result<SshAuthResult, F::Err
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::{
-        io::IntoRawFd,
-        net::{SocketAddr, UnixListener, UnixStream},
+    use std::{
+        fs,
+        os::unix::{
+            io::IntoRawFd,
+            net::{SocketAddr, UnixListener, UnixStream},
+        },
     };
 
     use crate::libssh::ssh::{
@@ -544,11 +547,19 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
     fn test() {
         set_log_level(100);
 
-        let addr = SocketAddr::from_abstract_namespace(b"\0socket_test").unwrap();
-        let listener = UnixListener::bind_addr(&addr).unwrap();
+        // FIXME: Switch to UDS with stabilization in Rust 1.70
+        //let addr = SocketAddr::from_abstract_namespace(b"\0socket_test").unwrap();
+        //let listener = UnixListener::bind_addr(&addr).unwrap();
+        let path = "socket_test";
+        let listener = UnixListener::bind(path).unwrap();
         listener.set_nonblocking(true).unwrap();
 
-        let mut client_stream = UnixStream::connect_addr(&addr).unwrap();
+        // FIXME: Switch to UDS with stabilization in Rust 1.70
+        //let mut client_stream = UnixStream::connect_addr(&addr).unwrap();
+        let mut client_stream = UnixStream::connect(path).unwrap();
+        // Unlink directly as we have the addresses now
+        fs::remove_file(&path).unwrap();
+
         client_stream.set_nonblocking(true).unwrap();
         let server_stream = listener.incoming().next().unwrap().unwrap();
 

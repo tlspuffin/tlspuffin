@@ -29,18 +29,18 @@
 // SOFTWARE.
 
 use std::{
-    fmt::{Debug, Formatter},
+    fmt::Debug,
     hash::{Hash, Hasher},
 };
 
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub use self::term::*;
 use crate::{
     algebra::signature::Signature,
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage},
 };
 
 pub mod atoms;
@@ -96,7 +96,7 @@ pub trait Matcher: Debug + Clone + Hash + serde::Serialize + DeserializeOwned + 
 pub struct AnyMatcher;
 
 impl Matcher for AnyMatcher {
-    fn matches(&self, matcher: &Self) -> bool {
+    fn matches(&self, _matcher: &Self) -> bool {
         true
     }
 
@@ -118,25 +118,22 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> TryFrom<&MessageResult<M, 
 pub mod test_signature {
     use std::{
         any::{Any, TypeId},
-        fmt::{Debug, Display, Formatter},
+        fmt::{Debug, Formatter},
         io::Read,
     };
 
-    use serde::{Deserialize, Serialize};
-
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Matcher, Term},
+        algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
         claims::{Claim, SecurityViolationPolicy},
         codec::{Codec, Reader},
         define_signature,
         error::Error,
         protocol::{
-            MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
-            ProtocolMessageDeframer,
+            OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
-        put::{Put, PutDescriptor, PutName, PutOptions},
-        put_registry::{Factory, PutRegistry, DUMMY_PUT},
+        put::{Put, PutName},
+        put_registry::{Factory, PutRegistry},
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
@@ -423,7 +420,7 @@ pub mod test_signature {
     }
 
     impl Codec for TestOpaqueMessage {
-        fn encode(&self, bytes: &mut Vec<u8>) {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
 
@@ -457,7 +454,7 @@ pub mod test_signature {
     }
 
     impl Codec for TestMessage {
-        fn encode(&self, bytes: &mut Vec<u8>) {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
 
@@ -528,8 +525,8 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            context: &TraceContext<TestProtocolBehavior>,
-            agent_descriptor: &AgentDescriptor,
+            _context: &TraceContext<TestProtocolBehavior>,
+            _agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
         }

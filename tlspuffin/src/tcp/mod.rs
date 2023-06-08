@@ -13,7 +13,7 @@ use std::{
 
 use log::error;
 use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
@@ -133,7 +133,7 @@ impl TcpClientPut {
     }
 
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let mut tries = 10;
+        let mut tries = 500;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -150,7 +150,7 @@ impl TcpClientPut {
                 break None;
             }
 
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(100));
         };
 
         stream.ok_or(io::Error::new(
@@ -180,9 +180,9 @@ impl TcpServerPut {
         let (sender, stream_receiver) = channel();
         let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
 
-        thread::spawn(move || {
-            let listener = TcpListener::bind(&addr).unwrap();
+        let listener = TcpListener::bind(addr).unwrap();
 
+        thread::spawn(move || {
             if let Some(new_stream) = listener.incoming().next() {
                 let stream = new_stream.unwrap();
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -685,7 +685,7 @@ mod tests {
     use log::info;
     use puffin::{
         agent::{AgentName, TLSVersion},
-        put::{PutDescriptor, PutOptions},
+        put::PutDescriptor,
     };
     use test_log::test;
 
@@ -774,7 +774,7 @@ mod tests {
         let mut context = trace
             .execute_with_non_default_puts(
                 &TLS_PUT_REGISTRY,
-                &[(client_name, client.clone()), (server_name, server.clone())],
+                &[(client_name, client), (server_name, server)],
             )
             .unwrap();
 
@@ -815,7 +815,7 @@ mod tests {
         let mut context = trace
             .execute_with_non_default_puts(
                 &TLS_PUT_REGISTRY,
-                &[(client_name, client.clone()), (server_name, server.clone())],
+                &[(client_name, client), (server_name, server)],
             )
             .unwrap();
 

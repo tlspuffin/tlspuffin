@@ -2,16 +2,18 @@ use std::{
     env, fs,
     fs::File,
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
-use clap::{arg, crate_authors, crate_name, crate_version, Command};
+use clap::{
+    arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
+};
 use libafl::inputs::Input;
 use log::{error, info, LevelFilter};
 
 use crate::{
-    algebra::{error::FnError, set_deserialize_signature},
+    algebra::set_deserialize_signature,
     codec::Codec,
     experiment::*,
     fuzzer::{
@@ -27,15 +29,18 @@ use crate::{
     trace::{Action, Trace, TraceContext},
 };
 
-fn create_app() -> Command<'static> {
+fn create_app() -> Command {
     Command::new(crate_name!())
         .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
         .about("Fuzzes OpenSSL on a symbolic level")
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
-        .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients"))
-        .arg(arg!(-p --port [n] "Port of the broker"))
-        .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do"))
+        .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
+            .value_parser(value_parser!(u64)))
+        .arg(arg!(-p --port [n] "Port of the broker")
+            .value_parser(value_parser!(u16).range(1..)))
+        .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
+            .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
         .arg(arg!(--monitor "Use a monitor"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
@@ -55,8 +60,11 @@ fn create_app() -> Command<'static> {
                 .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
-                .about("Executes a trace stored in a file")
-                .arg(arg!(<inputs> "The file which stores a trace").min_values(1))   ,
+                .about("Executes a trace stored in a file. The exit code describes if more files are available for execution.")
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
+                .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
+                .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -77,14 +85,15 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
     let matches = create_app().get_matches();
 
-    let core_definition = matches.value_of("cores").unwrap_or("0");
-    let port: u16 = matches.value_of_t("port").unwrap_or(1337);
-    let static_seed: Option<u64> = matches.value_of_t("seed").ok();
-    let max_iters: Option<u64> = matches.value_of_t("max-iters").ok();
-    let minimizer = matches.is_present("minimizer");
-    let monitor = matches.is_present("monitor");
-    let no_launcher = matches.is_present("no-launcher");
-    let put_use_clear = matches.is_present("put-use-clear");
+    let first_core = "0".to_string();
+    let core_definition = matches.get_one("cores").unwrap_or(&first_core);
+    let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
+    let static_seed: Option<u64> = matches.get_one("seed").copied();
+    let max_iters: Option<u64> = matches.get_one("max-iters").copied();
+    let minimizer = matches.get_flag("minimizer");
+    let monitor = matches.get_flag("monitor");
+    let no_launcher = matches.get_flag("no-launcher");
+    let put_use_clear = matches.get_flag("put-use-clear");
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -116,33 +125,82 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
         // Parse arguments
-        let output_prefix: &str = matches.value_of("output_prefix").unwrap();
-        let input = matches.value_of("input").unwrap();
-        let format = matches.value_of("format").unwrap();
-        let is_multiple = matches.is_present("multiple");
-        let is_tree = matches.is_present("tree");
+        let output_prefix: &String = matches.get_one("output_prefix").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+        let format: &String = matches.get_one("format").unwrap();
+        let is_multiple = matches.get_flag("multiple");
+        let is_tree = matches.get_flag("tree");
 
         if let Err(err) = plot::<PB>(input, format, output_prefix, is_multiple, is_tree) {
             error!("Failed to plot trace: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        let inputs = matches.values_of("inputs").unwrap();
-        let mut failed = false;
-        for input in inputs {
-            error!("Executing: {}", input);
-            if let Err(err) = execute(input, put_registry) {
-                error!("Failed to execute trace: {:?}", err);
-                failed = true
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+        let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+
+        let mut paths = inputs
+            .flat_map(|input| {
+                let input = PathBuf::from(input);
+
+                if input.is_dir() {
+                    fs::read_dir(input)
+                        .expect("failed to read directory")
+                        .map(|entry| entry.expect("failed to read path in directory").path())
+                        .filter(|path| {
+                            !path.file_name().unwrap().to_str().unwrap().starts_with(".")
+                        })
+                        .collect()
+                } else {
+                    vec![input]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
+
+        let mut end_reached = false;
+
+        let lookup_paths = if index < paths.len() {
+            if index + n < paths.len() {
+                &paths[index..index + n]
+            } else {
+                end_reached = true;
+                &paths[index..]
             }
+        } else {
+            end_reached = true;
+            // empty
+            &paths[0..0]
+        };
+
+        for path in lookup_paths {
+            info!("Executing: {}", path.display());
+            execute(&path, put_registry);
         }
 
-        if failed {
+        if !lookup_paths.is_empty() {
+            println!(
+                "{}",
+                fs::metadata(&lookup_paths[0])
+                    .unwrap()
+                    .modified()
+                    .unwrap()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            )
+        }
+
+        if end_reached {
             return ExitCode::FAILURE;
+        } else {
+            return ExitCode::SUCCESS;
         }
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
-        let input = matches.value_of("input").unwrap();
-        let output = matches.value_of("output").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+        let output: &String = matches.get_one("output").unwrap();
 
         if let Err(err) = binary_attack(input, output, put_registry) {
             error!("Failed to create trace output: {:?}", err);
@@ -150,8 +208,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title = matches.value_of("title").unwrap();
-            let description = matches.value_of("description").unwrap();
+            let title: &String = matches.get_one("title").unwrap();
+            let description: &String = matches.get_one("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
             let experiment_path = experiments_root.join(format_title(Some(title), None));
             if experiment_path.as_path().exists() {
@@ -217,10 +275,10 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         if let Err(err) = start::<PB>(config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
-                    // ignore
+                    log::info!("\nFuzzing stopped by user. Good Bye.")
                 }
                 _ => {
-                    panic!("{}", err)
+                    panic!("Fuzzing failed {err:?}")
                 }
             }
         }
@@ -272,23 +330,62 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
-        let trace = trace.to_file(format!("./seeds/{}.trace", name))?;
+        trace.to_file(format!("./seeds/{}.trace", name))?;
 
         info!("Generated seed traces into the directory ./corpus")
     }
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior>(
-    input: &str,
+use nix::{
+    sys::{
+        signal::Signal,
+        wait::{
+            waitpid, WaitPidFlag,
+            WaitStatus::{Exited, Signaled},
+        },
+    },
+    unistd::{fork, ForkResult},
+};
+
+pub fn expect_crash<R>(func: R)
+where
+    R: FnOnce(),
+{
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { child, .. }) => {
+            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+            info!("Finished executing: {:?}", status);
+        }
+        Ok(ForkResult::Child) => {
+            func();
+            std::process::exit(0);
+        }
+        Err(_) => panic!("Fork failed"),
+    }
+}
+
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    input: P,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-    trace.execute(&mut ctx)?;
+    // When generating coverage a crash means that no coverage is stored
+    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+    expect_crash(move || {
+        let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+        if let Err(err) = trace.execute(&mut ctx) {
+            error!(
+                "Failed to execute trace {}: {:?}",
+                input.as_ref().display(),
+                err
+            );
+        }
+    });
+
     Ok(())
 }
 
@@ -298,7 +395,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     info!("Agents: {:?}", &trace.descriptors);
 
