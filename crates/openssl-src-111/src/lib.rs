@@ -147,12 +147,6 @@ impl Build {
 
         configure.arg(&format!("--prefix={}", install_dir.display()));
 
-        // Specify that openssl directory where things are loaded at runtime is
-        // not inside our build directory. Instead this should be located in the
-        // default locations of the OpenSSL build scripts.
-        #[cfg(not(any(feature = "openssl101f", feature = "openssl102u")))]
-        configure.arg("--openssldir=/usr/local/ssl");
-
         configure
             // No shared objects, we just want static libraries
             .arg("no-dso")
@@ -246,7 +240,7 @@ impl Build {
         self.run_command(build, "building OpenSSL");
 
         let mut install = self.cmd_make();
-        install.arg("install").current_dir(&inner_dir);
+        install.arg("install_sw").current_dir(&inner_dir);
 
         self.run_command(install, "installing OpenSSL");
 
