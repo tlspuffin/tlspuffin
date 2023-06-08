@@ -13,8 +13,6 @@ introspection = ["libafl/introspection"]
 
 claims = []
 
-verbose = []
-
 [dependencies]
 
 # LibAFL
