@@ -102,14 +102,14 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         .enable("curve25519", None)
         .enable("secure-renegotiation", None)
         .enable("psk", None) // FIXME: Only 4.3.0
-       // TODO .disable("examples", None) // Speedup
+        // TODO .disable("examples", None) // Speedup
         .cflag("-DHAVE_EX_DATA") // FIXME: Only 4.3.0
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
         .cflag("-fPIC")
         .cflag("-DWC_RNG_SEED_CB") // TODO: for evaluation equivalence
-        .cflag("-DWOLFSSL_GENSEED_FORTEST");// TODO: for evaluation equivalence
+        .cflag("-DWOLFSSL_GENSEED_FORTEST"); // TODO: for evaluation equivalence
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -126,15 +126,13 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
     }
 
     if options.gcov_analysis {
-        config
-        .cflag("-ftest-coverage")
-        .cflag("-fprofile-arcs"); 
+        config.cflag("-ftest-coverage").cflag("-fprofile-arcs");
     }
 
     if options.llvm_cov_analysis {
         config
-        .cflag("-fprofile-instr-generate")
-        .cflag("-fcoverage-mapping"); 
+            .cflag("-fprofile-instr-generate")
+            .cflag("-fcoverage-mapping");
     }
 
     if options.asan {

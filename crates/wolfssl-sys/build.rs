@@ -44,5 +44,8 @@ fn main() {
         format!("{}/lib/", out_dir.display())
     );
     println!("cargo:include={}", out_dir.display());
-    println!("cargo:rerun-if-changed={}", source_dir.join("wrapper.h").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        source_dir.join("wrapper.h").display()
+    );
 }
