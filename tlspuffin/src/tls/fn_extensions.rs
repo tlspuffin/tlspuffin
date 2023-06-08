@@ -454,12 +454,11 @@ nyi_fn!();
 pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnError> {
     let mut r = VecU16OfPayloadU16(Vec::new());
 
-    for subject in ["inria.fr"] {
-        let mut name = Vec::new();
-        name.extend_from_slice(subject.as_bytes());
-        x509::wrap_in_sequence(&mut name);
-        r.0.push(DistinguishedName::new(name));
-    }
+    let subject = "inria.fr";
+    let mut name = Vec::new();
+    name.extend_from_slice(subject.as_bytes());
+    x509::wrap_in_sequence(&mut name);
+    r.0.push(DistinguishedName::new(name));
 
     Ok(CertReqExtension::AuthorityNames(r))
 }

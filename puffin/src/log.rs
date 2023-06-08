@@ -4,7 +4,7 @@ use log::LevelFilter;
 use log4rs::{
     append::{console::ConsoleAppender, file::FileAppender, Append},
     config::{Appender, Root},
-    encode::{json::JsonEncoder, pattern::PatternEncoder},
+    encode::pattern::PatternEncoder,
     Config,
 };
 
@@ -25,19 +25,20 @@ fn create_config(
 }
 
 pub fn create_stdout_config(default_level: LevelFilter) -> Config {
-    let stdout = ConsoleAppender::builder()
+    let stderr = ConsoleAppender::builder()
+        .target(log4rs::append::console::Target::Stderr)
         .encoder(Box::new(PatternEncoder::new(
             "{h({d(%Y-%m-%dT%H:%M:%S%Z)}\t{m}{n})}",
         )))
         .build();
 
-    create_config(default_level, "stdout", Box::new(stdout))
+    create_config(default_level, "stderr", Box::new(stderr))
 }
 
 pub fn create_file_config(default_level: LevelFilter, log_path: &PathBuf) -> Config {
     let file_appender = FileAppender::builder()
         .encoder(Box::new(PatternEncoder::new("{d}\t{l}\t{m}{n}")))
-        .build(&log_path)
+        .build(log_path)
         .unwrap();
 
     create_config(default_level, "file", Box::new(file_appender))

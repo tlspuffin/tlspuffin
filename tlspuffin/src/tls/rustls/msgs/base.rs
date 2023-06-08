@@ -3,7 +3,7 @@ use puffin::{
     codec::{Codec, Reader},
 };
 
-use crate::tls::{rustls, rustls::key};
+use crate::tls::rustls::key;
 /// An externally length'd payload
 #[derive(Debug, Clone, PartialEq)]
 pub struct Payload(pub Vec<u8>);

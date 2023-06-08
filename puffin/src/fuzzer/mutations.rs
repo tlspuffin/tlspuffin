@@ -1,12 +1,4 @@
-use libafl::{
-    bolts::{
-        rands::Rand,
-        tuples::{tuple_list, tuple_list_type, Named},
-    },
-    mutators::{MutationResult, Mutator},
-    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
-    Error,
-};
+use libafl::prelude::*;
 use util::{Choosable, *};
 
 use crate::{
@@ -31,7 +23,7 @@ pub fn trace_mutations<S, M: Matcher>(
        SwapMutator<S>
    )
 where
-    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
@@ -429,7 +421,7 @@ where
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
-        (&mut trace.steps).insert(insert_index, step);
+        trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
 }
@@ -526,7 +518,7 @@ pub mod util {
         trace::{Action, Step, Trace},
     };
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
         pub min_term_size: usize,
         pub max_term_size: usize,
@@ -786,12 +778,11 @@ mod tests {
             test_signature::{TestTrace, *},
             AnyMatcher, Term,
         },
-        graphviz::write_graphviz,
-        trace::{Action, Step, Trace},
+        trace::{Action, Step},
     };
 
     fn create_state(
-    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();

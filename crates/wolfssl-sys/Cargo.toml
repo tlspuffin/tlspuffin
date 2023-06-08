@@ -6,23 +6,25 @@ authors = []
 links = "wolfssl"
 
 [build-dependencies]
-bindgen = "0.60.1"
-autotools = "0.2.5"
-security-claims = "0.1.0"
-cfg-if = "1.0.0"
+wolfssl-src = "0.1.0"
 
 [features]
-vendored-wolfssl430 = []
-vendored-wolfssl510 = []
+
 fix-CVE-2022-25638 = []
 fix-CVE-2022-25640 = []
 fix-CVE-2022-39173 = []
 fix-CVE-2022-42905 = []
 wolfssl-disable-postauth = []
 
+vendored-wolfssl430 = []
+vendored-wolfssl510 = []
 vendored-wolfssl520 = []
 vendored-wolfssl530 = []
 vendored-wolfssl540 = []
 vendored-master = []
+
 sancov = []
 asan = []
+
+gcov_analysis = []
+llvm_cov_analysis = []

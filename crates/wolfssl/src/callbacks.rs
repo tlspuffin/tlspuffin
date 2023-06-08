@@ -3,7 +3,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
     ffi::c_void,
-    ops::{Deref, DerefMut},
+    ops::Deref,
 };
 
 use foreign_types::ForeignTypeRef;
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn ctx_msg_callback<F>(
     let ctx = SslContextRef::from_ptr_mut(wolf::wolfSSL_get_SSL_CTX(ssl));
 
     let callback = {
-        let mut callback = ctx
+        let callback = ctx
             .get_user_data::<F>()
             .expect("BUG: missing ssl_msg_callback");
 
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn ssl_msg_callback<F>(
     let ssl = SslRef::from_ptr_mut(ssl);
 
     let callback = {
-        let mut callback = ssl
+        let callback = ssl
             .get_user_data::<F>()
             .expect("BUG: missing ssl_msg_callback");
 

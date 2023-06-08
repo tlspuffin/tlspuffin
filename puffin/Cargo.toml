@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["sancov_libafl", "introspection"]
-
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
@@ -18,16 +16,16 @@ claims = []
 [dependencies]
 
 # LibAFL
-libafl = "0.8.2"
-libafl_targets = "0.8.2"
+libafl = "0.10.1"
+libafl_targets = "0.10.1"
 
 # Logging
 log = "0.4.17"
-log4rs = "1.1.1"
+log4rs = "1.2.0"
 
 # Other Dependencies
 libc = { version = "0.2.126" }
-clap = { version = "3.1.18", features = ["cargo"] }
+clap = { version = "4.2.4", features = ["cargo"] }
 rand = "0.8.5"
 itertools = "0.10.3"
 smallvec = "1.8.1"
@@ -37,9 +35,10 @@ once_cell = "1.12.0"
 chrono = "0.4.19"
 cfg-if = "1.0.0"
 serde_json = "1.0.81" # Used for StatsMonitor TOOD: Hide behind feature flag
-
+ahash = "0.8.3"
+nix = "0.25.0"
 
 [dev-dependencies]
 test-log = "0.2.10"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 

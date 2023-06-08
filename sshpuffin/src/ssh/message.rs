@@ -366,7 +366,7 @@ impl Codec for RawSshMessage {
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let banner = "SSH-2.0-libssh_0.10.90\r\n";
+        let banner = "SSH-2.0-libssh_0.10.4\r\n"; // FIXME: hardcoded version of libssh
         let banner_bytes = banner.as_bytes();
 
         let is_banner = if let Some(received) = reader.peek(banner_bytes.len()) {

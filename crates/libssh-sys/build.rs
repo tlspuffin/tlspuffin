@@ -1,11 +1,4 @@
-use std::{
-    collections::HashSet,
-    env,
-    fs::{canonicalize, File},
-    io::Write,
-    path::PathBuf,
-    process::Command,
-};
+use std::{collections::HashSet, env, path::PathBuf, process::Command};
 
 use cmake::Config;
 
@@ -22,8 +15,8 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = if cfg!(feature = "vendored-libssh096") {
-    "libssh-0.9.6"
+const REF: &str = if cfg!(feature = "vendored-libssh0104") {
+    "libssh-0.10.4"
 } else {
     "master"
 };
@@ -50,7 +43,8 @@ fn build(source_dir: &str) -> PathBuf {
     let config = config
         .define("CMAKE_C_COMPILER", cc)
         .define("WITH_GSSAPI", "OFF")
-        .define("BUILD_STATIC_LIB", "ON");
+        .define("BUILD_STATIC_LIB", "ON")
+        .cflag("-Wno-error,-Wstrict-prototypes");
 
     if cfg!(feature = "sancov") {
         config.cflag("-fsanitize-coverage=trace-pc-guard");
@@ -69,7 +63,7 @@ fn main() -> std::io::Result<()> {
     let out_dir = env::var("OUT_DIR").unwrap();
     clone(&out_dir)?;
     // Configure and build
-    let dst = build(&out_dir);
+    let _dst = build(&out_dir);
 
     // We want to ignore some macros because of duplicates:
     // https://github.com/rust-lang/rust-bindgen/issues/687
@@ -83,9 +77,9 @@ fn main() -> std::io::Result<()> {
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
         .clang_arg(format!("-I{}/include/", out_dir))
-        .clang_arg(format!("-DHAVE_LIBCRYPTO"))
-        .clang_arg(format!("-DHAVE_COMPILER__FUNC__=1"))
-        .clang_arg(format!("-DHAVE_STRTOULL"))
+        .clang_arg("-DHAVE_LIBCRYPTO".to_string())
+        .clang_arg("-DHAVE_COMPILER__FUNC__=1".to_string())
+        .clang_arg("-DHAVE_STRTOULL".to_string())
         .rustified_enum("ssh_auth_state_e")
         .rustified_enum("ssh_session_state_e")
         .rustified_enum("ssh_options_e")

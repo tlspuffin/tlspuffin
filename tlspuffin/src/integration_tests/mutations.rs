@@ -33,8 +33,8 @@ use crate::{
 };
 
 fn create_state() -> StdState<
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
     Trace<TlsQueryMatcher>,
+    InMemoryCorpus<Trace<TlsQueryMatcher>>,
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TlsQueryMatcher>>,
 > {
@@ -49,7 +49,9 @@ fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();
     let _server = AgentName::first();
 
-    let mut attempts = 0;
+    expect_crash(move || {
+        for _i in 0..5 {
+            let mut attempts = 0;
 
     #[derive(Copy, Clone)]
     struct Attempts {
