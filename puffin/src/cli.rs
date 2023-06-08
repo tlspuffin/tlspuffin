@@ -2,7 +2,7 @@ use std::{
     env, fs,
     fs::File,
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::ExitCode,
 };
 
@@ -60,8 +60,11 @@ fn create_app() -> Command {
                 .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
-                .about("Executes a trace stored in a file")
-                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))   ,
+                .about("Executes a trace stored in a file. The exit code describes if more files are available for execution.")
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
+                .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
+                .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -133,18 +136,67 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
-        let inputs: ValuesRef<&String> = matches.get_many("inputs").unwrap();
-        let mut failed = false;
-        for input in inputs {
-            error!("Executing: {}", input);
-            if let Err(err) = execute(input, put_registry) {
-                error!("Failed to execute trace: {:?}", err);
-                failed = true
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+        let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+
+        let mut paths = inputs
+            .flat_map(|input| {
+                let input = PathBuf::from(input);
+
+                if input.is_dir() {
+                    fs::read_dir(input)
+                        .expect("failed to read directory")
+                        .map(|entry| entry.expect("failed to read path in directory").path())
+                        .filter(|path| {
+                            !path.file_name().unwrap().to_str().unwrap().starts_with(".")
+                        })
+                        .collect()
+                } else {
+                    vec![input]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
+
+        let mut end_reached = false;
+
+        let lookup_paths = if index < paths.len() {
+            if index + n < paths.len() {
+                &paths[index..index + n]
+            } else {
+                end_reached = true;
+                &paths[index..]
             }
+        } else {
+            end_reached = true;
+            // empty
+            &paths[0..0]
+        };
+
+        for path in lookup_paths {
+            info!("Executing: {}", path.display());
+            execute(&path, put_registry);
         }
 
-        if failed {
+        if !lookup_paths.is_empty() {
+            println!(
+                "{}",
+                fs::metadata(&lookup_paths[0])
+                    .unwrap()
+                    .modified()
+                    .unwrap()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            )
+        }
+
+        if end_reached {
             return ExitCode::FAILURE;
+        } else {
+            return ExitCode::SUCCESS;
         }
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
@@ -223,10 +275,10 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         if let Err(err) = start::<PB>(config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
-                    // ignore
+                    log::info!("\nFuzzing stopped by user. Good Bye.")
                 }
                 _ => {
-                    panic!("{}", err)
+                    panic!("Fuzzing failed {err:?}")
                 }
             }
         }
@@ -285,16 +337,55 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior>(
-    input: &str,
+use nix::{
+    sys::{
+        signal::Signal,
+        wait::{
+            waitpid, WaitPidFlag,
+            WaitStatus::{Exited, Signaled},
+        },
+    },
+    unistd::{fork, ForkResult},
+};
+
+pub fn expect_crash<R>(func: R)
+where
+    R: FnOnce(),
+{
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { child, .. }) => {
+            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
+            info!("Finished executing: {:?}", status);
+        }
+        Ok(ForkResult::Child) => {
+            func();
+            std::process::exit(0);
+        }
+        Err(_) => panic!("Fork failed"),
+    }
+}
+
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    input: P,
     put_registry: &'static PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-    trace.execute(&mut ctx)?;
+    // When generating coverage a crash means that no coverage is stored
+    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+    expect_crash(move || {
+        let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+        if let Err(err) = trace.execute(&mut ctx) {
+            error!(
+                "Failed to execute trace {}: {:?}",
+                input.as_ref().display(),
+                err
+            );
+        }
+    });
+
     Ok(())
 }
 

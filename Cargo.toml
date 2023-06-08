@@ -10,6 +10,7 @@ members = [
     "crates/libressl-src",
     "crates/wolfssl",
     "crates/wolfssl-sys",
+    "crates/wolfssl-src",
     "crates/libssh-sys",
 ]
 
@@ -17,6 +18,7 @@ exclude = [ "crates/openssl-src-111" ]
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }
+wolfssl-src = { path = "crates/wolfssl-src" }
 openssl-src = { path = "crates/openssl-src-111" }
 libressl-src = { path = "crates/libressl-src" }
 security-claims = { path = "tlspuffin-claims" }

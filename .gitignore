@@ -30,3 +30,11 @@ seeds/
 objective/
 
 .direnv
+
+*.profdata
+*.profraw
+*.gcov
+coverage.csv
+*.html
+*.css
+stats.json.should-be-empty.log

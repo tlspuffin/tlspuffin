@@ -24,6 +24,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c99f64d1e06488f620f932677e24bc6e2897582980441ae90a671415bd7ec2f"
 dependencies = [
  "cfg-if",
+ "getrandom",
  "once_cell",
  "version_check",
 ]
@@ -658,6 +659,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907076dfda823b0b36d2a1bb5f90c96660a5bbcd7729e10727f07858f22c4edc"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.12.3",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1150,9 +1164,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libafl"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c59aa58740c86c41e45d30bf90b4bd2fb61aca5eaf994f4ee6dd0ee262c53181"
+checksum = "6dcef528afdb9f8fae3b998d50565189b4f9e573ee557d0e43302787e2f187f6"
 dependencies = [
  "ahash",
  "backtrace",
@@ -1181,6 +1195,7 @@ dependencies = [
  "rustversion",
  "serde",
  "serde_json",
+ "serial_test",
  "static_assertions",
  "tui",
  "tuple_list",
@@ -1194,9 +1209,9 @@ dependencies = [
 
 [[package]]
 name = "libafl_derive"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2bf9a77f443da64475000cb59907009008fab879855f352306ae1f512af8a63"
+checksum = "f560e150e1686a0bc4ec3af1cff46b916b32b0fc42c15732ed800e0ac8689b4c"
 dependencies = [
  "quote",
  "syn 2.0.15",
@@ -1204,9 +1219,9 @@ dependencies = [
 
 [[package]]
 name = "libafl_targets"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ef23de1fc35b486968c7db38424dfe601c2d68059eb1febec5af17172bfd7e9"
+checksum = "364dd84261ffeb28266c9ba128f1024c27be92fe3d081247b2d9ff13c6f17231"
 dependencies = [
  "cc",
  "libafl",
@@ -1688,6 +1703,7 @@ dependencies = [
 name = "puffin"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "cfg-if",
  "chrono",
  "clap 4.2.4",
@@ -1698,6 +1714,7 @@ dependencies = [
  "libc",
  "log",
  "log4rs",
+ "nix 0.25.1",
  "once_cell",
  "postcard",
  "rand",
@@ -1978,6 +1995,31 @@ dependencies = [
  "ryu",
  "serde",
  "yaml-rust",
+]
+
+[[package]]
+name = "serial_test"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "538c30747ae860d6fb88330addbbd3e0ddbe46d662d032855596d8a8ca260611"
+dependencies = [
+ "dashmap",
+ "futures",
+ "lazy_static",
+ "log",
+ "parking_lot",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "079a83df15f85d89a68d64ae1238f142f172b1fa915d0d76b26a7cba1b659a69"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -2715,13 +2757,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "wolfssl-sys"
-version = "0.1.7"
+name = "wolfssl-src"
+version = "0.1.0"
 dependencies = [
  "autotools",
  "bindgen 0.60.1",
  "cfg-if",
- "security-claims",
+]
+
+[[package]]
+name = "wolfssl-sys"
+version = "0.1.7"
+dependencies = [
+ "wolfssl-src",
 ]
 
 [[package]]

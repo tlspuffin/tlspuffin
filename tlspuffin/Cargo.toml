@@ -45,6 +45,21 @@ openssl111j = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+openssl111u = [
+    "openssl-src",
+    "openssl-src/openssl111u",
+    # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic",
+    "claims",
+    "openssl111-binding",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+]
 openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",
@@ -154,10 +169,13 @@ wolfsslmaster = [
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["puffin/sancov_libafl"]
+sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov"]
 
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan"]
+
+gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis"]
+llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -222,12 +240,12 @@ security-claims = { version = "0.1.0", optional = false }
 
 # WolfSSL
 wolfssl = { path = "../crates/wolfssl", optional = true }
-wolfssl-sys = { path = "../crates/wolfssl-sys", features = ["sancov"], optional = true }
+wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
-openssl-src = { version = "*", features = ["sancov"], optional = true }
+openssl-src = { version = "*", features = [], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"
