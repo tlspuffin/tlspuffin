@@ -107,9 +107,9 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         .cflag("-DWOLFSSL_CALLBACKS") // FIXME: Elso some msg callbacks are not called
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
-        .cflag("-fPIC")
-        .cflag("-DWC_RNG_SEED_CB") // TODO: for evaluation equivalence
-        .cflag("-DWOLFSSL_GENSEED_FORTEST"); // TODO: for evaluation equivalence
+        .cflag("-fPIC");
+    //.cflag("-DWC_RNG_SEED_CB") // TODO: for evaluation equivalence
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); // TODO: for evaluation equivalence
 
     #[cfg(target_arch = "x86_64")]
     {
