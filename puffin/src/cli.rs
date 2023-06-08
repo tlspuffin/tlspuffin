@@ -275,10 +275,10 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         if let Err(err) = start::<PB>(config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
-                    // ignore
+                    log::info!("\nFuzzing stopped by user. Good Bye.")
                 }
                 _ => {
-                    panic!("{}", err)
+                    panic!("Fuzzing failed {err:?}")
                 }
             }
         }

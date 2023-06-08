@@ -45,6 +45,21 @@ openssl111j = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+openssl111u = [
+    "openssl-src",
+    "openssl-src/openssl111u",
+    # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic",
+    "claims",
+    "openssl111-binding",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+]
 openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",

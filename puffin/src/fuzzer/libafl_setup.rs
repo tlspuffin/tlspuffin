@@ -1,8 +1,12 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::{corpus::ondisk::OnDiskMetadataFormat, monitors::tui::TuiMonitor, prelude::*};
-use log::{info, LevelFilter};
+use libafl::{
+    corpus::ondisk::OnDiskMetadataFormat,
+    monitors::tui::{ui::TuiUI, TuiMonitor},
+    prelude::*,
+};
+use log::{error, info, trace, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
@@ -23,7 +27,7 @@ type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'h
 
 type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
     pub static_seed: Option<u64>,
@@ -41,7 +45,7 @@ pub struct FuzzerConfig {
     pub log_file: PathBuf,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -50,6 +54,7 @@ pub struct MutationStageConfig {
 }
 
 impl Default for MutationStageConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             max_iterations_per_stage: 256,
@@ -58,7 +63,7 @@ impl Default for MutationStageConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
     pub fresh_zoo_after: u64,
     pub max_trace_length: usize,
@@ -70,6 +75,7 @@ pub struct MutationConfig {
 }
 
 impl Default for MutationConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,
@@ -295,8 +301,8 @@ where
 type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
 
 type ConcreteObservers<'a> = (
-    TimeObserver,
-    (HitcountsMapObserver<StdMapObserver<'a, u8, false>>, ()),
+    HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
+    (TimeObserver, ()),
 );
 
 type ConcreteFeedback<'a, S> = CombinedFeedback<
@@ -391,7 +397,7 @@ where
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::with_observer(&time_observer)
             );
-            let observers = tuple_list!(time_observer, edges_observer);
+            let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
         };
     }
@@ -424,9 +430,11 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Running on cores: {}", &core_definition);
 
+    info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
+
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
-                          _core_id: usize|
+                          _core_id: CoreId|
      -> Result<(), Error> {
         let harness_fn = &mut harness::harness::<PB>;
 
@@ -445,7 +453,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 //InMemoryCorpus::new(),
                 CachedOnDiskCorpus::with_meta_format(
                     corpus_dir.clone(),
-                    1000,
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
                     OnDiskMetadataFormat::Json,
                 )
                 .unwrap(),
@@ -453,12 +461,16 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             .with_objective_corpus(
                 CachedOnDiskCorpus::with_meta_format(
                     objective_dir.clone(),
-                    1000,
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
                     OnDiskMetadataFormat::Json,
                 )
                 .unwrap(),
             )
-            .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+            .with_objective(feedback_or_fast!(
+                // don't execute second if first is conclusive, mimicking https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L164
+                CrashFeedback::new(),
+                TimeoutFeedback::new()
+            ));
 
         //#[cfg(feature = "sancov_libafl")]
         //{
@@ -478,8 +490,9 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .with_feedback(feedback)
                 .with_observers(observer)
                 .with_scheduler(RandScheduler::new());
-        }
+        } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
+        // TODO: Allow configuring the following warn level
         log_handle
             .clone()
             .set_config(create_file_config(LevelFilter::Warn, log_file));
@@ -500,7 +513,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             EventConfig::AlwaysUnique,
         )?;
 
-        run_client(state, restarting_mgr, 0)
+        run_client(state, restarting_mgr, CoreId(0))
     } else {
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();
@@ -510,11 +523,23 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(TuiMonitor::new("test".to_string(), false))
+                .monitor(TuiMonitor::new(TuiUI::new(String::from("test"), false)))
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                .stdout_file(Some("/dev/null"))
+                // tlspuffin never logs or outputs to stdout. It always logs its output
+                // to tlspuffin.log.
+                // We can safely, disable the log output of clients.
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
                 .build()
                 .launch()
         } else {
@@ -536,7 +561,16 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 // tlspuffin never logs or outputs to stdout. It always logs its output
                 // to tlspuffin.log.
                 // We can safely, disable the log output of clients.
-                .stdout_file(Some("/dev/null"))
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
                 .build()
                 .launch()
         }

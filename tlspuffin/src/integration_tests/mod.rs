@@ -15,6 +15,8 @@ fn version_test() {
     assert!(version.contains("1.1.1k"));
     #[cfg(feature = "openssl111j")]
     assert!(version.contains("1.1.1j"));
+    #[cfg(feature = "openssl111u")]
+    assert!(version.contains("1.1.1u"));
 
     #[cfg(feature = "wolfssl510")]
     assert!(version.contains("5.1.0"));
