@@ -4,5 +4,8 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "rust-analyzer.cargo.buildScripts.enable": true,
     "rust-analyzer.procMacro.enable": true,
-    "rust-analyzer.cargo.features": ["openssl-binding", "wolfssl-binding"]
+    "rust-analyzer.cargo.features": [
+        "openssl111j",
+    ],
+    "jetbrainsKeymap.promptV3Features": false
 }
