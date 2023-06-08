@@ -17,6 +17,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     "fuzz-OpenSSL_1_1_1k"
 } else if cfg!(feature = "openssl111j") {
     "fuzz-OpenSSL_1_1_1j"
+} else if cfg!(feature = "openssl111u") {
+    "fuzz-OpenSSL_1_1_1u"
 } else {
     "master"
 };
@@ -25,7 +27,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     feature = "openssl101f",
     feature = "openssl102u",
     feature = "openssl111k",
-    feature = "openssl111j"
+    feature = "openssl111j",
+    feature = "openssl111u"
 )))]
 compile_error!("You need to choose an OpenSSL version!");
 
