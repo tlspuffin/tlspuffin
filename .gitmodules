@@ -1,0 +1,9 @@
+[submodule "openssl"]
+	path = crates/openssl-src-111/openssl
+	url = https://github.com/tlspuffin/openssl
+[submodule "openssl101f"]
+	path = crates/openssl-src-111/openssl101f
+	url = https://github.com/tlspuffin/openssl
+[submodule "openssl102u"]
+	path = crates/openssl-src-111/openssl102u
+	url = https://github.com/tlspuffin/openssl
