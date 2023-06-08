@@ -189,7 +189,7 @@ impl Build {
         }
 
         let mut cc = "clang".to_owned();
-        let mut cflags = "-fPIC".to_owned(); // -fPIC was previously added through Cargo flags
+        let mut cflags = "-fPIC -fPIE".to_owned(); // -fPIC was previously added through Cargo flags
 
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
