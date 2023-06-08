@@ -518,7 +518,7 @@ pub mod util {
         trace::{Action, Step, Trace},
     };
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
         pub min_term_size: usize,
         pub max_term_size: usize,
