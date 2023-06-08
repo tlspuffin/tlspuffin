@@ -2,43 +2,18 @@ use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
 use libafl::{
-    bolts::{
-        core_affinity::Cores,
-        rands::{Rand, StdRand},
-        shmem::{ShMemProvider, StdShMemProvider},
-        tuples::tuple_list,
-        HasLen,
-    },
-    corpus::{ondisk::OnDiskMetadataFormat, CachedOnDiskCorpus, Corpus, OnDiskCorpus},
-    events::{
-        setup_restarting_mgr_std, EventConfig, EventFirer, EventManager, EventRestarter,
-        HasEventManagerId, LlmpRestartingEventManager, ProgressReporter,
-    },
-    executors::{inprocess::InProcessExecutor, ExitKind, TimeoutExecutor},
-    feedback_or,
-    feedbacks::{
-        CombinedFeedback, CrashFeedback, DifferentIsNovel, Feedback, LogicEagerOr, MapFeedback,
-        MaxMapFeedback, MaxReducer, TimeFeedback, TimeoutFeedback,
-    },
-    fuzzer::{Fuzzer, StdFuzzer},
-    inputs::Input,
-    monitors::tui::TuiMonitor,
-    mutators::MutatorsTuple,
-    observers::{HitcountsMapObserver, ObserversTuple, StdMapObserver, TimeObserver},
-    schedulers::{IndexesLenTimeMinimizerScheduler, QueueScheduler, Scheduler},
-    state::{HasCorpus, HasRand, StdState},
-    Error, Evaluator,
+    corpus::ondisk::OnDiskMetadataFormat,
+    monitors::tui::{ui::TuiUI, TuiMonitor},
+    prelude::*,
 };
-use log::{info, warn};
+use log::{error, info, trace, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
 use crate::{
     fuzzer::{
         mutations::{trace_mutations, util::TermConstraints},
-        stages::{PuffinMutationalStage, PuffinScheduledMutator},
         stats_monitor::StatsMonitor,
-        stats_stage::StatsStage,
     },
     log::create_file_config,
     protocol::ProtocolBehavior,
@@ -48,12 +23,11 @@ use crate::{
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-type ConcreteExecutor<'harness, H, OT, S, I> =
-    TimeoutExecutor<InProcessExecutor<'harness, H, I, OT, S>>;
+type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
 
-type ConcreteState<C, R, SC, I> = StdState<C, I, R, SC>;
+type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuzzerConfig {
     pub initial_corpus_dir: PathBuf,
     pub static_seed: Option<u64>,
@@ -71,7 +45,7 @@ pub struct FuzzerConfig {
     pub log_file: PathBuf,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
@@ -80,6 +54,7 @@ pub struct MutationStageConfig {
 }
 
 impl Default for MutationStageConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             max_iterations_per_stage: 256,
@@ -88,7 +63,7 @@ impl Default for MutationStageConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
     pub fresh_zoo_after: u64,
     pub max_trace_length: usize,
@@ -100,6 +75,7 @@ pub struct MutationConfig {
 }
 
 impl Default for MutationConfig {
+    //  TODO:EVAL: evaluate modif to this config
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,
@@ -116,10 +92,6 @@ impl Default for MutationConfig {
 struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
     I: Input,
-    C: Corpus<I>,
-    R: Rand,
-    SC: Corpus<I>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
 {
     config: FuzzerConfig,
 
@@ -140,26 +112,25 @@ where
 impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
     RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
 where
-    I: Input,
-    C: Corpus<I>,
+    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
+    I: Input + HasLen,
+    C: Corpus + UsesInput<Input = I>,
     R: Rand,
-    SC: Corpus<I>,
+    SC: Corpus + UsesInput<Input = I>,
     H: FnMut(&I) -> ExitKind,
-    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
-    OT: ObserversTuple<I, ConcreteState<C, R, SC, I>>
-        + serde::Serialize
-        + serde::de::DeserializeOwned,
-    F: Feedback<I, ConcreteState<C, R, SC, I>>,
-    CS: Scheduler<I, ConcreteState<C, R, SC, I>>,
-    EM: EventFirer<I>
-        + EventRestarter<ConcreteState<C, R, SC, I>>
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
+    F: Feedback<ConcreteState<C, R, SC, I>>,
+    OF: Feedback<ConcreteState<C, R, SC, I>>,
+    OT: ObserversTuple<ConcreteState<C, R, SC, I>> + serde::Serialize + serde::de::DeserializeOwned,
+    EM: EventFirer
+        + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>, I>,
-            I,
-            ConcreteState<C, R, SC, I>,
-            StdFuzzer<CS, F, I, OF, OT, ConcreteState<C, R, SC, I>>,
-        > + ProgressReporter<I>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>>,
+            StdFuzzer<CS, F, OF, OT>,
+        > + ProgressReporter
+        + UsesState<State = ConcreteState<C, R, SC, I>>,
     MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+    <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
 {
     fn new(
         config: FuzzerConfig,
@@ -229,9 +200,6 @@ where
     }
 
     fn run_client(mut self) -> Result<(), Error> {
-        let event_manager_id = self.event_manager.mgr_id().id as u64;
-        info!("Event manager ID is {}", event_manager_id);
-
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -252,23 +220,24 @@ where
             max_iters,
             mutation_stage_config:
                 MutationStageConfig {
-                    max_iterations_per_stage,
-                    max_mutations_per_iteration,
+                    max_iterations_per_stage: _,
+                    max_mutations_per_iteration: _,
                 },
             ..
         } = self.config;
 
-        let mutator =
-            PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        let mutator = StdScheduledMutator::new(self.mutations.unwrap());
         let mut stages = tuple_list!(
-            PuffinMutationalStage::new(mutator, max_iterations_per_stage),
-            StatsStage::new()
+            // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
+            StdMutationalStage::new(mutator),
+            // FIXME StatsStage::new()
         );
 
-        let mut fuzzer: StdFuzzer<CS, F, I, OF, OT, _> =
+        let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _, I> = TimeoutExecutor::new(
+        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
                 // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
@@ -298,7 +267,7 @@ where
                     });
                 info!("Imported {} inputs from disk.", state.corpus().count());
             } else {
-                warn!("Initial seed corpus not found. Using embedded seeds.");
+                info!("Initial seed corpus not found. Using embedded seeds.");
 
                 for (seed, name) in self.initial_inputs.unwrap() {
                     info!("Using seed {}", name);
@@ -329,30 +298,27 @@ where
     }
 }
 
-type ConcreteMinimizer<C, R, SC, I> =
-    IndexesLenTimeMinimizerScheduler<QueueScheduler, I, ConcreteState<C, R, SC, I>>;
+type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
 
 type ConcreteObservers<'a> = (
-    TimeObserver,
-    (HitcountsMapObserver<StdMapObserver<'a, u8>>, ()),
+    HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
+    (TimeObserver, ()),
 );
 
-type ConcreteFeedback<'a, C, R, SC, I> = CombinedFeedback<
+type ConcreteFeedback<'a, S> = CombinedFeedback<
     MapFeedback<
-        I,
         DifferentIsNovel,
-        HitcountsMapObserver<StdMapObserver<'a, u8>>,
+        HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
         MaxReducer,
-        ConcreteState<C, R, SC, I>,
+        S,
         u8,
     >,
     TimeFeedback,
     LogicEagerOr,
-    I,
-    ConcreteState<C, R, SC, I>,
+    S,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
+impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
     RunClientBuilder<
         'harness,
         H,
@@ -360,38 +326,43 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, MT, I>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, C, R, SC, I>,
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
         OF,
         ConcreteObservers<'a>,
-        ConcreteMinimizer<C, R, SC, I>,
+        CS,
         MT,
         I,
     >
 where
+    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
     I: Input + HasLen,
-    C: Corpus<I> + fmt::Debug,
+    C: Corpus + UsesInput<Input = I> + fmt::Debug,
     R: Rand,
-    SC: Corpus<I> + fmt::Debug,
+    SC: Corpus + UsesInput<Input = I> + fmt::Debug,
     H: FnMut(&I) -> ExitKind,
-    OF: Feedback<I, ConcreteState<C, R, SC, I>>,
-    EM: EventFirer<I>
-        + EventRestarter<ConcreteState<C, R, SC, I>>
+    OF: Feedback<ConcreteState<C, R, SC, I>>,
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
+    EM: EventFirer
+        + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>, I>,
-            I,
-            ConcreteState<C, R, SC, I>,
+            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>>,
             StdFuzzer<
-                ConcreteMinimizer<C, R, SC, I>,
-                ConcreteFeedback<'a, C, R, SC, I>,
-                I,
+                ConcreteMinimizer<ConcreteState<C, R, SC, I>>,
+                ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
                 OF,
                 ConcreteObservers<'a>,
-                ConcreteState<C, R, SC, I>,
             >,
-        > + ProgressReporter<I>,
+        > + ProgressReporter
+        + UsesState<State = ConcreteState<C, R, SC, I>>,
     MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+    <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
 {
-    fn install_minimizer(self) -> Self {
+    fn create_feedback_observers(
+        &self,
+    ) -> (
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+        ConcreteObservers<'a>,
+    ) {
         #[cfg(not(test))]
         let map = unsafe {
             pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
@@ -414,24 +385,21 @@ where
             false,
         );
 
-        let (feedback, observers) = {
+        return {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
-                HitcountsMapObserver::new(StdMapObserver::new(EDGES_OBSERVER_NAME, map));
+                HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback state
                 // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
                 map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::new_with_observer(&time_observer)
+                TimeFeedback::with_observer(&time_observer)
             );
-            let observers = tuple_list!(time_observer, edges_observer);
+            let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
         };
-        self.with_feedback(feedback)
-            .with_observers(observers)
-            .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()))
     }
 }
 
@@ -439,12 +407,12 @@ where
 pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     config: FuzzerConfig,
     log_handle: Handle,
-) -> Result<(), libafl::Error> {
+) -> Result<(), Error> {
     let FuzzerConfig {
         core_definition,
         corpus_dir,
         objective_dir,
-        static_seed,
+        static_seed: _,
         log_file,
         monitor_file,
         broker_port,
@@ -462,62 +430,75 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
     info!("Running on cores: {}", &core_definition);
 
-    let mut run_client =
-        |state: Option<StdState<_, Trace<PB::Matcher>, _, _>>,
-         event_manager: LlmpRestartingEventManager<Trace<PB::Matcher>, _, _, StdShMemProvider>,
-         _unknown: usize|
-         -> Result<(), Error> {
-            let seed = static_seed.unwrap_or(event_manager.mgr_id().id as u64);
-            info!("Seed is {}", seed);
-            let harness_fn = &mut harness::harness::<PB>;
+    info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
-            let mut builder =
-                RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
+                          event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
+                          _core_id: CoreId|
+     -> Result<(), Error> {
+        let harness_fn = &mut harness::harness::<PB>;
+
+        let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
+        builder = builder
+            .with_mutations(trace_mutations(
+                *min_trace_length,
+                *max_trace_length,
+                *term_constraints,
+                *fresh_zoo_after,
+                PB::signature(),
+            ))
+            .with_initial_inputs(PB::create_corpus())
+            .with_rand(StdRand::new())
+            .with_corpus(
+                //InMemoryCorpus::new(),
+                CachedOnDiskCorpus::with_meta_format(
+                    corpus_dir.clone(),
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
+                    OnDiskMetadataFormat::Json,
+                )
+                .unwrap(),
+            )
+            .with_objective_corpus(
+                CachedOnDiskCorpus::with_meta_format(
+                    objective_dir.clone(),
+                    4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
+                    OnDiskMetadataFormat::Json,
+                )
+                .unwrap(),
+            )
+            .with_objective(feedback_or_fast!(
+                // don't execute second if first is conclusive, mimicking https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L164
+                CrashFeedback::new(),
+                TimeoutFeedback::new()
+            ));
+
+        //#[cfg(feature = "sancov_libafl")]
+        //{
+        /*            let (feedback, observers) = builder.create_feedback_observers();*/
+        /*            builder = builder*/
+        /*                .with_feedback(feedback)*/
+        /*                .with_observers(observers)*/
+        /*                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()));*/
+        //}
+
+        //#[cfg(not(feature = "sancov_libafl"))]
+        {
+            // FIXME
+            log::error!("Running without minimizer is unsupported");
+            let (feedback, observer) = builder.create_feedback_observers();
             builder = builder
-                .with_mutations(trace_mutations(
-                    *min_trace_length,
-                    *max_trace_length,
-                    *term_constraints,
-                    *fresh_zoo_after,
-                    PB::signature(),
-                ))
-                .with_initial_inputs(PB::create_corpus())
-                .with_rand(StdRand::with_seed(seed))
-                .with_corpus(
-                    CachedOnDiskCorpus::new_save_meta(
-                        corpus_dir.clone(),
-                        Some(OnDiskMetadataFormat::Json),
-                        1000,
-                    )
-                    .unwrap(),
-                )
-                .with_objective_corpus(
-                    OnDiskCorpus::new_save_meta(
-                        objective_dir.clone(),
-                        Some(OnDiskMetadataFormat::JsonPretty),
-                    )
-                    .unwrap(),
-                )
-                .with_objective(feedback_or!(CrashFeedback::new(), TimeoutFeedback::new()));
+                .with_feedback(feedback)
+                .with_observers(observer)
+                .with_scheduler(RandScheduler::new());
+        } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
-            #[cfg(feature = "sancov_libafl")]
-            {
-                builder = builder.install_minimizer();
-            }
+        // TODO: Allow configuring the following warn level
+        log_handle
+            .clone()
+            .set_config(create_file_config(LevelFilter::Warn, log_file));
 
-            #[cfg(not(feature = "sancov_libafl"))]
-            {
-                log::error!("Running without minimizer is unsupported");
-                builder = builder
-                    .with_feedback(())
-                    .with_observers(())
-                    .with_scheduler(libafl::schedulers::RandScheduler::new());
-            }
-
-            log_handle.clone().set_config(create_file_config(log_file));
-
-            builder.run_client()
-        };
+        builder.run_client()
+    };
 
     if *no_launcher {
         let (state, restarting_mgr) = setup_restarting_mgr_std(
@@ -532,24 +513,37 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
             EventConfig::AlwaysUnique,
         )?;
 
-        run_client(state, restarting_mgr, 0)
+        run_client(state, restarting_mgr, CoreId(0))
     } else {
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();
         let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
         if *monitor {
-            libafl::bolts::launcher::Launcher::builder()
+            Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(TuiMonitor::new("test".to_string(), false))
+                .monitor(TuiMonitor::new(TuiUI::new(String::from("test"), false)))
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
+                // tlspuffin never logs or outputs to stdout. It always logs its output
+                // to tlspuffin.log.
+                // We can safely, disable the log output of clients.
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
                 .build()
                 .launch()
         } else {
-            libafl::bolts::launcher::Launcher::builder()
+            Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
                 .monitor(
@@ -564,10 +558,19 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // There is no need to disable the stdout of the clients.
                 // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin-log.json.
-                // Therefore, this the following has no effect: .stdout_file(Some("/dev/null"))
+                // to tlspuffin.log.
+                // We can safely, disable the log output of clients.
+                // [LH] Just to test this assumption:
+                .stdout_file(Some(&format!(
+                    "{}.should-be-empty.log",
+                    monitor_file
+                        .clone()
+                        .into_os_string()
+                        .into_string()
+                        .expect("Fail")
+                        .to_owned()
+                )))
                 .build()
                 .launch()
         }

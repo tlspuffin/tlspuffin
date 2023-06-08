@@ -1,0 +1,69 @@
+[package]
+name = "openssl-src"
+version = "111.22.0+1.1.1q"
+authors = ["Alex Crichton <alex@alexcrichton.com>"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/alexcrichton/openssl-src-rs"
+description = """
+Source of OpenSSL and logic to build it.
+"""
+exclude = [
+  'openssl/boringssl/*',
+  'openssl/fuzz/*',
+  'openssl/krb5/*',
+  'openssl/pyca-cryptography/*',
+  'openssl/test/*',
+  'openssl/wycheproof/*',
+]
+
+[lib]
+path = "src/combined.rs"
+
+[features]
+# Enables features which are neccassary to make openssl ready for fuzzing, somehow I'm ont able to patch these in,
+# therefore we need to specify them here.
+default = [ ]
+# Enables compilation of some older algorithms: md2 (hash), rc5 (block cypher) and enabled use of
+# some weaker algorithms in SSL connections. These are generally not recommended for use.
+weak-crypto = []
+# Enables compilation of the Camellia symmetric key block cypher. Since hardware acceleration for
+# it is not available on most systems, this is not as used as AES.
+camellia = []
+# Enables compilation of International Data Encryption Algorithm (IDEA), a symmetric key block
+# cypher sometimes used as an AES128 alternative.
+idea = []
+# Enables compilation of SEED, a symmetric key block cypher mostly used in South Korea, but
+# otherwise not widely supported.
+seed = []
+# Forces configuring Engine module support.
+force-engine = []
+# Uses clang to compile OpenSSL with sancov support
+sancov = ["libressl-src?/sancov"]
+# Deterministic random
+no-rand = []
+# Enables -fsanitize=address
+asan = ["libressl-src?/asan"]
+# Export coverage during runtime
+gcov_analysis = ["libressl-src?/gcov_analysis"]
+llvm_cov_analysis = ["libressl-src?/llvm_cov_analysis"]
+# Use openssl101f submodule
+openssl101f = []
+# Use openssl102u submodule
+openssl102u = []
+openssl111k = []
+openssl111j = []
+openssl111u = []
+
+libressl333 = [ "libressl-src", "libressl", "libressl-src/vendored-libressl333" ]
+libressl = [ ]
+
+[workspace]
+members = ['testcrate']
+exclude = ['target']
+
+[dependencies]
+cc = "1.0"
+bindgen = "0.60.1"
+security-claims = "0.1.0"
+libressl-src = { version = "111.0.0", optional = true }

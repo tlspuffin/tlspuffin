@@ -1,12 +1,4 @@
-use libafl::{
-    bolts::{
-        rands::Rand,
-        tuples::{tuple_list, tuple_list_type},
-    },
-    mutators::MutationResult,
-    state::{HasCorpus, HasMaxSize, HasMetadata, HasRand},
-    Error,
-};
+use libafl::prelude::*;
 use util::{Choosable, *};
 
 use crate::{
@@ -31,7 +23,7 @@ pub fn trace_mutations<S, M: Matcher>(
        SwapMutator<S>
    )
 where
-    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),
@@ -68,7 +60,7 @@ where
     }
 }
 
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for SwapMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for SwapMutator<S>
 where
     S: HasRand,
 {
@@ -100,7 +92,7 @@ where
         Ok(MutationResult::Skipped)
     }
 }
-impl<S> libafl::bolts::tuples::Named for SwapMutator<S>
+impl<S> Named for SwapMutator<S>
 where
     S: HasRand,
 {
@@ -133,7 +125,7 @@ where
     }
 }
 
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for RemoveAndLiftMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
@@ -180,7 +172,7 @@ where
     }
 }
 
-impl<S> libafl::bolts::tuples::Named for RemoveAndLiftMutator<S>
+impl<S> Named for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
@@ -219,7 +211,7 @@ where
     }
 }
 
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for ReplaceMatchMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for ReplaceMatchMutator<S>
 where
     S: HasRand,
 {
@@ -268,7 +260,7 @@ where
     }
 }
 
-impl<S> libafl::bolts::tuples::Named for ReplaceMatchMutator<S>
+impl<S> Named for ReplaceMatchMutator<S>
 where
     S: HasRand,
 {
@@ -301,7 +293,7 @@ where
     }
 }
 
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for ReplaceReuseMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
@@ -327,7 +319,7 @@ where
     }
 }
 
-impl<S> libafl::bolts::tuples::Named for ReplaceReuseMutator<S>
+impl<S> Named for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
@@ -357,7 +349,7 @@ where
         }
     }
 }
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for SkipMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for SkipMutator<S>
 where
     S: HasRand,
 {
@@ -380,7 +372,7 @@ where
         Ok(MutationResult::Mutated)
     }
 }
-impl<S> libafl::bolts::tuples::Named for SkipMutator<S>
+impl<S> Named for SkipMutator<S>
 where
     S: HasRand,
 {
@@ -409,7 +401,7 @@ where
         }
     }
 }
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for RepeatMutator<S>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for RepeatMutator<S>
 where
     S: HasRand,
 {
@@ -429,11 +421,11 @@ where
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
-        (&mut trace.steps).insert(insert_index, step);
+        trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
 }
-impl<S> libafl::bolts::tuples::Named for RepeatMutator<S>
+impl<S> Named for RepeatMutator<S>
 where
     S: HasRand,
 {
@@ -476,7 +468,7 @@ where
         }
     }
 }
-impl<S, M: Matcher> libafl::mutators::Mutator<Trace<M>, S> for GenerateMutator<S, M>
+impl<S, M: Matcher> Mutator<Trace<M>, S> for GenerateMutator<S, M>
 where
     S: HasRand,
 {
@@ -509,9 +501,9 @@ where
         }
     }
 }
-impl<S, M: Matcher> libafl::bolts::tuples::Named for GenerateMutator<S, M>
+impl<S, M: Matcher> Named for GenerateMutator<S, M>
 where
-    S: libafl::state::HasRand,
+    S: HasRand,
 {
     fn name(&self) -> &str {
         std::any::type_name::<GenerateMutator<S, M>>()
@@ -526,7 +518,7 @@ pub mod util {
         trace::{Action, Step, Trace},
     };
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
         pub min_term_size: usize,
         pub max_term_size: usize,
@@ -786,12 +778,11 @@ mod tests {
             test_signature::{TestTrace, *},
             AnyMatcher, Term,
         },
-        graphviz::write_graphviz,
-        trace::{Action, Step, Trace},
+        trace::{Action, Step},
     };
 
     fn create_state(
-    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
@@ -1027,12 +1018,7 @@ mod tests {
         let mut stats: HashMap<u32, u32> = HashMap::new();
 
         for _ in 0..10000 {
-            let term = crate::fuzzer::mutations::util::choose(
-                &trace,
-                TermConstraints::default(),
-                &mut rand,
-            )
-            .unwrap();
+            let term = choose(&trace, TermConstraints::default(), &mut rand).unwrap();
 
             let id = term.0.resistant_id();
 
@@ -1047,51 +1033,5 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
-    }
-
-    impl<M: Matcher> Trace<M> {
-        pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
-            self.steps
-                .iter()
-                .map(|step| match &step.action {
-                    Action::Input(input) => input.recipe.count_functions_by_name(find_name),
-                    Action::Output(_) => 0,
-                })
-                .sum()
-        }
-
-        pub fn count_functions(&self) -> usize {
-            self.steps
-                .iter()
-                .flat_map(|step| match &step.action {
-                    Action::Input(input) => Some(&input.recipe),
-                    Action::Output(_) => None,
-                })
-                .map(|term| term.size())
-                .sum()
-        }
-
-        pub fn write_plots(&self, i: u16) {
-            write_graphviz(
-                format!("test_mutation{}.svg", i).as_str(),
-                "svg",
-                self.dot_graph(true).as_str(),
-            )
-            .unwrap();
-        }
-    }
-
-    impl<M: Matcher> Term<M> {
-        pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
-            let mut found = 0;
-            for term in self.into_iter() {
-                if let Term::Application(func, _) = term {
-                    if func.name() == find_name {
-                        found += 1;
-                    }
-                }
-            }
-            found
-        }
     }
 }

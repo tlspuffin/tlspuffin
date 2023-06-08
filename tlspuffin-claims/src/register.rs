@@ -6,7 +6,8 @@ use crate::{
 };
 
 extern "C" fn handle_claim_c(x: Claim, ctx: *mut c_void) {
-    let closure: &mut Box<Claimer> = unsafe { mem::transmute(ctx) };
+    let closure: &mut Box<Claimer> =
+        unsafe { &mut *(ctx as *mut std::boxed::Box<dyn std::ops::FnMut(ffi::Claim)>) };
     closure(x)
 }
 

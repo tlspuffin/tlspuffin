@@ -13,7 +13,7 @@ use std::{
 
 use log::error;
 use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
@@ -134,7 +134,7 @@ impl TcpClientPut {
     }
 
     fn new_stream<A: ToSocketAddrs>(addr: A) -> io::Result<TcpStream> {
-        let mut tries = 10;
+        let mut tries = 500;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -151,7 +151,7 @@ impl TcpClientPut {
                 break None;
             }
 
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(100));
         };
 
         stream.ok_or(io::Error::new(
@@ -181,9 +181,9 @@ impl TcpServerPut {
         let (sender, stream_receiver) = channel();
         let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
 
-        thread::spawn(move || {
-            let listener = TcpListener::bind(&addr).unwrap();
+        let listener = TcpListener::bind(addr).unwrap();
 
+        thread::spawn(move || {
             if let Some(new_stream) = listener.incoming().next() {
                 let stream = new_stream.unwrap();
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
@@ -215,7 +215,7 @@ impl TcpServerPut {
             return;
         }
 
-        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(10)) {
+        if let Ok(tuple) = self.stream_receiver.recv_timeout(Duration::from_secs(60)) {
             self.stream = Some(tuple);
         } else {
             panic!("Unable to get stream to client!")
@@ -456,7 +456,12 @@ impl TLSProcess {
 
 impl Drop for TLSProcess {
     fn drop(&mut self) {
-        self.shutdown();
+        if let Some(output) = self.shutdown() {
+            println!(
+                "TLSProcess was not shutdown manually. Output of the process: {}",
+                output
+            );
+        }
     }
 }
 
@@ -493,29 +498,16 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-
-    use log::info;
-    use puffin::{
-        agent::{AgentName, TLSVersion},
-        put::{PutDescriptor, PutOptions},
-    };
+pub mod tcp_puts {
+    use puffin::{agent::TLSVersion, put::PutOptions};
     use tempfile::{tempdir, TempDir};
-    use test_log::test;
 
-    use crate::{
-        put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
-        tcp::{collect_output, execute_command},
-        tls::seeds::{
-            seed_client_attacker_full, seed_finding_11_full, seed_session_resumption_dhe_full,
-            seed_successful12_with_tickets, SeedHelper,
-        },
-    };
+    use crate::tcp::{collect_output, execute_command};
 
     const OPENSSL_PROG: &str = "openssl";
 
     /// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.
-    struct ParametersGuard {
+    pub struct ParametersGuard {
         port: u16,
         prog: String,
         args: String,
@@ -524,14 +516,14 @@ mod tests {
     }
 
     impl ParametersGuard {
-        fn build_options(&self) -> PutOptions {
+        pub(crate) fn build_options(&self) -> PutOptions {
             let port = self.port.to_string();
             let mut options: Vec<(&str, &str)> =
                 vec![("port", &port), ("prog", &self.prog), ("args", &self.args)];
             if let Some(cwd) = &self.cwd {
                 options.push(("cwd", cwd));
             }
-            PutOptions::new(options)
+            PutOptions::from_slice_vec(options)
         }
     }
 
@@ -559,20 +551,18 @@ mod tests {
             "/C=US/ST=New Sweden/L=Stockholm/O=.../OU=.../CN=.../emailAddress=...",
         ];
 
-        info!(
-            "{}",
-            collect_output(execute_command::<_, _, &str>(
-                OPENSSL_PROG,
-                openssl_gen_cert_args,
-                None,
-            ))
-        );
+        let cert_output = collect_output(execute_command::<_, _, &str>(
+            OPENSSL_PROG,
+            openssl_gen_cert_args,
+            None,
+        ));
+        println!("Certificate generation: {}", cert_output);
 
         (key_path.to_owned(), cert_path.to_owned(), temp_dir)
     }
 
-    fn wolfssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
-        let (_key, _cert, _temp_dir) = gen_certificate();
+    pub fn wolfssl_client(port: u16, version: TLSVersion, warmups: Option<u32>) -> ParametersGuard {
+        let (_key, _cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-h", "127.0.0.1", "-p", &port_string, "-x", "-d"];
@@ -590,17 +580,24 @@ mod tests {
             }
         }
 
+        let warmups = warmups.map(|warmups| warmups.to_string());
+
+        if let Some(warmups) = &warmups {
+            args.push("-b");
+            args.push(warmups);
+        }
+
         ParametersGuard {
             port,
             prog: prog.to_owned(),
             args: args.join(" "),
             cwd: Some(cwd.to_owned()),
-            temp_dir: None,
+            temp_dir: Some(temp_dir),
         }
     }
 
-    fn wolfssl_server(port: u16, version: TLSVersion) -> ParametersGuard {
-        let (_key, _cert, _temp_dir) = gen_certificate();
+    pub fn wolfssl_server(port: u16, version: TLSVersion) -> ParametersGuard {
+        let (_key, _cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
         let mut args = vec!["-p", &port_string, "-x", "-d", "-i"];
@@ -623,11 +620,11 @@ mod tests {
             prog: prog.to_owned(),
             args: args.join(" "),
             cwd: Some(cwd.to_owned()),
-            temp_dir: None,
+            temp_dir: Some(temp_dir),
         }
     }
 
-    fn openssl_server(port: u16, version: TLSVersion) -> ParametersGuard {
+    pub fn openssl_server(port: u16, version: TLSVersion) -> ParametersGuard {
         let (key, cert, temp_dir) = gen_certificate();
 
         let port_string = port.to_string();
@@ -661,7 +658,7 @@ mod tests {
         }
     }
 
-    fn openssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
+    pub fn openssl_client(port: u16, version: TLSVersion) -> ParametersGuard {
         let connect = format!("{}:{}", "127.0.0.1", port);
         let mut args = vec!["s_client", "-connect", &connect, "-msg", "-state"];
 
@@ -682,6 +679,28 @@ mod tests {
             temp_dir: None,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use log::info;
+    use puffin::{
+        agent::{AgentName, TLSVersion},
+        put::PutDescriptor,
+    };
+    use test_log::test;
+
+    use crate::{
+        put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+        tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
+        tls::{
+            seeds::{
+                seed_client_attacker_full, seed_session_resumption_dhe_full,
+                seed_successful12_with_tickets,
+            },
+            trace_helper::TraceHelper,
+        },
+    };
 
     #[test]
     fn test_openssl_session_resumption_dhe_full() {
@@ -695,10 +714,12 @@ mod tests {
         let trace = seed_session_resumption_dhe_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(initial_server, put.clone()), (server, put)],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(initial_server, put.clone()), (server, put)],
+            )
+            .unwrap();
 
         let server = AgentName::first().next();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
@@ -740,7 +761,9 @@ mod tests {
 
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
-        let mut context = trace.execute_with_puts(&TLS_PUT_REGISTRY, &[(server, put)]);
+        let mut context = trace
+            .execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)])
+            .unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
@@ -759,7 +782,7 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let port = 55333;
+        let port = 44333;
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
@@ -771,10 +794,12 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client), (server_name, server)],
+            )
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
@@ -790,7 +815,7 @@ mod tests {
     #[test]
     #[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
-        let port = 44336;
+        let port = 44334;
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
@@ -798,9 +823,9 @@ mod tests {
             options: server_guard.build_options(),
         };
 
-        let port = 55337;
+        let port = 44335;
 
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2);
+        let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {
             name: TCP_PUT,
             options: client_guard.build_options(),
@@ -810,10 +835,12 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace.execute_with_puts(
-            &TLS_PUT_REGISTRY,
-            &[(client_name, client.clone()), (server_name, server.clone())],
-        );
+        let mut context = trace
+            .execute_with_non_default_puts(
+                &TLS_PUT_REGISTRY,
+                &[(client_name, client), (server_name, server)],
+            )
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();

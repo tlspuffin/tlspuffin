@@ -9,7 +9,9 @@ mod key_schedule;
 
 pub mod rustls;
 pub mod seeds;
+pub mod trace_helper;
 pub mod violation;
+pub mod vulnerabilities;
 
 /// This modules contains all the concrete implementations of function symbols.
 #[path = "."]
@@ -76,6 +78,7 @@ define_signature!(
     fn_seq_16
     fn_large_length
     fn_empty_bytes_vec
+    fn_large_bytes_vec
     // messages
     fn_alert_close_notify
     fn_application_data

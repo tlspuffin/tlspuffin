@@ -9,10 +9,7 @@ use std::{
     time::SystemTime,
 };
 
-use libafl::{
-    bolts::current_time,
-    monitors::{ClientStats, Monitor, PerfFeature, UserStats},
-};
+use libafl::prelude::*;
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -59,7 +56,7 @@ impl<F> StatsMonitor<F>
 where
     F: FnMut(String),
 {
-    fn client(&mut self, event_msg: &String, sender_id: u32) {
+    fn client(&mut self, event_msg: &String, sender_id: ClientId) {
         let client = self.client_stats_mut_for(sender_id);
 
         #[cfg(feature = "introspection")]
@@ -137,8 +134,8 @@ where
 
         (self.print_fn)(fmt);
 
-        ClientStatistics {
-            id: sender_id,
+        Statistics::Client(ClientStatistics {
+            id: sender_id.0,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
@@ -148,8 +145,8 @@ where
             corpus_size,
             objective_size,
             total_execs,
-            exec_per_sec: exec_sec,
-        }
+            exec_per_sec: exec_sec as u64,
+        })
         .serialize(&mut self.json_writer)
         .unwrap();
     }
@@ -166,8 +163,43 @@ where
             total_execs,
             self.execs_per_sec()
         );
+
         (self.print_fn)(global_fmt);
+
+        Statistics::Global(GlobalStatistics {
+            time: SystemTime::now(),
+
+            clients: self.client_stats().len() as u32,
+            corpus_size: self.corpus_size(),
+            objective_size: self.objective_size(),
+            total_execs,
+            exec_per_sec: self.execs_per_sec() as u64,
+        })
+        .serialize(&mut self.json_writer)
+        .unwrap();
     }
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum Statistics {
+    #[serde(rename = "client")]
+    Client(ClientStatistics),
+    #[serde(rename = "global")]
+    Global(GlobalStatistics),
+}
+
+#[derive(Serialize)]
+struct GlobalStatistics {
+    time: SystemTime,
+
+    clients: u32,
+
+    corpus_size: u64,
+    objective_size: u64,
+
+    total_execs: u64,
+    exec_per_sec: u64,
 }
 
 #[derive(Serialize)]
@@ -396,12 +428,8 @@ where
         self.start_time
     }
 
-    fn display(&mut self, event_msg: String, sender_id: u32) {
+    fn display(&mut self, event_msg: String, sender_id: ClientId) {
         self.log_count += 1;
-
-        if self.log_count % 100 != 0 {
-            return;
-        }
 
         self.global(&event_msg);
         self.client(&event_msg, sender_id);

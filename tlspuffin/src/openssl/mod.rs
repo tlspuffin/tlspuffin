@@ -7,6 +7,7 @@ use std::{
     rc::Rc,
 };
 
+use log::{info, warn};
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
@@ -65,6 +66,20 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
+            let put_descriptor = context.put_descriptor(agent_descriptor);
+
+            let options = &put_descriptor.options;
+
+            let use_clear = options
+                .get_option("use_clear")
+                .map(|value| value.parse().unwrap_or(false))
+                .unwrap_or(false);
+
+            // FIXME: Add non-clear method like in wolfssl
+            if !use_clear {
+                info!("OpenSSL put does not support clearing mode")
+            }
+
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
                 claims: context.claims().clone(),
@@ -73,6 +88,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     || agent_descriptor.typ == AgentType::Server
                         && agent_descriptor.client_authentication,
                 extract_deferred: Rc::new(RefCell::new(None)),
+                use_clear,
             };
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
@@ -234,7 +250,8 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        bindings::clear(self.stream.ssl());
+        bindings::clear(self.stream.ssl()); // FIXME: Add non-clear method like in wolfssl
+
         Ok(())
     }
 
@@ -362,15 +379,15 @@ impl OpenSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
+        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
         {
             ctx_builder.set_tmp_ecdh(
                 &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
@@ -394,7 +411,7 @@ impl OpenSSL {
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
         // for now.
         // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;

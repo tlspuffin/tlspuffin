@@ -1,17 +1,21 @@
 #!/bin/env python
 import argparse
+
+from matplotlib.pyplot import close
+
 from tlspuffin_analyzer import *
 
 PATH = "/local-homes/lhirschi/tlspuffin"
 HOST = "pesto-calc.loria.fr"
 USER = "lhirschi"
 
+
 def main():
     parser = argparse.ArgumentParser(description='Plots statistics')
-    parser.add_argument('experiment', type=str,
-                        help='Name of the experiment')
+    parser.add_argument('stats', type=str,
+                        help='Path to stats file')
     parser.add_argument('--worker_id', type=int,
-                        default=1,
+                        default=None,
                         help='Filter log entries from this worker id (deprecated, before was set to 0) but it seems that libAFL changed its logs.')
     parser.add_argument('--save', type=str,
                         help='Save the output as a PDF at the given path.')
@@ -19,44 +23,47 @@ def main():
                         help='Only displays most important tables.')
     args = parser.parse_args()
 
-
-    stats_path = "%s/stats.json" % args.experiment
+    stats_path = args.stats
     print("Loading file \"%s\"." % stats_path)
-    id_0_stats = load_json_slurpy(stats_path, args.worker_id)
-    log_path = "%s/tlspuffin-log.json" % args.experiment
-    print("Loading file \"%s\"." % log_path)
-    log = load_json_slurpy_log(log_path)
+    stats = load_json_slurpy(stats_path, args.worker_id)
+
+    if not stats:
+        print("Stats are empty.")
+        exit(0)
+
+    # keys_stats = get_keys(stats)
+    # print("Available keys (stats): %s" % keys_stats)
+
+    start_date = get_start_date(stats)
+    client_stats = [stat for stat in stats if stat["type"] == "client"]
+    global_stats = [stat for stat in stats if stat["type"] == "global"]
+    stats = None
 
     print("Files loaded.")
 
-    if id_0_stats == []:
-        print("Experiment log JSON is empty.")
-        exit(0)
+    for client_stat in group_by_id(client_stats):
+        client_stat = list(client_stat)
+        client_id = client_stat[0]["id"]
+        print("Plotting group=\"%s\"" % client_id)
+        try:
+            fig = plot_stats(start_date, client_stat, global_stats, fewer=args.fewer)
+            fig.tight_layout()
 
-    # print(log[0])
+            if args.save:
+                save_name = f"{args.save}_{client_id}"
+                # print(fig.canvas.get_supported_filetypes())
+                # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
+                print("Saving files %s and %s..." % (save_name + ".svg", save_name + ".pdf"))
+                fig.savefig(save_name + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
+                # fig.savefig(save_name + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
+                close(fig)
+            else:
+                print("Displaying the plot...")
+                plt.show()
 
-    # keys_stats = get_keys(id_0_stats)
-    # print("Available keys (stats): %s" % keys_stats)
+        except Exception as e:
+            print(f"Failed to parse stats for client {client_id}")
+            print(e)
 
-    start_date_log = log[0]["time"]
-    start_date = get_start_date(id_0_stats)
-    print("Stats started at %s while log started at %s." % (start_date, start_date_log))
-
-    # keys_log = get_keys(log)
-    # print("Available keys (log): %s" % keys_log)
-
-    for group in group_by_id(id_0_stats):
-        print("Plotting group=\"%s\"" % group)
-        fig = plot_client_stats(start_date, start_date_log, group, log, fewer=args.fewer)
-
-    if args.save:
-        # print(fig.canvas.get_supported_filetypes())
-        # fig.savefig(args.save, transparent=False, dpi=200, bbox_inches="tight")
-        print("Saving files %s and %s..." % (args.save + ".svg", args.save + ".pdf"))
-        fig.savefig(args.save + ".svg", format="svg", dpi=400, transparent=False, bbox_inches="tight")
-        fig.savefig(args.save + ".pdf", format="pdf", dpi=400, transparent=False, bbox_inches="tight")
-    else:
-        print("Displaying the plot...")
-        plt.show()
 
 main()
