@@ -189,7 +189,7 @@ impl Build {
         }
 
         let mut cc = "clang".to_owned();
-        let mut cflags = "".to_owned();
+        let mut cflags = "-fPIC".to_owned(); // -fPIC was previously added through Cargo flags
 
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
@@ -242,10 +242,6 @@ impl Build {
         build.arg("-j1");
         #[cfg(not(feature = "openssl101f"))]
         build.arg("-j32");
-
-        if let Some(s) = env::var_os("CARGO_MAKEFLAGS") {
-            // TODO build.env("MAKEFLAGS", s);
-        }
 
         self.run_command(build, "building OpenSSL");
 
