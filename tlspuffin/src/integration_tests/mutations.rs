@@ -49,10 +49,6 @@ fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();
     let _server = AgentName::first();
 
-    expect_crash(move || {
-        for _i in 0..5 {
-            let mut attempts = 0;
-
     #[derive(Copy, Clone)]
     struct Attempts {
         repeatmutation: u32,
