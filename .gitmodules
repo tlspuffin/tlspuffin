@@ -1,5 +1,0 @@
-[submodule "openssl-src"]
-	path = crates/openssl-src-111
-	url = git@github.com:tlspuffin/openssl-src-rs.git
-	branch = fuzz
-	update = rebase

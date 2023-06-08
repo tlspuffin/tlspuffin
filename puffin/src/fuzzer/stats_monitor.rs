@@ -431,10 +431,6 @@ where
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
         self.log_count += 1;
 
-        if self.log_count % 100 != 0 {
-            return;
-        }
-
         self.global(&event_msg);
         self.client(&event_msg, sender_id);
     }

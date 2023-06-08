@@ -13,6 +13,8 @@ default = [ ]
 sancov = []
 vendored-libressl333 = []
 asan = [] # TODO
+gcov_analysis = [] # TODO
+llvm_cov_analysis = [] # TODO
 
 [dependencies]
 security-claims = "0.1.0"
