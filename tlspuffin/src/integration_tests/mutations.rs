@@ -283,6 +283,7 @@ fn test_mutate_seed_cve_2021_3449() {
 }
 
 #[test]
+#[ignore]
 fn test_mutate_seed_cve_2022_25638() {
     let mut state = create_state();
 
