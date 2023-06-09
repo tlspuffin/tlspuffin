@@ -45,3 +45,10 @@ default-toolchain:
 
 book-serve:
   mdbook serve docs
+
+clear-gh-caches:
+    gh api --paginate -H "Accept: application/vnd.github+json" \
+            /repos/tlspuffin/tlspuffin/actions/caches \
+            | for ID in `jq '.actions_caches[].id'`; \
+              do echo "Deleting $ID"; \
+                 gh api --method DELETE /repos/tlspuffin/tlspuffin/actions/caches/$ID | echo; done
