@@ -978,7 +978,7 @@ pub fn seed_cve_2022_39173_complete(
     };
 
     let mut cipher_suites = term! { fn_new_cipher_suites() };
-    for _ in 0..12 {
+    for _ in 0..149 {
         // also works with 149, 150 leads a too large list of suites (as expected)
         // Maximum reached suitesSz value depending on the number of ciphers in the list:
         // 149 -> suiteSz reaches >29461 (overflow of > 29161 bytes)
@@ -1218,9 +1218,7 @@ pub mod tests {
 
     use test_log::test;
 
-    use crate::tls::{
-        seeds::seed_successful12_with_tickets, trace_helper::TraceHelper, vulnerabilities::*,
-    };
+    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
 
     #[test]
     fn test_term_sizes() {
@@ -1287,7 +1285,7 @@ pub mod tests {
     fn test_seed_cve_2021_3449() {
         use puffin::put::PutOptions;
 
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
     }
