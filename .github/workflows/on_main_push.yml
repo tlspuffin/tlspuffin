@@ -50,6 +50,7 @@ jobs:
             crate: tlspuffin
             features: openssl111
             clean-crates: openssl-sys
+            save-cache: true # We only save the cache once, else we get too mache cache entries
           - name: openssl111j
             crate: tlspuffin
             features: openssl111j
@@ -133,3 +134,4 @@ jobs:
       cargo-flags: ${{ matrix.cargo-flags }}
       apt-dependencies: ${{ matrix.apt-dependencies }}
       clean-crates: ${{ matrix.clean-crates }}
+      save-cache: ${{ matrix.save-crates }}

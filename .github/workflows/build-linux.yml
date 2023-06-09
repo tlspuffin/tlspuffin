@@ -21,6 +21,9 @@ on:
       cargo-flags:
         required: false
         type: string
+      save-cache:
+        required: false
+        type: string
 
 env:
   RUST_LOG: info
@@ -42,6 +45,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           key: ${{ inputs.name }}
+          save-cache: ${{ inputs.save-cache }}
       - name: APT Dependencies
         if: inputs.apt-dependencies
         shell: bash
