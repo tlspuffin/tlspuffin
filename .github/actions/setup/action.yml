@@ -6,6 +6,10 @@ inputs:
   key:
     description: 'Additional key for caching'
     required: false
+  save-cache:
+    description: 'If the cache is saved'
+    default: "true"
+    required: false
 
 runs:
   using: "composite"
@@ -14,6 +18,7 @@ runs:
     - name: Install toolchain
       shell: bash
       run: just default-toolchain
-    - uses: Swatinem/rust-cache@v1
+    - uses: Swatinem/rust-cache@v2
       with:
         sharedKey: ${{ inputs.key }}
+        save-if: ${{ inputs.save-cache }}
