@@ -12,16 +12,19 @@ use puffin::algebra::error::FnError;
 
 use crate::{
     nyi_fn,
-    tls::rustls::{
-        key,
-        msgs::{
-            alert::AlertMessagePayload,
-            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-            ccs::ChangeCipherSpecPayload,
-            enums::*,
-            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
-            heartbeat::HeartbeatPayload,
-            message::{Message, MessagePayload, OpaqueMessage},
+    tls::{
+        fn_impl::Signature,
+        rustls::{
+            key,
+            msgs::{
+                alert::AlertMessagePayload,
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                ccs::ChangeCipherSpecPayload,
+                enums::*,
+                handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+                heartbeat::HeartbeatPayload,
+                message::{Message, MessagePayload, OpaqueMessage},
+            },
         },
     },
 };
@@ -355,7 +358,7 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
 /// CertificateVerify => 0x0f,
 pub fn fn_certificate_verify(
     scheme: &SignatureScheme,
-    signature: &Vec<u8>,
+    signature: &Signature,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
@@ -365,7 +368,7 @@ pub fn fn_certificate_verify(
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
                 scheme: *scheme,
-                sig: PayloadU16::new(signature.clone()),
+                sig: PayloadU16::new(signature.0.clone()),
             }),
         }),
     })
