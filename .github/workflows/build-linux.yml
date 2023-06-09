@@ -2,6 +2,28 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      apt-dependencies:
+        required: false
+        type: string
+      clean-crates:
+        required: false
+        type: string
+      crate:
+        required: true
+        type: string
+      features:
+        required: true
+        type: string
+      cargo-flags:
+        required: false
+        type: string
+      save-cache:
+        required: false
+        type: string
 
 env:
   RUST_LOG: info
@@ -9,105 +31,7 @@ env:
 jobs:
   build-linux:
     runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        name:
-          - openssl111
-          - openssl101f_asan
-          - openssl102u
-          - libressl
-          - wolfssl430
-          - wolfssl510
-          - wolfssl520
-          - wolfssl520_asan
-          - wolfssl530
-          - wolfssl530_asan
-          - wolfssl540
-          - tlspuffin_no_default_features
-          - libssh
-          - sshpuffin_no_default_features
-        include:
-          - name: openssl111
-            crate: tlspuffin
-            features: openssl111
-            clean-crates: openssl-sys
-          - name: openssl111j
-            crate: tlspuffin
-            features: openssl111j
-            clean-crates: openssl-sys
-          - name: openssl101f_asan
-            crate: tlspuffin
-            features: openssl101f,asan
-            apt-dependencies: xutils-dev
-            clean-crates: openssl-sys
-          - name: openssl102u
-            crate: tlspuffin
-            features: openssl102u
-            clean-crates: openssl-sys
-          - name: libressl
-            crate: tlspuffin
-            features: libressl
-          - name: wolfssl430
-            crate: tlspuffin
-            features: wolfssl430
-          - name: wolfssl510
-            crate: tlspuffin
-            features: wolfssl510
-          - name: wolfssl510-sig
-            crate: tlspuffin
-            features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
-          - name: wolfssl510-skip
-            crate: tlspuffin
-            features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
-          - name: wolfssl520
-            crate: tlspuffin
-            features: wolfssl520
-          - name: wolfssl520_asan
-            crate: tlspuffin
-            features: wolfssl520,asan
-          - name: wolfssl530
-            crate: tlspuffin
-            features: wolfssl530
-          - name: wolfssl530_asan
-            crate: tlspuffin
-            features: wolfssl530,asan
-          - name: wolfssl540
-            crate: tlspuffin
-            features: wolfssl540
-          - name: wolfssl540-sdos2
-            crate: tlspuffin
-            features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
-          - name: wolfssl530-cdos
-            crate: tlspuffin
-            features: wolfssl530,fix-CVE-2022-39173
-          - name: wolfssl540_asan
-            crate: tlspuffin
-            features: wolfssl540,asan
-          - name: wolfssl540-buf
-            crate: tlspuffin
-            features: wolfssl540,fix-CVE-2022-42905
-          - name: wolfssl540-heap
-            crate: tlspuffin
-            features: wolfssl540,asan,fix-CVE-2022-39173
-          - name: wolfssl540_asan-perf
-            crate: tlspuffin
-            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
-          - name: wolfssl540-perf
-            crate: tlspuffin
-            features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
-          - name: libssh
-            crate: sshpuffin
-            features: ""
-          - name: tlspuffin_no_default_features
-            crate: tlspuffin
-            features: ""
-            cargo-flags: "--no-default-features"
-          - name: sshpuffin_no_default_features
-            crate: sshpuffin
-            features: ""
-            cargo-flags: "--no-default-features"
-    name: Build "${{ matrix.name }}"
+    name: Build "${{ inputs.name }}"
     steps:
       - uses: actions/checkout@v3
         with:
@@ -120,39 +44,40 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
         with:
-          key: ${{ matrix.name }}
+          key: ${{ inputs.name }}
+          save-cache: ${{ inputs.save-cache }}
       - name: APT Dependencies
-        if: matrix.apt-dependencies
+        if: inputs.apt-dependencies
         shell: bash
-        run: sudo apt-get install -y ${{ matrix.apt-dependencies }}
+        run: sudo apt-get install -y ${{ inputs.apt-dependencies }}
       - name: Clean
-        if: matrix.clean-crates
+        if: inputs.clean-crates
         shell: bash
         run: |
-          cargo clean --target x86_64-unknown-linux-gnu -p ${{ matrix.clean-crates }}
-          cargo clean --target x86_64-unknown-linux-gnu --release -p ${{ matrix.clean-crates }}
+          cargo clean --target x86_64-unknown-linux-gnu -p ${{ inputs.clean-crates }}
+          cargo clean --target x86_64-unknown-linux-gnu --release -p ${{ inputs.clean-crates }}
       - name: Build
         shell: bash
-        run: just build ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }} --timings"
+        run: just build ${{ inputs.crate }} x86_64-unknown-linux-gnu "${{ inputs.features }}" "${{ inputs.cargo-flags }} --timings"
       - name: Upload Build Timings
         uses: actions/upload-artifact@v3
         with:
-          name: cargo-timings-${{ matrix.name }}
+          name: cargo-timings-${{ inputs.name }}
           path: target/cargo-timings/cargo-timing.html
       - name: Upload Build
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.crate }}-${{ matrix.name }}
-          path: target/x86_64-unknown-linux-gnu/release/${{ matrix.crate }}
+          name: ${{ inputs.crate }}-${{ inputs.name }}
+          path: target/x86_64-unknown-linux-gnu/release/${{ inputs.crate }}
       - name: Check puffin
         shell: bash
-        run: just check puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
+        run: just check puffin x86_64-unknown-linux-gnu "" "${{ inputs.cargo-flags }}"
       - name: Check
         shell: bash
-        run: just check ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
+        run: just check ${{ inputs.crate }} x86_64-unknown-linux-gnu "${{ inputs.features }}" "${{ inputs.cargo-flags }}"
       - name: Test puffin
         shell: bash
-        run: just test puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
+        run: just test puffin x86_64-unknown-linux-gnu "" "${{ inputs.cargo-flags }}"
       - name: Test
         shell: bash
-        run: just test ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
+        run: just test ${{ inputs.crate }} x86_64-unknown-linux-gnu "${{ inputs.features }}" "${{ inputs.cargo-flags }}"
