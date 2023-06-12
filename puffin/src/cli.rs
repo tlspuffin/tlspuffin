@@ -49,11 +49,10 @@ fn create_app() -> Command {
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
-            ,
+                .arg(arg!(-d --description <d> "Descritpion of the experiment")),
             Command::new("seed")
                 .about("Generates seeds to ./corpus")
-                .arg(arg!(--"with-old-obj" "include old objective traces (including found vulnerabilities)")),
+                .arg(arg!(-'o' --"with-old-obj" "include old objective traces (including found vulnerabilities)")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -121,7 +120,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        let with_old_obj = true; // matches.get_flag("with-old-obj"); // TODO WEIRD error with this: thread 'main' panicked at 'Mismatch between definition and access of `with-old-obj`.
+        let with_old_obj = true; //with_old_obj = matches.get_flag("o"); // TODO WEIRD error with this: thread 'main' panicked at 'Mismatch between definition and access of `with-old-obj`.
         if let Err(err) = seed(put_registry, with_old_obj) {
             error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
