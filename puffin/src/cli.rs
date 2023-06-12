@@ -33,7 +33,7 @@ fn create_app() -> Command {
     Command::new(crate_name!())
         .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
-        .about("Fuzzes OpenSSL on a symbolic level")
+        .about("Fuzzes TLS with a Dolev-Yao attacker")
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -51,7 +51,9 @@ fn create_app() -> Command {
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                          .arg(arg!(-d --description <d> "Descritpion of the experiment"))
             ,
-            Command::new("seed").about("Generates seeds to ./corpus"),
+            Command::new("seed")
+                .about("Generates seeds to ./corpus")
+                .arg(arg!(--"with-old-obj" "include old objective traces (including found vulnerabilities)")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -119,7 +121,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(put_registry) {
+        let with_old_obj = true; // matches.get_flag("with-old-obj"); // TODO WEIRD error with this: thread 'main' panicked at 'Mismatch between definition and access of `with-old-obj`.
+        if let Err(err) = seed(put_registry, with_old_obj) {
             error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -327,12 +330,19 @@ fn plot<PB: ProtocolBehavior>(
 
 fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
+    with_old_obj: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
 
-        info!("Generated seed traces into the directory ./corpus")
+        info!("Generated seed traces into the directory ./seeds")
+    }
+    if with_old_obj {
+        for (trace, name) in PB::create_corpus_obj() {
+            trace.to_file(format!("./seeds/{}_objective.trace", name))?;
+            info!("Generated seed traces of some old objectives into the directory ./seeds")
+        }
     }
     Ok(())
 }

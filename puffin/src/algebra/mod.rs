@@ -518,6 +518,10 @@ pub mod test_signature {
         fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
+
+        fn create_corpus_obj() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestFactory;

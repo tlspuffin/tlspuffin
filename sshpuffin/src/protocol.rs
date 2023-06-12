@@ -49,4 +49,8 @@ impl ProtocolBehavior for SshProtocolBehavior {
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
         vec![] // TODO
     }
+
+    fn create_corpus_obj() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        vec![] // TODO
+    }
 }

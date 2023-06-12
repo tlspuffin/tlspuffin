@@ -18,6 +18,10 @@ use crate::{
             handshake::{Random, ServerExtension, SessionID},
         },
         trace_helper::TraceHelper,
+        vulnerabilities::{
+            seed_cve_2021_3449, seed_cve_2022_25638, seed_cve_2022_25640_simple,
+            seed_cve_2022_38153, seed_cve_2022_39173_minimized, seed_freak, seed_heartbleed,
+        },
     },
 };
 
@@ -1829,6 +1833,27 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
         // Server Attackers
         seed_server_attacker_full: cfg(feature = "tls13")
+    )
+}
+
+pub fn create_corpus_obj() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
+    corpus!(
+        // TLS 1.3
+        seed_cve_2022_25638: cfg(feature = "tls13"),          // SIG
+        seed_cve_2022_25640_simple: cfg(feature = "tls13"),   // SKIP
+        // seed_cve_2022_25640: cfg(feature = "tls13"),
+        seed_cve_2022_39173_minimized: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),  // BUF
+        // seed_cve_2022_39173: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        // seed_cve_2022_39173_full: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        seed_cve_2022_38153: cfg(feature = "tls13"),          // CDOS
+        // Not included as subsumed by seed_session_resumption_dhe:    seed_session_resumption_dhe_full: cfg(feature = "tls13")  // SDOS2 : 2022-38152
+
+        // TLS 1.2
+        seed_cve_2021_3449: cfg(feature = "tls12"),           // SDOS1
+        seed_heartbleed: cfg(feature = "tls12"),
+        seed_freak: cfg(feature = "tls12"),
+        seed_cve_2022_38153: cfg(all(feature = "tls12", feature = "tls12-session-resumption"))  // CDOS
+        // TODO: HEAP ?
     )
 }
 

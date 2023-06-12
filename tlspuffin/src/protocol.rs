@@ -21,7 +21,7 @@ use crate::{
                 message::{Message, MessagePayload, OpaqueMessage},
             },
         },
-        seeds::create_corpus,
+        seeds::{create_corpus, create_corpus_obj},
         violation::TlsSecurityViolationPolicy,
         TLS_SIGNATURE,
     },
@@ -201,5 +201,9 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
         create_corpus()
+    }
+
+    fn create_corpus_obj() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        create_corpus_obj()
     }
 }
