@@ -47,6 +47,8 @@ function parse_git_hash() {
 echo -e "Current TLSPUFFIN STATUS: "
 GIT_BRANCH=$(parse_git_branch)$(parse_git_hash)
 echo ${GIT_BRANCH}
+cargo clean
+
 
 generate_coverage () {
     echo -e  "-----------> RUN TASK $1 WITH PUT $2, EXPERIMENT $3 WITH BATCH $4 -------------"
@@ -92,16 +94,14 @@ generate_coverage () {
 
     echo -e  "We need to (re)-build the executable $build_dir/target/x86_64-unknown-linux-gnu/debug/tlspuffin"
     echo -e  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    cargo clean
     yes | rm -r "$build_dir"
     mkdir -p "$build_dir"
     cp -r . "$build_dir"
     cd "$build_dir"
-    cargo clean
     find -name "*.gcda" -delete
     # echo -e  'Running "cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "${features},gcov_analysis" --no-default-features" in $build_dir'
     # echo -e  "cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features '${features},gcov_analysis' --no-default-features"
-    echo -e  "Building tlspuffin with features: $features in build_dir: $build_dir"
+    echo -e  "Building tlspuffin with features: $features in build_dir: $build_dir ..."
     cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "${features},gcov_analysis" --no-default-features 2> log_eval_error.txt 1> log_eval.txt
     echo "tlspuffin has been built with features $features from the following branch and commit hash:" > README.txt
     echo ${GIT_BRANCH} >> README.txt
@@ -150,7 +150,7 @@ generate_coverage () {
     echo "===============================================================================" >> README.html   
 
     README="$task_root/$task/README.html"
-    echo ${GIT_BRANCH} >> $README
+    echo ${GIT_BRANCH} > $README
     date >> $README
     echo "data contains:" >> $README
     tree ${data} >> $README
@@ -158,7 +158,7 @@ generate_coverage () {
     echo "-----------> RUN TASK $1 WITH PUT $2, EXPERIMENT $3 WITH BATCH $4 -------------" >> $LOG
     tree ${data} >> $LOG
 
-    echo "END of RUN TASK $1 WITH PUT $2, EXPERIMENT $3 WITH BATCH $4\n-->  browse http://localhost:8000/$html_dir_browse\n\n"
+    echo -e "END of RUN TASK $1 WITH PUT $2, EXPERIMENT $3 WITH BATCH $4\n-->  browse http://localhost:8000/$html_dir_browse \n\n"
     cd "$src_dir"
 }
 
@@ -178,5 +178,6 @@ find -name "*.cobertura" -exec sed --regexp-extended -i 's/target\/x86_64-unknow
 find -name "*.cobertura" -exec sed --regexp-extended -i 's/target\/x86_64-unknown-linux-gnu\/debug\/build\/wolfssl-sys-([a-z0-9]*)\/out\///g' {} \;
 cd "$src_dir"
 echo "DONE"
+echo "Open an HTTP server with 'python3 -m http.server 8000' (with port redirection if needed) from here and browse the HTML GCOV reports."
 
 wait
