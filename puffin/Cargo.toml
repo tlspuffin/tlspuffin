@@ -15,6 +15,15 @@ introspection = ["libafl/introspection"]
 
 claims = []
 
+# Disable mutations
+no-repeat = []
+no-skip = []
+no-replaceR = []
+no-replaceM = []
+no-remove = []
+no-gen = []
+no-swap = []
+
 [dependencies]
 
 # LibAFL

@@ -15,21 +15,173 @@ use crate::{
     trace::Trace,
 };
 
+#[cfg(feature = "no-repeat")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+
+#[cfg(feature = "no-skip")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+#[cfg(feature = "no-replaceR")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+#[cfg(feature = "no-replaceM")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+#[cfg(feature = "no-remove")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+#[cfg(feature = "no-gen")]
+type AllMuts <S> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	SwapMutator<S>
+    );
+#[cfg(feature = "no-swap")]
+type AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+    );
+
+#[cfg(not(any(feature = "no-repeat", feature = "no-skip", feature = "no-replaceR", feature = "no-replaceM", feature = "no-remove", feature = "no-gen", feature = "no-swap")))]
+type  AllMuts <S, M: Matcher> =
+    tuple_list_type!(
+	RepeatMutator<S>,
+	SkipMutator<S>,
+	ReplaceReuseMutator<S>,
+	ReplaceMatchMutator<S>,
+	RemoveAndLiftMutator<S>,
+	GenerateMutator<S, M>,
+	SwapMutator<S>
+    );
+
+	
+#[cfg(not(feature = "no-gen"))]	// Treated separately due to M not being used
 pub fn trace_mutations<S, M: Matcher>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
     signature: &'static Signature,
-) -> tuple_list_type!(
-       RepeatMutator<S>,
-       SkipMutator<S>,
-       ReplaceReuseMutator<S>,
-       ReplaceMatchMutator<S>,
-       RemoveAndLiftMutator<S>,
-       GenerateMutator<S, M>,
-       SwapMutator<S>
-   )
+) -> AllMuts<S,M>
+where
+    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
+{
+    #[cfg(feature = "no-repeat")]
+    let l = tuple_list!(
+        SkipMutator::new(min_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    #[cfg(feature = "no-skip")]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    #[cfg(feature = "no-replaceR")]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
+        ReplaceMatchMutator::new(constraints, signature),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    #[cfg(feature = "no-replaceM")]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    #[cfg(feature = "no-remove")]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    #[cfg(feature = "no-swap")]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+    );
+    
+    #[cfg(not(any(feature = "no-repeat", feature = "no-skip", feature = "no-replaceR", feature = "no-replaceM", feature = "no-remove", feature = "no-gen", feature = "no-swap")))]
+    let l = tuple_list!(
+        RepeatMutator::new(max_trace_length),
+        SkipMutator::new(min_trace_length),
+        ReplaceReuseMutator::new(constraints),
+        ReplaceMatchMutator::new(constraints, signature),
+        RemoveAndLiftMutator::new(constraints),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints));
+    
+    l
+}
+
+#[cfg(feature = "no-gen")]	// Treated separately due to M not being used
+pub fn trace_mutations<S, M: Matcher>(
+    min_trace_length: usize,
+    max_trace_length: usize,
+    constraints: TermConstraints,
+    fresh_zoo_after: u64,
+    signature: &'static Signature,
+) -> AllMuts<S>
 where
     S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
 {
@@ -39,9 +191,7 @@ where
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints)
-    )
+        SwapMutator::new(constraints))
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace

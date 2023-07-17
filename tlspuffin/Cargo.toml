@@ -191,6 +191,17 @@ simple-seeds = []
 
 introspection = ["puffin/introspection"]
 
+
+# Disable mutations
+no-repeat = ["puffin/no-repeat"]
+no-skip = ["puffin/no-skip"]
+no-replaceR = ["puffin/no-replaceR"]
+no-replaceM = ["puffin/no-replaceM"]
+no-remove = ["puffin/no-remove"]
+no-gen = ["puffin/no-gen"]
+no-swap = ["puffin/no-swap"]
+
+
 [dependencies]
 
 puffin = { path = "../puffin" }
