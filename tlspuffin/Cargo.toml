@@ -186,6 +186,8 @@ claims = ["puffin/claims"]
 transcript-extraction = []
 # PUT exposes the required transcripts which are required for client authentication
 client-authentication-transcript-extraction = []
+# Limit the seed corpus to the two seeds we also have for ProFuzzBench (client attacker without resumption)
+simple-seeds = []
 
 introspection = ["puffin/introspection"]
 
