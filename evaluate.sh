@@ -57,7 +57,7 @@ function start_experiment  {
   additional_args=$3
 
 
-  for MUT in  "no-repeat" "no-skip" "no-replaceR" "no-replaceM" "no-remove" "no-gen" "no-swap"
+  for MUT in  "no-repeat" "no-skip" "no-replaceR" "no-replaceM" "no-remove" "no-gen" "no-swap" "" "simple-seeds"
   do
       features=$2
       experiment="EVAL_ABLATION_$1_$MUT"
