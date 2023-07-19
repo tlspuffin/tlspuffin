@@ -18,7 +18,7 @@ find **/*ABLATION*/objective -not -empty -type d -prune | while read d; do
     echo -n "  Elapsed seconds: "
     printf "%'.0f\n" $diffDate
     
-    total_execs=$(tail -c 500 "${d}/../stats.json" | grep -E -o '"total_execs":.{0,12}' | cut -c15- | cut -d, -f1)
+    total_execs=$(cat "${d}/../stats.json" | grep -E -o '"objective_size":1.{0,100}' | head -n 1 |  grep -E -o '"total_execs":.{0,12}' | cut -c15- | cut -d, -f1)
     echo -n "  Total executions: "
     printf "%'.0f\n" $total_execs
 done
