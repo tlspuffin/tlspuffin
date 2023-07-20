@@ -96,7 +96,7 @@ generate_coverage () {
     echo -e  "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     yes | rm -r "$build_dir"
     mkdir -p "$build_dir"
-    cp -r . "$build_dir"
+    cp -r puffin tlspuffin Cargo.toml tlspuffin-claims Cargo.lock crates sshpuffin .cargo .github .idea .vscode tools .envrc rust-toolchain.toml rustfmt.toml shell.nix THIRD_PARTY "$build_dir"
     cd "$build_dir"
     find -name "*.gcda" -delete
     # echo -e  'Running "cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "${features},gcov_analysis" --no-default-features" in $build_dir'
@@ -132,6 +132,7 @@ generate_coverage () {
         echo -e  "$cov_data" | jq "[$time,.branch_covered,.branch_percent,.branch_total,.function_covered,.function_percent,.function_total,.line_covered,.line_percent,.line_total] | @csv" -r >> $cov_file
 
         count=$(expr $count + $batch)
+	echo $count
         if [ $exit_status -eq 1 ]; then
             break
         fi
