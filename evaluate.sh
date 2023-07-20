@@ -64,7 +64,7 @@ function start_experiment  {
       end_core=$(( core + CORES_PER_EXPERIMENT - 1 ))
 
       tmux new-window -t "$session:$window" -n "$experiment"
-      RUN="cargo run --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --features $2,$MUT,stop-on-first --release -- --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment"
+      RUN="cargo run --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --features $2,$MUT --release -- --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment"
       echo "$RUN"
       tmux send-keys -t "$session:$window" "${RUN}"  C-m
       
