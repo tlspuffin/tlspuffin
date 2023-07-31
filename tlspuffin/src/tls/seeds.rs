@@ -1815,20 +1815,20 @@ macro_rules! corpus {
 pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
-        seed_successful: cfg(feature = "tls13"),
-        seed_successful_with_ccs: cfg(feature = "tls13"),
-        seed_successful_with_tickets: cfg(feature = "tls13"),
-        seed_successful12: cfg(not(feature = "tls12-session-resumption")),
-        seed_successful12_with_tickets: cfg(feature = "tls12-session-resumption"),
+        seed_successful: cfg(all(feature = "tls13", not(feature = "simple-seeds"))),
+        seed_successful_with_ccs: cfg(all(feature = "tls13", not(feature = "simple-seeds"))),
+        seed_successful_with_tickets: cfg(all(feature = "tls13", not(feature = "simple-seeds"))),
+        seed_successful12: cfg(all(not(feature = "tls12-session-resumption"), not(feature = "simple-seeds"))),
+        seed_successful12_with_tickets: cfg(all(feature = "tls12-session-resumption", not(feature = "simple-seeds"))),
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
-        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
+        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction", not(feature = "simple-seeds"))),
         seed_client_attacker12: cfg(feature = "tls12"),
-        // Session resumption
-        seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
-        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        // // Session resumption
+        seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption", not(feature = "simple-seeds"))),
+        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption", not(feature = "simple-seeds"))),
         // Server Attackers
-        seed_server_attacker_full: cfg(feature = "tls13")
+        seed_server_attacker_full: cfg(all(feature = "tls13", not(feature = "simple-seeds")))
     )
 }
 
