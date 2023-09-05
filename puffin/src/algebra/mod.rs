@@ -29,7 +29,8 @@
 // SOFTWARE.
 
 use std::{
-    fmt::Debug,
+    fmt,
+    fmt::{Debug},
     hash::{Hash, Hasher},
 };
 
@@ -152,6 +153,51 @@ pub mod test_signature {
     pub struct CipherSuite;
     pub struct Compression;
     pub struct Compressions;
+    trait DummyCodec : Codec {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    use std::fmt;
+    macro_rules! impl_dummyCodec { // Hacky macro to implement dummyCodec
+
+    (for $($t:ty),+) => {
+
+        $(impl Codec for $t {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+        }
+
+        impl Debug for $t {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            panic!("Not implemented for test stub");
+        }
+        })*
+    }
+}
+
+    impl_dummyCodec!(for HmacKey, HandshakeMessage, Encrypted, ProtocolVersion, Random, ClientExtension, ClientExtensions, Group, SessionID, CipherSuites, CipherSuite, Compression, Compressions);
+
+impl Codec for Vec<u8> {
+    fn encode(&self, _bytes: &mut Vec<u8>) {
+        panic!("Not implemented for test stub");
+    }
+
+    fn read(_: &mut Reader) -> Option<Self> {
+        panic!("Not implemented for test stub");
+    }
+}
+
 
     pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)

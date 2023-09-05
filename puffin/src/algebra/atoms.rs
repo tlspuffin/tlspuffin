@@ -22,27 +22,37 @@ use crate::{
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable<M> {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
-    /// change this ID.
+    /// Unique ID of this variable. Uniqueness is guaranteed across all [`Term`]s ever created.
+    /// Cloning change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
     pub typ: TypeShape,
-    /// The struct which holds information about how to query this variable from knowledge
-    pub query: Query<M>,
+    /// Pointer to the datum it refers to
+    pub p_data: pData<M>,
 }
+
+/// The datum a variable symbol points to or contains.
+#[derive(Serialize, Deserialize, Debug, Hash, PartialEq, Clone)]
+pub enum pData<M> {
+    /// A variable can embeds a constant bitstring
+    ConstantBytes(Box<Vec<u8>>),
+    /// The struct which holds information about how to query this variable from knowledge, required
+    Pointer(Query<M>),
+}
+
 
 impl<M: Matcher> Hash for Variable<M> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
-        self.query.hash(state);
+        self.p_data.hash(state);
     }
 }
 
 impl<M: Matcher> Eq for Variable<M> {}
 impl<M: Matcher> PartialEq for Variable<M> {
     fn eq(&self, other: &Self) -> bool {
-        self.typ == other.typ && self.query == other.query
+        self.typ == other.typ && self.p_data == other.p_data
     }
 }
 
@@ -52,7 +62,7 @@ impl<M: Matcher> Clone for Variable<M> {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ,
-            query: self.query.clone(),
+            p_data: self.p_data.clone(),
         }
     }
 }
@@ -63,14 +73,34 @@ impl<M: Matcher> Variable<M> {
             unique_id: random(),
             resistant_id: random(),
             typ,
-            query,
+            p_data: pData::Pointer(query),
+        }
+    }
+
+    pub fn new_bit(typ: TypeShape, bitstring: Vec<u8>) -> Self {
+        Self {
+            unique_id: random(),
+            resistant_id: random(),
+            typ,
+            p_data: pData::ConstantBytes(Box::new(bitstring)),
+        }
+    }
+}
+
+impl<M: Matcher> fmt::Display for pData<M> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            pData::Pointer(query) =>
+                write!(f, "q:{}", query),
+            pData::ConstantBytes(bitstring) =>
+                write!(f, "[{:?}]", bitstring)
         }
     }
 }
 
 impl<M: Matcher> fmt::Display for Variable<M> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
+        write!(f, "{}/{}", self.p_data, remove_prefix(self.typ.name))
     }
 }
 

@@ -136,3 +136,30 @@ macro_rules! define_signature {
         });
     };
 }
+
+#[test]
+fn test1 () {
+    use crate::algebra::error::FnError;
+    use std::any::Any;
+
+    pub fn test_f(x: &u8) -> Result<u8, FnError> {Ok(x + 4 as u8)}
+
+    let (shape,dynamic_fn) = make_dynamic(&test_f);
+    println!("{:?}, / {:?}", shape, dynamic_fn);
+    let args: Vec<Box<dyn Any>> = vec![Box::new(5 as u8)]; // below fails with "as u16"
+    println!("Result: {:?}", dynamic_fn(&args).unwrap().downcast_ref::<u8>().unwrap()) // same
+}
+
+
+#[test]
+fn test2 () {
+    use crate::algebra::error::FnError;
+    use std::any::Any;
+
+    pub fn test_f(x: &u8) -> Result<u8, FnError> {Ok(x + 4 as u8)}
+
+    let (shape,dynamic_fn) = make_dynamic(&test_f);
+    println!("{:?}, / {:?}", shape, dynamic_fn);
+    let args: Vec<Box<dyn Any>> = vec![Box::new(5 as u16)]; // below fails with "as u16"
+    println!("Result: {:?}", dynamic_fn(&args).unwrap().downcast_ref::<u8>().unwrap()) // same
+}
