@@ -3,6 +3,7 @@ use crate::{
     graphviz::write_graphviz,
     trace::{Action, Trace},
 };
+use crate::algebra::{TermEval, TermType};
 
 impl<M: Matcher> Trace<M> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
@@ -36,11 +37,11 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<M: Matcher> TermEval<M> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
         for term in self.into_iter() {
-            if let Term::Application(func, _) = term {
+            if let Term::Application(func, _) = &term.term {
                 if func.name() == find_name {
                     found += 1;
                 }

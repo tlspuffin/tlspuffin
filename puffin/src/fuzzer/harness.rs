@@ -10,6 +10,7 @@ use crate::{
     put::PutOptions,
     trace::{Action, Trace, TraceContext},
 };
+use crate::algebra::TermType;
 
 static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
 

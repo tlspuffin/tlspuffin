@@ -37,6 +37,7 @@ use crate::{
     put_registry::{Factory, PutRegistry},
     variable_data::VariableData,
 };
+use crate::algebra::{TermEval, TermType};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -559,13 +560,13 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct InputAction<M: Matcher> {
-    pub recipe: Term<M>,
+    pub recipe: TermEval<M>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl<M: Matcher> InputAction<M> {
-    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
+    pub fn new_step(agent: AgentName, recipe: TermEval<M>) -> Step<M> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),

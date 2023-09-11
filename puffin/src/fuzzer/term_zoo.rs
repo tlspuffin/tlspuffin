@@ -11,12 +11,13 @@ use crate::{
     },
     fuzzer::mutations::util::Choosable,
 };
+use crate::algebra::TermEval;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
 pub struct TermZoo<M: Matcher> {
-    terms: Vec<Term<M>>,
+    terms: Vec<TermEval<M>>,
 }
 
 impl<M: Matcher> TermZoo<M> {
@@ -49,7 +50,7 @@ impl<M: Matcher> TermZoo<M> {
         (shape, dynamic_fn): &FunctionDefinition,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term<M>> {
+    ) -> Option<TermEval<M>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -80,20 +81,20 @@ impl<M: Matcher> TermZoo<M> {
             }
         }
 
-        Some(Term::Application(
+        Some(TermEval::from(Term::Application(
             Function::new(shape.clone(), dynamic_fn.clone()),
             subterms,
-        ))
+        )))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M>>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&TermEval<M>>
     where
-        P: FnMut(&&Term<M>) -> bool,
+        P: FnMut(&&TermEval<M>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
-    pub fn terms(&self) -> &[Term<M>] {
+    pub fn terms(&self) -> &[TermEval<M>] {
         &self.terms
     }
 }

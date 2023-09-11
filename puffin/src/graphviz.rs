@@ -81,8 +81,9 @@ impl<M: Matcher> Trace<M> {
             let subgraph = match &step.action {
                 Action::Input(input) => input
                     .recipe
+                    .term
                     .dot_subgraph(tree_mode, i, subgraph_name.as_str())
-                    .to_string(),
+                    .to_string(), // TODO: if not .is_symbolic(), display "bitstring"
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \
@@ -175,9 +176,9 @@ impl<M: Matcher> Term<M> {
                     statements.push(format!(
                         "{} -> {};",
                         term.unique_id(tree_mode, cluster_id),
-                        subterm.unique_id(tree_mode, cluster_id)
+                        subterm.term.unique_id(tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(subterm, tree_mode, cluster_id, statements);
+                    Self::collect_statements(&subterm.term, tree_mode, cluster_id, statements);
                 }
             }
         }
