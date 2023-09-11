@@ -238,6 +238,33 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }
 
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Payloads {
+    payload_0: Vec<u8>, // initially both are equal and correspond to the term evaluation
+    payload: Vec<u8>,   // this one will later be subject to bit-level mutation
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[serde(bound = "M: Matcher")]
+pub struct TermEval<M: Matcher> {
+    term: Term<M>, // initial DY term
+    payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
+}
+
+impl<M: Matcher> fmt::Display for TermEval<M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.term.fmt(f)
+    }
+}
+impl<M: Matcher> From<Term<M>> for TermEval<M> {
+    fn from(term: Term<M>) -> Self {
+        TermEval {
+            term,
+            payloads: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::algebra::remove_prefix;
