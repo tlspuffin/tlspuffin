@@ -6,6 +6,7 @@ use crate::{
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
+use crate::algebra::{TermEval, TermType};
 
 #[cfg(feature = "no-repeat")]
 type AllMuts <S, M: Matcher> =
@@ -224,7 +225,8 @@ where
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
-                |term: &Term<M>| term.get_type_shape() == term_a.get_type_shape(),
+                |term: &TermEval<M>| term.get_type_shape() == term_a.get_type_shape(),
+                // TODO: maybe also check that both terms are .is_symbolic()
                 self.constraints,
                 rand,
             ) {
@@ -286,10 +288,12 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
-        let filter = |term: &Term<M>| match term {
+        let filter = |term: &TermEval<M>| match &term.term {
             Term::Variable(_) => false,
-            Term::Application(_, subterms) => subterms
-                .find_subterm(|subterm| match subterm {
+            Term::Application(_, subterms) =>
+                // TODO: maybe add: term.is_symbolic() &&
+                subterms
+                .find_subterm(|subterm| match &subterm.term {
                     Term::Variable(_) => false,
                     Term::Application(_, grand_subterms) => {
                         grand_subterms.find_subterm_same_shape(subterm).is_some()
@@ -299,7 +303,8 @@ where
         };
         if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
-            match &mut to_mutate {
+            match &mut to_mutate.term {
+                // TODO: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(_) => Ok(MutationResult::Skipped),
                 Term::Application(_, ref mut subterms) => {
                     if let Some(((subterm_index, _), grand_subterm)) = choose_iter(
@@ -373,16 +378,17 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            match &mut to_mutate {
+            match &mut to_mutate.term {
+                // TODO: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(variable) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
                         rand,
                     ) {
-                        to_mutate.mutate(Term::Application(
+                        to_mutate.mutate(TermEval::from(Term::Application(
                             Function::new(shape.clone(), dynamic_fn.clone()),
                             Vec::new(),
-                        ));
+                        )));
                         Ok(MutationResult::Mutated)
                     } else {
                         Ok(MutationResult::Skipped)
@@ -457,7 +463,8 @@ where
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
-                |term: &Term<M>| term.get_type_shape() == replacement.get_type_shape(),
+                |term: &TermEval<M>| term.get_type_shape() == replacement.get_type_shape(),
+                // TODO: maybe also check that both are .is_symbolic()
                 self.constraints,
                 rand,
             ) {
@@ -667,6 +674,7 @@ pub mod util {
         algebra::{Matcher, Term},
         trace::{Action, Step, Trace},
     };
+    use crate::algebra::{TermEval, TermType};
 
     #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
@@ -744,13 +752,16 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
+    // TODO: GLOBALLY IN THE REST OF THE FILE
+    //  Think about how we should deal with TermEval that are not is_symbolic()
+    // leaves --> considered as atoms and not terms!
+    fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
         trace: &'a Trace<M>,
         filter: P,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<(&'a Term<M>, TracePath)> {
-        let mut reservoir: Option<(&'a Term<M>, TracePath)> = None;
+    ) -> Option<(&'a TermEval<M>, TracePath)> {
+        let mut reservoir: Option<(&'a TermEval<M>, TracePath)> = None;
         let mut visited = 0;
 
         for (step_index, step) in trace.steps.iter().enumerate() {
@@ -763,12 +774,12 @@ pub mod util {
                         continue;
                     }
 
-                    let mut stack: Vec<(&Term<M>, TracePath)> =
+                    let mut stack: Vec<(&TermEval<M>, TracePath)> =
                         vec![(term, (step_index, Vec::new()))];
 
                     while let Some((term, path)) = stack.pop() {
                         // push next terms onto stack
-                        match term {
+                        match &term.term {
                             Term::Variable(_) => {
                                 // reached leaf
                             }
@@ -810,16 +821,16 @@ pub mod util {
     }
 
     fn find_term_by_term_path_mut<'a, M: Matcher>(
-        term: &'a mut Term<M>,
+        term: &'a mut TermEval<M>,
         term_path: &mut TermPath,
-    ) -> Option<&'a mut Term<M>> {
+    ) -> Option<&'a mut TermEval<M>> {
         if term_path.is_empty() {
             return Some(term);
         }
 
         let subterm_index = term_path.remove(0);
 
-        match term {
+        match &mut term.term {
             Term::Variable(_) => None,
             Term::Application(_, subterms) => {
                 if let Some(subterm) = subterms.get_mut(subterm_index) {
@@ -834,7 +845,7 @@ pub mod util {
     pub fn find_term_mut<'a, M: Matcher>(
         trace: &'a mut Trace<M>,
         trace_path: &TracePath,
-    ) -> Option<&'a mut Term<M>> {
+    ) -> Option<&'a mut TermEval<M>> {
         let (step_index, term_path) = trace_path;
 
         let step: Option<&mut Step<M>> = trace.steps.get_mut(*step_index);
@@ -854,7 +865,7 @@ pub mod util {
         trace: &'a Trace<M>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<(&'a Term<M>, (usize, TermPath))> {
+    ) -> Option<(&'a TermEval<M>, (usize, TermPath))> {
         reservoir_sample(trace, |_| true, constraints, rand)
     }
 
@@ -862,7 +873,7 @@ pub mod util {
         trace: &'a Trace<M>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a Term<M>> {
+    ) -> Option<&'a TermEval<M>> {
         reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
     }
 
@@ -870,7 +881,7 @@ pub mod util {
         trace: &'a mut Trace<M>,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a mut Term<M>> {
+    ) -> Option<&'a mut TermEval<M>> {
         if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
@@ -878,12 +889,12 @@ pub mod util {
         }
     }
 
-    pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
+    pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
         trace: &'a mut Trace<M>,
         filter: P,
         constraints: TermConstraints,
         rand: &mut R,
-    ) -> Option<&'a mut Term<M>> {
+    ) -> Option<&'a mut TermEval<M>> {
         if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
             find_term_mut(trace, &trace_path)
         } else {
@@ -899,7 +910,7 @@ pub mod util {
         choose_term_path_filtered(trace, |_| true, constraints, rand)
     }
 
-    pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
+    pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
         trace: &Trace<M>,
         filter: P,
         constraints: TermConstraints,

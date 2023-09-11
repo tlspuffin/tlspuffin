@@ -8,6 +8,7 @@ use puffin::{
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
+use puffin::algebra::TermEval;
 
 use crate::{
     query::TlsQueryMatcher,
@@ -1013,7 +1014,7 @@ pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
 
 pub fn _seed_client_attacker12(
     server: AgentName,
-) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
+) -> (Trace<TlsQueryMatcher>, TermEval<TlsQueryMatcher>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1408,9 +1409,9 @@ pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(

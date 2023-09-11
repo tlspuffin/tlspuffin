@@ -13,6 +13,9 @@ use crate::{
     trace::TraceContext,
 };
 
+const SIZE_LEAF: usize = 1;
+const BITSTRING_NAME: &'static str = "BITSTRING_";
+
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
@@ -25,7 +28,7 @@ pub enum Term<M: Matcher> {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<Term<M>>),
+    Application(Function, Vec<TermEval<M>>),
 }
 
 impl<M: Matcher> fmt::Display for Term<M> {
@@ -34,24 +37,42 @@ impl<M: Matcher> fmt::Display for Term<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
-    pub fn resistant_id(&self) -> u32 {
+/// Trait for data we can treat as terms (either Term or TermEval)
+pub trait TermType<M> {
+    fn resistant_id(&self) -> u32;
+    fn size(&self) -> usize;
+    fn is_leaf(&self) -> bool;
+    fn get_type_shape(&self) -> &TypeShape;
+    fn name(&self) -> &str;
+    fn mutate(&mut self, other: Self);
+    fn display_at_depth(&self, depth: usize) -> String;
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn Any>, Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>;
+    fn is_symbolic(&self) -> bool;
+}
+
+impl<M: Matcher> TermType<M> for Term<M> {
+    fn resistant_id(&self) -> u32 {
         match self {
             Term::Variable(v) => v.resistant_id,
             Term::Application(f, _) => f.resistant_id,
         }
     }
 
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         match self {
-            Term::Variable(_) => 1,
+            Term::Variable(_) => SIZE_LEAF,
             Term::Application(_, ref subterms) => {
                 subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
             }
         }
     }
 
-    pub fn is_leaf(&self) -> bool {
+    fn is_leaf(&self) -> bool {
         match self {
             Term::Variable(_) => {
                 true // variable
@@ -62,21 +83,21 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn get_type_shape(&self) -> &TypeShape {
+    fn get_type_shape(&self) -> &TypeShape {
         match self {
             Term::Variable(v) => &v.typ,
             Term::Application(function, _) => &function.shape().return_type,
         }
     }
 
-    pub fn name(&self) -> &str {
+    fn name(&self) -> &str {
         match self {
             Term::Variable(v) => v.typ.name,
             Term::Application(function, _) => function.name(),
         }
     }
 
-    pub fn mutate(&mut self, other: Term<M>) {
+    fn mutate(&mut self, other: Term<M>) {
         *self = other;
     }
 
@@ -103,11 +124,12 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn evaluate<PB: ProtocolBehavior>(
+    fn evaluate<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn Any>, Error>
     where
+        M: Matcher,
         PB: ProtocolBehavior<Matcher = M>,
     {
         match self {
@@ -134,6 +156,11 @@ impl<M: Matcher> Term<M> {
             }
         }
     }
+
+    // A Term is always symbolic
+    fn is_symbolic(&self) -> bool {
+        true
+    }
 }
 
 fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
@@ -141,7 +168,7 @@ fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
         Term::Variable(_) => {}
         Term::Application(_, ref subterms) => {
             for subterm in subterms {
-                append(subterm, v);
+                append(&subterm.term, v);
             }
         }
     }
@@ -163,18 +190,21 @@ impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
     }
 }
 
-pub trait Subterms<M: Matcher> {
-    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>>;
+pub trait Subterms<M: Matcher, T>
+where
+    T: TermType<M>,
+{
+    fn find_subterm_same_shape(&self, term: &T) -> Option<&T>;
 
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, filter: P) -> Option<&Term<M>>;
+    fn find_subterm<P: Fn(&&T) -> bool + Copy>(&self, filter: P) -> Option<&T>;
 
-    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&T, &T) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term<M>), &Term<M>)>;
+    ) -> Vec<((usize, &T), &T)>;
 }
 
-impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
+impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
     /// Finds a subterm with the same type as `term`
     fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
@@ -203,8 +233,8 @@ impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
                     found_grand_subterms.extend(
                         grand_subterms
                             .iter()
-                            .filter(|grand_subterm| predicate(subterm, grand_subterm))
-                            .map(|grand_subterm| ((i, subterm), grand_subterm)),
+                            .filter(|grand_subterm| predicate(subterm, &grand_subterm.term))
+                            .map(|grand_subterm| ((i, subterm), &grand_subterm.term)),
                     );
                 }
             };
@@ -238,7 +268,8 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }
 
-
+/// `TermEval`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
+/// symblic terms
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
     payload_0: Vec<u8>, // initially both are equal and correspond to the term evaluation
@@ -247,7 +278,7 @@ pub struct Payloads {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct TermEval<M: Matcher> {
-    term: Term<M>, // initial DY term
+    pub(crate) term: Term<M>,   // initial DY term
     payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
@@ -262,6 +293,147 @@ impl<M: Matcher> From<Term<M>> for TermEval<M> {
             term,
             payloads: None,
         }
+    }
+}
+impl<M: Matcher> From<TermEval<M>> for Term<M> {
+    fn from(term: TermEval<M>) -> Self {
+        term.term
+    }
+}
+
+impl<M: Matcher> TermType<M> for TermEval<M> {
+    fn resistant_id(&self) -> u32 {
+        self.resistant_id()
+    }
+
+    fn size(&self) -> usize {
+        match self.payloads {
+            None => self.term.size(),
+            Some(_) => SIZE_LEAF,
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        match self.payloads {
+            None => self.is_leaf(),
+            Some(_) => true,
+        }
+    }
+
+    fn is_symbolic(&self) -> bool {
+        match self.payloads {
+            None => true,
+            Some(_) => false, // Once it embeds payloads, a term is no longer symbolic
+        }
+    }
+
+    fn get_type_shape(&self) -> &TypeShape {
+        &self.term.get_type_shape()
+    }
+
+    fn name(&self) -> &str {
+        BITSTRING_NAME
+    }
+
+    fn mutate(&mut self, other: TermEval<M>) {
+        self.term = other.term; // TODO
+    }
+
+    fn display_at_depth(&self, depth: usize) -> String {
+        match self.payloads {
+            None => self.display_at_depth(depth),
+            Some(_) => {
+                let tabs = "\t".repeat(depth);
+                format!(
+                    "BITSTRING_OF {}{}",
+                    tabs,
+                    self.term.display_at_depth(depth + 4)
+                )
+            }
+        }
+    }
+
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn Any>, Error>
+    where
+        M: Matcher,
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.term.evaluate(context) // TODO
+    }
+}
+
+fn append_eval<'a, M: Matcher>(term_eval: &'a TermEval<M>, v: &mut Vec<&'a TermEval<M>>) {
+    match term_eval.term {
+        Term::Variable(_) => {}
+        Term::Application(_, ref subterms) => {
+            for subterm in subterms {
+                append_eval(subterm, v);
+            }
+        }
+    }
+
+    v.push(term_eval);
+}
+
+/// Having the same mutator for &'a mut Term is not possible in Rust:
+/// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
+/// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
+impl<'a, M: Matcher> IntoIterator for &'a TermEval<M> {
+    type Item = &'a TermEval<M>;
+    type IntoIter = std::vec::IntoIter<&'a TermEval<M>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut result = vec![];
+        append_eval::<M>(self, &mut result);
+        result.into_iter()
+    }
+}
+
+impl<M: Matcher> Subterms<M, TermEval<M>> for Vec<TermEval<M>> {
+    /// Finds a subterm with the same type as `term`
+    fn find_subterm_same_shape(&self, term: &TermEval<M>) -> Option<&TermEval<M>> {
+        self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
+    }
+
+    /// Finds a subterm in this vector
+    fn find_subterm<P: Fn(&&TermEval<M>) -> bool + Copy>(
+        &self,
+        predicate: P,
+    ) -> Option<&TermEval<M>> {
+        self.iter().find(predicate)
+    }
+
+    /// Finds all grand children/subterms which match the predicate.
+    ///
+    /// A grand subterm is defined as a subterm of a term in `self`.
+    ///
+    /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
+    fn filter_grand_subterms<P: Fn(&TermEval<M>, &TermEval<M>) -> bool + Copy>(
+        &self,
+        predicate: P,
+    ) -> Vec<((usize, &TermEval<M>), &TermEval<M>)> {
+        let mut found_grand_subterms = vec![];
+
+        for (i, subterm) in self.iter().enumerate() {
+            match &subterm.term {
+                Term::Variable(_) => {}
+                Term::Application(_, grand_subterms) => {
+                    if subterm.is_symbolic() {
+                        found_grand_subterms.extend(
+                            grand_subterms
+                                .iter()
+                                .filter(|grand_subterm| predicate(subterm, grand_subterm))
+                                .map(|grand_subterm| ((i, subterm), grand_subterm)),
+                        );
+                    }
+                }
+            };
+        }
+
+        found_grand_subterms
     }
 }
 
