@@ -1838,6 +1838,7 @@ pub mod tests {
 
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
+    use puffin::algebra::TermType;
 
     use super::*;
     use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};

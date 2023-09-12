@@ -138,6 +138,7 @@ pub mod test_signature {
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
     };
+    use crate::algebra::TermEval;
 
     pub struct HmacKey;
     pub struct HandshakeMessage;
@@ -363,7 +364,7 @@ pub mod test_signature {
     );
 
     pub type TestTrace = Trace<AnyMatcher>;
-    pub type TestTerm = Term<AnyMatcher>;
+    pub type TestTerm = TermEval<AnyMatcher>;
 
     pub struct TestClaim;
 
@@ -555,6 +556,8 @@ mod tests {
         term,
         trace::{Knowledge, TraceContext},
     };
+    use crate::algebra::TermEval;
+    use crate::algebra::term::TermType;
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -615,13 +618,13 @@ mod tests {
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
-        let generated_term = Term::Application(
+        let generated_term = TermEval::from(Term::Application(
             hmac256,
             vec![
-                Term::Application(hmac256_new_key, vec![]),
-                Term::Variable(variable),
+                TermEval::from(Term::Application(hmac256_new_key, vec![])),
+                TermEval::from(Term::Variable(variable)),
             ],
-        );
+        ));
 
         //println!("{}", generated_term);
 
@@ -669,58 +672,58 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = Term::Application(
+        let constructed_term = TermEval::from(Term::Application(
             Signature::new_function(&example_op_c),
             vec![
-                Term::Application(
+                TermEval::from(Term::Application(
                     Signature::new_function(&example_op_c),
                     vec![
-                        Term::Application(
+                        TermEval::from(Term::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                Term::Application(Signature::new_function(&example_op_c), vec![]),
-                                Term::Variable(
+                                TermEval::from(Term::Application(Signature::new_function(&example_op_c), vec![])),
+                                TermEval::from(Term::Variable(
                                     Signature::new_var_with_type::<SessionID, AnyMatcher>(
                                         AgentName::first(),
                                         None,
                                         0,
                                     ),
-                                ),
+                                )),
                             ],
-                        ),
-                        Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
+                        )),
+                        TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
                             AgentName::first(),
                             None,
                             0,
-                        )),
+                        ))),
                     ],
-                ),
-                Term::Application(
+                )),
+                TermEval::from(Term::Application(
                     Signature::new_function(&example_op_c),
                     vec![
-                        Term::Application(
+                        TermEval::from(Term::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+                                TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, _>(
                                     AgentName::first(),
                                     None,
                                     0,
-                                )),
-                                Term::Application(Signature::new_function(&example_op_c), vec![]),
+                                ))),
+                                TermEval::from(Term::Application(Signature::new_function(&example_op_c), vec![])),
                             ],
-                        ),
-                        Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+                        )),
+                        TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, _>(
                             AgentName::first(),
                             None,
                             0,
-                        )),
+                        ))),
                     ],
-                ),
+                )),
             ],
-        );
+        ));
 
         //println!("{}", constructed_term);
-        let _graph = constructed_term.dot_subgraph(true, 0, "test");
+        let _graph = constructed_term.term.dot_subgraph(true, 0, "test");
         //println!("{}", graph);
     }
 }

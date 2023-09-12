@@ -10,6 +10,7 @@ mod tests {
         query::TlsQueryMatcher,
         tls::{fn_impl::*, TLS_SIGNATURE},
     };
+    use puffin::algebra::TermType;
 
     #[test]
     /// Tests whether all function symbols can be used when generating random terms
@@ -21,7 +22,7 @@ mod tests {
             .terms()
             .iter()
             .enumerate()
-            .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
+            .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
 
         let _graph = format!(
@@ -34,6 +35,7 @@ mod tests {
             .iter()
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
+
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
@@ -57,7 +59,10 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        println!("{:?}", &difference);
+        println!("Diff: {:?}\n", &difference);
+
+        println!("Successfully built: {:?}\n", &successfully_built_functions);
+        println!("All functions: {:?}\n", &all_functions);
         assert_eq!(difference.count(), 0);
         //println!("{}", graph);
     }

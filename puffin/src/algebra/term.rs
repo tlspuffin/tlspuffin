@@ -280,7 +280,7 @@ pub struct Payloads {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct TermEval<M: Matcher> {
-    pub(crate) term: Term<M>,   // initial DY term
+    pub term: Term<M>,   // initial DY term
     pub(crate) payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
