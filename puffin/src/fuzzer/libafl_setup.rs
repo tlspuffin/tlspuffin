@@ -440,7 +440,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_mutations(trace_mutations(
+            .with_mutations(trace_mutations::<_, _, PB>(
                 *min_trace_length,
                 *max_trace_length,
                 *term_constraints,

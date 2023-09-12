@@ -3,7 +3,9 @@
 use std::{any::Any, fmt, fmt::Formatter};
 
 use itertools::Itertools;
+use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
+use serde::de::Unexpected::Bytes;
 
 use super::atoms::{Function, Variable};
 use crate::{
@@ -272,14 +274,25 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 /// symblic terms
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
-    payload_0: Vec<u8>, // initially both are equal and correspond to the term evaluation
-    payload: Vec<u8>,   // this one will later be subject to bit-level mutation
+    payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
+    pub(crate) payload: BytesInput,   // this one will later be subject to bit-level mutation
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct TermEval<M: Matcher> {
     pub(crate) term: Term<M>,   // initial DY term
-    payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
+    pub(crate) payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
+}
+
+impl<M:Matcher> TermEval<M> {
+    pub fn add_payloads(&mut self, payload: Vec<u8>) {
+        self.payloads = Option::from({
+            Payloads {
+                payload_0: BytesInput::new(payload.clone()),
+                payload: BytesInput::new(payload),
+            }
+        });
+    }
 }
 
 impl<M: Matcher> fmt::Display for TermEval<M> {

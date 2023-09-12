@@ -1,108 +1,40 @@
 use libafl::prelude::*;
+use std::ops::Not;
+use std::thread::panicking;
+use log::info;
 use util::{Choosable, *};
 
+use crate::algebra::{Payloads, TermEval, TermType};
+use crate::codec::Codec;
+use crate::fuzzer::harness::default_put_options;
+use crate::protocol::ProtocolBehavior;
+use crate::trace::TraceContext;
 use crate::{
     algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
-use crate::algebra::{TermEval, TermType};
 
-#[cfg(feature = "no-repeat")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-
-#[cfg(feature = "no-skip")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-#[cfg(feature = "no-replaceR")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-#[cfg(feature = "no-replaceM")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-#[cfg(feature = "no-remove")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-#[cfg(feature = "no-gen")]
-type AllMuts <S> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	SwapMutator<S>
-    );
-#[cfg(feature = "no-swap")]
-type AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-    );
-
-#[cfg(not(any(feature = "no-repeat", feature = "no-skip", feature = "no-replaceR", feature = "no-replaceM", feature = "no-remove", feature = "no-gen", feature = "no-swap")))]
-type  AllMuts <S, M: Matcher> =
-    tuple_list_type!(
-	RepeatMutator<S>,
-	SkipMutator<S>,
-	ReplaceReuseMutator<S>,
-	ReplaceMatchMutator<S>,
-	RemoveAndLiftMutator<S>,
-	GenerateMutator<S, M>,
-	SwapMutator<S>
-    );
-
-	
-#[cfg(not(feature = "no-gen"))]	// Treated separately due to M not being used
-pub fn trace_mutations<S, M: Matcher>(
+pub fn trace_mutations<S, M: Matcher, PB>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
     signature: &'static Signature,
-) -> AllMuts<S,M>
+) -> tuple_list_type!(
+       RepeatMutator<S>,
+       SkipMutator<S>,
+       ReplaceReuseMutator<S>,
+       ReplaceMatchMutator<S>,
+       RemoveAndLiftMutator<S>,
+       GenerateMutator<S, M>,
+       SwapMutator<S>,
+       MakeMessage<S,PB>,
+       BitFlip<S>,
+   )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+    PB: ProtocolBehavior,
 {
     #[cfg(feature = "no-repeat")]
     let l = tuple_list!(
@@ -162,29 +94,10 @@ where
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    
-    l
-}
-
-#[cfg(feature = "no-gen")]	// Treated separately due to M not being used
-pub fn trace_mutations<S, M: Matcher>(
-    min_trace_length: usize,
-    max_trace_length: usize,
-    constraints: TermConstraints,
-    fresh_zoo_after: u64,
-    signature: &'static Signature,
-) -> AllMuts<S>
-where
-    S: HasCorpus<Trace<M>> + HasMetadata + HasMaxSize + HasRand,
-{
-    tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        SwapMutator::new(constraints))
+        SwapMutator::new(constraints),
+        MakeMessage::new(constraints),
+        BitFlip::new(),
+    )
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -667,14 +580,161 @@ where
     }
 }
 
+// ******************************************************************************************************
+// Start bit-level Mutations
+
+/// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
+pub struct MakeMessage<S, PB>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: (std::marker::PhantomData<S>, std::marker::PhantomData<PB>),
+}
+
+impl<S, PB> MakeMessage<S, PB>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new(constraints: TermConstraints) -> Self {
+        Self {
+            constraints,
+            phantom_s: (std::marker::PhantomData, std::marker::PhantomData),
+        }
+    }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
+where
+    S: HasRand,
+    PB: ProtocolBehavior<Matcher = M>,
+{
+    // By Micol Giacomin
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M>,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        let mut new_trace = trace.clone();
+        // choose a random sub term
+        if let Some((to_mutate, (step_index, term_path))) =
+            choose_mut(trace, self.constraints, rand)
+        /* choose random sub tree (bias for nodes with smaller height)
+        if let Some((to_mutate, (step_index, term_path))) =
+            choose_with_weights(&trace.clone(), self.constraints, rand) */
+        {
+            // shorten runtime of the PUT by cutting useless steps out (new trace = trace[0..step_index])
+            let mut steps = Vec::new();
+            for i in 0..step_index {
+                steps.push(new_trace.steps[i].clone());
+            }
+            new_trace.steps = steps;
+            // execute the PUT on the steps and store the resulting trace context
+            let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
+            if let Ok(()) = new_trace.execute(&mut ctx) {
+                // turn term into a message
+                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { // TODO !!we need a way to get a Vec<u8> out of evaluated
+                    match Vec::new() { //TODO: here Codec::get_encoding(&evaluated) {
+                        payload => {
+                            to_mutate.add_payloads(payload);
+                            Ok(MutationResult::Mutated)
+                        }
+                    }
+                } else {
+                    info!("mutation::MakeMessage::failed to evaluate chosen sub-term");
+                    Ok(MutationResult::Skipped)
+                }
+            } else {
+                panic!("mutation::MakeMessage::trace in Corpus is not executable, should never happen")
+            }
+        } else {
+            info!("mutation::MakeMessage::failed to choose term");
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S, PB> Named for MakeMessage<S, PB>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<MakeMessage<S, PB>>()
+    }
+}
+
+/// BitFlip : bit flip mutations
+
+pub struct BitFlip<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+}
+
+impl<S> BitFlip<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<S, M> Mutator<Trace<M>, S> for BitFlip<S>
+where
+    S: HasRand,
+    M: Matcher,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<M>,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let rand = state.rand_mut();
+        if let Some(to_mutate) = choose_term_filtered_mut(
+            trace,
+            |x| x.is_symbolic().not(),
+            TermConstraints::default(),
+            rand,
+        ) {
+            if let Some(payloads) = &mut to_mutate.payloads {
+                BitFlipMutator.mutate(state, &mut payloads.payload, stage_idx)
+            } else {
+                panic!("mutation::BitFlip::this shouldn't happen since we filtered out terms that are symbolics!")
+            }
+        } else {
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<S> Named for BitFlip<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        std::any::type_name::<BitFlip<S>>()
+    }
+}
+
 pub mod util {
     use libafl::bolts::rands::Rand;
 
+    use crate::algebra::{TermEval, TermType};
+    use crate::protocol::ProtocolBehavior;
+    use crate::trace::InputAction;
     use crate::{
         algebra::{Matcher, Term},
         trace::{Action, Step, Trace},
     };
-    use crate::algebra::{TermEval, TermType};
 
     #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
@@ -869,6 +929,19 @@ pub mod util {
         reservoir_sample(trace, |_| true, constraints, rand)
     }
 
+    pub fn choose_mut<'a, R: Rand, M: Matcher>(
+        trace: &'a mut Trace<M>,
+        constraints: TermConstraints,
+        rand: &mut R,
+    ) -> Option<(&'a mut TermEval<M>, (usize, TermPath))> {
+        if let Some((t, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
+            let t = find_term_mut(trace, &(u, path.clone()));
+            t.map(|t| (t, (u, path)))
+        } else {
+            None
+        }
+    }
+
     pub fn choose_term<'a, R: Rand, M: Matcher>(
         trace: &'a Trace<M>,
         constraints: TermConstraints,
@@ -995,7 +1068,7 @@ mod tests {
 
             if let Some(last) = trace.steps.iter().last() {
                 match &last.action {
-                    Action::Input(input) => match &input.recipe {
+                    Action::Input(input) => match &input.recipe.term {
                         Term::Variable(_) => {}
                         Term::Application(_, subterms) => {
                             if let Some(last_subterm) = subterms.iter().last() {
