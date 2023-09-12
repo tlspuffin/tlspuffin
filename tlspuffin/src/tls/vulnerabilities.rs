@@ -1065,6 +1065,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 pub mod tests {
 
     use test_log::test;
+    use puffin::algebra::TermType;
 
     use crate::tls::{
         seeds::seed_successful12_with_tickets, trace_helper::TraceHelper, vulnerabilities::*,

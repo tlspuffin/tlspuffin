@@ -14,6 +14,7 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
+use puffin::algebra::TermType;
 
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
@@ -100,7 +101,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
-                        Action::Input(input) => match &input.recipe {
+                        Action::Input(input) => match &input.recipe.term {
                             Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(first_subterm) = subterms.iter().next() {
@@ -129,7 +130,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
-                        Action::Input(input) => match &input.recipe {
+                        Action::Input(input) => match &input.recipe.term {
                             Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(last_subterm) = subterms.iter().last() {
@@ -159,7 +160,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 if let MutationResult::Mutated = result {
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
-                            Action::Input(input) => match &input.recipe {
+                            Action::Input(input) => match &input.recipe.term {
                                 Term::Variable(_) => {}
                                 Term::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
@@ -198,7 +199,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 if let Some(last) = mutate.steps.iter().last() {
                     match &last.action {
-                        Action::Input(input) => match &input.recipe {
+                        Action::Input(input) => match &input.recipe.term {
                             Term::Variable(_) => {}
                             Term::Application(_, subterms) => {
                                 if let Some(first_subterm) = subterms.iter().next() {
