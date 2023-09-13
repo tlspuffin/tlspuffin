@@ -17,13 +17,14 @@ mod tests {
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate(&TLS_SIGNATURE, &mut rand);
-
+        // println!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
             .iter()
             .enumerate()
             .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
+        // println!("subgraph size: {}", subgraphs.len());
 
         let _graph = format!(
             "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -59,10 +60,9 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        println!("Diff: {:?}\n", &difference);
-
-        println!("Successfully built: {:?}\n", &successfully_built_functions);
-        println!("All functions: {:?}\n", &all_functions);
+        // println!("Diff: {:?}\n", &difference);
+        // println!("Successfully built: {:?}\n", &successfully_built_functions);
+        // println!("All functions: {:?}\n", &all_functions);
         assert_eq!(difference.count(), 0);
         //println!("{}", graph);
     }
