@@ -83,7 +83,7 @@ impl<M: Matcher> Trace<M> {
                     .recipe
                     .term
                     .dot_subgraph(tree_mode, i, subgraph_name.as_str())
-                    .to_string(), // TODO: if not .is_symbolic(), display "bitstring"
+                    .to_string(), // TODO-bitlevel: if not .is_symbolic(), display "bitstring"
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \

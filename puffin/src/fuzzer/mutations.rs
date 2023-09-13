@@ -88,7 +88,7 @@ where
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &TermEval<M>| term.get_type_shape() == term_a.get_type_shape(),
-                // TODO: maybe also check that both terms are .is_symbolic()
+                // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
                 self.constraints,
                 rand,
             ) {
@@ -153,7 +153,7 @@ where
         let filter = |term: &TermEval<M>| match &term.term {
             Term::Variable(_) => false,
             Term::Application(_, subterms) =>
-                // TODO: maybe add: term.is_symbolic() &&
+                // TODO-bitlevel: maybe add: term.is_symbolic() &&
                 subterms
                 .find_subterm(|subterm| match &subterm.term {
                     Term::Variable(_) => false,
@@ -166,7 +166,7 @@ where
         if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
             match &mut to_mutate.term {
-                // TODO: maybe also SKIP if not(to_mutate.is_symbolic())
+                // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(_) => Ok(MutationResult::Skipped),
                 Term::Application(_, ref mut subterms) => {
                     if let Some(((subterm_index, _), grand_subterm)) = choose_iter(
@@ -241,7 +241,7 @@ where
         let rand = state.rand_mut();
         if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             match &mut to_mutate.term {
-                // TODO: maybe also SKIP if not(to_mutate.is_symbolic())
+                // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(variable) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
@@ -326,7 +326,7 @@ where
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
                 |term: &TermEval<M>| term.get_type_shape() == replacement.get_type_shape(),
-                // TODO: maybe also check that both are .is_symbolic()
+                // TODO-bitlevel: maybe also check that both are .is_symbolic()
                 self.constraints,
                 rand,
             ) {
@@ -585,8 +585,8 @@ where
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             if let Ok(()) = new_trace.execute(&mut ctx) {
                 // turn term into a message
-                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { // TODO !!we need a way to get a Vec<u8> out of evaluated
-                    match Vec::new() { //TODO: here Codec::get_encoding(&evaluated) {
+                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { // TODO-bitlevel !!we need a way to get a Vec<u8> out of evaluated possibly with Codec::get_encoding(&evaluated)
+                    match Vec::new() { // here Codec::get_encoding(&evaluated) { ??
                         payload => {
                             to_mutate.add_payloads(payload);
                             Ok(MutationResult::Mutated)
@@ -761,7 +761,7 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    // TODO: GLOBALLY IN THE REST OF THE FILE
+    // TODO-bitlevel: GLOBALLY IN THE REST OF THE FILE
     //  Think about how we should deal with TermEval that are not is_symbolic()
     // leaves --> considered as atoms and not terms!
     fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(

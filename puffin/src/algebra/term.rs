@@ -275,16 +275,16 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
     payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
-    pub(crate) payload: BytesInput,   // this one will later be subject to bit-level mutation
+    pub(crate) payload: BytesInput, // this one will later be subject to bit-level mutation
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct TermEval<M: Matcher> {
-    pub term: Term<M>,   // initial DY term
+    pub term: Term<M>,                     // initial DY term
     pub(crate) payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
-impl<M:Matcher> TermEval<M> {
+impl<M: Matcher> TermEval<M> {
     pub fn add_payloads(&mut self, payload: Vec<u8>) {
         self.payloads = Option::from({
             Payloads {
@@ -378,7 +378,10 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         M: Matcher,
         PB: ProtocolBehavior<Matcher = M>,
     {
-        self.term.evaluate(context) // TODO
+        self.term.evaluate(context) // TODO-bitlevel
+                                    // Here we need to replace in this result all the payload_0 by payload for all terms
+                                    // having Payload {payload_0, payload}, possibly by refining the location where we need
+                                    // to replace
     }
 }
 
