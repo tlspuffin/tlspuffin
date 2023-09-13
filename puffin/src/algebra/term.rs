@@ -316,7 +316,7 @@ impl<M: Matcher> From<TermEval<M>> for Term<M> {
 
 impl<M: Matcher> TermType<M> for TermEval<M> {
     fn resistant_id(&self) -> u32 {
-        self.resistant_id()
+        self.term.resistant_id()
     }
 
     fn size(&self) -> usize {
@@ -345,7 +345,11 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn name(&self) -> &str {
-        BITSTRING_NAME
+        if self.is_symbolic() {
+            self.term.name()
+        } else {
+            BITSTRING_NAME
+        }
     }
 
     fn mutate(&mut self, other: TermEval<M>) {
