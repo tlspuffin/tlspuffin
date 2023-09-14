@@ -406,20 +406,9 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                        let mut data: Vec<u8> = Vec::new();
-                        msg.create_opaque().encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else if let Some(opaque_message) = evaluated
-                        .as_ref()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
-                    {
-                        let mut data: Vec<u8> = Vec::new();
-                        opaque_message.encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else {
-                        error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
-                    }
+                    f.write_all(&evaluated).expect("Unable to write data");
+                } else {
+                    error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
                 }
             }
             Action::Output(_) => {}

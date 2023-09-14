@@ -107,7 +107,7 @@ trace_helper::TraceHelper,
             let default_box = Box::new(());
             let mut term_any = term
                 .term
-                .evaluate(&ctx)
+                .evaluate_lazy(&ctx)
                 .unwrap_or(default_box);
 
             let _ = term_any.downcast_ref::<CipherSuite>()
@@ -170,7 +170,7 @@ trace_helper::TraceHelper,
 
 
 
-            match term.evaluate_bitstring(&ctx) {
+            match term.evaluate(&ctx) {
                 Ok(eval) => {
                     eval_count += 1;
                     println!(
