@@ -182,6 +182,17 @@ impl Codec for u64 {
     }
 }
 
+impl Codec for Vec<u8> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8(bytes, self)
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        read_vec_u8(r)
+
+    }
+}
+
 pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.push(0);
