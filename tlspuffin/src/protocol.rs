@@ -1,3 +1,4 @@
+use std::any::Any;
 use puffin::{
     algebra::{signature::Signature, Matcher},
     error::Error,
@@ -6,6 +7,7 @@ use puffin::{
     trace::Trace,
     variable_data::VariableData,
 };
+use puffin::algebra::ConcreteMessage;
 
 use crate::{
     claims::TlsClaim,
@@ -201,5 +203,9 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
         create_corpus()
+    }
+
+    fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+        todo!() //XXXX
     }
 }

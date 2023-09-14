@@ -38,6 +38,7 @@ use crate::{
     variable_data::VariableData,
 };
 use crate::algebra::{TermEval, TermType};
+use crate::codec::Codec;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -582,21 +583,15 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate_lazy(ctx)?;
+        let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+        if let Some(msg) = PB::OpaqueProtocolMessage::read_bytes(&evaluated) {
+            // TODO-bitlevel: rework the architecture so that we don't need to read-bytes
             msg.debug("Input message");
-            // TODO-bitlevel: we now need to actually add bitstrings to add_to_inbound so that we can do the replacement in evaluated
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
-        } else if let Some(opaque_message) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessage>()
-        {
-            opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            ctx.add_to_inbound(step.agent, &msg)?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
+                "Recipe, once evaluated, is not a `OpaqueProtocolMessage`!",
             ))
             .into());
         }

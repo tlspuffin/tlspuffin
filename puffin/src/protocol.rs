@@ -1,18 +1,21 @@
+use std::any::Any;
 use std::fmt::Debug;
 
 use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::Codec,
+    codec::Encode,
     error::Error,
     put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,
 };
+use crate::algebra::ConcreteMessage;
+use crate::codec::Codec;
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Codec {
+pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
@@ -50,7 +53,7 @@ pub trait ProtocolBehavior: 'static {
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
-    type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage + Codec;
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
@@ -65,6 +68,9 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+
+    /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal structure
+    fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
