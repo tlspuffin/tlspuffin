@@ -1,8 +1,8 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
 use std::fmt::{Debug, Display};
-use std::{any::Any, fmt, fmt::Formatter};
 use std::hash::Hash;
+use std::{any::Any, fmt, fmt::Formatter};
 
 use itertools::Itertools;
 use libafl::inputs::BytesInput;
@@ -19,6 +19,8 @@ use crate::{
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &'static str = "BITSTRING_";
+
+pub type ConcreteMessage = Vec<u8>;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -60,33 +62,24 @@ pub trait TermType<M>: Display + Debug {
         PB: ProtocolBehavior<Matcher = M>;
     fn is_symbolic(&self) -> bool;
 
-    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
-    fn evaluate_symbolic<PB: ProtocolBehavior>( //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Vec<u8>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        self.evaluate_lazy(&context)?
-            .as_ref()
-            .downcast_ref::<Vec<u8>>() // TODO: call instead PB::any_evaluate here
-            .map(|b| b.clone())
-            .ok_or_else(|| Error::Term(format!("Unable to evaluate term {:?}!", self)))
-    }
-
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
-    ) -> Result<Vec<u8>, Error>
+    ) -> Result<ConcreteMessage, Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>;
+
+    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
+    fn evaluate_symbolic<PB: ProtocolBehavior>(
+        //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<ConcreteMessage, Error>
         where
             PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut to_replace   = self.evaluate_symbolic(context)?;
-        to_replace[0] = 1 as u8; // TODO-bitlevel: inplement the replacement
-        // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
-        Ok(to_replace)
+        PB::any_get_encoding(self.evaluate_lazy(&context)?)
     }
 }
 
@@ -195,6 +188,16 @@ impl<M: Matcher> TermType<M> for Term<M> {
     // A Term is always symbolic
     fn is_symbolic(&self) -> bool {
         true
+    }
+
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<ConcreteMessage, Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.evaluate_symbolic(context)
     }
 }
 
@@ -411,10 +414,24 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         M: Matcher,
         PB: ProtocolBehavior<Matcher = M>,
     {
-        self.term.evaluate_lazy(context) // TODO-bitlevel
-                                    // Here we need to replace in this result all the payload_0 by payload for all terms
-                                    // having Payload {payload_0, payload}, possibly by refining the location where we need
-                                    // to replace
+        self.term.evaluate_lazy(context)
+    }
+
+    /// Evaluate terms into bitstrings (considering Payloads)
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<ConcreteMessage, Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        let mut to_replace = self.evaluate_symbolic(context)?;
+        to_replace[0] = 1 as u8; // TODO-bitlevel: implement the replacement
+                                 // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
+        // Here we need to replace in this result all the payload_0 by payload for all terms
+        // having Payload {payload_0, payload}, possibly by refining the location where we need
+        // to replace   \
+        Ok(to_replace)
     }
 }
 
