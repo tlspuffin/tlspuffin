@@ -232,11 +232,11 @@ pub struct Message {
 
 impl Codec for Message {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.encode(bytes);
+        self.payload.encode(bytes); // TODO-bitlevel: do we want that or something like //        bytes.append(&mut OpaqueMessage::encode(self.into()));??
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        Self::read(reader)
+        Self::read(reader) // TODO-bitlevel: do we want that ?
     }
 }
 

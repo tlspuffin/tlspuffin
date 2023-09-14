@@ -1,11 +1,13 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
+use std::fmt::{Debug, Display};
 use std::{any::Any, fmt, fmt::Formatter};
+use std::hash::Hash;
 
 use itertools::Itertools;
 use libafl::inputs::BytesInput;
-use serde::{Deserialize, Serialize};
 use serde::de::Unexpected::Bytes;
+use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::{
@@ -40,7 +42,7 @@ impl<M: Matcher> fmt::Display for Term<M> {
 }
 
 /// Trait for data we can treat as terms (either Term or TermEval)
-pub trait TermType<M> {
+pub trait TermType<M>: Display + Debug {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
     fn is_leaf(&self) -> bool;
@@ -55,6 +57,20 @@ pub trait TermType<M> {
     where
         PB: ProtocolBehavior<Matcher = M>;
     fn is_symbolic(&self) -> bool;
+
+    fn evaluate_bitstring<PB: ProtocolBehavior>( //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Vec<u8>, Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.evaluate(&context)?
+            .as_ref()
+            .downcast_ref::<Vec<u8>>()
+            .map(|b| b.clone())
+            .ok_or_else(|| Error::Term(format!("Unable to evaluate_bitstring {:?}!", self)))
+    }
 }
 
 impl<M: Matcher> TermType<M> for Term<M> {
@@ -295,9 +311,9 @@ impl<M: Matcher> TermEval<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for TermEval<M> {
+impl<M: Matcher> Display for TermEval<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.term.fmt(f)
+        Display::fmt(&self.term, f)
     }
 }
 impl<M: Matcher> From<Term<M>> for TermEval<M> {
@@ -353,12 +369,12 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn mutate(&mut self, other: TermEval<M>) {
-        self.term = other.term; // TODO
+        *self = other;
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
         match self.payloads {
-            None => self.display_at_depth(depth),
+            None => self.term.display_at_depth(depth),
             Some(_) => {
                 let tabs = "\t".repeat(depth);
                 format!(

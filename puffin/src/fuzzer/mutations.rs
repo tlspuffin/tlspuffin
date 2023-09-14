@@ -585,7 +585,7 @@ where
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             if let Ok(()) = new_trace.execute(&mut ctx) {
                 // turn term into a message
-                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { // TODO-bitlevel !!we need a way to get a Vec<u8> out of evaluated possibly with Codec::get_encoding(&evaluated)
+                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { //  TODO-bitlevel !!we need a way to get a Vec<u8> out of evaluated possibly with Codec::get_encoding(&evaluated)
                     match Vec::new() { // here Codec::get_encoding(&evaluated) { ??
                         payload => {
                             to_mutate.add_payloads(payload);

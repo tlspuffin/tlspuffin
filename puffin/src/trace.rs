@@ -586,7 +586,7 @@ impl<M: Matcher> InputAction<M> {
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
-
+            // TODO-bitlevel: we now need to actually add bitstrings to add_to_inbound so that we can do the replacement in evaluated
             ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
