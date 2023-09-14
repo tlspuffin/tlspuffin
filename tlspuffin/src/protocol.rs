@@ -28,6 +28,7 @@ use crate::{
         TLS_SIGNATURE,
     },
 };
+use crate::tls::rustls::msgs::message::any_get_encoding;
 
 impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
@@ -206,6 +207,6 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     }
 
     fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
-        todo!() //XXXX
+        any_get_encoding(message)
     }
 }

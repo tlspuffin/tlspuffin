@@ -11,11 +11,11 @@ use crate::{
     variable_data::VariableData,
 };
 use crate::algebra::ConcreteMessage;
-use crate::codec::Codec;
+use crate::codec::{Codec, Reader};
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug {
+pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug + Encode {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;

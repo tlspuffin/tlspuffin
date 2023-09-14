@@ -1,4 +1,5 @@
 use std::fmt;
+use puffin::codec::Encode;
 
 /// This type contains a private key by value.
 ///
@@ -18,6 +19,11 @@ pub struct PrivateKey(pub Vec<u8>);
 #[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Certificate(pub Vec<u8>);
 
+impl Encode for PrivateKey {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.append(&mut self.0.clone())
+    }
+}
 impl AsRef<[u8]> for Certificate {
     fn as_ref(&self) -> &[u8] {
         &self.0
