@@ -1,7 +1,7 @@
 use libafl::prelude::*;
+use log::info;
 use std::ops::Not;
 use std::thread::panicking;
-use log::info;
 use util::{Choosable, *};
 
 use crate::algebra::{Payloads, TermEval, TermType};
@@ -204,15 +204,17 @@ where
         let filter = |term: &TermEval<M>| match &term.term {
             Term::Variable(_) => false,
             Term::Application(_, subterms) =>
-                // TODO-bitlevel: maybe add: term.is_symbolic() &&
+            // TODO-bitlevel: maybe add: term.is_symbolic() &&
+            {
                 subterms
-                .find_subterm(|subterm| match &subterm.term {
-                    Term::Variable(_) => false,
-                    Term::Application(_, grand_subterms) => {
-                        grand_subterms.find_subterm_same_shape(subterm).is_some()
-                    }
-                })
-                .is_some(),
+                    .find_subterm(|subterm| match &subterm.term {
+                        Term::Variable(_) => false,
+                        Term::Application(_, grand_subterms) => {
+                            grand_subterms.find_subterm_same_shape(subterm).is_some()
+                        }
+                    })
+                    .is_some()
+            }
         };
         if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
@@ -636,19 +638,20 @@ where
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             if let Ok(()) = new_trace.execute(&mut ctx) {
                 // turn term into a message
-                if let Ok(evaluated) = to_mutate.evaluate(&ctx) { //  TODO-bitlevel !!we need a way to get a Vec<u8> out of evaluated possibly with Codec::get_encoding(&evaluated)
-                    match Vec::new() { // here Codec::get_encoding(&evaluated) { ??
-                        payload => {
-                            to_mutate.add_payloads(payload);
-                            Ok(MutationResult::Mutated)
-                        }
-                    }
+                if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
+                    // TODO-bitlevel: maybe use evaluate_symbolic if we want to drop bit-level mutations
+                    // made to sub-terms in there ??? (because if might be better to do those bit-level
+                    // mutations directly on the larger sub-term?
+                    to_mutate.add_payloads(evaluated);
+                    Ok(MutationResult::Mutated)
                 } else {
                     info!("mutation::MakeMessage::failed to evaluate chosen sub-term");
                     Ok(MutationResult::Skipped)
                 }
             } else {
-                panic!("mutation::MakeMessage::trace in Corpus is not executable, should never happen")
+                panic!(
+                    "mutation::MakeMessage::trace in Corpus is not executable, should never happen"
+                )
             }
         } else {
             info!("mutation::MakeMessage::failed to choose term");

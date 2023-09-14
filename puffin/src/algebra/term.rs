@@ -50,7 +50,9 @@ pub trait TermType<M>: Display + Debug {
     fn name(&self) -> &str;
     fn mutate(&mut self, other: Self);
     fn display_at_depth(&self, depth: usize) -> String;
-    fn evaluate<PB: ProtocolBehavior>(
+    /// Semi-evaluate a term into a PB's internal representation of messages (Box<dyn Any>)
+    // TODO-bitlevel: Will certainly be removed and replaced by `evaluate`
+    fn evaluate_lazy<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn Any>, Error>
@@ -58,18 +60,33 @@ pub trait TermType<M>: Display + Debug {
         PB: ProtocolBehavior<Matcher = M>;
     fn is_symbolic(&self) -> bool;
 
-    fn evaluate_bitstring<PB: ProtocolBehavior>( //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
+    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
+    fn evaluate_symbolic<PB: ProtocolBehavior>( //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Vec<u8>, Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        self.evaluate(&context)?
+        self.evaluate_lazy(&context)?
             .as_ref()
-            .downcast_ref::<Vec<u8>>()
+            .downcast_ref::<Vec<u8>>() // TODO: call instead PB::any_evaluate here
             .map(|b| b.clone())
-            .ok_or_else(|| Error::Term(format!("Unable to evaluate_bitstring {:?}!", self)))
+            .ok_or_else(|| Error::Term(format!("Unable to evaluate term {:?}!", self)))
+    }
+
+    /// Evaluate terms into bitstrings (considering Payloads)
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Vec<u8>, Error>
+        where
+            PB: ProtocolBehavior<Matcher = M>,
+    {
+        let mut to_replace   = self.evaluate_symbolic(context)?;
+        to_replace[0] = 1 as u8; // TODO-bitlevel: inplement the replacement
+        // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
+        Ok(to_replace)
     }
 }
 
@@ -142,7 +159,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
         }
     }
 
-    fn evaluate<PB: ProtocolBehavior>(
+    fn evaluate_lazy<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn Any>, Error>
@@ -159,7 +176,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
             Term::Application(func, args) => {
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 for term in args {
-                    match term.evaluate(context) {
+                    match term.evaluate_lazy(context) {
                         Ok(data) => {
                             dynamic_args.push(data);
                         }
@@ -386,7 +403,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         }
     }
 
-    fn evaluate<PB: ProtocolBehavior>(
+    fn evaluate_lazy<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn Any>, Error>
@@ -394,7 +411,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         M: Matcher,
         PB: ProtocolBehavior<Matcher = M>,
     {
-        self.term.evaluate(context) // TODO-bitlevel
+        self.term.evaluate_lazy(context) // TODO-bitlevel
                                     // Here we need to replace in this result all the payload_0 by payload for all terms
                                     // having Payload {payload_0, payload}, possibly by refining the location where we need
                                     // to replace

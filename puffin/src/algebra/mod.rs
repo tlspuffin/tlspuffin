@@ -646,10 +646,11 @@ mod tests {
         });
 
         let _string = generated_term
-            .evaluate(&context)
+            .evaluate_lazy(&context)
             .as_ref()
             .unwrap()
             .downcast_ref::<Vec<u8>>();
+        assert_eq!(_string, generated_term.evaluate());
         //println!("{:?}", string);
     }
 
