@@ -1,7 +1,16 @@
+use puffin::algebra::error::FnError;
+use puffin::algebra::ConcreteMessage;
+use std::any::Any;
 use std::convert::TryFrom;
+use puffin::codec;
 
 use puffin::codec::{Codec, Reader};
+use puffin::protocol::ProtocolMessage;
 
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::PrivateKey;
+use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup};
+use crate::tls::rustls::msgs::handshake::{CertificateEntry, ClientExtension};
 use crate::tls::rustls::{
     error::Error,
     msgs::{
@@ -11,6 +20,13 @@ use crate::tls::rustls::{
         enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
         handshake::HandshakeMessagePayload,
         heartbeat::HeartbeatPayload,
+    },
+};
+use crate::tls::{
+    fn_impl::*,
+    rustls::msgs::{
+        enums::{CipherSuite, Compression},
+        handshake::{Random, ServerExtension, SessionID},
     },
 };
 
@@ -25,6 +41,11 @@ pub enum MessagePayload {
     Heartbeat(HeartbeatPayload),
 }
 
+impl codec::Encode for MessagePayload {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        MessagePayload::encode(self, bytes);
+    }
+}
 impl MessagePayload {
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
@@ -312,4 +333,43 @@ pub enum MessageError {
     IllegalLength,
     IllegalContentType,
     IllegalProtocolVersion,
+}
+
+// Re-interpret any type of rustls message into bitstrings through successive downcast tries
+pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
+    // TODO-bitlevel: make a macro for this, taking a list of types like AlertMessagePayload, one per line
+    message.downcast_ref::<OpaqueMessage>()
+        .map(|b| {codec::Encode::get_encoding(b)})
+        .or_else(|| message.downcast_ref::<Message>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+            message.downcast_ref::<Compression>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                message.downcast_ref::<ExtensionType>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                    message.downcast_ref::<NamedGroup>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                        message.downcast_ref::<ClientExtension>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                            message.downcast_ref::<Random>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                message.downcast_ref::<ServerExtension>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                    message.downcast_ref::<SessionID>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                    message.downcast_ref::<Message>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                        message.downcast_ref::<MessagePayload>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                            message.downcast_ref::<CertificateEntry>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                                message.downcast_ref::<HandshakeHash>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
+                                                    message.downcast_ref::<PrivateKey>()
+        .map(|b| {codec::Encode::get_encoding(b)}).or_else(||
+                                                    message.downcast_ref::<CipherSuite>()
+                                                        .map(|b| {codec::Encode::get_encoding(b)}).or_else(||
+                                                        message.downcast_ref::<AlertMessagePayload>()
+                                                            .map(|b| {codec::Encode::get_encoding(b)})
+                                                )))))))))))))))
+        .ok_or(FnError::Unknown(format!("[amy_get_encoding] Failed to downcast and then any_encode::get_encoding message {:?}", &message)).into())
 }
