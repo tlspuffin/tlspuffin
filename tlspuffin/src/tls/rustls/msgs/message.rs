@@ -5,12 +5,13 @@ use std::convert::TryFrom;
 use puffin::codec;
 
 use puffin::codec::{Codec, Reader};
+use puffin::error::Error::Term;
 use puffin::protocol::ProtocolMessage;
 
 use crate::tls::rustls::hash_hs::HandshakeHash;
-use crate::tls::rustls::key::PrivateKey;
-use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup};
-use crate::tls::rustls::msgs::handshake::{CertificateEntry, ClientExtension};
+use crate::tls::rustls::key::{Certificate, PrivateKey};
+use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
+use crate::tls::rustls::msgs::handshake::{CertificateEntry, ClientExtension, ServerExtension, HelloRetryExtension, CertReqExtension, CertificateExtension, NewSessionTicketExtension, PresharedKeyIdentity};
 use crate::tls::rustls::{
     error::Error,
     msgs::{
@@ -26,7 +27,7 @@ use crate::tls::{
     fn_impl::*,
     rustls::msgs::{
         enums::{CipherSuite, Compression},
-        handshake::{Random, ServerExtension, SessionID},
+        handshake::{Random, SessionID},
     },
 };
 
@@ -335,41 +336,68 @@ pub enum MessageError {
     IllegalProtocolVersion,
 }
 
+#[macro_export]
+macro_rules! try_downcast {
+  ($message:expr, $T:ty, $($Ts:ty),+) => {
+        $message
+        .downcast_ref::<$T>()
+        .map(|b| codec::Encode::get_encoding(b))
+        .or_else(||
+                try_downcast!($message,$($Ts),+))
+  };
+    ($message:expr, $T:ty ) => {
+        $message
+        .downcast_ref::<$T>()
+        .map(|b| codec::Encode::get_encoding(b))
+  };
+}
+
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
-    // TODO-bitlevel: make a macro for this, taking a list of types like AlertMessagePayload, one per line
-    message.downcast_ref::<OpaqueMessage>()
-        .map(|b| {codec::Encode::get_encoding(b)})
-        .or_else(|| message.downcast_ref::<Message>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-            message.downcast_ref::<Compression>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                message.downcast_ref::<ExtensionType>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                    message.downcast_ref::<NamedGroup>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                        message.downcast_ref::<ClientExtension>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                            message.downcast_ref::<Random>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                message.downcast_ref::<ServerExtension>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                    message.downcast_ref::<SessionID>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                    message.downcast_ref::<Message>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                        message.downcast_ref::<MessagePayload>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                            message.downcast_ref::<CertificateEntry>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                                message.downcast_ref::<HandshakeHash>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(|| 
-                                                    message.downcast_ref::<PrivateKey>()
-        .map(|b| {codec::Encode::get_encoding(b)}).or_else(||
-                                                    message.downcast_ref::<CipherSuite>()
-                                                        .map(|b| {codec::Encode::get_encoding(b)}).or_else(||
-                                                        message.downcast_ref::<AlertMessagePayload>()
-                                                            .map(|b| {codec::Encode::get_encoding(b)})
-                                                )))))))))))))))
-        .ok_or(FnError::Unknown(format!("[amy_get_encoding] Failed to downcast and then any_encode::get_encoding message {:?}", &message)).into())
+    try_downcast!(message,
+        // We list all the types hacing the Encode trait and that can be the type of a rustls message
+        u64,
+        u8,
+        Vec<u64>,
+        Vec<u8>,
+        Option<Vec<u8>>,
+        //
+        Message,
+        MessagePayload,
+        ExtensionType,
+        NamedGroup,
+        Vec<ClientExtension>,
+        ClientExtension,
+        Vec<ServerExtension>,
+        ServerExtension,
+        Vec<HelloRetryExtension>,
+        HelloRetryExtension,
+        Vec<CertReqExtension>,
+        CertReqExtension,
+        Vec<CertificateExtension>,
+        CertificateExtension,
+        NewSessionTicketExtension,
+        Vec<NewSessionTicketExtension>,
+        Random,
+        Vec<Compression>,
+        Compression,
+        SessionID,
+        Vec<Certificate>,
+        Certificate,
+        Vec<CertificateEntry>,
+        CertificateEntry,
+        HandshakeHash,
+        PrivateKey,
+        Vec<CipherSuite>,
+        CipherSuite,
+        Vec<PresharedKeyIdentity>,
+        PresharedKeyIdentity,
+        AlertMessagePayload,
+        SignatureScheme,
+        OpaqueMessage,
+        ProtocolVersion
+    ).ok_or(Term(
+        format!("[any_get_encoding] Failed to downcast and then any_encode::get_encoding message {:?}",
+                &message
+        )).into())
 }
