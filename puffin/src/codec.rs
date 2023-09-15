@@ -201,18 +201,7 @@ impl Codec for u64 {
     }
 }
 
-impl Codec for Vec<u8> {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_vec_u8(bytes, self)
-    }
-
-    fn read(r: &mut Reader) -> Option<Self> {
-        read_vec_u8(r)
-
-    }
-}
-
-pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
+pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.push(0);
 
@@ -224,6 +213,31 @@ pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
+impl<T:Codec> Codec for Vec<T> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8(bytes, self)
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        read_vec_u8(r)
+    }
+}
+
+impl<T:Debug + Encode> Encode for Option<T> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if let Some(value) = self {
+            value.encode(bytes);
+        }
+    }
+}
+
+impl<T:Debug + Encode, E:Debug> Encode for Result<T,E> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if let Ok(value) = self {
+            value.encode(bytes);
+        }
+    }
+}
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0]);

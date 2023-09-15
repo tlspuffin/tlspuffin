@@ -7,16 +7,14 @@ mod tests {
 
     use puffin::algebra::TermType;
     use puffin::trace::TraceContext;
-    use puffin::{
-        algebra::dynamic_function::DescribableFunction, fuzzer::term_zoo::TermZoo,
-        libafl::bolts::rands::StdRand,
-    };
-    use puffin::codec::Codec;
+    use puffin::{algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo, libafl::bolts::rands::StdRand};
+    use puffin::algebra::error::FnError;
+    use puffin::codec::Encode;
+    use puffin::error::Error;
+    use puffin::protocol::ProtocolBehavior;
 
-    use crate::{
-        query::TlsQueryMatcher,
-        tls::{fn_impl::*, TLS_SIGNATURE},
-    };
+    use crate::{query::TlsQueryMatcher, tls::{fn_impl::*, TLS_SIGNATURE}, try_downcast};
+    use crate::protocol::TLSProtocolBehavior;
     use crate::tls::{
     fn_impl::*,
     rustls::msgs::{
@@ -29,9 +27,9 @@ trace_helper::TraceHelper,
 
     use crate::put_registry::TLS_PUT_REGISTRY;
     use crate::tls::rustls::hash_hs::HandshakeHash;
-    use crate::tls::rustls::key::PrivateKey;
+    use crate::tls::rustls::key::{Certificate, PrivateKey};
     use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-    use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup};
+    use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
     use crate::tls::rustls::msgs::handshake::{CertificateEntry, ClientExtension, HasServerExtensions};
     use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
@@ -100,7 +98,6 @@ trace_helper::TraceHelper,
         let terms = zoo.terms();
         let number_terms = terms.len();
         let mut eval_count = 0;
-        let mut eval_count_any = 0;
         // println!("zoo terms: {}", zoo.terms());
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
 
@@ -109,91 +106,47 @@ trace_helper::TraceHelper,
             let mut term_any = term
                 .term
                 .evaluate_lazy(&ctx)
-                .unwrap_or(default_box);
+                .unwrap_or(default_box.clone());
 
-            // let _ = term_any.downcast_ref::<Message>()
-            //     .map(|b| {
-            //         eval_count += 1;
-            //         println!("--> Succeed evaluation of Message: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<OpaqueMessage>()
-            //     .map(|b| {
-            //         eval_count += 1;
-            //         println!("--> Succeed evaluation of OpaqueMessage: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<CipherSuite>()
-            //     .map(|b| {
-            //                 eval_count += 1;
-            //              println!("--> Succeed evaluation of CipherSuite: {} \nresulting in {:?}\n",
-            //                    term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<AlertMessagePayload>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of AlertMessagePayload: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<Compression>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of Compression: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<ExtensionType>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of ExtensionType: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<NamedGroup>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of NamedGroup: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<ClientExtension>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of ClientExtension: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<Random>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of Random: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<ServerExtension>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of ServerExtension: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<SessionID>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of SessionID: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<Message>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of Message: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<MessagePayload>()
-            //     .map(|b| {                    eval_count += 1;let mut buf = Vec::new();
-            //         println!("--> Succeed evaluation of MessagePayload: {} \nresulting in {:?}\n",
-            //                  term, {b.encode(&mut buf);buf})});
-            // let _ = term_any.downcast_ref::<CertificateEntry>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of CertificateEntry: {} \nresulting in {:?}\n",
-            //                  term, b.get_encoding())});
-            // let _ = term_any.downcast_ref::<HandshakeHash>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of HandshakeHash: {} \nresulting in {:?}\n",
-            //                  term, b.get_current_hash_raw())});
-            // let _ = term_any.downcast_ref::<PrivateKey>()
-            //     .map(|b| {                    eval_count += 1;
-            //         println!("--> Succeed evaluation of PrivateKey: {} \nresulting in {:?}\n",
-            //                  term, b.0.get_encoding())});
-
-// TODO: invesitagte why we get different numbers here...
             match term.evaluate_symbolic(&ctx) {
                 Ok(eval) => {
-                    eval_count_any += 1;
+                    eval_count += 1;
                     // println!(
                     //     " [x] Succeed evaluation of term: {} \nresulting in {:?}\n",
                     //     term, eval
                     // );
                 }
                 Err(e) => {
-                    println!(" [ ] Failed evaluation of term: {} \n with error {}", term, e);
+                    match e.clone() {
+                        Error::Fn(FnError::Unknown(ee)) =>
+                            println!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                        Error::Fn(FnError::Crypto(ee)) =>
+                            println!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]", e),
+                        Error::Fn(FnError::Malformed(ee)) => (),
+                            // println!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                        Error::Term(ee) => {
+                        //     println!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term),
+                        // _ => {
+                            println!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                            let t1 = term.evaluate_lazy(&ctx);
+                            if t1.is_ok() {print!("Evaluate_lazy success. ");
+                            match t1.expect("NO").downcast_ref::<Vec<u8>>() {
+                                Some(downcast) => {
+                                    print!("Downcast succeeded: {downcast:?}. ");
+                                    let bitstring = Encode::get_encoding(downcast);
+                                    print!("Encoding succeeded:: {bitstring:?}. ");
+                                },
+                                _ => {println!("Downcast FAILED. ")},
+                            }
+                            } else {println!("Evaluate_lazy FAILED. ");
+                            }
+                        }
+                        _ => {},
+                    }
                 }
             }
         }
-        print!("number_terms: {}, eval_count: {}, eval_count_any: {}", number_terms, eval_count, eval_count_any);
+        print!("number_terms: {}, eval_count: {}\n", number_terms, eval_count);
         assert_eq!(number_terms, eval_count);
     }
 }

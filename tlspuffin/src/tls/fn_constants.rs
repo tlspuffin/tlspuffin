@@ -2,7 +2,12 @@
 #![allow(dead_code)]
 
 use puffin::algebra::error::FnError;
+use puffin::codec;
+use puffin::codec::Encode;
 
+// TODO-bitlevel: bools: easier to DY-mutate them! (just one flip is possible)
+// TODO: make sure there is no use of this that put the bool in a message, in that case
+// HAVOC without DY mutations would not be equal to AFL-like fuzzers
 pub fn fn_true() -> Result<bool, FnError> {
     Ok(true)
 }
@@ -10,6 +15,9 @@ pub fn fn_false() -> Result<bool, FnError> {
     Ok(false)
 }
 
+// TODO-bitlevel: fn_seq not sure they are found in plaintext in the ned, I looked for usages and found
+// seq used as a squence number for encryption. For this usage, seq is serialized as expected.
+// See make_nonce in ciphers.rs
 pub fn fn_seq_0() -> Result<u64, FnError> {
     Ok(0)
 }
@@ -22,6 +30,8 @@ pub fn fn_seq_2() -> Result<u64, FnError> {
 pub fn fn_seq_3() -> Result<u64, FnError> {
     Ok(3)
 }
+// No symbolic use of sequence number >=4, could be removed if bit-level mutations
+// are allowed on ths type
 pub fn fn_seq_4() -> Result<u64, FnError> {
     Ok(4)
 }
