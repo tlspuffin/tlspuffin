@@ -2,6 +2,7 @@ use puffin::algebra::error::FnError;
 use puffin::algebra::ConcreteMessage;
 use std::any::Any;
 use std::convert::TryFrom;
+use log::{debug,error};
 use puffin::codec;
 
 use puffin::codec::{Codec, Reader};
@@ -341,9 +342,16 @@ macro_rules! try_downcast {
   ($message:expr, $T:ty, $($Ts:ty),+) => {
         $message
         .downcast_ref::<$T>()
-        .map(|b| codec::Encode::get_encoding(b))
-        .or_else(||
-                try_downcast!($message,$($Ts),+))
+        .map(|b| {
+            // println!("\n--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
+            let b = codec::Encode::get_encoding(b);
+            // println!("====>> Successfully encoded\n");
+            b
+        })
+        .or_else(|| {
+                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
+                try_downcast!($message,$($Ts),+)
+        })
   };
     ($message:expr, $T:ty ) => {
         $message
@@ -355,20 +363,32 @@ macro_rules! try_downcast {
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
     try_downcast!(message,
-        // We list all the types hacing the Encode trait and that can be the type of a rustls message
-        u64,
-        u8,
-        Vec<u64>,
-        Vec<u8>,
-        Option<Vec<u8>>,
+        // We list all the types that have the Encode trait and that can be the type of a rustls message
+        // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
+        // require each of the encode type below. Can be used to remove non-required ones and possibly
+        // to refine the order of them (heuristics to speed up the encoding).
+        u64, // 3603 fail
+        // u8, // OK
+        // Vec<u64>, // OK
+        Vec<u8>, // 2385 Fail
+        bool, // 400 Fail
+        Vec<Vec<u8>>, // Fail 332
+        Option<Vec<u8>>, // Fail 542
+        // Option<Vec<Vec<u8>>>, // OK
+        // Result<Option<Vec<u8>>, FnError>, // OK
+        // Result<Vec<u8>, FnError>, // OK
+        // Result<bool, FnError>, // OK
+        // Result<Vec<u8>, FnError>,
+        // Result<Vec<Vec<u8>>, FnError>,
         //
-        Message,
-        MessagePayload,
-        ExtensionType,
-        NamedGroup,
-        Vec<ClientExtension>,
-        ClientExtension,
-        Vec<ServerExtension>,
+        Message, // 4185 Fail
+        // Result<Message, FnError>,
+        // MessagePayload,
+        // ExtensionType,
+        NamedGroup, // 407
+        Vec<ClientExtension>, //368
+        ClientExtension, // 4067
+        Vec<ServerExtension>, // TODO
         ServerExtension,
         Vec<HelloRetryExtension>,
         HelloRetryExtension,
@@ -393,9 +413,9 @@ pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin
         Vec<PresharedKeyIdentity>,
         PresharedKeyIdentity,
         AlertMessagePayload,
-        SignatureScheme,
-        OpaqueMessage,
-        ProtocolVersion
+        SignatureScheme, // 800
+        OpaqueMessage, // 337
+        ProtocolVersion // 400
     ).ok_or(Term(
         format!("[any_get_encoding] Failed to downcast and then any_encode::get_encoding message {:?}",
                 &message

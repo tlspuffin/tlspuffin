@@ -22,27 +22,30 @@ pub struct TermZoo<M: Matcher> {
 
 impl<M: Matcher> TermZoo<M> {
     pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
-        let terms = signature
-            .functions
-            .iter()
-            .filter_map(|def| {
-                let mut counter = MAX_TRIES;
+        Self::generate_many(signature, rand, 1)
+    }
+
+    pub fn generate_many<R: Rand>(signature: &Signature, rand: &mut R, how_many: usize) -> Self {
+        let mut acc = vec![];
+        for def in &signature.functions {
+                let mut counter = MAX_TRIES as usize * how_many;
+                let mut many = 0;
 
                 loop {
-                    if counter == 0 {
-                        break None;
+                    if counter == 0 || many >= how_many {
+                        break
                     }
 
                     counter -= 1;
 
                     if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
-                        break Some(term);
+                        many += 1;
+                        acc.push(term);
                     }
                 }
-            })
-            .collect::<Vec<_>>();
+            }
 
-        Self { terms }
+        Self { terms: acc }
     }
 
     fn generate_term<R: Rand>(
