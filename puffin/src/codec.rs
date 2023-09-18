@@ -1,4 +1,5 @@
 use std::{convert::TryInto, fmt::Debug};
+use crate::algebra::error::FnError;
 
 /// Read from a byte slice.
 pub struct Reader<'a> {
@@ -235,6 +236,15 @@ impl<T:Debug + Encode, E:Debug> Encode for Result<T,E> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         if let Ok(value) = self {
             value.encode(bytes);
+        }
+    }
+}
+impl Encode for bool {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if *self {
+            bytes.push(1)
+        } else {
+            bytes.push(0)
         }
     }
 }
