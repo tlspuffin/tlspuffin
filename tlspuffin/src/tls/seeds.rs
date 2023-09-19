@@ -1839,13 +1839,101 @@ pub mod tests {
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
     use puffin::algebra::TermType;
+    use log::debug;
+    use puffin::algebra::error::FnError;
+    use puffin::codec::Codec;
+    use puffin::trace::TraceContext;
 
     use super::*;
     use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
+    use puffin::fuzzer::harness::default_put_options;
+    use puffin::protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage};
+    use puffin::put::PutOptions;
+    use crate::protocol::TLSProtocolBehavior;
+    use crate::tls::rustls::msgs::message::OpaqueMessage;
 
     #[test]
     fn test_version() {
         TLS_PUT_REGISTRY.version_strings();
+    }
+
+
+
+
+    #[test]
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    fn test_evaluate_recipe_input() {
+        use crate::tls::trace_helper::TraceExecutor;
+
+        for (tr, name) in create_corpus() {
+            println!("\n\n============= Executing trace {name}");
+            if name == "tlspuffin::tls::seeds::seed_client_attacker_auth" { // currently failing traces because of broken certs (?), even before my edits
+                continue;
+            }
+            let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+            ctx.set_deterministic(true);
+
+            for trace in &tr.prior_traces {
+                trace.spawn_agents(&mut ctx).expect("d");
+                trace.execute(&mut ctx).expect("d");
+                ctx.reset_agents().expect("d");
+            }
+
+            tr.spawn_agents(&mut ctx).unwrap();
+            let steps = &tr.steps;
+            for (i, step) in steps.iter().enumerate() {
+                println!("Executing step #{}", i);
+
+                match &step.action {
+                    Action::Input(input) => {
+                        println!("Running custom test for inputs...");
+                        {
+                            let evaluated_lazy = input.recipe.evaluate_lazy(&ctx).expect("a");
+                            if let Some(msg_old) = evaluated_lazy.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
+                                println!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
+                                let evaluated = input.recipe.evaluate(&mut ctx).expect("a");
+                                if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
+                                    println!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
+                                    assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
+                                    ctx.add_to_inbound(step.agent, &msg).expect("");
+                                } else {
+                                    panic!("Should not happen")
+                                }
+
+                            } else if let Some(opaque_message_old) = evaluated_lazy
+                                .as_ref()
+                                .downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>()
+                            {
+                                println!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
+                                let evaluated = input.recipe.evaluate(&mut ctx).expect("c");
+                                if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
+                                    println!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
+                                    assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
+                                    ctx.add_to_inbound(step.agent, &msg).expect("");
+                                } else {
+                                    panic!("Should not happen")
+                                }
+                            } else {
+                                panic!("Should not happen")
+                            }
+
+                            ctx.next_state(step.agent)
+                        }.expect("TODO: panic message");
+
+                            let output_step = &OutputAction::<TlsQueryMatcher>::new_step(step.agent);
+                            output_step.action.execute(output_step, &mut ctx);
+                    }
+                    Action::Output(_) => {
+                        step.action.execute(step, &mut ctx);
+                    }
+                }
+
+                // ctx.claims.deref_borrow().log();
+
+                // ctx.verify_security_violations();
+            }
+            assert!(ctx.agents_successful());
+        }
     }
 
     #[test]

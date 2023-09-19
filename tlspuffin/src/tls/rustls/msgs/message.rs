@@ -253,16 +253,6 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
-impl Codec for Message {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.payload.encode(bytes); // TODO-bitlevel: do we want that or something like //        bytes.append(&mut OpaqueMessage::encode(self.into()));??
-    }
-
-    fn read(reader: &mut Reader) -> Option<Self> {
-        Self::read(reader) // TODO-bitlevel: do we want that ?
-    }
-}
-
 impl Message {
     pub fn is_handshake_type(&self, hstyp: HandshakeType) -> bool {
         // Bit of a layering violation, but OK.
@@ -357,6 +347,17 @@ macro_rules! try_downcast {
         $message
         .downcast_ref::<$T>()
         .map(|b| codec::Encode::get_encoding(b))
+         .or_else(|| {
+                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
+                $message
+                .downcast_ref::<Message>()
+                .map(|b| {
+                      // println!("\n--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
+                      let b = codec::Encode::get_encoding(&b.create_opaque());
+                      // println!("====>> Successfully encoded\n");
+                      b
+                })
+        })
   };
 }
 
@@ -381,7 +382,7 @@ pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin
         // Result<Vec<u8>, FnError>,
         // Result<Vec<Vec<u8>>, FnError>,
         //
-        Message, // 4185 Fail
+        // Message, // 4185 Fail  TODOOO
         // Result<Message, FnError>,
         // MessagePayload,
         // ExtensionType,

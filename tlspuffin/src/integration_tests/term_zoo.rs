@@ -35,18 +35,19 @@ trace_helper::TraceHelper,
     use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
     #[test]
+    #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand,1);
-        // println!("zoo size: {}", zoo.terms().len());
+        // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
             .iter()
             .enumerate()
             .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
-        // println!("subgraph size: {}", subgraphs.len());
+        // debug!("subgraph size: {}", subgraphs.len());
 
         let _graph = format!(
             "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -84,27 +85,28 @@ trace_helper::TraceHelper,
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        // println!("Diff: {:?}\n", &difference);
-        // println!("Successfully built: {:?}\n", &successfully_built_functions);
-        println!("Successfully built: #{:?}", &successfully_built_functions.len());
-        println!("All functions: #{:?}", &all_functions.len());
+        // debug!("Diff: {:?}\n", &difference);
+        // debug!("Successfully built: {:?}\n", &successfully_built_functions);
+        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with MAX_DEPTH=2000 and MAX_TRIES = 50000
-        //println!("{}", graph);
+        //debug!("{}", graph);
     }
 
     #[test]
+    #[test_log::test]
     fn test_term_lazy_eval() {
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand,200);
-        // println!("zoo size: {}", zoo.terms().len());
+        // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
             .iter()
             .enumerate()
             .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
-        // println!("subgraph size: {}", subgraphs.len());
+        // debug!("subgraph size: {}", subgraphs.len());
 
         let _graph = format!(
             "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -145,15 +147,16 @@ trace_helper::TraceHelper,
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        println!("Diff: {:?}\n", &difference);
-        println!("Successfully built: #{:?}", &successfully_built_functions.len());
-        println!("All functions: #{:?}", &all_functions.len());
+        debug!("Diff: {:?}\n", &difference);
+        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with how_many = 10 000
-        //println!("{}", graph);
+        //debug!("{}", graph);
     }
 
     #[test]
+    #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval() {
         let mut rand = StdRand::with_seed(101);
@@ -173,7 +176,7 @@ trace_helper::TraceHelper,
             if true ||  term.name().to_string() == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake" {
             match term.evaluate_symbolic(&ctx) {
                 Ok(eval) => {
-                    // println!("OKAY");
+                    // debug!("OKAY");
                     successfully_built_functions.push(term.name().to_string().to_owned());
                     eval_count += 1;
 
@@ -185,26 +188,26 @@ trace_helper::TraceHelper,
                 Err(e) => {
                     let t1 = term.evaluate_lazy(&ctx);
                     if t1.is_err() {
-                        // println!("LAZY failed!");
+                        // debug!("LAZY failed!");
                         count_lazy_fail += 1;
                     } else {
                         count_any_encode_fail += 1;
                         match e.clone() { // for debugging encoding failure only
                             Error::Fn(FnError::Unknown(ee)) =>
-                                println!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                                debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
                             Error::Fn(FnError::Crypto(ee)) =>
-                                println!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
+                                debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
                             Error::Fn(FnError::Malformed(ee)) =>
-                                println!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                                debug!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
                             Error::Term(ee) => {
-                                println!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
                             },
                             _ => {
                                 // _ => {
-                                println!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                                debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
                                 let t1 = term.evaluate_lazy(&ctx);
                                 if t1.is_ok() {
-                                    println!("Evaluate_lazy success. ");
+                                    debug!("Evaluate_lazy success. ");
                                     match t1.expect("NO").downcast_ref::<bool>() {
                                         Some(downcast) => {
                                             print!("Downcast succeeded: {downcast:?}. ");
@@ -258,10 +261,10 @@ trace_helper::TraceHelper,
 
         let difference = all_functions.difference(&successfully_built_functions_names);
 
-        println!("Diff: {:?}\n", &difference);
-        println!("Successfully built: #{:?}", &successfully_built_functions.len());
-        println!("All functions: #{:?}", &all_functions.len());
-        println!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
+        debug!("Diff: {:?}\n", &difference);
+        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!("All functions: #{:?}", &all_functions.len());
+        debug!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
         assert_eq!(difference.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
     }

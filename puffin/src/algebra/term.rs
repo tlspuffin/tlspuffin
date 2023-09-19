@@ -426,11 +426,25 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut to_replace = self.evaluate_symbolic(context)?;
-        to_replace[0] = 1 as u8; // TODO-bitlevel: implement the replacement
-                                 // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
+        // V1: return self.evaluate_symbolic(context).replace-bitstrings(self)
+        // if to_replace.len() > 101 {to_replace[80] = 1 as u8;}
+            // TODO-bitlevel: implement the replacement
+
+        // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
         // Here we need to replace in this result all the payload_0 by payload for all terms
         // having Payload {payload_0, payload}, possibly by refining the location where we need
-        // to replace   \
+        // to replace
+
+        // V2: locate where replacements need to be done precisely if not injective
+
+        // V3: do not evaluate_symbolic but go top_bottom:
+        // if symbol is "encryption" (add this bool to interface) with arg_i being payload and arg_2 being key,
+        // then evaluate symbolic both arguments, do the replacement on the bitstrings, and re-interpret
+        // with decode and downcast to do the Box<Any> eval of the encryption.
+        // if term.is_encryption() (calling itself: if FunnAPP.DynamicFunctionShape.is_encryption()
+        // then for all term argument arg of type T (from TypeShape):
+        //      args_replace.push(arg.evaluate_lazy.PB::encode<T>().replace_bitstrings(arg).PB::decode<T>())
+        // call dybnamy funcrion of funapp on args_replace
         Ok(to_replace)
     }
 }
