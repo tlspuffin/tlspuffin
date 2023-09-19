@@ -122,7 +122,7 @@ pub mod test_signature {
         io::Read,
     };
 
-    use crate::algebra::TermEval;
+    use crate::algebra::{ConcreteMessage, TermEval};
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
@@ -519,6 +519,10 @@ pub mod test_signature {
         fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
+
+        fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestFactory;
@@ -645,12 +649,9 @@ mod tests {
             data: Box::new(data),
         });
 
-        let _string = generated_term
-            .evaluate_lazy(&context)
-            .as_ref()
-            .unwrap()
-            .downcast_ref::<Vec<u8>>();
-        assert_eq!(_string, generated_term.evaluate());
+        let eval = generated_term.evaluate_lazy(&context);
+        let _string = eval.as_ref().unwrap().downcast_ref::<Vec<u8>>().clone();
+        assert_eq!(_string, generated_term.evaluate(&context).as_ref().ok());
         //println!("{:?}", string);
     }
 
