@@ -1,3 +1,4 @@
+use puffin::algebra::TermType;
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
@@ -14,7 +15,6 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
-use puffin::algebra::TermType;
 
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
