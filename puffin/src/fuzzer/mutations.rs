@@ -14,6 +14,8 @@ use crate::{
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
+use crate::fuzzer::bit_mutations::*;
+
 
 pub fn trace_mutations<S, M: Matcher, PB>(
     min_trace_length: usize,
@@ -30,7 +32,8 @@ pub fn trace_mutations<S, M: Matcher, PB>(
        GenerateMutator<S, M>,
        SwapMutator<S>,
        MakeMessage<S,PB>,
-       BitFlip<S>,
+// Type of the mutations that compose the Havoc mutator (copied and pasted from above)
+       BitFlipMutatorDY<S>
    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
@@ -96,8 +99,7 @@ where
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints),
         MakeMessage::new(constraints),
-        BitFlip::new(),
-    )
+    ).merge(havoc_mutations_DY())
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -666,65 +668,6 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<MakeMessage<S, PB>>()
-    }
-}
-
-/// BitFlip : bit flip mutations
-
-pub struct BitFlip<S>
-where
-    S: HasRand,
-{
-    phantom_s: std::marker::PhantomData<S>,
-}
-
-impl<S> BitFlip<S>
-where
-    S: HasRand,
-{
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            phantom_s: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, M> Mutator<Trace<M>, S> for BitFlip<S>
-where
-    S: HasRand,
-    M: Matcher,
-{
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<M>,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
-            trace,
-            |x| x.is_symbolic().not(),
-            TermConstraints::default(),
-            rand,
-        ) {
-            if let Some(payloads) = &mut to_mutate.payloads {
-                BitFlipMutator.mutate(state, &mut payloads.payload, stage_idx)
-            } else {
-                panic!("mutation::BitFlip::this shouldn't happen since we filtered out terms that are symbolics!")
-            }
-        } else {
-            Ok(MutationResult::Skipped)
-        }
-    }
-}
-
-impl<S> Named for BitFlip<S>
-where
-    S: HasRand,
-{
-    fn name(&self) -> &str {
-        std::any::type_name::<BitFlip<S>>()
     }
 }
 
