@@ -3,6 +3,7 @@ use log::{info, trace, warn};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 
+use crate::algebra::TermType;
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
@@ -10,7 +11,6 @@ use crate::{
     put::PutOptions,
     trace::{Action, Trace, TraceContext},
 };
-use crate::algebra::TermType;
 
 static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
 

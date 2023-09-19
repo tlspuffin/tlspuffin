@@ -337,6 +337,7 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
+use crate::algebra::TermType;
 use nix::{
     sys::{
         signal::Signal,
@@ -347,7 +348,6 @@ use nix::{
     },
     unistd::{fork, ForkResult},
 };
-use crate::algebra::TermType;
 
 pub fn expect_crash<R>(func: R)
 where

@@ -1,37 +1,45 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
+    use log::{debug, error, warn};
     use std::any::Any;
     use std::collections::HashSet;
     use std::fmt::Debug;
-    use log::{debug, error, warn};
 
-    use puffin::algebra::TermType;
-    use puffin::trace::TraceContext;
-    use puffin::{algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo, libafl::bolts::rands::StdRand};
     use puffin::algebra::error::FnError;
+    use puffin::algebra::TermType;
     use puffin::codec::Encode;
     use puffin::error::Error;
     use puffin::protocol::ProtocolBehavior;
+    use puffin::trace::TraceContext;
+    use puffin::{
+        algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo,
+        libafl::bolts::rands::StdRand,
+    };
 
-    use crate::{query::TlsQueryMatcher, tls::{fn_impl::*, TLS_SIGNATURE}, try_downcast};
     use crate::protocol::TLSProtocolBehavior;
     use crate::tls::{
-    fn_impl::*,
-    rustls::msgs::{
-    enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-handshake::{Random, ServerExtension, SessionID},
-},
-
-trace_helper::TraceHelper,
-};
+        fn_impl::*,
+        rustls::msgs::{
+            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
+            handshake::{Random, ServerExtension, SessionID},
+        },
+        trace_helper::TraceHelper,
+    };
+    use crate::{
+        query::TlsQueryMatcher,
+        tls::{fn_impl::*, TLS_SIGNATURE},
+        try_downcast,
+    };
 
     use crate::put_registry::TLS_PUT_REGISTRY;
     use crate::tls::rustls::hash_hs::HandshakeHash;
     use crate::tls::rustls::key::{Certificate, PrivateKey};
     use crate::tls::rustls::msgs::alert::AlertMessagePayload;
     use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-    use crate::tls::rustls::msgs::handshake::{CertificateEntry, ClientExtension, HasServerExtensions};
+    use crate::tls::rustls::msgs::handshake::{
+        CertificateEntry, ClientExtension, HasServerExtensions,
+    };
     use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
     #[test]
@@ -39,7 +47,7 @@ trace_helper::TraceHelper,
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand,1);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1);
         // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
@@ -73,10 +81,10 @@ trace_helper::TraceHelper,
             fn_server_hello_transcript.name(),
             fn_certificate_transcript.name(),
             // OLD STUFF, NOT NEEDED:
-           //  fn_decrypt_application.name(), // FIXME: why ignore this?
-           //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
-           //  fn_rsa_sign_server.name(),
-           // // transcript functions -> ClaimList is usually available as Variable
+            //  fn_decrypt_application.name(), // FIXME: why ignore this?
+            //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
+            //  fn_rsa_sign_server.name(),
+            // // transcript functions -> ClaimList is usually available as Variable
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -87,7 +95,10 @@ trace_helper::TraceHelper,
         let difference = all_functions.difference(&successfully_built_functions);
         // debug!("Diff: {:?}\n", &difference);
         // debug!("Successfully built: {:?}\n", &successfully_built_functions);
-        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!(
+            "Successfully built: #{:?}",
+            &successfully_built_functions.len()
+        );
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with MAX_DEPTH=2000 and MAX_TRIES = 50000
@@ -98,7 +109,7 @@ trace_helper::TraceHelper,
     #[test_log::test]
     fn test_term_lazy_eval() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand,200);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200);
         // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
@@ -138,17 +149,20 @@ trace_helper::TraceHelper,
             fn_ecdsa_sign_server.name(),
             fn_ecdsa_sign_client.name(),
             fn_decrypt_handshake.name(),
-            fn_decrypt_application.name()
+            fn_decrypt_application.name(),
         ]
-            .iter()
-            .map(|fn_name| fn_name.to_string())
-            .collect::<HashSet<String>>();
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>();
 
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
         debug!("Diff: {:?}\n", &difference);
-        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!(
+            "Successfully built: #{:?}",
+            &successfully_built_functions.len()
+        );
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with how_many = 10 000
@@ -170,29 +184,33 @@ trace_helper::TraceHelper,
         let mut successfully_built_functions = vec![];
 
         for term in terms.iter() {
-            if successfully_built_functions.contains(&term.name().to_string()) { // for speeding up things
+            if successfully_built_functions.contains(&term.name().to_string()) {
+                // for speeding up things
                 continue;
             }
-            if true ||  term.name().to_string() == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake" {
-            match term.evaluate_symbolic(&ctx) {
-                Ok(eval) => {
-                    // debug!("OKAY");
-                    successfully_built_functions.push(term.name().to_string().to_owned());
-                    eval_count += 1;
+            if true
+                || term.name().to_string()
+                    == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
+            {
+                match term.evaluate_symbolic(&ctx) {
+                    Ok(eval) => {
+                        // debug!("OKAY");
+                        successfully_built_functions.push(term.name().to_string().to_owned());
+                        eval_count += 1;
 
-                    // debug!(
-                    //     " [x] Succeed evaluation of term: {} \nresulting in {:?}\n",
-                    //     term, eval
-                    // );
-                }
-                Err(e) => {
-                    let t1 = term.evaluate_lazy(&ctx);
-                    if t1.is_err() {
-                        // debug!("LAZY failed!");
-                        count_lazy_fail += 1;
-                    } else {
-                        count_any_encode_fail += 1;
-                        match e.clone() { // for debugging encoding failure only
+                        // debug!(
+                        //     " [x] Succeed evaluation of term: {} \nresulting in {:?}\n",
+                        //     term, eval
+                        // );
+                    }
+                    Err(e) => {
+                        let t1 = term.evaluate_lazy(&ctx);
+                        if t1.is_err() {
+                            // debug!("LAZY failed!");
+                            count_lazy_fail += 1;
+                        } else {
+                            count_any_encode_fail += 1;
+                            match e.clone() { // for debugging encoding failure only
                             Error::Fn(FnError::Unknown(ee)) =>
                                 debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
                             Error::Fn(FnError::Crypto(ee)) =>
@@ -222,8 +240,8 @@ trace_helper::TraceHelper,
                             }
                             _ => {},
                         }
+                        }
                     }
-                }
                 }
             }
         }
@@ -234,11 +252,10 @@ trace_helper::TraceHelper,
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let mut successfully_built_functions_names =
-            successfully_built_functions
+        let mut successfully_built_functions_names = successfully_built_functions
             .iter()
-                .map(|s| s.to_owned())
-                .collect::<HashSet<String>>();
+            .map(|s| s.to_owned())
+            .collect::<HashSet<String>>();
 
         let ignored_functions = [
             // Those 4 are the function symbols for which we fail to generator a term!
@@ -250,19 +267,21 @@ trace_helper::TraceHelper,
             fn_ecdsa_sign_server.name(),
             fn_ecdsa_sign_client.name(),
             fn_decrypt_handshake.name(),
-            fn_decrypt_application.name()
-            // All other terms can also be encoded (no additional exception for full eval :) !)
+            fn_decrypt_application.name(), // All other terms can also be encoded (no additional exception for full eval :) !)
         ]
-            .iter()
-            .map(|fn_name| fn_name.to_string())
-            .collect::<HashSet<String>>();
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>();
 
         successfully_built_functions_names.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions_names);
 
         debug!("Diff: {:?}\n", &difference);
-        debug!("Successfully built: #{:?}", &successfully_built_functions.len());
+        debug!(
+            "Successfully built: #{:?}",
+            &successfully_built_functions.len()
+        );
         debug!("All functions: #{:?}", &all_functions.len());
         debug!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
         assert_eq!(difference.count(), 0);

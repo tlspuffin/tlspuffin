@@ -1,5 +1,5 @@
-use std::fmt;
 use puffin::codec::Encode;
+use std::fmt;
 
 /// This type contains a private key by value.
 ///

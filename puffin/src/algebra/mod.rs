@@ -122,6 +122,7 @@ pub mod test_signature {
         io::Read,
     };
 
+    use crate::algebra::TermEval;
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
@@ -138,7 +139,6 @@ pub mod test_signature {
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
     };
-    use crate::algebra::TermEval;
 
     pub struct HmacKey;
     pub struct HandshakeMessage;
@@ -546,6 +546,8 @@ pub mod test_signature {
 mod tests {
 
     use super::test_signature::*;
+    use crate::algebra::term::TermType;
+    use crate::algebra::TermEval;
     use crate::{
         agent::AgentName,
         algebra::{
@@ -556,8 +558,6 @@ mod tests {
         term,
         trace::{Knowledge, TraceContext},
     };
-    use crate::algebra::TermEval;
-    use crate::algebra::term::TermType;
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -682,20 +682,23 @@ mod tests {
                         TermEval::from(Term::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                TermEval::from(Term::Application(Signature::new_function(&example_op_c), vec![])),
-                                TermEval::from(Term::Variable(
-                                    Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                                        AgentName::first(),
-                                        None,
-                                        0,
-                                    ),
+                                TermEval::from(Term::Application(
+                                    Signature::new_function(&example_op_c),
+                                    vec![],
                                 )),
+                                TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                                    SessionID,
+                                    AnyMatcher,
+                                >(
+                                    AgentName::first(), None, 0
+                                ))),
                             ],
                         )),
-                        TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                            AgentName::first(),
-                            None,
-                            0,
+                        TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                            SessionID,
+                            AnyMatcher,
+                        >(
+                            AgentName::first(), None, 0
                         ))),
                     ],
                 )),
@@ -705,19 +708,25 @@ mod tests {
                         TermEval::from(Term::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                                    AgentName::first(),
-                                    None,
-                                    0,
+                                TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                                    SessionID,
+                                    _,
+                                >(
+                                    AgentName::first(), None, 0
                                 ))),
-                                TermEval::from(Term::Application(Signature::new_function(&example_op_c), vec![])),
+                                TermEval::from(Term::Application(
+                                    Signature::new_function(&example_op_c),
+                                    vec![],
+                                )),
                             ],
                         )),
-                        TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                            AgentName::first(),
-                            None,
-                            0,
-                        ))),
+                        TermEval::from(Term::Variable(
+                            Signature::new_var_with_type::<SessionID, _>(
+                                AgentName::first(),
+                                None,
+                                0,
+                            ),
+                        )),
                     ],
                 )),
             ],

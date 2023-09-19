@@ -1,4 +1,4 @@
-use std::any::Any;
+use puffin::algebra::ConcreteMessage;
 use puffin::{
     algebra::{signature::Signature, Matcher},
     error::Error,
@@ -7,8 +7,9 @@ use puffin::{
     trace::Trace,
     variable_data::VariableData,
 };
-use puffin::algebra::ConcreteMessage;
+use std::any::Any;
 
+use crate::tls::rustls::msgs::message::any_get_encoding;
 use crate::{
     claims::TlsClaim,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
@@ -28,7 +29,6 @@ use crate::{
         TLS_SIGNATURE,
     },
 };
-use crate::tls::rustls::msgs::message::any_get_encoding;
 
 impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {

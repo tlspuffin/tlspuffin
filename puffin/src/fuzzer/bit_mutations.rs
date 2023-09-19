@@ -178,13 +178,12 @@ expand_mutations!(
     BytesRandInsertMutator,
     BytesSetMutator,
     BytesRandSetMutator,
-    BytesCopyMutator
-    // The next 4 fail because types of mutate seem a bit different, need a different macro for them
-    // TODO-bitlevel
-    // BytesInsertCopyMutator,
-    // BytesSwapMutator,
-    // CrossoverInsertMutator,
-    // CrossoverReplaceMutator
+    BytesCopyMutator // The next 4 fail because types of mutate seem a bit different, need a different macro for them
+                     // TODO-bitlevel
+                     // BytesInsertCopyMutator,
+                     // BytesSwapMutator,
+                     // CrossoverInsertMutator,
+                     // CrossoverReplaceMutator
 );
 //
 // pub struct BitFlipMutatorDY<S>

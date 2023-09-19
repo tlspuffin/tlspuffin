@@ -25,6 +25,8 @@ use std::{
 use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
+use crate::algebra::{TermEval, TermType};
+use crate::codec::Codec;
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
 use crate::{
@@ -37,8 +39,6 @@ use crate::{
     put_registry::{Factory, PutRegistry},
     variable_data::VariableData,
 };
-use crate::algebra::{TermEval, TermType};
-use crate::codec::Codec;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -324,7 +324,10 @@ pub struct Trace<M: Matcher> {
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
-    pub fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    pub fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             let name = if let Some(reusable) = ctx
                 .agents
@@ -588,11 +591,11 @@ impl<M: Matcher> InputAction<M> {
             // TODO-bitlevel: rework the architecture so that we don't need to read-bytes
             msg.debug("Input message");
             ctx.add_to_inbound(step.agent, &msg)?;
-         } else {
+        } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe, once evaluated and decoded, is not a `OpaqueProtocolMessage`!",
             ))
-                .into());
+            .into());
         }
 
         ctx.next_state(step.agent)

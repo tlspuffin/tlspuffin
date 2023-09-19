@@ -1,9 +1,9 @@
 use std::fmt::{Debug, Formatter};
 use std::mem;
 
-use puffin::codec::{Codec};
-use ring::digest;
 use puffin::codec;
+use puffin::codec::Codec;
+use ring::digest;
 
 use crate::tls::rustls::msgs::{
     handshake::HandshakeMessagePayload,
