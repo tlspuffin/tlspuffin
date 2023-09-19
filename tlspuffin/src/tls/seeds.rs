@@ -1838,7 +1838,7 @@ pub mod tests {
 
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
-    use puffin::algebra::TermType;
+    use puffin::algebra::{Payloads, replace_bitstrings, TermType};
     use log::debug;
     use puffin::algebra::error::FnError;
     use puffin::codec::Codec;
@@ -1847,8 +1847,10 @@ pub mod tests {
     use super::*;
     use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
     use puffin::fuzzer::harness::default_put_options;
+    use puffin::libafl::inputs::HasBytesVec;
     use puffin::protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage};
     use puffin::put::PutOptions;
+    use puffin::trace::Action::Input;
     use crate::protocol::TLSProtocolBehavior;
     use crate::tls::rustls::msgs::message::OpaqueMessage;
 
@@ -1857,8 +1859,28 @@ pub mod tests {
         TLS_PUT_REGISTRY.version_strings();
     }
 
+    #[test]
+    fn test_replace_bitstring() {
+        let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        ctx.set_deterministic(true);
+        let mut trace = seed_client_attacker_full.build_trace();
+        let mut fn_hello_b = vec![22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1, 1, 0, 0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, 13, 0, 6, 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229, 191, 64, 236, 45, 103, 152, 139, 119, 243, 23, 72, 155, 182, 223, 149, 41, 37, 199, 9, 252, 3, 129, 17, 26, 89, 86, 242, 215, 88, 17, 14, 89, 211, 215, 193, 114, 158, 44, 13, 112, 234, 247, 115, 230, 18, 1, 22, 66, 109, 226, 67, 106, 47, 95, 221, 127, 229, 79, 175, 149, 43, 4, 253, 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91, 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4];
+        let fn_hello_b_after = vec![22, 3, 3, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1, 1, 0, 0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, 13, 0, 6, 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229, 191, 64, 236, 45, 103, 152, 139, 119, 243, 23, 72, 155, 182, 223, 149, 41, 37, 199, 9, 252, 3, 129, 17, 26, 89, 86, 242, 215, 88, 17, 14, 89, 211, 215, 193, 114, 158, 44, 13, 112, 234, 247, 115, 230, 18, 1, 22, 66, 109, 226, 67, 106, 47, 95, 221, 127, 229, 79, 175, 149, 43, 4, 253, 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91, 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4];
 
-
+        if let Input(input) = &mut trace.steps[0].action {
+            let mut ch_term = &mut input.recipe;
+            assert_eq!(ch_term.evaluate(&ctx).expect("fail eval"), fn_hello_b);
+            let dummy = Payloads {
+                payload_0: vec![211 as u8, 1, 0, 0].into(),
+                payload: vec![2 as u8, 3, 4, 5, 6, 7, 8, 9, 10, 11].into(),
+            };
+            ch_term.payloads = Some(dummy);
+            replace_bitstrings(&mut fn_hello_b, &ch_term);
+            assert_eq!(fn_hello_b_after, fn_hello_b);
+        } else {
+            panic!("Should not happen");
+        }
+    }
 
     #[test]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3

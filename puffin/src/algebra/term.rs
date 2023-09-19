@@ -3,9 +3,11 @@
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::{any::Any, fmt, fmt::Formatter};
+use std::cmp::max;
 
 use itertools::Itertools;
-use libafl::inputs::BytesInput;
+use libafl::inputs::{BytesInput, HasBytesVec};
+use log::{debug, error, warn};
 use serde::de::Unexpected::Bytes;
 use serde::{Deserialize, Serialize};
 
@@ -310,14 +312,14 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 /// symblic terms
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
-    payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
-    pub(crate) payload: BytesInput, // this one will later be subject to bit-level mutation
+    pub payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
+    pub payload: BytesInput, // this one will later be subject to bit-level mutation
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct TermEval<M: Matcher> {
     pub term: Term<M>,                     // initial DY term
-    pub(crate) payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
+    pub payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
 impl<M: Matcher> TermEval<M> {
@@ -328,6 +330,10 @@ impl<M: Matcher> TermEval<M> {
                 payload: BytesInput::new(payload),
             }
         });
+    }
+
+    fn all_payloads(&self) -> Vec<&Payloads> {
+        self.into_iter().filter_map(|t| t.payloads.as_ref()).collect()
     }
 }
 
@@ -426,28 +432,55 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut to_replace = self.evaluate_symbolic(context)?;
-        // V1: return self.evaluate_symbolic(context).replace-bitstrings(self)
-        // if to_replace.len() > 101 {to_replace[80] = 1 as u8;}
-            // TODO-bitlevel: implement the replacement
-
-        // For all sub-terms having Payload in self, replace found Payload.paylaod_0 by Payload.payload
-        // Here we need to replace in this result all the payload_0 by payload for all terms
-        // having Payload {payload_0, payload}, possibly by refining the location where we need
-        // to replace
-
-        // V2: locate where replacements need to be done precisely if not injective
-
-        // V3: do not evaluate_symbolic but go top_bottom:
-        // if symbol is "encryption" (add this bool to interface) with arg_i being payload and arg_2 being key,
-        // then evaluate symbolic both arguments, do the replacement on the bitstrings, and re-interpret
-        // with decode and downcast to do the Box<Any> eval of the encryption.
-        // if term.is_encryption() (calling itself: if FunnAPP.DynamicFunctionShape.is_encryption()
-        // then for all term argument arg of type T (from TypeShape):
-        //      args_replace.push(arg.evaluate_lazy.PB::encode<T>().replace_bitstrings(arg).PB::decode<T>())
-        // call dybnamy funcrion of funapp on args_replace
+        replace_bitstrings(&mut to_replace, self);
         Ok(to_replace)
     }
 }
+
+
+fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        if haystack.len() < needle.len() {
+            return None
+        }
+        for i in 0..haystack.len()-needle.len()+1 {
+            if haystack[i..i+needle.len()] == needle[..] {
+                return Some(i);
+            }
+        }
+        None
+}
+
+pub fn replace_bitstrings<M:Matcher>(to_replace: &mut ConcreteMessage, term: &TermEval<M>) {
+    for payload in term.all_payloads() {
+        let old_b = payload.payload_0.bytes();
+        let new_b = payload.payload.bytes();
+        if let Some(start_find) = search_sub_vec(to_replace, old_b) {
+            debug!("Found a bitstring {:?} to replace at bitstrinbg position {start_find} in bitstring\n{:?}", old_b, to_replace);
+            // Insert in-place new_b, replacing old_b in to_replace
+            let removed_elements: Vec<u8> = to_replace.splice(start_find..start_find+old_b.len(), new_b.to_vec()).collect();
+            debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
+            if let Some(start_find_2) = search_sub_vec(&to_replace[start_find+new_b.len()..], old_b) {
+                warn!("Found twice the bitstring {:?} in term {} at both locations {start_find} and {start_find_2}", old_b, term);
+                }
+            } else {
+            error!("Failed to find a payload.payload {:?} in a recipe {}.\nMaybe the PUT is not deterministic?", old_b, term);
+            // Need to go for V2 when this happens
+
+            // V2: locate where replacements need to be done precisely if not injective
+
+            // V3: modify evaluate as follows:
+            // do not evaluate_symbolic but go top_bottom:
+            // if symbol is "encryption" (add this bool to interface) with arg_i being payload and arg_2 being key,
+            // then evaluate symbolic both arguments, do the replacement on the bitstrings, and re-interpret
+            // with decode and downcast to do the Box<Any> eval of the encryption.
+            // if term.is_encryption() (calling itself: if FunnAPP.DynamicFunctionShape.is_encryption()
+            // then for all term argument arg of type T (from TypeShape):
+            //      args_replace.push(arg.evaluate_lazy.PB::encode<T>().replace_bitstrings(arg).PB::decode<T>())
+            // call dybnamy funcrion of funapp on args_replace
+        }
+    }
+}
+
 
 fn append_eval<'a, M: Matcher>(term_eval: &'a TermEval<M>, v: &mut Vec<&'a TermEval<M>>) {
     match term_eval.term {
