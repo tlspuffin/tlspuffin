@@ -6,6 +6,7 @@ use util::{Choosable, *};
 
 use crate::algebra::{Payloads, TermEval, TermType};
 use crate::codec::Codec;
+use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::harness::default_put_options;
 use crate::protocol::ProtocolBehavior;
 use crate::trace::TraceContext;
@@ -14,8 +15,6 @@ use crate::{
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
-use crate::fuzzer::bit_mutations::*;
-
 
 pub fn trace_mutations<S, M: Matcher, PB>(
     min_trace_length: usize,
@@ -24,17 +23,39 @@ pub fn trace_mutations<S, M: Matcher, PB>(
     fresh_zoo_after: u64,
     signature: &'static Signature,
 ) -> tuple_list_type!(
-       RepeatMutator<S>,
-       SkipMutator<S>,
-       ReplaceReuseMutator<S>,
-       ReplaceMatchMutator<S>,
-       RemoveAndLiftMutator<S>,
-       GenerateMutator<S, M>,
-       SwapMutator<S>,
-       MakeMessage<S,PB>,
-// Type of the mutations that compose the Havoc mutator (copied and pasted from above)
-       BitFlipMutatorDY<S>
-   )
+          RepeatMutator<S>,
+          SkipMutator<S>,
+          ReplaceReuseMutator<S>,
+          ReplaceMatchMutator<S>,
+          RemoveAndLiftMutator<S>,
+          GenerateMutator<S, M>,
+          SwapMutator<S>,
+          MakeMessage<S,PB>,
+   // Type of the mutations that compose the Havoc mutator (copied and pasted from above)
+    BitFlipMutatorDY<S>,
+    ByteFlipMutatorDY<S>,
+    ByteIncMutatorDY<S>,
+    ByteDecMutatorDY<S>,
+    ByteNegMutatorDY<S>,
+    ByteRandMutatorDY<S>,
+    ByteAddMutatorDY<S>,
+    WordAddMutatorDY<S>,
+    DwordAddMutatorDY<S>,
+    QwordAddMutatorDY<S>,
+    ByteInterestingMutatorDY<S>,
+    WordInterestingMutatorDY<S>,
+    DwordInterestingMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesExpandMutatorDY<S>,
+    BytesInsertMutatorDY<S>,
+    BytesRandInsertMutatorDY<S>,
+    BytesSetMutatorDY<S>,
+    BytesRandSetMutatorDY<S>,
+    BytesCopyMutatorDY<S>,
+      )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior,
@@ -48,7 +69,8 @@ where
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints),
         MakeMessage::new(constraints),
-    ).merge(havoc_mutations_DY())
+    )
+    .merge(havoc_mutations_DY())
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -85,6 +107,7 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        let a  = BytesInsertMutator;
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
