@@ -1,6 +1,8 @@
 use std::any::Any;
 use std::fmt::Debug;
 
+use crate::algebra::ConcreteMessage;
+use crate::codec::{Codec, Reader};
 use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
@@ -10,8 +12,6 @@ use crate::{
     trace::Trace,
     variable_data::VariableData,
 };
-use crate::algebra::ConcreteMessage;
-use crate::codec::{Codec, Reader};
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.

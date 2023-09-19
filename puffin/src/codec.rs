@@ -1,5 +1,5 @@
-use std::{convert::TryInto, fmt::Debug};
 use crate::algebra::error::FnError;
+use std::{convert::TryInto, fmt::Debug};
 
 /// Read from a byte slice.
 pub struct Reader<'a> {
@@ -94,7 +94,7 @@ pub trait Codec: Debug + Sized {
     }
 }
 
-impl<T:Codec> Encode for T {
+impl<T: Codec> Encode for T {
     fn encode(&self, bytes: &mut Vec<u8>) {
         Codec::encode(self, bytes)
     }
@@ -214,7 +214,7 @@ pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
-impl<T:Codec> Codec for Vec<T> {
+impl<T: Codec> Codec for Vec<T> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         encode_vec_u8(bytes, self)
     }
@@ -224,7 +224,7 @@ impl<T:Codec> Codec for Vec<T> {
     }
 }
 
-impl<T:Debug + Encode> Encode for Option<T> {
+impl<T: Debug + Encode> Encode for Option<T> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         if let Some(value) = self {
             value.encode(bytes);
@@ -232,7 +232,7 @@ impl<T:Debug + Encode> Encode for Option<T> {
     }
 }
 
-impl<T:Debug + Encode, E:Debug> Encode for Result<T,E> {
+impl<T: Debug + Encode, E: Debug> Encode for Result<T, E> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         if let Ok(value) = self {
             value.encode(bytes);

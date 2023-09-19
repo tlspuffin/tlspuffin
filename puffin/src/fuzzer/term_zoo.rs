@@ -3,6 +3,7 @@
 
 use libafl::bolts::rands::Rand;
 
+use crate::algebra::TermEval;
 use crate::{
     algebra::{
         atoms::Function,
@@ -11,7 +12,6 @@ use crate::{
     },
     fuzzer::mutations::util::Choosable,
 };
-use crate::algebra::TermEval;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
@@ -28,22 +28,22 @@ impl<M: Matcher> TermZoo<M> {
     pub fn generate_many<R: Rand>(signature: &Signature, rand: &mut R, how_many: usize) -> Self {
         let mut acc = vec![];
         for def in &signature.functions {
-                let mut counter = MAX_TRIES as usize * how_many;
-                let mut many = 0;
+            let mut counter = MAX_TRIES as usize * how_many;
+            let mut many = 0;
 
-                loop {
-                    if counter == 0 || many >= how_many {
-                        break
-                    }
+            loop {
+                if counter == 0 || many >= how_many {
+                    break;
+                }
 
-                    counter -= 1;
+                counter -= 1;
 
-                    if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
-                        many += 1;
-                        acc.push(term);
-                    }
+                if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
+                    many += 1;
+                    acc.push(term);
                 }
             }
+        }
 
         Self { terms: acc }
     }

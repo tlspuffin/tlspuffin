@@ -241,7 +241,9 @@ pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<M
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Malformed("[fn_fill_binder] Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_fill_binder] Could not find ticket in message".to_owned())
+    })
 }
 
 pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
@@ -252,7 +254,9 @@ pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Malformed("[fn_get_ticket] Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_get_ticket] Could not find ticket in message".to_owned())
+    })
 }
 
 pub fn fn_get_ticket_age_add(new_ticket: &Message) -> Result<u64, FnError> {
@@ -274,7 +278,9 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Malformed("[fn_get_ticket_nonce] Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_get_ticket_nonce] Could not find ticket in message".to_owned())
+    })
 }
 
 // ----
