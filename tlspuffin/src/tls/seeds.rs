@@ -1859,6 +1859,8 @@ pub mod tests {
         TLS_PUT_REGISTRY.version_strings();
     }
 
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     fn test_replace_bitstring() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
@@ -1904,8 +1906,8 @@ pub mod tests {
         }
     }
 
-    #[test]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test]
     fn test_evaluate_recipe_input() {
         use crate::tls::trace_helper::TraceExecutor;
 

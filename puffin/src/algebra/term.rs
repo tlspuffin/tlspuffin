@@ -332,7 +332,7 @@ impl<M: Matcher> TermEval<M> {
         });
     }
 
-    fn all_payloads(&self) -> Vec<&Payloads> {
+    pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
             .collect()
