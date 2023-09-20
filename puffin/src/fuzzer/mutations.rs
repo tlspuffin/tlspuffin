@@ -972,17 +972,14 @@ mod tests {
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
+    use log::debug;
 
     use super::*;
-    use crate::{
-        agent::AgentName,
-        algebra::{
-            dynamic_function::DescribableFunction,
-            test_signature::{TestTrace, *},
-            AnyMatcher, Term,
-        },
-        trace::{Action, Step},
-    };
+    use crate::{agent::AgentName, algebra::{
+        dynamic_function::DescribableFunction,
+        test_signature::{TestTrace, TestProtocolBehavior, *},
+        AnyMatcher, Term,
+    }, trace::{Action, Step}, trace};
 
     fn create_state(
     ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -1164,6 +1161,8 @@ mod tests {
             }
         }
     }
+
+    /// Bit-level mutations require concrete evaluations of terms to bitstrings and are thus tested in the tlspuffin crate
 
     #[test]
     fn test_find_term() {

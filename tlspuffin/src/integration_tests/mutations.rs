@@ -1,3 +1,4 @@
+use log::debug;
 use puffin::algebra::TermType;
 use puffin::{
     agent::AgentName,
@@ -15,6 +16,10 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
+use puffin::fuzzer::harness::set_default_put_options;
+use puffin::fuzzer::{mutations::MakeMessage,
+                    bit_mutations::*};
+use puffin::libafl::prelude::ByteFlipMutator;
 
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
@@ -29,6 +34,9 @@ use crate::{
         TLS_SIGNATURE,
     },
 };
+use crate::protocol::TLSProtocolBehavior;
+use crate::tls::seeds::{seed_client_attacker, seed_client_attacker_full};
+use crate::tls::trace_helper::TraceHelper;
 
 fn create_state() -> StdState<
     Trace<TlsQueryMatcher>,
@@ -39,6 +47,149 @@ fn create_state() -> StdState<
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
+
+
+#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[test]
+#[test_log::test]
+fn test_make_message() {
+    let mut state = create_state();
+    let mut mutator : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+
+    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    ctx.set_deterministic(true);
+    let mut trace = seed_client_attacker_full.build_trace();
+    set_default_put_options(PutOptions::default());
+
+    loop {
+        mutator.mutate(&mut state, &mut trace, 0).unwrap();
+
+        let all_payloads = if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => Some(input.recipe.all_payloads()),
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(payloads) = all_payloads {
+            if !payloads.is_empty() {
+                debug!("MakeMessage created payloads: {:?}", payloads);
+                break;
+            }
+        }
+    }
+}
+
+#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[test]
+#[test_log::test]
+fn test_byte() {
+    let mut state = create_state();
+    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator_byte = ByteFlipMutatorDY::new();
+
+    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    ctx.set_deterministic(true);
+    let mut trace = seed_client_attacker_full.build_trace();
+    set_default_put_options(PutOptions::default());
+
+    loop {
+        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+
+        let all_payloads = if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => Some(input.recipe.all_payloads()),
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(payloads) = all_payloads {
+            if !payloads.is_empty() {
+                debug!("MakeMessage created new payloads: {:?}", payloads);
+                break;
+                }
+            }
+        }
+
+    loop {
+        mutator_byte.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => {
+                    let mut found = false;
+                    for payload in input.recipe.all_payloads() {
+                        if payload.payload_0 != payload.payload {
+                            debug!("ByteFlipMutatorDY created different payloads: {:?}", payload);
+                            found = true;
+                        }
+                    }
+                    if found {break;}
+                },
+                Action::Output(_) => {},
+            }
+        }
+    }
+}
+
+#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[test]
+#[test_log::test]
+fn test_byte_interesting() {
+    let mut state = create_state();
+    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator_byte_interesting = ByteInterestingMutatorDY::new();
+
+    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    ctx.set_deterministic(true);
+    let mut trace = seed_client_attacker_full.build_trace();
+    set_default_put_options(PutOptions::default());
+
+    loop {
+        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+
+        let all_payloads = if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => Some(input.recipe.all_payloads()),
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        };
+
+        if let Some(payloads) = all_payloads {
+            if !payloads.is_empty() {
+                debug!("MakeMessage created new payloads: {:?}", payloads);
+                break;
+            }
+        }
+    }
+
+    loop {
+        mutator_byte_interesting.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => {
+                    let mut found = false;
+                    for payload in input.recipe.all_payloads() {
+                        if payload.payload_0 != payload.payload {
+                            debug!("ByteInterestingMutatorDY created different payloads: {:?}", payload);
+                            found = true;
+                        }
+                    }
+                    if found {break;}
+                },
+                Action::Output(_) => {},
+            }
+        }
+    }
 }
 
 #[test]
