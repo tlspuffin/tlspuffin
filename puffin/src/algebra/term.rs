@@ -323,6 +323,27 @@ pub struct TermEval<M: Matcher> {
 }
 
 impl<M: Matcher> TermEval<M> {
+    pub fn is_opaque(&self) -> bool {
+        match &self.term {
+            Term::Variable(_) => false,
+            Term::Application(fd, _) => {fd.is_opaque()},
+        }
+    }
+
+    pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
+        match &mut self.term {
+            Term::Variable(_) => {}
+            Term::Application(fd, args) => {
+                if is_subterm {
+                    self.payloads = None;
+                }
+                for t in args {
+                    t.erase_payloads_subterms(true);
+                }
+            }
+        }
+    }
+
     pub fn add_payloads(&mut self, payload: Vec<u8>) {
         self.payloads = Option::from({
             Payloads {
@@ -330,12 +351,33 @@ impl<M: Matcher> TermEval<M> {
                 payload: BytesInput::new(payload),
             }
         });
+        self.erase_payloads_subterms(false);
     }
 
+    /// Return all paylaods contains in a term, except the payloads that are not in a sub-term of a non-symbolic term
+    ///
+    /// TODO: investigate in the simpler, commented out version below is not sufficient, now
+    /// that we erase all payloads in sub-terms of a term we mutated with MakeMessage
     pub fn all_payloads(&self) -> Vec<&Payloads> {
-        self.into_iter()
-            .filter_map(|t| t.payloads.as_ref())
-            .collect()
+        pub fn rec<'a, M: Matcher>(term: &'a TermEval<M>, acc: &mut Vec<&'a Payloads>) {
+            match &term.term {
+                Term::Variable(_) => {}
+                Term::Application(_, args) => {
+                    for t in args {
+                        rec(t, acc)
+                    }
+                }
+            }
+            if let Some(payload) = &term.payloads {
+                acc.push(payload);
+            }
+        }
+        let mut acc = vec![];
+        rec(self, &mut acc);
+        acc
+        // self.into_iter()
+        //     .filter_map(|t| t.payloads.as_ref())
+        //     .collect()
     }
 }
 
@@ -364,16 +406,18 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn size(&self) -> usize {
-        match self.payloads {
-            None => self.term.size(),
-            Some(_) => SIZE_LEAF,
+        if self.is_leaf() {
+            SIZE_LEAF
+        } else {
+            self.term.size()
         }
     }
 
     fn is_leaf(&self) -> bool {
-        match self.payloads {
-            None => self.is_leaf(),
-            Some(_) => true,
+       if self.is_symbolic() {
+           self.term.is_leaf()
+       } else {
+            true
         }
     }
 
@@ -406,9 +450,9 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
             Some(_) => {
                 let tabs = "\t".repeat(depth);
                 format!(
-                    "BITSTRING_OF {}{}",
+                    "{}BITSTRING_OF:\n{}",
                     tabs,
-                    self.term.display_at_depth(depth + 4)
+                    self.term.display_at_depth(depth)
                 )
             }
         }
@@ -439,7 +483,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 }
 
-fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         return None;
     }
@@ -471,7 +515,7 @@ pub fn replace_bitstrings<M: Matcher>(to_replace: &mut ConcreteMessage, term: &T
                 warn!("Found twice the bitstring {:?} in term {} at both locations {start_find} and {start_find_2}", old_b, term);
             }
         } else {
-            error!("Failed to find a payload.payload {:?} in a recipe {}.\nMaybe the PUT is not deterministic?", old_b, term);
+            error!("Failed to find a payload.payload\n{:?} in\n{:?}\nfrom recipe {}.\nMaybe the PUT is not deterministic?", old_b, to_replace, term);
             // Need to go for V2 when this happens
 
             // V2: locate where replacements need to be done precisely if not injective

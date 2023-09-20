@@ -1,6 +1,6 @@
 use super::mutations::util::{Choosable, *};
 use libafl::prelude::*;
-use log::info;
+use log::{info, debug, warn};
 use std::ops::Not;
 use std::thread::panicking;
 
@@ -120,10 +120,11 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
             TermConstraints::default(),
             rand,
         ) {
+            debug!("Mutate {} on term {}", std::any::type_name::<[<$mutation  DY>]<S>>(), &to_mutate);
             if let Some(payloads) = &mut to_mutate.payloads {
                 libafl::mutators::mutations::$mutation.mutate(state, &mut payloads.payload, stage_idx)
             } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolics!", std::any::type_name::<[<$mutation  DY>]<S>>());
+                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name::<[<$mutation  DY>]<S>>());
             }
         } else {
             Ok(MutationResult::Skipped)

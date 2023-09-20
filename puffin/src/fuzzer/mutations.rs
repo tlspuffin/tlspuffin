@@ -1,10 +1,10 @@
 use libafl::prelude::*;
-use log::info;
+use log::{debug, error, info, warn};
 use std::ops::Not;
 use std::thread::panicking;
 use util::{Choosable, *};
 
-use crate::algebra::{Payloads, TermEval, TermType};
+use crate::algebra::{Payloads, search_sub_vec, TermEval, TermType};
 use crate::codec::Codec;
 use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::harness::default_put_options;
@@ -15,6 +15,7 @@ use crate::{
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
+use crate::trace::Action::Input;
 
 pub fn trace_mutations<S, M: Matcher, PB>(
     min_trace_length: usize,
@@ -595,13 +596,19 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         let mut new_trace = trace.clone();
+        let mut new_trace_ = trace.clone();
+        let constraints_make_message = TermConstraints {
+          no_payload_in_subterm: false, // change to true to exclude picking a term with a paylaod in a sub-term
+            ..self.constraints
+        };
         // choose a random sub term
         if let Some((to_mutate, (step_index, term_path))) =
-            choose_mut(trace, self.constraints, rand)
+            choose_mut(trace, constraints_make_message, rand)
         /* choose random sub tree (bias for nodes with smaller height)
         if let Some((to_mutate, (step_index, term_path))) =
             choose_with_weights(&trace.clone(), self.constraints, rand) */
         {
+            debug!("Mutate MakeMessage on term {}", to_mutate);
             // shorten runtime of the PUT by cutting useless steps out (new trace = trace[0..step_index])
             let mut steps = Vec::new();
             for i in 0..step_index {
@@ -610,25 +617,49 @@ where
             new_trace.steps = steps;
             // execute the PUT on the steps and store the resulting trace context
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
-            if let Ok(()) = new_trace.execute(&mut ctx) {
-                // turn term into a message
-                if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
-                    // TODO-bitlevel: maybe use evaluate_symbolic if we want to drop bit-level mutations
-                    // made to sub-terms in there ??? (because if might be better to do those bit-level
-                    // mutations directly on the larger sub-term?
+            new_trace.execute(&mut ctx).err().map(|e| {
+                error!("mutation::MakeMessage::trace in is not executable, should never happen. Error: {e}");
+                return Ok::<MutationResult, Error>(MutationResult::Skipped)
+            });
+            // turn term into a message
+            if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
+                // TODO-bitlevel: maybe use evaluate_symbolic if we want to drop bit-level mutations
+                // made to sub-terms in there ??? (because if might be better to do those bit-level
+                // mutations directly on the larger sub-term?
+                if let Input(input) = &new_trace_.clone().steps[step_index].action {
+                    // Code below is for debugging only!
+                      {
+                            let full_eval = input.recipe.evaluate(&ctx).expect("EUH");
+                            if let Some(index) = search_sub_vec(&full_eval, &evaluated) {
+                                // error!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}. Term was {to_mutate} in recipe {}", &evaluated, &full_eval, &input.recipe);
+                            } else {
+                                if input.recipe.is_opaque() {
+                                    warn!("[FAILURE for opaque] Added payloads\n{:?} and Vfull term was\n{:?}.\n Term was\n {to_mutate}\n in recipe {}", &evaluated, &full_eval, &input.recipe);
+                                } else {
+                                    error!("[FAILURE] Added payloads\n{:?} and full term was\n{:?}.\n Term was\n {to_mutate}\n in recipe {}", &evaluated, &full_eval, &input.recipe);
+                                }
+                            }
+                      }
+                    } else { panic!("UH"); }
+                // IDEA:
+                // if we can find the payload in the full evaluattion, we keep it
+                // if we cannot find it, we try to reinter[ret with the same type and if it succeeds
+                // we store in a field of the payload, that it should be used to replace locally and not globally
+                // later, we will also have special case for encryption
+                if evaluated.is_empty() {
+                    // Theoretically, we would like to keep this case as further bit-level mutations may add data to this initially empty bitstring....
+                    warn!("mutation::MakeMessage::evaluated term is empty");
+                    Ok(MutationResult::Skipped)
+                } else {
                     to_mutate.add_payloads(evaluated);
                     Ok(MutationResult::Mutated)
-                } else {
-                    info!("mutation::MakeMessage::failed to evaluate chosen sub-term");
-                    Ok(MutationResult::Skipped)
                 }
             } else {
-                panic!(
-                    "mutation::MakeMessage::trace in Corpus is not executable, should never happen"
-                )
+                error!("mutation::MakeMessage::failed to evaluate chosen sub-term");
+                Ok(MutationResult::Skipped)
             }
         } else {
-            info!("mutation::MakeMessage::failed to choose term");
+            warn!("mutation::MakeMessage::failed to choose term");
             Ok(MutationResult::Skipped)
         }
     }
@@ -658,6 +689,9 @@ pub mod util {
     pub struct TermConstraints {
         pub min_term_size: usize,
         pub max_term_size: usize,
+        // when true: only look for terms with no payload in sub-terms (for bit-le
+        // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with paylaods)
+        pub no_payload_in_subterm: bool,
     }
 
     /// Default values which represent no constraint
@@ -665,7 +699,8 @@ pub mod util {
         fn default() -> Self {
             Self {
                 min_term_size: 0,
-                max_term_size: 9000,
+                max_term_size: 300, // was 9000 but we were rewriting this to 300 anyway when instantiating the fuzzer
+                no_payload_in_subterm: false,
             }
         }
     }
@@ -732,6 +767,8 @@ pub mod util {
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
     // TODO-bitlevel: GLOBALLY IN THE REST OF THE FILE
     //  Think about how we should deal with TermEval that are not is_symbolic()
+    // RULE: never choose a term for a DY or bit-level mutation which a sub-term of a not is_symbolic() term
+    // Indeed, this latter term is considered atomic and a bitstring, including the former sub-term.
     // leaves --> considered as atoms and not terms!
     fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
         trace: &'a Trace<M>,
@@ -757,22 +794,27 @@ pub mod util {
 
                     while let Some((term, path)) = stack.pop() {
                         // push next terms onto stack
-                        match &term.term {
-                            Term::Variable(_) => {
-                                // reached leaf
-                            }
-                            Term::Application(_, subterms) => {
-                                // inner node, recursively continue
-                                for (path_index, subterm) in subterms.iter().enumerate() {
-                                    let mut new_path = path.clone();
-                                    new_path.1.push(path_index); // invert because of .iter().rev()
-                                    stack.push((subterm, new_path));
+                        if term.is_symbolic() { // if not, we reached a leaf (real leaf or a term with payloads)
+                            match &term.term {
+                                Term::Variable(_) => {
+                                    // reached leaf
+                                }
+                                Term::Application(_, subterms) => {
+                                    // inner node, recursively continue
+                                    for (path_index, subterm) in subterms.iter().enumerate() {
+                                        let mut new_path = path.clone();
+                                        new_path.1.push(path_index); // invert because of .iter().rev()
+                                        stack.push((subterm, new_path));
+                                    }
                                 }
                             }
                         }
 
                         // sample
-                        if filter(term) {
+                        if filter(term)
+                            && (!constraints.no_payload_in_subterm ||
+                                (term.is_symbolic() && term.all_payloads().is_empty() ||
+                                (!term.is_symbolic() && term.all_payloads().len() == 1))) {
                             visited += 1;
 
                             // consider in sampling
