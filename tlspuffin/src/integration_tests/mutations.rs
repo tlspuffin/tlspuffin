@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, error};
 use puffin::algebra::TermType;
 use puffin::{
     agent::AgentName,
@@ -19,6 +19,7 @@ use puffin::{
 use puffin::fuzzer::harness::set_default_put_options;
 use puffin::fuzzer::{mutations::MakeMessage,
                     bit_mutations::*};
+use puffin::fuzzer::mutations::trace_mutations;
 use puffin::libafl::prelude::ByteFlipMutator;
 
 use crate::{
@@ -35,7 +36,7 @@ use crate::{
     },
 };
 use crate::protocol::TLSProtocolBehavior;
-use crate::tls::seeds::{seed_client_attacker, seed_client_attacker_full};
+use crate::tls::seeds::{create_corpus, seed_client_attacker, seed_client_attacker_full};
 use crate::tls::trace_helper::TraceHelper;
 
 fn create_state() -> StdState<
@@ -84,6 +85,59 @@ fn test_make_message() {
     }
 }
 
+
+/// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all payloads of strict sub-terms
+#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[test]
+#[test_log::test]
+fn test_byte_remove_payloads() {
+    let mut state = create_state();
+    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+
+    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    ctx.set_deterministic(true);
+    let mut trace = seed_client_attacker_full.build_trace();
+    set_default_put_options(PutOptions::default());
+
+    loop {
+        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+
+        if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => {
+                    if let Term::Application(fd, args) = &input.recipe.term {
+                        if args.len() > 5 && input.recipe.is_symbolic() && !args[5].all_payloads().is_empty() {
+                            error!("Found sub-term: {:?}", args[5]);
+                            error!("MakeMessage created new payloads in a strict sub-term: {:?}", args[5].all_payloads());
+                            break;
+                        }
+                    }
+                },
+                Action::Output(_) => {},
+            }
+        }
+    }
+
+    loop {
+        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+
+            if let Some(first) = trace.steps.get(0) {
+                match &first.action {
+                    Action::Input(input) => {
+                        if let Term::Application(fd, args) = &input.recipe.term {
+                            if args.len() > 5 && args[5].all_payloads().is_empty() && !input.recipe.is_symbolic() && input.recipe.all_payloads().len() == 1 {
+                                error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
+                                break
+                            }
+                        }
+                    },
+                    Action::Output(_) => {},
+                }
+            }
+    }
+}
+
+
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
@@ -111,7 +165,7 @@ fn test_byte() {
 
         if let Some(payloads) = all_payloads {
             if !payloads.is_empty() {
-                debug!("MakeMessage created new payloads: {:?}", payloads);
+                error!("MakeMessage created new payloads: {:?}", payloads);
                 break;
                 }
             }
@@ -126,7 +180,7 @@ fn test_byte() {
                     let mut found = false;
                     for payload in input.recipe.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            debug!("ByteFlipMutatorDY created different payloads: {:?}", payload);
+                            error!("ByteFlipMutatorDY created different payloads: {:?}", payload);
                             found = true;
                         }
                     }
@@ -239,10 +293,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
             // Check if we have a client hello in last encrypted one
 
-            let constraints = TermConstraints {
-                min_term_size: 0,
-                max_term_size: 300,
-            };
+            let constraints = TermConstraints::default();
             let mut mutator = ReplaceReuseMutator::new(constraints);
 
             loop {

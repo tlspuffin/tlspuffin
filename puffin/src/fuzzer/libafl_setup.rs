@@ -81,10 +81,7 @@ impl Default for MutationConfig {
             fresh_zoo_after: 100000,
             max_trace_length: 15,
             min_trace_length: 2,
-            term_constraints: TermConstraints {
-                min_term_size: 0,
-                max_term_size: 300,
-            },
+            term_constraints: TermConstraints::default(),
         }
     }
 }

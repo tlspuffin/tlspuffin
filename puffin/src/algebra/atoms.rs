@@ -6,6 +6,7 @@ use std::{
     fmt::Formatter,
     hash::{Hash, Hasher},
 };
+use log::error;
 
 use rand::random;
 use serde::{Deserialize, Serialize};
@@ -109,6 +110,14 @@ impl Clone for Function {
 }
 
 impl Function {
+    /// Does the function symbol computes "opaque" message such as encyrption, signature, MAC, AEAD, etc?
+    pub fn is_opaque(&self) -> bool {
+        // TODO: have protocol-dependent implementastion for this
+        // error!("Name: {}", self.fn_container.shape.name);
+        self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append"
+    }
+
     pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
             unique_id: random(),
