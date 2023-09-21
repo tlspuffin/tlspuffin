@@ -117,7 +117,11 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
         if let Some(to_mutate) = choose_term_filtered_mut(
             trace,
             |x| x.is_symbolic().not(),
-            TermConstraints::default(),
+            TermConstraints::default(), // TODO: we may want to add no_paylaod_subterm
+            // pros of adding: less mutations on sub-terms that could be subsumed by mutations on a larger term done in the first place
+            // cons: might be useful to first shotgun small mutations on a small term to make the trace progress with possibly more actions and then
+            //       do larger mutations on a larger term from there (might have an impact later).
+            // TODO: balance out this trade-off
             rand,
         ) {
             debug!("Mutate {} on term {}", std::any::type_name::<[<$mutation  DY>]<S>>(), &to_mutate);

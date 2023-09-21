@@ -5,7 +5,7 @@ use puffin::codec;
 use std::any::Any;
 use std::convert::TryFrom;
 
-use puffin::codec::{Codec, Reader};
+use puffin::codec::{Codec, Countable, Reader};
 use puffin::error::Error::Term;
 use puffin::protocol::ProtocolMessage;
 
@@ -363,6 +363,20 @@ macro_rules! try_downcast {
         })
   };
 }
+
+// For all Countable types, we encode list of items of such type by prefixing with the length
+impl Countable for ClientExtension {}
+impl Countable for ServerExtension {}
+impl Countable for HelloRetryExtension {}
+impl Countable for CertReqExtension {}
+impl Countable for CertificateExtension {}
+impl Countable for NewSessionTicketExtension {}
+impl Countable for Compression {}
+impl Countable for Certificate {}
+impl Countable for CertificateEntry {}
+impl Countable for CipherSuite {}
+impl Countable for PresharedKeyIdentity {}
+
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {

@@ -214,13 +214,37 @@ pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
-impl<T: Codec> Codec for Vec<T> {
+
+// Data that can be considered "coutable" and whose Vec<> are prefixed with the size of the vector (e.g., Certificate)
+pub trait Countable {}
+impl Countable for Vec<u8> {}
+
+impl<T: Codec + Countable> Codec for Vec<T> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         encode_vec_u8(bytes, self)
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
         read_vec_u8(r)
+    }
+}
+
+// We do not put the size of the vector for Vec<u8> as we consider it as plain data
+impl Codec for Vec<u8> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for i in self {
+            bytes.push(*i);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let mut ret: Vec<u8> = Vec::new();
+
+        while r.any_left() {
+            ret.push(u8::read(r)?);
+        }
+
+        Some(ret)
     }
 }
 
