@@ -648,6 +648,7 @@ where
         let rand = state.rand_mut();
         let mut new_trace = trace.clone();
         let mut new_trace_ = trace.clone();
+        let new_trace__ = trace.clone();
         let constraints_make_message = TermConstraints {
           no_payload_in_subterm: false, // change to true to exclude picking a term with a paylaod in a sub-term
             ..self.constraints
@@ -680,18 +681,57 @@ where
                 if let Input(input) = &new_trace_.clone().steps[step_index].action {
                     // Code below is for debugging only!
                       {
-                            let full_eval = input.recipe.evaluate(&ctx).expect("EUH");
-                            if let Some(index) = search_sub_vec(&full_eval, &evaluated) {
-                                // error!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}. Term was {to_mutate} in recipe {}", &evaluated, &full_eval, &input.recipe);
-                            } else {
-                                if input.recipe.is_opaque() {
-                                    warn!("[FAILURE for opaque] Added payloads\n{:?} and Vfull term was\n{:?}.\n Term was\n {to_mutate}\n in recipe {}", &evaluated, &full_eval, &input.recipe);
-                                } else {
-                                    error!("[FAILURE] Added payloads\n{:?} and full term was\n{:?}.\n Term was\n {to_mutate}\n in recipe {}", &evaluated, &full_eval, &input.recipe);
+                            match  input.recipe.evaluate(&ctx) {
+                                Ok(full_eval) => {
+                                    if let Some(index) = search_sub_vec(&full_eval, &evaluated) {
+                                        for i in 1..term_path.len() {
+                                                let t = find_term(&new_trace__, &mut (step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN");
+                                                match t.evaluate(&ctx) {
+                                                    Ok(partial_eval) => {
+                                                            if let Some(index) = search_sub_vec(&partial_eval, &evaluated) {
+                                                                debug!("Found sub_term at depth {i}");
+                                                            } else {
+                                                                if t.is_opaque() || input.recipe.is_opaque()  {
+                                                                    warn!("[SUB-CHECK] [MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n{to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
+                                                                    return Ok(MutationResult::Skipped);
+                                                                } else {
+                                                                    error!("[SUB-CHECK] [MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}.\n Sub-term was\n{t} and payload was\n{:?}", &evaluated, &full_eval, &input.recipe, &partial_eval);
+                                                                    return Ok(MutationResult::Skipped);
+                                                                }
+                                                            }
+                                                    },
+                                                    Err(e) => {
+                                                        error!("[EVAL FAILURE SUBTERM {i}] Unable to evaluate sub_term\n {} of recipe\n {} with error {e}", &t, &input.recipe);
+                                                        return Ok(MutationResult::Skipped);
+                                                    }
+                                                }
+                                            }
+                                        debug!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}\n Term was \n{to_mutate}\n in recipe \n{}", &evaluated, &full_eval, &input.recipe);
+                                    } else {
+                                        if input.recipe.is_opaque() {
+                                            warn!("[MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
+                                            return Ok(MutationResult::Skipped);
+                                        } else {
+                                            for i in 1..term_path.len() {
+                                                let t = find_term(&new_trace__, &mut (step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN");
+                                                if t.is_opaque() {
+                                                    warn!("[MakeMess FAILURE for opaque subterm #{i}\n{t}\n] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
+                                                    return Ok(MutationResult::Skipped);
+
+                                                }
+                                            }
+                                            error!("[MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
+                                            return Ok(MutationResult::Skipped);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("[EVAL FAILURE] Unable to evaluate recipe\n{}\n with error {e}", &input.recipe);
+                                    return Ok(MutationResult::Skipped);
                                 }
                             }
                       }
-                    } else { panic!("UH"); }
+                    } else { panic!("UHdsf456sd34fgs"); }
                 // IDEA:
                 // if we can find the payload in the full evaluattion, we keep it
                 // if we cannot find it, we try to reinter[ret with the same type and if it succeeds
@@ -913,6 +953,28 @@ pub mod util {
         }
     }
 
+    fn find_term_by_term_path<'a, M: Matcher>(
+        term: &'a TermEval<M>,
+        term_path: &mut TermPath,
+    ) -> Option<&'a TermEval<M>> {
+        if term_path.is_empty() {
+            return Some(term);
+        }
+
+        let subterm_index = term_path.remove(0);
+
+        match &term.term {
+            Term::Variable(_) => None,
+            Term::Application(_, subterms) => {
+                if let Some(subterm) = subterms.get(subterm_index) {
+                    find_term_by_term_path(subterm, term_path)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     pub fn find_term_mut<'a, M: Matcher>(
         trace: &'a mut Trace<M>,
         trace_path: &TracePath,
@@ -924,6 +986,25 @@ pub mod util {
             match &mut step.action {
                 Action::Input(input) => {
                     find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+                }
+                Action::Output(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn find_term<'a, M: Matcher>(
+        trace: &'a Trace<M>,
+        trace_path: &TracePath,
+    ) -> Option<&'a TermEval<M>> {
+        let (step_index, term_path) = trace_path;
+
+        let step: Option<&Step<M>> = trace.steps.get(*step_index);
+        if let Some(step) = step {
+            match &step.action {
+                Action::Input(input) => {
+                    find_term_by_term_path(&input.recipe, &mut term_path.clone())
                 }
                 Action::Output(_) => None,
             }

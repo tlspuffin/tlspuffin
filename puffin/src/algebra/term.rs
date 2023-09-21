@@ -354,7 +354,9 @@ impl<M: Matcher> TermEval<M> {
         self.erase_payloads_subterms(false);
     }
 
-    /// Return all paylaods contains in a term, except the payloads that are not in a sub-term of a non-symbolic term
+    /// Return all paylaods contains in a term, except the payloads that are not in a sub-term of a non-symbolic term.
+    /// Very importantly, it returns the payloads in a bottom-up order: if a term with payload p1 has a sub-term with paylaod p2
+    /// then p2 will be before p1 in the vector!
     ///
     /// TODO: investigate in the simpler, commented out version below is not sufficient, now
     /// that we erase all payloads in sub-terms of a term we mutated with MakeMessage
