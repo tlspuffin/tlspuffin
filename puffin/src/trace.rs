@@ -354,7 +354,7 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute_until_step<PB>(&self, ctx: &mut TraceContext<PB>, nb_steps: usize) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -364,7 +364,7 @@ impl<M: Matcher> Trace<M> {
             ctx.reset_agents()?;
         }
         self.spawn_agents(ctx)?;
-        let steps = &self.steps;
+        let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
@@ -386,6 +386,12 @@ impl<M: Matcher> Trace<M> {
         }
 
         Ok(())
+    }
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+        where
+            PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.execute_until_step(ctx, self.steps.len())
     }
 
     pub fn execute_deterministic<PB>(
