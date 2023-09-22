@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use std::ops::Not;
 use std::thread::panicking;
 use util::{Choosable, *};
+use anyhow::{Context, Result};
 
 use crate::algebra::{Payloads, search_sub_vec, TermEval, TermType};
 use crate::codec::Codec;
@@ -582,10 +583,55 @@ where
     }
 }
 
-impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
-where
-    S: HasRand,
-    PB: ProtocolBehavior<Matcher = M>,
+fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(t: &mut TermEval<M>, ctx: &TraceContext<PB>, path: &TracePath, trace: & Trace<M>)
+    -> Result<(),anyhow::Error>
+    where
+    PB: ProtocolBehavior<Matcher=M>,
+    {
+        let step_index = &path.0;
+        let term_path = &path.1;
+        let evaluated = t.evaluate(&ctx).with_context(||
+            format!("failed to evaluate chosen sub-term"))?; // TODO: because of function scope!
+        let recipe = find_term(&trace, &(*step_index, term_path[0..0].to_vec())).expect("FAILURE FINDING SUBTERMN");
+        let full_eval = recipe.evaluate(&ctx).with_context(||
+            format!("failed to evaluate the recipe of the chosen sub-term"))?;
+        {
+            for i in 0..term_path.len() {
+                let t = if i == 0 {
+                    recipe
+                } else {
+                    find_term(&trace, &(*step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN")
+                };
+                let partial_eval = t.evaluate(&ctx).with_context(|| format!("failed to evaluate chosen sub-term at depth {i}. Unable to evaluate sub_term\n {} of recipe\n {}", &t, &recipe))?;
+                if let Some(index) = search_sub_vec(&partial_eval, &evaluated) {
+                    debug!("Found sub_term bitstring at depth {i}");
+                } else {
+                    if t.is_opaque() || recipe.is_opaque() {
+                        warn!("[MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n{t}\n in recipe\n {}", &evaluated, &full_eval, &recipe);
+                        return Ok(());
+                    } else {
+                        error!("[MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {t}\n in recipe\n {}.\n Sub-term was\n{t} and payload was\n{:?}", &evaluated, &full_eval, &recipe, &partial_eval);
+                        return Ok(());
+                    }
+                }
+            }
+            debug!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}\n Term was \n{t}\n in recipe \n{}", &evaluated, &full_eval, &recipe);
+            if evaluated.is_empty() {
+                // Theoretically, we would like to keep this case as further bit-level mutations may add data to this initially empty bitstring....
+                warn!("mutation::MakeMessage::evaluated term is empty");
+                Ok(())
+            } else {
+                // Proceed with the mutation: add the payloads to the TermEval
+                t.add_payloads(evaluated);
+                Ok(())
+            }
+        }
+}
+
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
+    where
+        S: HasRand,
+        PB: ProtocolBehavior<Matcher=M>,
 {
     // By Micol Giacomin
     fn mutate(
@@ -594,12 +640,10 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        let new_trace = trace.clone(); // for debugging only for now
         let rand = state.rand_mut();
-        let mut new_trace = trace.clone();
-        let mut new_trace_ = trace.clone();
-        let new_trace__ = trace.clone();
         let constraints_make_message = TermConstraints {
-          no_payload_in_subterm: false, // change to true to exclude picking a term with a paylaod in a sub-term
+            no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
             ..self.constraints
         };
         // choose a random sub term
@@ -609,97 +653,25 @@ where
         if let Some((to_mutate, (step_index, term_path))) =
             choose_with_weights(&trace.clone(), self.constraints, rand) */
         {
-            debug!("Mutate MakeMessage on term {}", to_mutate);
-            // shorten runtime of the PUT by cutting useless steps out (new trace = trace[0..step_index])
-            let mut steps = Vec::new();
-            for i in 0..step_index {
-                steps.push(new_trace.steps[i].clone());
-            }
-            new_trace.steps = steps;
-            // execute the PUT on the steps and store the resulting trace context
+            warn!("Mutate MakeMessage on term {}", to_mutate);
+            // Only execute shorter trace: trace[0..step_index])
+            // execute the PUT on the first step_index steps and store the resulting trace context
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
-            new_trace.execute(&mut ctx).err().map(|e| {
-                error!("mutation::MakeMessage::trace in is not executable, should never happen. Error: {e}");
+            new_trace.execute_until_step(&mut ctx, step_index).err().map(|e| {
+                error!("mutation::MakeMessage trace is not executable, could only happen if this mutation is scheduled with other mutations that create a non-executable trace. TO CHECK! Error: {e}");
                 return Ok::<MutationResult, Error>(MutationResult::Skipped)
             });
-            // turn term into a message
-            if let Ok(evaluated) = to_mutate.evaluate(&ctx) {
-                // TODO-bitlevel: maybe use evaluate_symbolic if we want to drop bit-level mutations
-                // made to sub-terms in there ??? (because if might be better to do those bit-level
-                // mutations directly on the larger sub-term?
-                if let Input(input) = &new_trace_.clone().steps[step_index].action {
-                    // Code below is for debugging only!
-                      {
-                            match  input.recipe.evaluate(&ctx) {
-                                Ok(full_eval) => {
-                                    if let Some(index) = search_sub_vec(&full_eval, &evaluated) {
-                                        for i in 1..term_path.len() {
-                                                let t = find_term(&new_trace__, &mut (step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN");
-                                                match t.evaluate(&ctx) {
-                                                    Ok(partial_eval) => {
-                                                            if let Some(index) = search_sub_vec(&partial_eval, &evaluated) {
-                                                                debug!("Found sub_term at depth {i}");
-                                                            } else {
-                                                                if t.is_opaque() || input.recipe.is_opaque()  {
-                                                                    warn!("[SUB-CHECK] [MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n{to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
-                                                                    return Ok(MutationResult::Skipped);
-                                                                } else {
-                                                                    error!("[SUB-CHECK] [MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}.\n Sub-term was\n{t} and payload was\n{:?}", &evaluated, &full_eval, &input.recipe, &partial_eval);
-                                                                    return Ok(MutationResult::Skipped);
-                                                                }
-                                                            }
-                                                    },
-                                                    Err(e) => {
-                                                        error!("[EVAL FAILURE SUBTERM {i}] Unable to evaluate sub_term\n {} of recipe\n {} with error {e}", &t, &input.recipe);
-                                                        return Ok(MutationResult::Skipped);
-                                                    }
-                                                }
-                                            }
-                                        debug!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}\n Term was \n{to_mutate}\n in recipe \n{}", &evaluated, &full_eval, &input.recipe);
-                                    } else {
-                                        if input.recipe.is_opaque() {
-                                            warn!("[MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
-                                            return Ok(MutationResult::Skipped);
-                                        } else {
-                                            for i in 1..term_path.len() {
-                                                let t = find_term(&new_trace__, &mut (step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN");
-                                                if t.is_opaque() {
-                                                    warn!("[MakeMess FAILURE for opaque subterm #{i}\n{t}\n] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
-                                                    return Ok(MutationResult::Skipped);
 
-                                                }
-                                            }
-                                            error!("[MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {to_mutate}\n in recipe\n {}", &evaluated, &full_eval, &input.recipe);
-                                            return Ok(MutationResult::Skipped);
-                                        }
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("[EVAL FAILURE] Unable to evaluate recipe\n{}\n with error {e}", &input.recipe);
-                                    return Ok(MutationResult::Skipped);
-                                }
-                            }
-                      }
-                    } else { panic!("UHdsf456sd34fgs"); }
-                // IDEA:
-                // if we can find the payload in the full evaluattion, we keep it
-                // if we cannot find it, we try to reinter[ret with the same type and if it succeeds
-                // we store in a field of the payload, that it should be used to replace locally and not globally
-                // later, we will also have special case for encryption
-                if evaluated.is_empty() {
-                    // Theoretically, we would like to keep this case as further bit-level mutations may add data to this initially empty bitstring....
-                    warn!("mutation::MakeMessage::evaluated term is empty");
+            // perform the MakeMessage mutation
+            match make_message_term(to_mutate, &ctx, &(step_index, term_path), &new_trace) {
+                Ok(()) => Ok(MutationResult::Mutated),
+                Err(e) => {
+                    warn!("mutation::MakeMessage failed due to {e}");
                     Ok(MutationResult::Skipped)
-                } else {
-                    to_mutate.add_payloads(evaluated);
-                    Ok(MutationResult::Mutated)
-                }
-            } else {
-                error!("mutation::MakeMessage::failed to evaluate chosen sub-term");
-                Ok(MutationResult::Skipped)
+                },
             }
         } else {
-            warn!("mutation::MakeMessage::failed to choose term");
+            warn!("mutation::MakeMessage failed to choose term");
             Ok(MutationResult::Skipped)
         }
     }
