@@ -110,14 +110,20 @@ impl Clone for Function {
 }
 
 impl Function {
-    /// Does the function symbol computes "opaque" message such as encyrption, signature, MAC, AEAD, etc?
+    /// Does the function symbol computes "opaque" message such as encryption, signature, MAC, AEAD, etc?
     pub fn is_opaque(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
-        // error!("Name: {}", self.fn_container.shape.name);
+        // debug!("Name: {}", self.fn_container.shape.name);
         self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
-        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_append"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
+    }
+
+    /// Does the function symbol computes a list such as fn_append_certificate?
+    pub fn is_list(&self) -> bool {
+        // TODO: have protocol-dependent implementation for this
+        // debug!("Name: {}", self.fn_container.shape.name);
+        self.fn_container.shape.name.contains("_append_")
     }
 
     pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {

@@ -244,45 +244,6 @@ where
     ) -> Vec<((usize, &T), &T)>;
 }
 
-impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
-    /// Finds a subterm with the same type as `term`
-    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>> {
-        self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
-    }
-
-    /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<M>> {
-        self.iter().find(predicate)
-    }
-
-    /// Finds all grand children/subterms which match the predicate.
-    ///
-    /// A grand subterm is defined as a subterm of a term in `self`.
-    ///
-    /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
-    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
-        &self,
-        predicate: P,
-    ) -> Vec<((usize, &Term<M>), &Term<M>)> {
-        let mut found_grand_subterms = vec![];
-
-        for (i, subterm) in self.iter().enumerate() {
-            match &subterm {
-                Term::Variable(_) => {}
-                Term::Application(_, grand_subterms) => {
-                    found_grand_subterms.extend(
-                        grand_subterms
-                            .iter()
-                            .filter(|grand_subterm| predicate(subterm, &grand_subterm.term))
-                            .map(|grand_subterm| ((i, subterm), &grand_subterm.term)),
-                    );
-                }
-            };
-        }
-
-        found_grand_subterms
-    }
-}
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
@@ -323,6 +284,13 @@ pub struct TermEval<M: Matcher> {
 }
 
 impl<M: Matcher> TermEval<M> {
+    pub fn is_list(&self) -> bool {
+        match &self.term {
+            Term::Variable(_) => false,
+            Term::Application(fd, _) => {fd.is_list()},
+        }
+    }
+
     pub fn is_opaque(&self) -> bool {
         match &self.term {
             Term::Variable(_) => false,
