@@ -695,6 +695,7 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
             no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
+            not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
             ..self.constraints
         };
         // choose a random sub term
@@ -739,6 +740,7 @@ where
 
 pub mod util {
     use libafl::bolts::rands::Rand;
+    use log::error;
 
     use crate::algebra::{TermEval, TermType};
     use crate::protocol::ProtocolBehavior;
@@ -755,6 +757,9 @@ pub mod util {
         // when true: only look for terms with no payload in sub-terms (for bit-le
         // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with paylaods)
         pub no_payload_in_subterm: bool,
+        // when true: we do not choose terms that have a list symbol and whose parent also has a list symbol
+        // those terms are thus "inside a list", like t in fn_append(t,t3) for t = fn(append(t1,t2)
+        pub not_inside_list: bool,
     }
 
     /// Default values which represent no constraint
@@ -764,6 +769,7 @@ pub mod util {
                 min_term_size: 0,
                 max_term_size: 300, // was 9000 but we were rewriting this to 300 anyway when instantiating the fuzzer
                 no_payload_in_subterm: false,
+                not_inside_list: false,
             }
         }
     }
@@ -828,8 +834,6 @@ pub mod util {
     pub type TracePath = (StepIndex, TermPath);
 
     /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-    // TODO-bitlevel: GLOBALLY IN THE REST OF THE FILE
-    //  Think about how we should deal with TermEval that are not is_symbolic()
     // RULE: never choose a term for a DY or bit-level mutation which a sub-term of a not is_symbolic() term
     // Indeed, this latter term is considered atomic and a bitstring, including the former sub-term.
     // leaves --> considered as atoms and not terms!
@@ -850,24 +854,29 @@ pub mod util {
                     let size = term.size();
                     if size <= constraints.min_term_size || size >= constraints.max_term_size {
                         continue;
+                        //TODO-bitlevel: consider removing this, we just want to exclude picking such terms
+                        // but it is OK to enter the term and look for suitable sub-terms
                     }
 
-                    let mut stack: Vec<(&TermEval<M>, TracePath)> =
-                        vec![(term, (step_index, Vec::new()))];
+                    let mut stack: Vec<(&TermEval<M>, TracePath, bool)> =
+                        vec![(term, (step_index, Vec::new()), false)];// bool is true for terms inside a list (e.g., fn_append)
 
-                    while let Some((term, path)) = stack.pop() {
+                    while let Some((term, path, is_inside_list)) = stack.pop() {
                         // push next terms onto stack
                         if term.is_symbolic() { // if not, we reached a leaf (real leaf or a term with payloads)
                             match &term.term {
                                 Term::Variable(_) => {
                                     // reached leaf
                                 }
-                                Term::Application(_, subterms) => {
+                                Term::Application(fd, subterms) => {
                                     // inner node, recursively continue
                                     for (path_index, subterm) in subterms.iter().enumerate() {
                                         let mut new_path = path.clone();
                                         new_path.1.push(path_index); // invert because of .iter().rev()
-                                        stack.push((subterm, new_path));
+                                        let is_inside_list_sub =
+                                            constraints.not_inside_list &&
+                                            fd.is_list();
+                                        stack.push((subterm, new_path, is_inside_list_sub));
                                     }
                                 }
                             }
@@ -876,8 +885,11 @@ pub mod util {
                         // sample
                         if filter(term)
                             && (!constraints.no_payload_in_subterm ||
-                                (term.is_symbolic() && term.all_payloads().is_empty() ||
-                                (!term.is_symbolic() && term.all_payloads().len() == 1))) {
+                                (term.is_symbolic() && term.all_payloads().is_empty()) ||
+                                (!term.is_symbolic() && term.all_payloads().len() == 1))
+                            && (!constraints.not_inside_list ||
+                                !(is_inside_list && term.is_list())
+                               ) {
                             visited += 1;
 
                             // consider in sampling
