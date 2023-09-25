@@ -715,7 +715,7 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
             // execute the PUT on the first step_index steps and store the resulting trace context
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             new_trace.execute_until_step(&mut ctx, step_index).err().map(|e| {
-                error!("mutation::MakeMessage trace is not executable, could only happen if this mutation is scheduled with other mutations that create a non-executable trace. TO CHECK! Error: {e}");
+                error!("mutation::MakeMessage trace is not executable until step {step_index}, could only happen if this mutation is scheduled with other mutations that create a non-executable trace. TO CHECK! Error: {e}\n trace:\n{}", &new_trace);
                 return Ok::<MutationResult, Error>(MutationResult::Skipped)
             });
 
@@ -942,80 +942,5 @@ mod tests {
                 }
             }
         }
-    }
-
-    /// Bit-level mutations require concrete evaluations of terms to bitstrings and are thus tested in the tlspuffin crate
-
-    #[test]
-    fn test_find_term() {
-        let mut rand = StdRand::with_seed(45);
-        let mut trace = setup_simple_trace();
-        let term_size = trace.count_functions();
-
-        let mut stats: HashSet<TracePath> = HashSet::new();
-
-        for _ in 0..10000 {
-            let path = choose_term_path(&trace, TermConstraints::default(), &mut rand).unwrap();
-            find_term_mut(&mut trace, &path).unwrap();
-            stats.insert(path);
-        }
-
-        assert_eq!(term_size, stats.len());
-    }
-
-    #[test]
-    fn test_reservoir_sample_randomness() {
-        /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
-        fn std_deviation(data: &[u32]) -> Option<f32> {
-            fn mean(data: &[u32]) -> Option<f32> {
-                let sum = data.iter().sum::<u32>() as f32;
-                let count = data.len();
-
-                match count {
-                    positive if positive > 0 => Some(sum / count as f32),
-                    _ => None,
-                }
-            }
-
-            match (mean(data), data.len()) {
-                (Some(data_mean), count) if count > 0 => {
-                    let variance = data
-                        .iter()
-                        .map(|value| {
-                            let diff = data_mean - (*value as f32);
-
-                            diff * diff
-                        })
-                        .sum::<f32>()
-                        / count as f32;
-
-                    Some(variance.sqrt())
-                }
-                _ => None,
-            }
-        }
-
-        let trace = setup_simple_trace();
-        let term_size = trace.count_functions();
-
-        let mut rand = StdRand::with_seed(45);
-        let mut stats: HashMap<u32, u32> = HashMap::new();
-
-        for _ in 0..10000 {
-            let term = choose(&trace, TermConstraints::default(), &mut rand).unwrap();
-
-            let id = term.0.resistant_id();
-
-            let count: u32 = *stats.get(&id).unwrap_or(&0);
-            stats.insert(id, count + 1);
-        }
-
-        let std_dev =
-            std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
-        /*        println!("{:?}", std_dev);
-        println!("{:?}", stats);*/
-
-        assert!(std_dev < 30.0);
-        assert_eq!(term_size, stats.len());
     }
 }

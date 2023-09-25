@@ -41,7 +41,7 @@ pub enum Term<M: Matcher> {
 
 impl<M: Matcher> fmt::Display for Term<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display_at_depth(0))
+        write!(f, "{}", display_term_at_depth(self, 0))
     }
 }
 
@@ -82,124 +82,6 @@ pub trait TermType<M>: Display + Debug {
         PB: ProtocolBehavior<Matcher = M>,
     {
         PB::any_get_encoding(self.evaluate_lazy(&context)?)
-    }
-}
-
-impl<M: Matcher> TermType<M> for Term<M> {
-    fn resistant_id(&self) -> u32 {
-        match self {
-            Term::Variable(v) => v.resistant_id,
-            Term::Application(f, _) => f.resistant_id,
-        }
-    }
-
-    fn size(&self) -> usize {
-        match self {
-            Term::Variable(_) => SIZE_LEAF,
-            Term::Application(_, ref subterms) => {
-                subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
-            }
-        }
-    }
-
-    fn is_leaf(&self) -> bool {
-        match self {
-            Term::Variable(_) => {
-                true // variable
-            }
-            Term::Application(_, ref subterms) => {
-                subterms.is_empty() // constant
-            }
-        }
-    }
-
-    fn get_type_shape(&self) -> &TypeShape {
-        match self {
-            Term::Variable(v) => &v.typ,
-            Term::Application(function, _) => &function.shape().return_type,
-        }
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            Term::Variable(v) => v.typ.name,
-            Term::Application(function, _) => function.name(),
-        }
-    }
-
-    fn mutate(&mut self, other: Term<M>) {
-        *self = other;
-    }
-
-    fn display_at_depth(&self, depth: usize) -> String {
-        let tabs = "\t".repeat(depth);
-        match self {
-            Term::Variable(ref v) => format!("{}{}", tabs, v),
-            Term::Application(ref func, ref args) => {
-                let op_str = remove_prefix(func.name());
-                let return_type = remove_prefix(func.shape().return_type.name);
-                if args.is_empty() {
-                    format!("{}{} -> {}", tabs, op_str, return_type)
-                } else {
-                    let args_str = args
-                        .iter()
-                        .map(|arg| arg.display_at_depth(depth + 1))
-                        .join(",\n");
-                    format!(
-                        "{}{}(\n{}\n{}) -> {}",
-                        tabs, op_str, args_str, tabs, return_type
-                    )
-                }
-            }
-        }
-    }
-
-    fn evaluate_lazy<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error>
-    where
-        M: Matcher,
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Term::Variable(variable) => context
-                .find_variable(variable.typ, &variable.query)
-                .map(|data| data.boxed_any())
-                .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
-                .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
-            Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for term in args {
-                    match term.evaluate_lazy(context) {
-                        Ok(data) => {
-                            dynamic_args.push(data);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
-                result.map_err(Error::Fn)
-            }
-        }
-    }
-
-    // A Term is always symbolic
-    fn is_symbolic(&self) -> bool {
-        true
-    }
-
-    fn evaluate<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        self.evaluate_symbolic(context)
     }
 }
 
@@ -383,24 +265,133 @@ impl<M: Matcher> From<TermEval<M>> for Term<M> {
     }
 }
 
+fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth:usize) -> String {
+    let tabs = "\t".repeat(depth);
+    match term {
+        Term::Variable(ref v) => format!("{}{}", tabs, v),
+        Term::Application(ref func, ref args) => {
+            let op_str = remove_prefix(func.name());
+            let return_type = remove_prefix(func.shape().return_type.name);
+            if args.is_empty() {
+                format!("{}{} -> {}", tabs, op_str, return_type)
+            } else {
+                let args_str = args
+                    .iter()
+                    .map(|arg| display_term_at_depth(&arg.term, depth + 1))
+                    .join(",\n");
+                format!(
+                    "{}{}(\n{}\n{}) -> {}",
+                    tabs, op_str, args_str, tabs, return_type
+                )
+            }
+        }
+    }
+}
+
 impl<M: Matcher> TermType<M> for TermEval<M> {
     fn resistant_id(&self) -> u32 {
-        self.term.resistant_id()
+        match &self.term {
+            Term::Variable(v) => v.resistant_id,
+            Term::Application(f, _) => f.resistant_id,
+        }
     }
 
     fn size(&self) -> usize {
         if self.is_leaf() {
             SIZE_LEAF
         } else {
-            self.term.size()
+            match &self.term {
+                Term::Variable(_) => SIZE_LEAF,
+                Term::Application(_, ref subterms) => {
+                    subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
+                }
+            }
         }
     }
 
     fn is_leaf(&self) -> bool {
-       if self.is_symbolic() {
-           self.term.is_leaf()
-       } else {
+        if self.is_symbolic() {
+            match &self.term {
+                Term::Variable(_) => {
+                    true // variable
+                }
+                Term::Application(_, ref subterms) => {
+                    subterms.is_empty() // constant
+                }
+            }
+        } else {
             true
+        }
+    }
+
+    fn get_type_shape(&self) -> &TypeShape {
+        match &self.term {
+            Term::Variable(v) => &v.typ,
+            Term::Application(function, _) => &function.shape().return_type,
+        }
+    }
+
+    fn name(&self) -> &str {
+        if self.is_symbolic() {
+            match &self.term {
+                Term::Variable(v) => v.typ.name,
+                Term::Application(function, _) => function.name(),
+            }
+        } else {
+            BITSTRING_NAME
+        }
+    }
+
+    fn mutate(&mut self, other: TermEval<M>) {
+        *self = other;
+    }
+
+
+
+fn display_at_depth(&self, depth: usize) -> String {
+        match self.payloads {
+            None => {display_term_at_depth(&self.term, depth) },
+            Some(_) => {
+                let tabs = "\t".repeat(depth);
+                format!(
+                    "{}BITSTRING_OF:\n{}",
+                    tabs,
+                    display_term_at_depth(&self.term, depth)
+                )
+            }
+        }
+    }
+
+    fn evaluate_lazy<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn Any>, Error>
+        where
+            M: Matcher,
+            PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.term {
+            Term::Variable(variable) => context
+                .find_variable(variable.typ, &variable.query)
+                .map(|data| data.boxed_any())
+                .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
+                .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
+            Term::Application(func, args) => {
+                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+                for term in args {
+                    match term.evaluate_lazy(context) {
+                        Ok(data) => {
+                            dynamic_args.push(data);
+                        }
+                        Err(e) => {
+                            return Err(e);
+                        }
+                    }
+                }
+                let dynamic_fn = &func.dynamic_fn();
+                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+                result.map_err(Error::Fn)
+            }
         }
     }
 
@@ -411,46 +402,6 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         }
     }
 
-    fn get_type_shape(&self) -> &TypeShape {
-        &self.term.get_type_shape()
-    }
-
-    fn name(&self) -> &str {
-        if self.is_symbolic() {
-            self.term.name()
-        } else {
-            BITSTRING_NAME
-        }
-    }
-
-    fn mutate(&mut self, other: TermEval<M>) {
-        *self = other;
-    }
-
-    fn display_at_depth(&self, depth: usize) -> String {
-        match self.payloads {
-            None => self.term.display_at_depth(depth),
-            Some(_) => {
-                let tabs = "\t".repeat(depth);
-                format!(
-                    "{}BITSTRING_OF:\n{}",
-                    tabs,
-                    self.term.display_at_depth(depth)
-                )
-            }
-        }
-    }
-
-    fn evaluate_lazy<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error>
-    where
-        M: Matcher,
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        self.term.evaluate_lazy(context)
-    }
 
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
