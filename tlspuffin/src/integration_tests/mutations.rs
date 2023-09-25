@@ -3,9 +3,8 @@ use puffin::algebra::TermType;
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
-    fuzzer::mutations::{
-        util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-        ReplaceReuseMutator,
+    fuzzer::{mutations::{ReplaceReuseMutator, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator},
+             utils::TermConstraints,
     },
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
