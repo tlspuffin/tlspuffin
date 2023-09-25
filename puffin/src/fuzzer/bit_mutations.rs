@@ -1,4 +1,4 @@
-use super::mutations::util::{Choosable, *};
+use super::utils::{Choosable, *};
 use libafl::prelude::*;
 use log::{info, debug, warn};
 use std::ops::Not;
@@ -7,7 +7,7 @@ use std::thread::panicking;
 use crate::algebra::{Payloads, TermEval, TermType};
 use crate::codec::Codec;
 use crate::fuzzer::harness::default_put_options;
-use crate::fuzzer::mutations::util::choose_term_filtered_mut;
+use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::ProtocolBehavior;
 use crate::trace::TraceContext;
 use crate::{

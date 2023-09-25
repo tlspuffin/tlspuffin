@@ -12,7 +12,8 @@ use log4rs::Handle;
 use super::harness;
 use crate::{
     fuzzer::{
-        mutations::{trace_mutations, util::TermConstraints},
+        mutations::trace_mutations,
+        utils::TermConstraints,
         stats_monitor::StatsMonitor,
     },
     log::create_file_config,
