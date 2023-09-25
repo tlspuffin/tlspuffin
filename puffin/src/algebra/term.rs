@@ -284,6 +284,19 @@ pub struct TermEval<M: Matcher> {
 }
 
 impl<M: Matcher> TermEval<M> {
+    pub fn height(&self) -> usize {
+        match &self.term {
+            Term::Application(_, subterms) => {
+                if subterms.is_empty() {
+                    return 1;
+                } else {
+                    return 1 + subterms.iter().map(|t| t.height()).max().unwrap();
+                }
+            }
+            _ => 1,
+        }
+    }
+
     pub fn is_list(&self) -> bool {
         match &self.term {
             Term::Variable(_) => false,

@@ -579,6 +579,7 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+            warn!("Mutate GenerateMutator on term {}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 self.zoo.insert(TermZoo::generate(self.signature, rand))
@@ -699,6 +700,7 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
             // we set it to true since a MakeMessage inside a list is never going to then be executable
             // indeed: the evaluation of a partial list is never going to be found in the evaluation of the
             // full list!
+            weighted_depth: true, // true means we select a sub-term by giving higher-priority to deeper sub-terms
             ..self.constraints
         };
         // choose a random sub term
