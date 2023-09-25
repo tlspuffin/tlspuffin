@@ -10,7 +10,7 @@ use crate::{
         signature::{FunctionDefinition, Signature},
         Matcher, Term,
     },
-    fuzzer::mutations::util::Choosable,
+    fuzzer::utils::Choosable,
 };
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
