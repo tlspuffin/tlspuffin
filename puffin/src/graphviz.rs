@@ -13,6 +13,7 @@ use crate::{
     algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
     trace::{Action, Trace},
 };
+use crate::algebra::{TermEval, TermType};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -30,6 +31,7 @@ const SHAPE_LEAVES: &str = "none";
 const STYLE: &str = "";
 const COLOR: &str = "#00000000";
 const COLOR_LEAVES: &str = "#00000000";
+const COLOR_PAYLOADS: &str = "#ff0000";
 const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -81,7 +83,6 @@ impl<M: Matcher> Trace<M> {
             let subgraph = match &step.action {
                 Action::Input(input) => input
                     .recipe
-                    .term
                     .dot_subgraph(tree_mode, i, subgraph_name.as_str())
                     .to_string(), // TODO-bitlevel: if not .is_symbolic(), display "bitstring"
                 Action::Output(_) => format!(
@@ -107,9 +108,9 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<M: Matcher> TermEval<M> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
-        match self {
+        match &self.term {
             Term::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
@@ -138,12 +139,12 @@ impl<M: Matcher> Term<M> {
     }
 
     fn collect_statements(
-        term: &Term<M>,
+        term: &TermEval<M>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,
     ) {
-        match term {
+        match &term.term {
             Term::Variable(variable) => {
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
@@ -158,10 +159,14 @@ impl<M: Matcher> Term<M> {
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
                         remove_fn_prefix(&remove_prefix(func.name())),
-                        if func.arity() == 0 {
-                            COLOR_LEAVES
+                        if term.is_symbolic() {
+                            COLOR_PAYLOADS
                         } else {
-                            COLOR
+                            if func.arity() == 0 {
+                                COLOR_LEAVES
+                            } else {
+                                COLOR
+                            }
                         },
                         if func.arity() == 0 {
                             SHAPE_LEAVES
@@ -176,9 +181,9 @@ impl<M: Matcher> Term<M> {
                     statements.push(format!(
                         "{} -> {};",
                         term.unique_id(tree_mode, cluster_id),
-                        subterm.term.unique_id(tree_mode, cluster_id)
+                        subterm.unique_id(tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(&subterm.term, tree_mode, cluster_id, statements);
+                    Self::collect_statements(&subterm, tree_mode, cluster_id, statements);
                 }
             }
         }
