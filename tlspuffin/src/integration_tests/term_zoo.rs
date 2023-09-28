@@ -59,7 +59,7 @@ mod tests {
             .terms()
             .iter()
             .enumerate()
-            .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
+            .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
         // debug!("subgraph size: {}", subgraphs.len());
 
@@ -121,7 +121,7 @@ mod tests {
             .terms()
             .iter()
             .enumerate()
-            .map(|(i, term)| term.term.dot_subgraph(false, i, i.to_string().as_str()))
+            .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
             .collect::<Vec<_>>();
         // debug!("subgraph size: {}", subgraphs.len());
 
