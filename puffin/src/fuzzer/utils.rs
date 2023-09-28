@@ -110,7 +110,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     // If if_wighted is set to true, then we follow the
     //   Algorithm A Chao here https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
     let if_weighted = constraints.weighted_depth;
-    let mut max_depth = 0;
+    let mut max_depth = 1;
     let mut depth_counts: Vec<u64> = vec![0];
     let mut depth_reservoir: Vec<Option<(&'a TermEval<M>, TracePath)>> = vec![None];
     // if if_weighted=false, we will only access the first cell of those two vec
@@ -161,7 +161,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                                 // inner node, recursively continue
                                 for (path_index, subterm) in subterms.iter().enumerate() {
                                     let mut new_path = path.clone();
-                                    new_path.1.push(path_index); // invert because of .iter().rev()
+                                    new_path.1.push(path_index);
                                     let is_inside_list_sub =
                                         constraints.not_inside_list && fd.is_list();
                                     stack.push((subterm, new_path, is_inside_list_sub, depth+1));
@@ -172,8 +172,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
                     // sample
                     if filter(term)
-                        && (!constraints.no_payload_in_subterm
-                            || (term.is_symbolic() && term.all_payloads().is_empty())
+                        && (!constraints.no_payload_in_subterm // TODO: currently not used!
+                            || (term.is_symbolic() && term.all_payloads().is_empty()) // TODO: consider whether we want to use payloads_to_replace instead?
                             || (!term.is_symbolic() && term.all_payloads().len() == 1))
                         && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
                     {
@@ -212,6 +212,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
         let mut count_weighted = 0 as f64;
         for i in 0..max_depth {
             count_weighted += depth_counts[i] as f64 * (1 as f64 + (i as f64 * lambda));
+            // TODO: depth_counts[i] = count_weighted.floor() as u64;
         }
         let random = rand.between(0, count_weighted.floor() as u64);
         // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}", depth_counts);
@@ -221,7 +222,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
             count_weighted += depth_counts[i] as f64 * (1 as f64 + i as f64 * lambda);
             i += 1;
         }
-        println!("Chosen index: {}", i-1);
+        assert!(i>0);
         reservoir = depth_reservoir.remove(i-1);
     } else {
         reservoir = depth_reservoir.remove(0);
@@ -229,7 +230,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     reservoir
 }
 
-fn find_term_by_term_path_mut<'a, M: Matcher>(
+pub fn find_term_by_term_path_mut<'a, M: Matcher>(
     term: &'a mut TermEval<M>,
     term_path: &mut TermPath,
 ) -> Option<&'a mut TermEval<M>> {
@@ -251,7 +252,7 @@ fn find_term_by_term_path_mut<'a, M: Matcher>(
     }
 }
 
-fn find_term_by_term_path<'a, M: Matcher>(
+pub fn find_term_by_term_path<'a, M: Matcher>(
     term: &'a TermEval<M>,
     term_path: &mut TermPath,
 ) -> Option<&'a TermEval<M>> {

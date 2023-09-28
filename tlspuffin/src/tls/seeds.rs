@@ -1838,7 +1838,7 @@ pub mod tests {
 
     use log::debug;
     use puffin::algebra::error::FnError;
-    use puffin::algebra::{replace_bitstrings, Payloads, TermType};
+    use puffin::algebra::{Payloads, replace_payloads, TermType};
     use puffin::codec::Codec;
     use puffin::trace::TraceContext;
     use puffin::{agent::AgentName, trace::Action};
@@ -1898,8 +1898,8 @@ pub mod tests {
                 payload_0: vec![211 as u8, 1, 0, 0].into(),
                 payload: vec![2 as u8, 3, 4, 5, 6, 7, 8, 9, 10, 11].into(),
             };
-            ch_term.payloads = Some(dummy);
-            replace_bitstrings(&mut fn_hello_b, &ch_term);
+            ch_term.payloads = Some(dummy.clone());
+            replace_payloads(&mut fn_hello_b, vec![(&dummy, vec![])], ch_term).expect("TODO: panic message");
             assert_eq!(fn_hello_b_after, fn_hello_b);
         } else {
             panic!("Should not happen");

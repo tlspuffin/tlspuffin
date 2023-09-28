@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::fmt::Debug;
 
 use crate::algebra::ConcreteMessage;
@@ -71,6 +71,10 @@ pub trait ProtocolBehavior: 'static {
 
     /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal structure
     fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error>;
+
+    /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
+    /// This fails for many types of messages!
+    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);

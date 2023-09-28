@@ -117,13 +117,18 @@ impl Function {
         self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decode_ecdh_pubkey"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12"
     }
 
     /// Does the function symbol computes a list such as fn_append_certificate?
     pub fn is_list(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
-        self.fn_container.shape.name.contains("_append_")
+        self.fn_container.shape.name.contains("_append")
     }
 
     pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {

@@ -523,6 +523,10 @@ pub mod test_signature {
         fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
             panic!("Not implemented for test stub");
         }
+
+        fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     pub struct TestFactory;
