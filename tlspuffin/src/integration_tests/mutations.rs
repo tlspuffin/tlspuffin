@@ -105,9 +105,9 @@ fn test_byte_remove_payloads() {
             match &first.action {
                 Action::Input(input) => {
                     if let Term::Application(fd, args) = &input.recipe.term {
-                        if args.len() > 5 && input.recipe.is_symbolic() && !args[5].all_payloads().is_empty() {
+                        if args.len() > 5 && input.recipe.is_symbolic() && !args[5].payloads_to_replace().is_empty() {
                             error!("Found sub-term: {:?}", args[5]);
-                            error!("MakeMessage created new payloads in a strict sub-term: {:?}", args[5].all_payloads());
+                            error!("MakeMessage created new payloads in a strict sub-term: {:?}", args[5].payloads_to_replace());
                             break;
                         }
                     }
@@ -124,7 +124,7 @@ fn test_byte_remove_payloads() {
                 match &first.action {
                     Action::Input(input) => {
                         if let Term::Application(fd, args) = &input.recipe.term {
-                            if args.len() > 5 && args[5].all_payloads().is_empty() && !input.recipe.is_symbolic() && input.recipe.all_payloads().len() == 1 {
+                            if args.len() > 5 && args[5].payloads_to_replace().is_empty() && !input.recipe.is_symbolic() && input.recipe.all_payloads().len() == 1 {
                                 error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
                                 break
                             }

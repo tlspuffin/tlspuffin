@@ -2,7 +2,7 @@ use log::{debug, error};
 use puffin::algebra::error::FnError;
 use puffin::algebra::ConcreteMessage;
 use puffin::codec;
-use std::any::Any;
+use std::any::{Any, type_name, TypeId};
 use std::convert::TryFrom;
 
 use puffin::codec::{Codec, Countable, Reader};
@@ -443,4 +443,104 @@ pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin
         ))
         .into(),
     )
+}
+
+#[macro_export]
+macro_rules! try_read {
+  ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
+      if $ti == TypeId::of::<$T>() {
+        <$T>::read_bytes(& $bitstring).ok_or(Term(format!(
+                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+                core::any::type_name::<$T>(),
+                & $bitstring
+            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+    } else {
+        try_read!($bitstring, $ti, $($Ts),+)
+    }
+  };
+    ($bitstring:expr, $ti:expr, $T:ty ) => {
+        if $ti == TypeId::of::<$T>() {
+            <$T>::read_bytes(& $bitstring).ok_or(Term(format!(
+                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+                core::any::type_name::<$T>(),
+                & $bitstring
+            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+    } else {
+            // error!(
+            //     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
+            //     $ti,
+            //     & $bitstring
+            // );
+           Err(Term(format!(
+                "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
+                $ti,
+                & $bitstring
+            )).into())
+      }
+  };
+}
+
+pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, puffin::error::Error> {
+    if ty == TypeId::of::<Message>() {
+        <OpaqueMessage>::read_bytes(& bitstring).ok_or(Term(format!(
+                "[try_read_bytes] Failed to read to type OpaqueMessage (ty was Message though) the bitstring {:?}",
+                & bitstring
+            )).into()).map(|v| Box::new(Message::try_from(v)) as Box<dyn Any>)
+    } else {
+        try_read!(
+            bitstring,
+            ty,
+            // We list all the types that have the Encode trait and that can be the type of a rustls message
+            // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
+            // require each of the encode type below. Can be used to remove non-required ones and possibly
+            // to refine the order of them (heuristics to speed up the encoding).
+            ClientExtension,      // 4067
+            Vec<ServerExtension>, // TODO
+            ServerExtension,
+            Vec<HelloRetryExtension>,
+            HelloRetryExtension,
+            Vec<CertReqExtension>,
+            CertReqExtension,
+            Vec<CertificateExtension>,
+            CertificateExtension,
+            NewSessionTicketExtension,
+            Vec<NewSessionTicketExtension>,
+            Random,
+            Vec<Compression>,
+            Compression,
+            SessionID,
+            Vec<Certificate>,
+            Certificate,
+            Vec<CertificateEntry>,
+            CertificateEntry,
+            // HandshakeHash,
+            // PrivateKey,
+            Vec<CipherSuite>,
+            CipherSuite,
+            Vec<PresharedKeyIdentity>,
+            PresharedKeyIdentity,
+            AlertMessagePayload,
+            SignatureScheme, // 800
+            OpaqueMessage,   // 337
+            ProtocolVersion,  // 400
+            u64, // 3603 fail
+            // u8, // OK
+            // Vec<u64>, // OK
+            Vec<u8>,         // 2385 Fail
+            Vec<Vec<u8>>,    // Fail 332
+            // Option<Vec<Vec<u8>>>, // OK
+            // Result<Option<Vec<u8>>, FnError>, // OK
+            // Result<Vec<u8>, FnError>, // OK
+            // Result<bool, FnError>, // OK
+            // Result<Vec<u8>, FnError>,
+            // Result<Vec<Vec<u8>>, FnError>,
+            //
+            // Message, // 4185 Fail  TODOOO
+            // Result<Message, FnError>,
+            // MessagePayload,
+            // ExtensionType,
+            NamedGroup,           // 407
+            Vec<ClientExtension> //368
+        )
+    }
 }
