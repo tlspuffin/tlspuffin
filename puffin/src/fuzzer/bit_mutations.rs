@@ -144,8 +144,7 @@ impl<S> Named for [<$mutation  DY>]<S>
         std::any::type_name::<[<$mutation  DY>]<S>>()
     }
 }
-    }
-};
+}};
 }
 
 #[macro_export]
@@ -183,67 +182,11 @@ expand_mutations!(
     BytesRandInsertMutator,
     BytesSetMutator,
     BytesRandSetMutator,
-    BytesCopyMutator // The next 4 fail because types of mutate seem a bit different, need a different macro for them
-                     // TODO-bitlevel
-                     // BytesInsertCopyMutator,
-                     // BytesSwapMutator,
-                     // CrossoverInsertMutator,
-                     // CrossoverReplaceMutator
+    BytesCopyMutator
+    // The next 4 fail because types of mutate seem a bit different, need a different macro for them
+    // TODO-bitlevel
+    // BytesInsertCopyMutator,
+    // BytesSwapMutator,
+    // CrossoverInsertMutator,
+    // CrossoverReplaceMutator
 );
-//
-// pub struct BitFlipMutatorDY<S>
-//     where
-//         S: HasRand + HasMaxSize,
-// {
-//     phantom_s: std::marker::PhantomData<S>,
-// }
-//
-// impl<S> BitFlipMutatorDY<S>
-//     where
-//         S: HasRand + HasMaxSize,
-// {
-//     #[must_use]
-//     pub fn new() -> Self {
-//         Self {
-//             phantom_s: std::marker::PhantomData,
-//         }
-//     }
-// }
-//
-// impl<S, M> Mutator<Trace<M>, S> for BitFlipMutatorDY<S>
-//     where
-//         S: HasRand + HasMaxSize,
-//         M: Matcher,
-// {
-//     fn mutate(
-//         &mut self,
-//         state: &mut S,
-//         trace: &mut Trace<M>,
-//         stage_idx: i32,
-//     ) -> Result<MutationResult, Error> {
-//         let rand = state.rand_mut();
-//         if let Some(to_mutate) = choose_term_filtered_mut(
-//             trace,
-//             |x| x.is_symbolic().not(),
-//             TermConstraints::default(),
-//             rand,
-//         ) {
-//             if let Some(payloads) = &mut to_mutate.payloads {
-//                 BitFlipMutator.mutate(state, &mut payloads.payload, stage_idx)
-//             } else {
-//                 panic!("mutation::BitFlip::this shouldn't happen since we filtered out terms that are symbolics!")
-//             }
-//         } else {
-//             Ok(MutationResult::Skipped)
-//         }
-//     }
-// }
-//
-// impl<S> Named for BitFlipMutatorDY<S>
-//     where
-//         S: HasRand + HasMaxSize,
-// {
-//     fn name(&self) -> &str {
-//         std::any::type_name::<BitFlipMutatorDY<S>>()
-//     }
-// }

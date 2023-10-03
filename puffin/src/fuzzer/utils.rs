@@ -14,6 +14,7 @@ use crate::{
 pub struct TermConstraints {
     pub min_term_size: usize,
     pub max_term_size: usize,
+    // [NO LONGER USED! Can be removed!]
     // when true: only look for terms with no payload in sub-terms (for bit-le
     // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with paylaods)
     pub no_payload_in_subterm: bool,
@@ -98,23 +99,24 @@ pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
 /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-// RULE: never choose a term for a DY or bit-level mutation which a sub-term of a not is_symbolic() term
-// Indeed, this latter term is considered atomic and a bitstring, including the former sub-term.
-// leaves --> considered as atoms and not terms!
+// RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not is_symbolic() term
+// Indeed, this latter term is considered atomic/leaf and is treated as a bitstring.
 fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
     trace: &'a Trace<M>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R
 ) -> Option<(&'a TermEval<M>, TracePath)> {
-    // If if_wighted is set to true, then we follow the
-    //   Algorithm A Chao here https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
+    // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen sub-terms
+    // in the overall recipe. See the two vectors: depth_counts and depth_reservoir, indices are depths.
+    // Otherwise, the two above vectors have size 1 and we only store one counter and one sample, as
+    // in the usual algorithm.
     let if_weighted = constraints.weighted_depth;
     let mut max_depth = 1;
     let mut depth_counts: Vec<u64> = vec![0];
     let mut depth_reservoir: Vec<Option<(&'a TermEval<M>, TracePath)>> = vec![None];
     // if if_weighted=false, we will only access the first cell of those two vec
-    // independetly of the depth
+    // independently of the depth
 
     // calculate max tree height amongst the input steps
     if if_weighted {
@@ -177,12 +179,9 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                             || (!term.is_symbolic() && term.all_payloads().len() == 1))
                         && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
                     {
-
-                        let mut level = 0;
-                        if if_weighted { // if weighted, we reason per-depth, otherwise, we reason globally
-                            level = depth;
-                        }
-
+                        let mut level = if if_weighted { // if weighted, we reason per-depth, otherwise, we reason globally
+                            depth
+                        } else { 0 };
                         depth_counts[level] += 1;
 
                         // consider in sampling
@@ -208,11 +207,15 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     // Picking the actual term by randmly picking a level
     let mut reservoir  = None;
     if if_weighted {
+        // we need to randmly pick a depth from which we will sample the term
+        // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
+        // to the number of elements in that depts (hence an exponetial bonus for deeper terms should
+        // the overall term be roughly balanced
         let lambda = 0.5;
         let mut count_weighted = 0 as f64;
         for i in 0..max_depth {
             count_weighted += depth_counts[i] as f64 * (1 as f64 + (i as f64 * lambda));
-            // TODO: depth_counts[i] = count_weighted.floor() as u64;
+            // TODO: ?: depth_counts[i] = count_weighted.floor() as u64;
         }
         let random = rand.between(0, count_weighted.floor() as u64);
         // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}", depth_counts);
@@ -220,7 +223,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
         count_weighted = 0 as f64;
         while random >= count_weighted as u64 && i < max_depth {
             count_weighted += depth_counts[i] as f64 * (1 as f64 + i as f64 * lambda);
-            i += 1;
+            i += 1; // TODO: do it more efficiently by benefiting from the previous pre-processing
         }
         assert!(i>0);
         reservoir = depth_reservoir.remove(i-1);

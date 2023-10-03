@@ -14,13 +14,9 @@ use serde::de::Unexpected::Bytes;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::{
-    algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
-    error::Error,
-    protocol::ProtocolBehavior,
-    trace::TraceContext,
-};
+use crate::{algebra::{dynamic_function::TypeShape, error::FnError, Matcher}, define_signature, error::Error, protocol::ProtocolBehavior, trace::TraceContext};
 use crate::fuzzer::utils::{find_term_by_term_path_mut, find_term_by_term_path, TermPath};
+use crate::trace::Trace;
 use crate::variable_data::VariableData;
 
 const SIZE_LEAF: usize = 1;
@@ -50,7 +46,7 @@ impl<M: Matcher> fmt::Display for Term<M> {
 }
 
 /// Trait for data we can treat as terms (either Term or TermEval)
-pub trait TermType<M>: Display + Debug {
+pub trait TermType<M>: Display + Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
     fn is_leaf(&self) -> bool;
@@ -58,15 +54,8 @@ pub trait TermType<M>: Display + Debug {
     fn name(&self) -> &str;
     fn mutate(&mut self, other: Self);
     fn display_at_depth(&self, depth: usize) -> String;
-    /// Semi-evaluate a term into a PB's internal representation of messages (Box<dyn Any>)
-    // TODO-bitlevel: Will certainly be removed and replaced by `evaluate`
-    fn evaluate_lazy<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>;
     fn is_symbolic(&self) -> bool;
+    fn make_symbolic(&mut self); // remove all payloads
 
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
@@ -76,16 +65,31 @@ pub trait TermType<M>: Display + Debug {
     where
         PB: ProtocolBehavior<Matcher = M>;
 
+    // No longer used except for uni-testing! DO NOT USE in PRODUCTION
     /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
     fn evaluate_symbolic<PB: ProtocolBehavior>(
-        //TODO-bitlevel: will eventually replace evaluate once we rework the PUT add_inbound interface
-        &self,
-        context: &TraceContext<PB>,
+        self,
+        ctx: &TraceContext<PB>,
     ) -> Result<ConcreteMessage, Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        PB::any_get_encoding(self.evaluate_lazy(&context)?)
+        let mut t_s= self.clone();
+        t_s.make_symbolic();
+        t_s.evaluate(&ctx)
+    }
+
+    // No longer used except for uni-testing! DO NOT USE in PRODUCTION
+    /// Semi-evaluate a term into a PB's internal representation of messages (Box<dyn Any>)
+    fn evaluate_lazy<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn Any>, Error>
+        where
+            PB: ProtocolBehavior<Matcher = M>
+    {
+        let b = self.evaluate(&context)?;
+        PB::try_read_bytes(b, TypeId::from(*self.get_type_shape()))
     }
 }
 
@@ -224,7 +228,9 @@ impl<M: Matcher> TermEval<M> {
         self.erase_payloads_subterms(false);
     }
 
-    /// Return all payloads contains in a term, even under upaque terms.
+    /// Return all payloads contains in a term, even under opaque terms.
+    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
+    /// see `add_payloads`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -232,6 +238,7 @@ impl<M: Matcher> TermEval<M> {
     }
 
     /// Return all payloads contains in a term, except those under opaque terms.
+    /// The deeper the first in the returned vector.
     pub fn payloads_to_replace(&self) -> Vec<&Payloads> {
         pub fn rec<'a, M: Matcher>(term: &'a TermEval<M>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
@@ -253,90 +260,59 @@ impl<M: Matcher> TermEval<M> {
         acc
     }
 
-    // TODO_1: check this function and remove function all_payloads
-    // TODO_2: check replace_bitstirng and overall archi
-    // TODO_3: implement  PB::try_read_bytes(for TLS
-
     /// Evaluate a term without replacing the payloads (returning them instead) except when reaching
     /// an opaque term with payloads as strict sub-terms. In the latter case, evaluate each of the
     /// arguments and performing the payload replacements before evaluating the opaque function.
-    /// path: current path of &self in the overall recipe
-    /// also return the payloads to replace in this order: deeper first
+    /// @path: current path of &self in the overall recipe.
+    /// Also return the payloads to replace in this order: deeper first.
     fn eval_until_opaque<PB>(&self, path: TermPath, ctx: &TraceContext<PB>)
-        -> Result<(Box<dyn Any>, Vec<(&Payloads, TermPath)>), Error>
-    where PB: ProtocolBehavior<Matcher = M>
+                             -> Result<(Box<dyn Any>, Vec<(&Payloads, TermPath)>), Error>
+        where PB: ProtocolBehavior<Matcher=M>
     {
-        // TODO: merge both if/ else as we need to treat the arguments themselves differently!
-        let nb_payloads = self.all_payloads().len(); // maybe we count here payloads under
-        // another opaque sub-terms, not a problem as we then treat each argument independently
-        if self.is_opaque() && !( // if term is symbolic and has some payloads in strict sub-terms, we need to re-interpret arguments
-                 nb_payloads == 0 ||
-                (nb_payloads == 1 && !(self.is_symbolic()))) {
-            // error!("[eval_until_opaque] Found opaque: {}", &self);
-            match &self.term {
-                Term::Variable(_) => {
-                    Err(Error::Term(format!("eval_until_opaque: A variable is opaque. Should never happen!")))
-                },
-                Term::Application(func, args) => {
-                    let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                    for (i, ti) in args.iter().enumerate() {
-                        if ti.payloads_to_replace().len() == 0 { // no need to re-interpret argument ti
-                            let mut pathi = path.clone();
-                            pathi.push(i);
-                            let (di, pis) = ti.eval_until_opaque(pathi, ctx)?;
-                            assert_eq!(pis.len(), 0);
-                            dynamic_args.push(di);
-                        } else {
-                            error!("[eval_until_opaque] Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
-                            let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
-                            let typei = func.shape().argument_types[i];
-                            let di = PB::try_read_bytes(bi, typei.into()).with_context(|| format!("Failed for typeid: {}, typeid: {:?} on term (arg: {i}:\n {}", typei, TypeId::from(typei), &self)).map_err(|e| {
-                                error!("Err: {}", e);
+        match &self.term {
+            Term::Variable(variable) => {
+                let d = ctx
+                    .find_variable(variable.typ, &variable.query)
+                    .map(|data| data.boxed_any())
+                    .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
+                    .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
+                if let Some(payload) = &self.payloads {
+                    Ok((d, vec![(payload, path)]))
+                } else {
+                    Ok((d, vec![]))
+                }
+            },
+            Term::Application(func, args) => {
+                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+                let mut all_p = vec![];
+                for (i, ti) in args.iter().enumerate() {
+                    if self.is_opaque() && ti.payloads_to_replace().len() != 0 {
+                        debug!("[eval_until_opaque] Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
+                        let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
+                        let typei = func.shape().argument_types[i];
+                        let di = PB::try_read_bytes(bi, typei.into())
+                            .with_context(||
+                                format!("Failed for typeid: {}, typeid: {:?} on term (arg: {i}:\n {}",
+                                        typei, TypeId::from(typei), &self))
+                            .map_err(|e| {
+                                error!("[eval_until_opaque] Err: {}", e);
                                 e
                             })?;
-                            dynamic_args.push(di);
-                        }
-                    }
-                    let dynamic_fn = &func.dynamic_fn();
-                    let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?;
-                    if let Some(payload) = &self.payloads {
-                        Ok((result, vec![(payload, path)]))
+                        dynamic_args.push(di); // no need to add payloads to all_p as they were consumed
                     } else {
-                        Ok((result, vec![])) // no payload as we consumed all inner payloads already
-                    }
-                }
-            }
-        } else { // non-opaque term
-            match &self.term {
-                Term::Variable(variable) => {
-                    let d = ctx
-                        .find_variable(variable.typ, &variable.query)
-                        .map(|data| data.boxed_any())
-                        .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
-                        .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
-                    if let Some(payload) = &self.payloads {
-                        Ok((d, vec![(payload, path)]))
-                    } else {
-                        Ok((d, vec![]))
-                    }
-                },
-                Term::Application(func, args) => {
-                    let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                    let mut all_p = vec![];
-                    for (i, ti) in args.iter().enumerate() {
                         let mut pathi = path.clone();
                         pathi.push(i);
                         let (di, mut pis) = ti.eval_until_opaque(pathi, ctx)?;
                         dynamic_args.push(di);
                         all_p.append(&mut pis);
                     }
-                    let dynamic_fn = &func.dynamic_fn();
-                    let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?;
-                    if let Some(payload) = &self.payloads {
-                        all_p.push((payload, path)) // TODO: verify this one will be picked last when replacing (for loop pick it last)
-                    } //TODO: remove .all_paylaods() function :)
-                    Ok((result, all_p))
                 }
+                let dynamic_fn = &func.dynamic_fn();
+                let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?;
+                if let Some(payload) = &self.payloads {
+                    all_p.push((payload, path))
+                }
+                Ok((result, all_p))
             }
         }
     }
@@ -387,6 +363,22 @@ fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth:usize) -> String {
 }
 
 impl<M: Matcher> TermType<M> for TermEval<M> {
+    /// Evaluate terms into bitstrings (considering Payloads)
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<ConcreteMessage, Error>
+        where
+            PB: ProtocolBehavior<Matcher = M>,
+    {
+        error!("Context: term={}", &self);
+        let (m, p_s) = self.eval_until_opaque(Vec::new(), context)?;
+        let mut e =  PB::any_get_encoding(m)?;
+        replace_payloads(&mut e, p_s, self, context)?;
+        Ok(e)
+    }
+
+
     fn resistant_id(&self) -> u32 {
         match &self.term {
             Term::Variable(v) => v.resistant_id,
@@ -446,7 +438,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 
 
 
-fn display_at_depth(&self, depth: usize) -> String {
+    fn display_at_depth(&self, depth: usize) -> String {
         match self.payloads {
             None => {display_term_at_depth(&self.term, depth) },
             Some(_) => {
@@ -460,39 +452,6 @@ fn display_at_depth(&self, depth: usize) -> String {
         }
     }
 
-    fn evaluate_lazy<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error>
-        where
-            M: Matcher,
-            PB: ProtocolBehavior<Matcher = M>,
-    {
-        match &self.term {
-            Term::Variable(variable) => context
-                .find_variable(variable.typ, &variable.query)
-                .map(|data| data.boxed_any())
-                .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
-                .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
-            Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
-                for term in args {
-                    match term.evaluate_lazy(context) {
-                        Ok(data) => {
-                            dynamic_args.push(data);
-                        }
-                        Err(e) => {
-                            return Err(e);
-                        }
-                    }
-                }
-                let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
-                result.map_err(Error::Fn)
-            }
-        }
-    }
-
     fn is_symbolic(&self) -> bool {
         match self.payloads {
             None => true,
@@ -500,54 +459,133 @@ fn display_at_depth(&self, depth: usize) -> String {
         }
     }
 
-
-    /// Evaluate terms into bitstrings (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        error!("Context: term={}", &self);
-        let (m, p_s) = self.eval_until_opaque(Vec::new(), context)?;
-        let mut e =  PB::any_get_encoding(m)?;
-        replace_payloads(&mut e, p_s, self)?;
-        Ok(e)
-        // let mut to_replace = self.evaluate_symbolic(context)?;
-        // replace_bitstrings(&mut to_replace, self);
-        // Ok(to_replace)
+    fn make_symbolic(&mut self) {
+        self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
     }
+
+    // OLD - TO REMOVE
+    // fn evaluate_lazy<PB: ProtocolBehavior>(
+    //     &self,
+    //     context: &TraceContext<PB>,
+    // ) -> Result<Box<dyn Any>, Error>
+    //     where
+    //         M: Matcher,
+    //         PB: ProtocolBehavior<Matcher = M>,
+    // {
+    //     match &self.term {
+    //         Term::Variable(variable) => context
+    //             .find_variable(variable.typ, &variable.query)
+    //             .map(|data| data.boxed_any())
+    //             .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
+    //             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
+    //         Term::Application(func, args) => {
+    //             let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+    //             for term in args {
+    //                 match term.evaluate_lazy(context) {
+    //                     Ok(data) => {
+    //                         dynamic_args.push(data);
+    //                     }
+    //                     Err(e) => {
+    //                         return Err(e);
+    //                     }
+    //                 }
+    //             }
+    //             let dynamic_fn = &func.dynamic_fn();
+    //             let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+    //             result.map_err(Error::Fn)
+    //         }
+    //     }
+    // }
 }
 
 /// Operate the payloads replacements in to_replace, whose term is the term-representation
 /// payloads follow this order: deeper terms first
-pub fn replace_payloads<M: Matcher>(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath)>, term: &TermEval<M>)
-    -> Result<(), Error>{
+pub fn replace_payloads<M, PB>(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath)>, term: &TermEval<M>, ctx: &TraceContext<PB>)
+                               -> Result<(), Error>
+    where M: Matcher,
+          PB: ProtocolBehavior<Matcher=M> {
     for (payload, path) in payloads {
-        let old_b = payload.payload_0.bytes();
-        let new_b = payload.payload.bytes();
-        // TODO
+        replace_payload(to_replace, payload, path, term, ctx)?;
+    }
+    Ok(())
+}
+
+pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloads, path: TermPath, term: &TermEval<M>, ctx: &TraceContext<PB>)
+                              -> Result<(), Error>
+    where M: Matcher,
+          PB: ProtocolBehavior<Matcher=M> {
+    let old_b = payload.payload_0.bytes();
+    let new_b = payload.payload.bytes();
+    if old_b.len() == 0 {
+        if new_b.len() == 0 {
+            debug!("payload_0 and payload are both empty, we do nothing...");
+            return Ok(())
+        } else {
+            // We locate where we need to insert new_b:
+            let last_arg = path[path.len() - 1];
+            let mut offset: isize = 0;
+            if last_arg > 0 {
+                offset = -1;
+            } else { // TODO: currently, if there is a unique argument, it fails whe nfinding brother,
+                // could theoretically be OK by evaluating the father term term instead but I don't think we need to deal with this rare edge case
+                offset = 1
+            }
+            let mut path_brother = path[0..path.len() - 1].to_owned();
+            path_brother.push((last_arg as isize + offset) as usize);
+
+            let brother = find_term_by_term_path(term, &mut path_brother).ok_or(Error::Term(format!("Not found brother subterm")))?;
+            let eval = brother.evaluate(ctx)?;
+            if let Some(start_find_subterm) = search_sub_vec(to_replace, &eval) {
+                // TODO: We could abstract away the functionality "find a unique match" (see below how it is done) and use it here to make sure we get a unique match
+                // operate the replacement right after this brother
+                let start = if offset == -1 {
+                    start_find_subterm + eval.len()
+                } else { start_find_subterm };
+                let removed_elements: Vec<u8> = to_replace
+                    .splice(start..start, new_b.to_vec())
+                    .collect();
+                assert_eq!(removed_elements.len(), 0);
+                return Ok(());
+            } else {
+                let ft = format!("[replace_payload] Failed to find a brother subterm argument #{} len={}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}.\nMaybe the PUT is not deterministic?", last_arg - 1, eval.len(), eval, to_replace.len(), to_replace, term);
+                debug!("{}", ft);
+                return Err(Error::Term(ft));
+            }
+        }
+    } else {
         if let Some(start_find) = search_sub_vec(to_replace, old_b) {
             debug!("Found a bitstring {:?} to replace at bitstrinbg position {start_find} in bitstring\n{:?}", old_b, to_replace);
-            // Insert in-place new_b, replacing old_b in to_replace
-            let removed_elements: Vec<u8> = to_replace
-                .splice(start_find..start_find + old_b.len(), new_b.to_vec())
-                .collect();
-            debug!(
-                "Modified bitstring is:\n{:?}.\n removed elements: {:?}",
-                to_replace, removed_elements
-            );
-            if let Some(start_find_2) =
-                search_sub_vec(&to_replace[start_find + new_b.len()..], old_b)
-            {
-                warn!("Found twice the bitstring {:?} in term {} at both locations {start_find} and {start_find_2}", old_b, term);
+            if let Some(start_find_2) = // search if there is another match in the remaining bitstring (strictly after start_find)
+                search_sub_vec(&to_replace[start_find + 1..], old_b) {
+                warn!("Found twice (path: {path:?}) the bitstring {:?} in term {} at both locations {start_find} and {start_find_2}", old_b, term);
+                let mut pathi = path[0..0].to_owned();
+                // Jump to next sub-term containing to_replace to narrow down to_replace where the
+                // replacement needs to be done
+                let subterm = find_term_by_term_path(term, &mut pathi).ok_or(Error::Term(format!("Not found subterm")))?;
+                let eval = subterm.evaluate(ctx)?;
+                if let Some(start_find_subterm) = search_sub_vec(to_replace, &eval) {
+                    let mut to_replace_subterm = to_replace[start_find_subterm..start_find_subterm + eval.len()].to_owned();
+                    replace_payload(&mut to_replace_subterm, payload, path[1..].to_owned(), subterm, ctx)?;
+                    to_replace.splice(start_find_subterm..(start_find_subterm + eval.len()), to_replace_subterm);
+                } else {
+                    let ft = format!("[replace_payloads] Failed to find a subterm argument #{} len={}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}.\nMaybe the PUT is not deterministic?", path[0], eval.len(), eval, to_replace.len(), to_replace, term);
+                    debug!("{}", ft);
+                    return Err(Error::Term(ft));
+                }
+            } else {
+                // Insert in-place new_b, replacing old_b in to_replace
+                let removed_elements: Vec<u8> = to_replace
+                    .splice(start_find..start_find + old_b.len(), new_b.to_vec())
+                    .collect();
+                debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
+                return Ok(());
             }
         } else {
-            error!("[replace_payloads] Failed to find a payload.payload (len={}, path: {:?}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}\n sub-recipe is\n {}.\nMaybe the PUT is not deterministic? Full recipe:\n{:?}", old_b.len(), path, old_b, to_replace.len(), to_replace, term,
-                find_term_by_term_path(&term, &mut path.clone()).unwrap(),
-                term);
-            return Err(Error::Term(format!("[replace_payloads] Failed to find a payload.payload(len={}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}.\nMaybe the PUT is not deterministic?", old_b.len(), old_b, to_replace.len(), to_replace, term)))
+            let ft = format!("[replace_payloads] Failed to find a payload.payload (len={}, path: {:?}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}\n sub-recipe is\n {}.\nMaybe the PUT is not deterministic? Full recipe:\n{:?}", old_b.len(), path, old_b, to_replace.len(), to_replace, term,
+                             find_term_by_term_path(&term, &mut path.clone()).unwrap(),
+                             term);
+            debug!("{}", ft);
+            return Err(Error::Term(ft));
         }
     }
     Ok(())
