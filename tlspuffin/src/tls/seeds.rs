@@ -1899,7 +1899,7 @@ pub mod tests {
                 payload: vec![2 as u8, 3, 4, 5, 6, 7, 8, 9, 10, 11].into(),
             };
             ch_term.payloads = Some(dummy.clone());
-            replace_payloads(&mut fn_hello_b, vec![(&dummy, vec![])], ch_term).expect("TODO: panic message");
+            replace_payloads(&mut fn_hello_b, vec![(&dummy, vec![])], ch_term, &ctx).expect("TODO: panic message");
             assert_eq!(fn_hello_b_after, fn_hello_b);
         } else {
             panic!("Should not happen");

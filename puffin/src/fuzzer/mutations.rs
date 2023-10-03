@@ -584,92 +584,60 @@ where
     }
 }
 
-fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(t: &mut TermEval<M>, ctx: &TraceContext<PB>, path: &TracePath, trace: & Trace<M>)
+/// MakeMessage on the term at path `path` in `tr`.
+fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace<M>,
+                                                                  path: &TracePath,
+                                                                  ctx: &mut TraceContext<PB>)
     -> Result<(),anyhow::Error>
     where
     PB: ProtocolBehavior<Matcher=M>,
-    {
-        let step_index = &path.0;
-        let term_path = &path.1;
-        let evaluated = t.evaluate(&ctx).with_context(||
-            format!("failed to evaluate chosen sub-term"))?; // TODO: because of function scope!
-        let recipe = find_term(&trace, &(*step_index, term_path[0..0].to_vec())).expect("FAILURE FINDING SUBTERMN");
-        let full_eval = recipe.evaluate(&ctx).with_context(||
-            format!("failed to evaluate the recipe of the chosen sub-term"))?;
-        {
-            for i in 0..term_path.len() {
-                let t = if i == 0 {
-                    recipe
-                } else {
-                    find_term(&trace, &(*step_index, term_path[0..i].to_vec())).expect("FAILURE FINDING SUBTERMN")
-                };
-                let partial_eval = t.evaluate(&ctx).with_context(|| format!("failed to evaluate chosen sub-term at depth {i}. Unable to evaluate sub_term\n {} of recipe\n {}", &t, &recipe))?;
-                if let Some(index) = search_sub_vec(&partial_eval, &evaluated) {
-                    debug!("Found sub_term bitstring at depth {i}");
-                } else {
-                    if t.is_opaque() || recipe.is_opaque() {
-                        warn!("[MakeMess FAILURE for opaque] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n{t}\n in recipe\n {}", &evaluated, &full_eval, &recipe);
-                        return Ok(());
-                    } else {
-                        error!("[MakeMess FAILURE] Added payloads\n{:?}\n and full term was\n{:?}\n Term was\n {t}\n in recipe\n {}.\n Sub-term was\n{t} and payload was\n{:?}", &evaluated, &full_eval, &recipe, &partial_eval);
-                        return Ok(());
-                    }
-                }
-            }
-            debug!("[SUCCESS] Added payloads\n{:?} and full term was\n{:?}\n Term was \n{t}\n in recipe \n{}", &evaluated, &full_eval, &recipe);
-            if evaluated.is_empty() {
-                // Theoretically, we would like to keep this case as further bit-level mutations may add data to this initially empty bitstring....
-                warn!("mutation::MakeMessage::evaluated term is empty");
-                Ok(())
-            } else {
-                // Proceed with the mutation: add the payloads to the TermEval
-                t.add_payloads(evaluated);
-                Ok(())
-            }
-        }
+{
+    // Only execute shorter trace: trace[0..step_index])
+    // execute the PUT on the first step_index steps and store the resulting trace context
+    tr.execute_until_step(ctx, path.0).err().map(|e| {
+        error!("mutation::MakeMessage trace is not executable until step {},\
+            could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
+            TO CHECK! Error: {e}\n trace:\n{}", path.0, &tr);
+        return Ok::<MutationResult, Error>(MutationResult::Skipped)
+    });
+
+    let mut t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
+    let evaluated = t.evaluate(&ctx).with_context(||
+        format!("failed to evaluate chosen sub-term"))?;
+    t.add_payloads(evaluated);
+    Ok(())
 }
+
 
 impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
     where
         S: HasRand,
         PB: ProtocolBehavior<Matcher=M>,
 {
-    // By Micol Giacomin
     fn mutate(
         &mut self,
         state: &mut S,
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        let new_trace = trace.clone(); // for debugging only for now
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
             no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
+                                          // we currently authorize this as it could lead to interesting series of mutations
             not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
-            // we set it to true since a MakeMessage inside a list is never going to then be executable
+            // we set it to true since a MakeMessage inside a list is never going to then be evaluated
             // indeed: the evaluation of a partial list is never going to be found in the evaluation of the
             // full list!
-            weighted_depth: true, // true means we select a sub-term by giving higher-priority to deeper sub-terms
+            weighted_depth: true,  // true means we select a sub-term by giving higher-priority to deeper sub-terms
             ..self.constraints
         };
         // choose a random sub term
-        if let Some((to_mutate, (step_index, term_path))) =
-            choose_mut(trace, constraints_make_message, rand)
-        /* choose random sub tree (bias for nodes with smaller height)
-        if let Some((to_mutate, (step_index, term_path))) =
-            choose_with_weights(&trace.clone(), self.constraints, rand) */
+        if let Some((chosen_term, (step_index, term_path))) =
+            choose(trace, constraints_make_message, rand)
         {
-            warn!("Mutate MakeMessage on term {}", to_mutate);
-            // Only execute shorter trace: trace[0..step_index])
-            // execute the PUT on the first step_index steps and store the resulting trace context
+            warn!("Mutate MakeMessage on term {}", chosen_term);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
-            new_trace.execute_until_step(&mut ctx, step_index).err().map(|e| {
-                error!("mutation::MakeMessage trace is not executable until step {step_index}, could only happen if this mutation is scheduled with other mutations that create a non-executable trace. TO CHECK! Error: {e}\n trace:\n{}", &new_trace);
-                return Ok::<MutationResult, Error>(MutationResult::Skipped)
-            });
-
-            // perform the MakeMessage mutation
-            match make_message_term(to_mutate, &ctx, &(step_index, term_path), &new_trace) {
+            match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 Ok(()) => Ok(MutationResult::Mutated),
                 Err(e) => {
                     warn!("mutation::MakeMessage failed due to {e}");

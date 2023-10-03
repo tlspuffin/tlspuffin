@@ -490,12 +490,9 @@ pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn 
         try_read!(
             bitstring,
             ty,
-            // We list all the types that have the Encode trait and that can be the type of a rustls message
-            // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
-            // require each of the encode type below. Can be used to remove non-required ones and possibly
-            // to refine the order of them (heuristics to speed up the encoding).
-            ClientExtension,      // 4067
-            Vec<ServerExtension>, // TODO
+            // We list all the types that have the Codec trait and that can be the type of a rustls message
+            ClientExtension,
+            Vec<ServerExtension>,
             ServerExtension,
             Vec<HelloRetryExtension>,
             HelloRetryExtension,
@@ -520,27 +517,27 @@ pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn 
             Vec<PresharedKeyIdentity>,
             PresharedKeyIdentity,
             AlertMessagePayload,
-            SignatureScheme, // 800
-            OpaqueMessage,   // 337
-            ProtocolVersion,  // 400
-            u64, // 3603 fail
-            // u8, // OK
-            // Vec<u64>, // OK
-            Vec<u8>,         // 2385 Fail
-            Vec<Vec<u8>>,    // Fail 332
-            // Option<Vec<Vec<u8>>>, // OK
-            // Result<Option<Vec<u8>>, FnError>, // OK
-            // Result<Vec<u8>, FnError>, // OK
-            // Result<bool, FnError>, // OK
+            SignatureScheme,
+            OpaqueMessage,
+            ProtocolVersion,
+            u64,
+            // u8,
+            // Vec<u64>,
+            Vec<u8>,
+            Vec<Vec<u8>>,
+            // Option<Vec<Vec<u8>>>,
+            // Result<Option<Vec<u8>>, FnError>,
+            // Result<Vec<u8>, FnError>,
+            // Result<bool, FnError>,
             // Result<Vec<u8>, FnError>,
             // Result<Vec<Vec<u8>>, FnError>,
             //
-            // Message, // 4185 Fail  TODOOO
+            // Message,
             // Result<Message, FnError>,
             // MessagePayload,
             // ExtensionType,
-            NamedGroup,           // 407
-            Vec<ClientExtension> //368
+            NamedGroup,
+            Vec<ClientExtension>
         )
     }
 }

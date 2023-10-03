@@ -1,3 +1,4 @@
+use std::thread::panicking;
 use log::{debug, error};
 use puffin::algebra::TermType;
 use puffin::{
@@ -124,9 +125,16 @@ fn test_byte_remove_payloads() {
                 match &first.action {
                     Action::Input(input) => {
                         if let Term::Application(fd, args) = &input.recipe.term {
-                            if args.len() > 5 && args[5].payloads_to_replace().is_empty() && !input.recipe.is_symbolic() && input.recipe.all_payloads().len() == 1 {
-                                error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
-                                break
+                            if args.len() > 5 &&
+                                !input.recipe.is_symbolic() {
+                                    if args[5].payloads_to_replace().is_empty() &&
+                                        input.recipe.payloads_to_replace().len() == 1
+                                    {
+                                        error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
+                                        break
+                                    } else {
+                                        panic!("Failed to remove payloads in strict sub-terms when adding a payload at top level")
+                                    }
                             }
                         }
                     },
@@ -231,13 +239,18 @@ fn test_byte_interesting() {
             match &first.action {
                 Action::Input(input) => {
                     let mut found = false;
-                    for payload in input.recipe.all_payloads() {
+                    let t =  &input.recipe;
+                    for payload in t.all_payloads() {
                         if payload.payload_0 != payload.payload {
                             debug!("ByteInterestingMutatorDY created different payloads: {:?}", payload);
                             found = true;
                         }
                     }
-                    if found {break;}
+                    let e1 = t.evaluate(&ctx).unwrap();
+                    let e2 = t.clone().evaluate_symbolic(&ctx).unwrap();
+                    if found && e1 != e2 {
+                        break;
+                    }
                 },
                 Action::Output(_) => {},
             }
