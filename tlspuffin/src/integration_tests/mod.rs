@@ -2,6 +2,7 @@ use crate::put_registry::TLS_PUT_REGISTRY;
 
 mod mutations;
 mod term_zoo;
+mod terms;
 
 #[test]
 fn version_test() {

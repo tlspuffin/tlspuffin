@@ -22,12 +22,12 @@ pub struct TermZoo<M: Matcher> {
 
 impl<M: Matcher> TermZoo<M> {
     pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
-        Self::generate_many(signature, rand, 1)
+        Self::generate_many(signature, rand, 1, None)
     }
 
-    pub fn generate_many<R: Rand>(signature: &Signature, rand: &mut R, how_many: usize) -> Self {
+    pub fn generate_many<R: Rand>(signature: &Signature, rand: &mut R, how_many: usize, filter: Option<&FunctionDefinition>) -> Self {
         let mut acc = vec![];
-        for def in &signature.functions {
+        if let Some(def) = filter {
             let mut counter = MAX_TRIES as usize * how_many;
             let mut many = 0;
 
@@ -41,6 +41,24 @@ impl<M: Matcher> TermZoo<M> {
                 if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
                     many += 1;
                     acc.push(term);
+                }
+            }
+        } else {
+            for def in &signature.functions {
+                let mut counter = MAX_TRIES as usize * how_many;
+                let mut many = 0;
+
+                loop {
+                    if counter == 0 || many >= how_many {
+                        break;
+                    }
+
+                    counter -= 1;
+
+                    if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
+                        many += 1;
+                        acc.push(term);
+                    }
                 }
             }
         }
