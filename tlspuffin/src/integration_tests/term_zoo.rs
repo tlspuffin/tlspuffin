@@ -9,7 +9,7 @@ mod tests {
     use itertools::Itertools;
 
     use puffin::algebra::error::FnError;
-    use puffin::algebra::{Matcher, TermEval, TermType};
+    use puffin::algebra::{ConcreteMessage, evaluate_lazy_test, Matcher, TermEval, TermType};
     use puffin::codec::Encode;
     use puffin::error::Error;
     use puffin::protocol::ProtocolBehavior;
@@ -19,6 +19,7 @@ mod tests {
         libafl::bolts::rands::StdRand,
     };
     use puffin::agent::AgentName;
+    use puffin::algebra::signature::FunctionDefinition;
     use puffin::fuzzer::utils::{Choosable, choose, find_term_by_term_path_mut, TermConstraints};
     use puffin::libafl::prelude::Rand;
     use puffin::trace::Action::Input;
@@ -53,7 +54,7 @@ mod tests {
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1, None);
         // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
@@ -115,7 +116,7 @@ mod tests {
     #[test_log::test]
     fn test_term_lazy_eval() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200, None);
         // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
@@ -140,7 +141,7 @@ mod tests {
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
-            .filter(|t| t.evaluate_lazy(&ctx).is_ok())
+            .filter(|t| evaluate_lazy_test(t, &ctx).is_ok())
             .map(|term| term.name().to_string())
             .collect::<HashSet<String>>();
 
@@ -180,7 +181,7 @@ mod tests {
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
@@ -210,7 +211,7 @@ mod tests {
                         // );
                     }
                     Err(e) => {
-                        let t1 = term.evaluate_lazy(&ctx);
+                        let t1 = evaluate_lazy_test(&term, &ctx);
                         if t1.is_err() {
                             // debug!("LAZY failed!");
                             count_lazy_fail += 1;
@@ -229,7 +230,7 @@ mod tests {
                             _ => {
                                 // _ => {
                                 debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
-                                let t1 = term.evaluate_lazy(&ctx);
+                                let t1 = evaluate_lazy_test(&term, &ctx);
                                 if t1.is_ok() {
                                     debug!("Evaluate_lazy success. ");
                                     match t1.expect("NO").downcast_ref::<bool>() {
@@ -324,89 +325,86 @@ mod tests {
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_payloads() {
-        let mut rand = StdRand::with_seed(11);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400);
-        let terms = zoo.terms();
-        let number_terms = terms.len();
+        let mut rand = StdRand::with_seed(20);
+        let all_functions_shape = TLS_SIGNATURE
+            .functions.to_owned();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
+        let mut count_payload_fail = 0;
         let mut count_any_encode_fail = 0;
+        let mut number_terms = 0;
         let mut successfully_built_functions = vec![];
 
-        for term in terms.iter() {
-            if successfully_built_functions.contains(&term.name().to_string()) {
-                // for speeding up things
-                continue;
-            }
-            let mut term= term.clone();
+        for f in all_functions_shape {
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1, Some(&f));
+            let terms = zoo.terms();
+            let number_terms = number_terms + terms.len();
 
-            if  true || term.name().to_string()
-                == "tlspuffin::tls::fn_impl::fn_constants::fn_large_bytes_vec"
-            {
-                // Add payloads randomly
+            for term in terms.iter() {
+                if successfully_built_functions.contains(&term.name().to_string()) {
+                    // for speeding up things
+                    continue; // should never happen
+                }
+                let mut term = term.clone();
+
                 add_payloads_randomly(&mut term, &mut rand, &ctx);
 
-                match term.evaluate(&ctx) {
+                match &term.evaluate(&ctx) {
                     Ok(eval) => {
-                        debug!("--> OKAY");
                         successfully_built_functions.push(term.name().to_string().to_owned());
                         eval_count += 1;
-
-                        // debug!(
-                        //     " [x] Succeed evaluation of term: {} \nresulting in {:?}\n",
-                        //     term, eval
-                        // );
                     }
                     Err(e) => {
-                        let t1 = term.evaluate_lazy(&ctx);
-                        if t1.is_err() {
-                            // debug!("LAZY failed!");
-                            count_lazy_fail += 1;
-                        } else {
-                            count_any_encode_fail += 1;
-                            match e.clone() { // for debugging encoding failure only
-                                Error::Fn(FnError::Unknown(ee)) =>
-                                    debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
-                                Error::Fn(FnError::Crypto(ee)) =>
-                                    debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
-                                Error::Fn(FnError::Malformed(ee)) =>
-                                    debug!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
-                                Error::Term(ee) => {
-                                    debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
-                                },
-                                _ => {
-                                    // _ => {
-                                    debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
-                                    let t1 = term.evaluate_lazy(&ctx);
-                                    if t1.is_ok() {
-                                        debug!("Evaluate_lazy success. ");
-                                        match t1.expect("NO").downcast_ref::<bool>() {
-                                            Some(downcast) => {
-                                                print!("Downcast succeeded: {downcast:?}. ");
-                                                // let bitstring = Encode::get_encoding(downcast);
-                                                // print!("Encoding succeeded:: {bitstring:?}. ");
-                                            },
-                                            _ => { warn!("Downcast FAILED. ") },
+                        match &term.clone().evaluate_symbolic(&ctx) {
+                            Ok(_) => {
+                                count_payload_fail += 1;
+                                warn!("[Payload] Failed evaluation due to PAYLOADS. Term:\n{}", term);
+                            }
+                            Err(_) => {
+                                let t1 = evaluate_lazy_test(&term, &ctx);
+                                if t1.is_err() {
+                                    debug!("LAZY failed!");
+                                    count_lazy_fail += 1;
+                                } else {
+                                    count_any_encode_fail += 1;
+                                    match e.clone() { // for debugging encoding failure only
+                                        Error::Fn(FnError::Unknown(ee)) =>
+                                            debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                                        Error::Fn(FnError::Crypto(ee)) =>
+                                            debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
+                                        Error::Fn(FnError::Malformed(ee)) =>
+                                            debug!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                                        Error::Term(ee) => {
+                                            debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                        },
+                                        _ => {
+                                            // _ => {
+                                            debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                                            let t1 = evaluate_lazy_test(&term, &ctx);
+                                            if t1.is_ok() {
+                                                debug!("Evaluate_lazy success. ");
+                                                match t1.expect("NO").downcast_ref::<bool>() {
+                                                    Some(downcast) => {
+                                                        print!("Downcast succeeded: {downcast:?}. ");
+                                                        // let bitstring = Encode::get_encoding(downcast);
+                                                        // print!("Encoding succeeded:: {bitstring:?}. ");
+                                                    },
+                                                    _ => { warn!("Downcast FAILED. ") },
+                                                }
+                                            } else {
+                                                warn!("Evaluate_lazy FAILED. ");
+                                            }
                                         }
-                                    } else {
-                                        warn!("Evaluate_lazy FAILED. ");
+                                        _ => {},
                                     }
                                 }
-                                _ => {},
                             }
                         }
                     }
                 }
             }
         }
-    //    stack backtrace:
-   //         [2023-09-27T15:19:13Z ERROR tlspuffin::integration_tests::term_zoo::tests] Diff: ["tlspuffin::tls::fn_impl::fn_constants::fn_seq_7", "tlspuffin::tls::fn_impl::fn_extensions::fn_certificate_authorities_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_true", "tlspuffin::tls::fn_impl::fn_constants::fn_large_length", "tlspuffin::tls::fn_impl::fn_fields::fn_new_random", "tlspuffin::tls::fn_impl::fn_fields::fn_cipher_suite13_aes_128_gcm_sha256", "tlspuffin::tls::fn_impl::fn_extensions::fn_status_request_server_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_3", "tlspuffin::tls::fn_impl::fn_extensions::fn_signed_certificate_timestamp_certificate_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions12_server_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_preshared_keys_server_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_bob_key", "tlspuffin::tls::fn_impl::fn_utils::fn_new_certificates", "tlspuffin::tls::fn_impl::fn_cert::fn_empty_certificate_chain", "tlspuffin::tls::fn_impl::fn_messages::fn_alert_close_notify", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions12_hello_retry_extension", "tlspuffin::tls::fn_impl::fn_messages::fn_key_update_not_requested", "tlspuffin::tls::fn_impl::fn_extensions::fn_cert_req_extensions_new", "tlspuffin::tls::fn_impl::fn_messages::fn_certificate_request", "tlspuffin::tls::fn_impl::fn_extensions::fn_ec_point_formats_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_signed_certificate_timestamp_server_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_empty_bytes_vec", "tlspuffin::tls::fn_impl::fn_extensions::fn_signature_algorithm_cert_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_cert_request_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share", "tlspuffin::tls::fn_impl::fn_messages::fn_server_hello_done", "tlspuffin::tls::fn_impl::fn_fields::fn_new_session_id", "tlspuffin::tls::fn_impl::fn_cert::fn_bob_cert", "tlspuffin::tls::fn_impl::fn_fields::fn_cipher_suite13_aes_256_gcm_sha384", "tlspuffin::tls::fn_impl::fn_extensions::fn_signature_algorithm_cert_req_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_invalid_signature_algorithm", "tlspuffin::tls::fn_impl::fn_fields::fn_weak_export_cipher_suite", "tlspuffin::tls::fn_impl::fn_utils::fn_named_group_secp384r1", "tlspuffin::tls::fn_impl::fn_cert::fn_random_ec_cert", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_0", "tlspuffin::tls::fn_impl::fn_fields::fn_cipher_suite13_aes_128_ccm_sha256", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_9", "tlspuffin::tls::fn_impl::fn_extensions::fn_server_name_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_empty_vec_of_vec", "tlspuffin::tls::fn_impl::fn_utils::fn_new_certificate_entries", "tlspuffin::tls::fn_impl::fn_fields::fn_protocol_version13", "tlspuffin::tls::fn_impl::fn_extensions::fn_new_session_ticket_extensions_new", "tlspuffin::tls::fn_impl::fn_messages::fn_empty_handshake_message", "tlspuffin::tls::fn_impl::fn_extensions::fn_server_name_server_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_server_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions12_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_12", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_new_session_ticket_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_4", "tlspuffin::tls::fn_impl::fn_extensions::fn_session_ticket_request_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_extended_master_secret_server_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_11", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_14", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_hello_retry_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_psk_exchange_mode_ke_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_6", "tlspuffin::tls::fn_impl::fn_fields::fn_cipher_suite12", "tlspuffin::tls::fn_impl::fn_extensions::fn_session_ticket_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_new_cipher_suites", "tlspuffin::tls::fn_impl::fn_utils::fn_named_group_x25519", "tlspuffin::tls::fn_impl::fn_cert::fn_eve_cert", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_8", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_certificate_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_compressions", "tlspuffin::tls::fn_impl::fn_cert::fn_eve_pkcs1_signature", "tlspuffin::tls::fn_impl::fn_extensions::fn_ec_point_formats_server_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_10", "tlspuffin::tls::fn_impl::fn_extensions::fn_unknown_client_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_signed_certificate_timestamp_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_protocol_version12", "tlspuffin::tls::fn_impl::fn_fields::fn_secure_rsa_cipher_suite12", "tlspuffin::tls::fn_impl::fn_utils::fn_new_transcript", "tlspuffin::tls::fn_impl::fn_utils::fn_new_transcript12", "tlspuffin::tls::fn_impl::fn_utils::fn_new_certificate", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client", "tlspuffin::tls::fn_impl::fn_messages::fn_hello_request", "tlspuffin::tls::fn_impl::fn_fields::fn_compression", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions13_server_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_hello_retry_extensions_new", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions13_hello_retry_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_alice_key", "tlspuffin::tls::fn_impl::fn_extensions::fn_psk_exchange_mode_dhe_ke_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_supported_versions13_extension", "tlspuffin::tls::fn_impl::fn_messages::fn_key_update", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_2", "tlspuffin::tls::fn_impl::fn_cert::fn_alice_cert", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_signature_algorithm", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_15", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_16", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_pkcs1_signature_algorithm", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_13", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_1", "tlspuffin::tls::fn_impl::fn_extensions::fn_early_data_new_session_ticket_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_get_context", "tlspuffin::tls::fn_impl::fn_extensions::fn_cert_extensions_new", "tlspuffin::tls::fn_impl::fn_extensions::fn_extended_master_secret_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_pss_signature_algorithm", "tlspuffin::tls::fn_impl::fn_extensions::fn_early_data_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_empty_session_id", "tlspuffin::tls::fn_impl::fn_extensions::fn_early_data_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_no_key_share", "tlspuffin::tls::fn_impl::fn_extensions::fn_client_extensions_new", "tlspuffin::tls::fn_impl::fn_extensions::fn_server_extensions_new", "tlspuffin::tls::fn_impl::fn_utils::fn_no_psk", "tlspuffin::tls::fn_impl::fn_extensions::fn_signature_algorithm_extension", "tlspuffin::tls::fn_impl::fn_constants::fn_false", "tlspuffin::tls::fn_impl::fn_extensions::fn_empty_preshared_keys_identity_vec", "tlspuffin::tls::fn_impl::fn_constants::fn_seq_5", "tlspuffin::tls::fn_impl::fn_constants::fn_large_bytes_vec", "tlspuffin::tls::fn_impl::fn_messages::fn_change_cipher_spec"]
-        let all_functions = TLS_SIGNATURE
-            .functions
-            .iter()
-            .map(|(shape, _)| shape.name.to_string())
-            .collect::<HashSet<String>>();
 
         let mut successfully_built_functions_names = successfully_built_functions
             .iter()
@@ -431,6 +429,11 @@ mod tests {
 
         successfully_built_functions_names.extend(ignored_functions);
 
+        let all_functions = TLS_SIGNATURE
+            .functions
+            .iter()
+            .map(|(shape, _)| shape.name.to_string())
+            .collect::<HashSet<String>>();
         let difference = all_functions.difference(&successfully_built_functions_names);
 
         error!("Diff: {:?}\n", &difference);
@@ -439,7 +442,7 @@ mod tests {
             &successfully_built_functions.len()
         );
         debug!("All functions: #{:?}", &all_functions.len());
-        error!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
+        error!("number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
         assert_eq!(difference.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
     }

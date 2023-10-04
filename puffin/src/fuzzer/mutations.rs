@@ -653,7 +653,11 @@ fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace
     });
 
     let mut t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
-    let evaluated = t.evaluate(&ctx).with_context(||
+    // We get payload_0 by symbolically evaluating the term! (and not full eval with potential payloads in sub-terms). This
+    // because, doing differently would dramatically complexify the computation of replace_payloads.
+    // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
+    // term in thje first place.
+    let evaluated = t.evaluate_symbolic(&ctx).with_context(||
         format!("failed to evaluate chosen sub-term"))?;
     t.add_payloads(evaluated);
     Ok(())
