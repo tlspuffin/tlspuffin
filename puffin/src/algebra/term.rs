@@ -501,7 +501,7 @@ fn find_unique_match<M, PB>(to_find: &[u8], eval_term: &[u8], term: &TermEval<M>
         debug!("[find_unique_match] Loop1: for start_window={start_window} and for path={path:?} and term:\n{current_term}");
         if let Some((start, is_unique)) = search_sub_vec_double(&window, to_find) {
             if is_unique {
-                debug!("There is a match at position {}", start_window + start);
+                debug!("There is a match at position {}, length = {}. total_lenhgth = {}", start_window + start, to_find.len(), window.len());
                 return Ok(start_window + start)
             } else {
                 debug!{"Double match!"}
@@ -514,6 +514,7 @@ fn find_unique_match<M, PB>(to_find: &[u8], eval_term: &[u8], term: &TermEval<M>
                     current_term = sub;
                     let eval_sub = sub.evaluate_symbolic(ctx)?;
                     if let Some(start_sub) = search_sub_vec(&window, &eval_sub) {
+                        error!("Found sub-term at pos {start_sub}");
                         found_stable = true;
                         window = eval_sub; // evaluate synbolic so WITHOUT any payloads applied :( :(
                         start_window += start_sub;
@@ -524,10 +525,9 @@ fn find_unique_match<M, PB>(to_find: &[u8], eval_term: &[u8], term: &TermEval<M>
             }
         } else {
             let ft = format!("[replace_payload] Failed to find a payload.payload (len={}, path:\
-            {:?}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}\n sub-recipe is\n {}.\n\
+            {:?}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}\n\
             Maybe the PUT is not deterministic? Full recipe:\n{:?}", to_find.len(), path, to_find,
                              eval_term.len(), eval_term, term,
-                             find_term_by_term_path(&term, &mut path.clone()).unwrap(),
                              term);
             warn!("{}", ft);
             return Err(Error::Term(ft));
@@ -539,22 +539,26 @@ pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloa
                               -> Result<(), Error>
     where M: Matcher,
           PB: ProtocolBehavior<Matcher=M> {
-    error!("--------> START replace_payload with {:?} and path {path:?} on term\n{term}", payload);
+    // error!("--------> START replace_payload with {:?} and path {path:?} on term\n{term}", payload);
     // TODO: pour le moment je gere mal le fait que mes indices vont changer au cours du temps!!!
     // + sans doute plus efficace de partir de la target en bottom up plutot que l'inverse pour trouver un unique match
     let old_b = payload.payload_0.bytes();
     let new_b = payload.payload.bytes();
     if old_b.len() > 0 {
-        let eval = term.evaluate_symbolic(&ctx)?;
+        // let to_replace = term.evaluate_symbolic(&ctx)?;
         let mut path_mut = path.clone();
-        let start_find = find_unique_match(old_b, &eval, term, &mut path_mut, ctx).with_context(|| "Failed to find a unique match to be able to replace payload.")?;
+        let start_find = find_unique_match(old_b, &to_replace, term, &mut path_mut, ctx).with_context(|| "Failed to find a unique match to be able to replace payload.")?;
         // Insert in-place new_b, replacing old_b in to_replace
+        debug!("About to run let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect(); with to_replace.len()={}, start_find={start_find}, end={}", to_replace.len(), (start_find + old_b.len()));
         let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect();
         debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
         Ok(())
     } else { // Case with an empty payload to replace, need to locate the replacement window using a relative
         if new_b.len() == 0 {
             debug!("payload_0 and payload are both empty, we do nothing...");
+            return Ok(())
+        } else if path.len() == 0 {
+            debug!("payload_0 is empty, as well the corresponding path, we skip");
             return Ok(())
         } else {
             // We locate where we need to insert new_b:
