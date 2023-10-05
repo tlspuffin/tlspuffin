@@ -550,9 +550,15 @@ pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloa
         let start_find = find_unique_match(old_b, &to_replace, term, &mut path_mut, ctx).with_context(|| "Failed to find a unique match to be able to replace payload.")?;
         // Insert in-place new_b, replacing old_b in to_replace
         debug!("About to run let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect(); with to_replace.len()={}, start_find={start_find}, end={}", to_replace.len(), (start_find + old_b.len()));
-        let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect();
-        debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
-        Ok(())
+        if (start_find + old_b.len()) <= to_replace.len() {
+            let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect();
+            debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
+            Ok(())
+        } else {
+            let ft = format!("[replace_payload] Failed splice");
+            error!("{}", ft);
+            Err(Error::Term(ft))
+        }
     } else { // Case with an empty payload to replace, need to locate the replacement window using a relative
         if new_b.len() == 0 {
             debug!("payload_0 and payload are both empty, we do nothing...");
@@ -582,11 +588,17 @@ pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloa
                 let start = if offset == -1 {
                     start_find_subterm + eval_brother.len()
                 } else { start_find_subterm };
-                let removed_elements: Vec<u8> = to_replace
-                    .splice(start..start, new_b.to_vec())
-                    .collect();
-                assert_eq!(removed_elements.len(), 0);
-                Ok(())
+                if new_b.len() + start <= to_replace.len() {
+                    let removed_elements: Vec<u8> = to_replace
+                        .splice(start..start, new_b.to_vec())
+                        .collect();
+                    assert_eq!(removed_elements.len(), 0);
+                    Ok(())
+                } else {
+                    let ft = format!("[replace_payload] Failed splice");
+                    error!("{}", ft);
+                    Err(Error::Term(ft))
+            }
             } else {
                 if offset == 1 {
                     debug!("Brother failed, we try out to use the father instead.");
@@ -599,11 +611,17 @@ pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloa
                         let start_find_subterm = find_unique_match(&eval_father, &eval, term, &mut relative_path, &ctx)?;
                         // operate the replacement right after the father
                         let start = start_find_subterm + eval_father.len();
+                        if new_b.len() + start <= to_replace.len() {
                         let removed_elements: Vec<u8> = to_replace
                             .splice(start..start, new_b.to_vec())
                             .collect();
                         assert_eq!(removed_elements.len(), 0);
-                        Ok(())
+                            Ok(())
+                        } else {
+                            let ft = format!("[replace_payload] Failed splice");
+                            error!("{}", ft);
+                            Err(Error::Term(ft))
+                        }
                     } else {
                         let ft = format!("[replace_payload] Failed to find a father subterm argument at path {relative_path:?} in term {term}");
                         error!("{}", ft);
