@@ -305,16 +305,29 @@ mod tests {
         let all_subterms: Vec<&TermEval<M>> = t.into_iter().collect_vec();
         let nb_subterms = all_subterms.len() as i32;
         let mut i = 0;
-        let nb = (1..max(2,nb_subterms/5)).collect::<Vec<i32>>().choose(rand).unwrap().to_owned();
+        let nb = (1..max(4,nb_subterms/3)).collect::<Vec<i32>>().choose(rand).unwrap().to_owned();
         error!("Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...", max(2,nb_subterms/5));
+        let mut tries = 0;
 
         while i < nb {
+            tries += 1;
+            if tries > nb*20 {
+                error!("Failed to add the payloads after {} attempts", tries);
+                break;
+            }
             if let Some((st_, (step, mut path))) = choose(&trace,
                                                           TermConstraints {not_inside_list: true, weighted_depth: true, ..TermConstraints::default()}, rand) {
                 let st = find_term_by_term_path_mut(t, &mut path).unwrap();
                 if let Ok(evaluated) = st.evaluate(&ctx) {
                     i += 1;
                     st.add_payloads(evaluated);
+                    if let Some(payloads) = &mut st.payloads {
+                        let mut a: Vec<u8> = payloads.payload.clone().into();
+                        a.push(2);
+                        a.push(2);
+                        a.push(2);
+                        payloads.payload = a.into();
+                    }
                 }
             }
         }
@@ -337,7 +350,7 @@ mod tests {
         let mut successfully_built_functions = vec![];
 
         for f in all_functions_shape {
-            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1, Some(&f));
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
             let terms = zoo.terms();
             let number_terms = number_terms + terms.len();
 
@@ -349,6 +362,8 @@ mod tests {
                 let mut term = term.clone();
 
                 add_payloads_randomly(&mut term, &mut rand, &ctx);
+
+                error!("Term: {term}");
 
                 match &term.evaluate(&ctx) {
                     Ok(eval) => {
