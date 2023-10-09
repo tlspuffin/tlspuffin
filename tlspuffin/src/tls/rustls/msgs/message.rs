@@ -379,7 +379,7 @@ impl Countable for PresharedKeyIdentity {}
 
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
-pub fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
+pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
     try_downcast!(
         message,
         // We list all the types that have the Encode trait and that can be the type of a rustls message

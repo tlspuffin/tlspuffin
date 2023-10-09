@@ -9,7 +9,7 @@ use anyhow::Context;
 
 use itertools::Itertools;
 use libafl::inputs::{BytesInput, HasBytesVec};
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 use serde::de::Unexpected::Bytes;
 use serde::{Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ pub enum Term<M: Matcher> {
 
 impl<M: Matcher> fmt::Display for Term<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", display_term_at_depth(self, 0))
+        write!(f, "{}", display_term_at_depth(self, 0, false))
     }
 }
 
@@ -260,9 +260,14 @@ impl<M: Matcher> TermEval<M> {
     /// an opaque term with payloads as strict sub-terms. In the latter case, evaluate each of the
     /// arguments and performing the payload replacements before evaluating the opaque function.
     /// @path: current path of &self in the overall recipe.
-    /// Also return the payloads to replace in this order: deeper first.
-    fn eval_until_opaque<PB>(&self, path: TermPath, ctx: &TraceContext<PB>, with_payloads: bool)
-                             -> Result<(Box<dyn Any>, Vec<(&Payloads, TermPath)>), Error>
+    /// Also return the payloads to replace in this order: deeper first. To each payload, we associate
+    /// the path from which it originates and the offset (in # bytes) where to find the payload in the
+    /// current term and the window (ConcreteMessage). The offset is always relative to the current window
+    /// (ConcreteMessage).
+    /// Invariant: ConcreteMessage[offset..offset+payload.payload_0.len()] == payload.payload_0
+    /// Therefore, the position/offset (usize) is the position where to replace the payload in the current ConcreteMessage.
+    fn eval_until_opaque<PB>(&self, path: TermPath, ctx: &TraceContext<PB>, with_payloads: bool, is_in_list: bool)
+                             -> Result<(Box<dyn Any>, Vec<(&Payloads, TermPath, usize, ConcreteMessage)>), Error>
         where PB: ProtocolBehavior<Matcher=M>
     {
         match &self.term {
@@ -273,15 +278,19 @@ impl<M: Matcher> TermEval<M> {
                     .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
                 if let Some(payload) = &self.payloads {
-                    Ok((d, vec![(payload, path)]))
+                    trace!("[eval_until_opaque] Add a payload for a leaf at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&d));
+                    Ok((d, vec![(payload, path, 0, payload.payload_0.bytes().to_vec())])) // no offset for leaf
                 } else {
+                    trace!("[eval_until_opaque] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
                     Ok((d, vec![]))
                 }
             },
             Term::Application(func, args) => {
+                debug!("eval_until_opaque : Application from path={path:?}");
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 let mut all_p = vec![];
                 for (i, ti) in args.iter().enumerate() {
+                    debug!("Treating argument # {i} from path {path:?}...");
                     if self.is_opaque() && ti.payloads_to_replace().len() != 0 {
                         debug!("[eval_until_opaque] Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
@@ -298,60 +307,156 @@ impl<M: Matcher> TermEval<M> {
                     } else {
                         let mut pathi = path.clone();
                         pathi.push(i);
-                        let (di, mut pis) = ti.eval_until_opaque(pathi, ctx, with_payloads)?;
+                        let (di, mut pis) = ti.eval_until_opaque(pathi, ctx, with_payloads, self.is_list())?;
                         dynamic_args.push(di);
-                        all_p.append(&mut pis);
+                        for p in pis {
+                            all_p.push((p, i));
+                        }
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?;
-                if let Some(payload) = &self.payloads {
-                    all_p.push((payload, path))
+                let mut return_p = vec![]; // processed payloads to return
+
+                // We now update the payload position on the larger term
+                // (if we manage to evaluate the current term)
+                if all_p.len() > 0 {
+                    if let Ok(eval) = PB::any_get_encoding(&result) {
+                        for (i, ((p, path_p, pos, eval_sub), num_arg)) in all_p.into_iter().enumerate() {
+                            trace!("Updating payload #{i} from arg #{num_arg:?}: {p:?}, path_p={path_p:?}, pos={pos}, eval_sub={eval_sub:?}");
+                            if !eval_sub.is_empty() {
+                                // CURRENT WINDOW (eval_sub) is not empty --> we look for this bitstring in eval and refine the window
+                                if is_in_list {
+                                    // then we skip and wait until being not in the middle of a list
+                                    trace!("[eval_until_opaque] Skipping searching in eval_sub since it is in a middle of a list! current path={path:?}, payload path={path_p:?}. Eval: {eval:?}, eval_sub: {eval_sub:?}");
+                                    return_p.push((p, path_p, pos, eval_sub));
+                                } else {
+                                    // We look for the window in the current term evaluation and refine the window
+                                    if let Some((start, is_unique)) = search_sub_vec_double(&eval, &eval_sub) {
+                                        if is_unique {
+                                            // DONE
+                                            trace!("[eval_until_opaque] Found eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                            return_p.push((p, path_p, pos + start, eval.clone()));
+                                            // todo: instead: use a global eval as a global argument of the recurisve call
+                                            //  associate to payload item is just an option ConcreteMessage in case it has "lagged"
+                                        } else { // We shall refine the window, using left or right brother
+                                            if num_arg > 0 || num_arg < dynamic_args.len() - 1 { // there is a brother node we can compare with
+                                                let index = if num_arg > 0 { num_arg - 1 } else { num_arg + 1 };
+                                                // index of the arg to compare with
+                                                trace!("[eval_until_opaque] [Multiple matches] Compared with brother at index {index}.");
+                                                if let Ok(eval_index) = PB::any_get_encoding(&dynamic_args[index]) {
+                                                    if let Some((start_brother, is_unique_brother)) = search_sub_vec_double(&eval, &eval_index) {
+                                                        let window = if num_arg > 0 { &eval[start_brother + eval_index.len()..] } else { &eval[..start_brother] };
+                                                        if let Some((start_retry, is_unique_retry)) = search_sub_vec_double(window, &eval_sub) {
+                                                            let new_pos = if num_arg > 0 {pos + start_retry + start_brother + eval_index.len()} else {pos + start_retry};
+                                                            if is_unique {
+                                                                trace!("[eval_until_opaque] [Retried successful] Found eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                                return_p.push((p, path_p, new_pos, eval.clone()));
+                                                            } else {
+                                                                debug!("[eval_until_opaque] Still not unique. WAS UNABLE TO DISAMBIGUATE RETRIED. FALL BACK TO the last non-unique solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                                return_p.push((p, path_p, new_pos, eval.clone()));
+                                                                // Could be improved with choosing another brother but I don't think it worths it
+                                                            }
+                                                        } else {
+                                                            warn!("[eval_until_opaque] Failed to find in refined window. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                            return_p.push((p, path_p, pos + start, eval.clone()));
+                                                        }
+                                                    } else {
+                                                        warn!("[eval_until_opaque] Failed to find brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                        return_p.push((p, path_p, pos + start, eval.clone()));
+                                                    }
+                                                } else {
+                                                    warn!("[eval_until_opaque] Failed to evaluate brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                    return_p.push((p, path_p, pos + start, eval.clone()));
+                                                }
+                                            } else {
+                                                debug!("[eval_until_opaque] Failed to locate brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                return_p.push((p, path_p, pos + start, eval.clone()));
+                                            }
+                                        }
+                                    } else {
+                                            warn!("[evaluate] Could not find eval_sub in eval for current path = {path:?} and payload path={path_p:?}. Eval_sub: {eval_sub:?} // eval: {eval:?} (for payload {:?} in upper-term\n {})", p.payload_0, &self.term);
+                                            return_p.push((p, path_p, pos, eval_sub));
+                                        }
+                                    }
+                                } else {
+                                    // The current window/payload is empty --> we compute a window using left or rogth brother or the parent
+                                    if num_arg > 0 || num_arg < dynamic_args.len() - 1 { // there is a brother node we can compare with
+                                        let index = if num_arg > 0 { num_arg - 1 } else { num_arg + 1 };
+                                        // index of the arg to compare with
+                                        trace!("[eval_until_opaque] [Empty payload] Compared with brother at index {index}.");
+                                        if let Ok(eval_index) = PB::any_get_encoding(&dynamic_args[index]) {
+                                            let pos = if num_arg > 0 { eval_index.len() } else { 0 };
+                                            trace!("Updated pos to be {pos} in brother eval: {eval_index:?}");
+                                            return_p.push((p, path_p, pos, eval_index));
+                                        } else {
+                                            error!("[evaluate] [Empty payload] Could not evaluate argument before: num_arg={num_arg}, current path = {path:?} and payload path={path_p:?}.  DROP THIS PAYLOAD")
+                                        }
+                                    } else {
+                                        // there is only one argument: we compare with the father
+                                        trace!("[eval_until_opaque] [Empty payload] Compared with father.");
+                                        let pos = eval.len();
+                                        return_p.push((p, path_p, pos, eval.clone()));
+                                    }
+                                }
+                            }
+                        } else {
+                            warn!("[evaluate] Could not any_get_encode a sub-term to update payload positions.\
+                        If this is the last recursive call, the positions might be wrong, otherwise, we will tru again on larger terms.\
+                        Current term: {}", &self.term)
+                        }
+                    }
+                    trace!("End Application path={path:?} with eval={:?}", PB::any_get_encoding(&result));
+                    // Processing the potential payload at root position
+                    if let Some(payload) = &self.payloads {
+                        trace!("[eval_until_opaque] Add a paylaod for an application at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&result));
+                        return_p.push((payload, path, 0, payload.payload_0.bytes().to_vec()))  // no offset for the current payload
+                    }
+                    Ok((result, return_p))
                 }
-                Ok((result, all_p))
             }
         }
     }
-}
 
 
 
-impl<M: Matcher> Display for TermEval<M> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.term, f)
-    }
-}
-impl<M: Matcher> From<Term<M>> for TermEval<M> {
-    fn from(term: Term<M>) -> Self {
-        TermEval {
-            term,
-            payloads: None,
+        impl<M: Matcher> Display for TermEval<M> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", self.display_at_depth(0))
+            }
         }
-    }
-}
-impl<M: Matcher> From<TermEval<M>> for Term<M> {
-    fn from(term: TermEval<M>) -> Self {
-        term.term
-    }
-}
+        impl<M: Matcher> From<Term<M>> for TermEval<M> {
+            fn from(term: Term<M>) -> Self {
+                TermEval {
+                    term,
+                    payloads: None,
+                }
+            }
+        }
+        impl<M: Matcher> From<TermEval<M>> for Term<M> {
+            fn from(term: TermEval<M>) -> Self {
+                term.term
+            }
+        }
 
-fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth:usize) -> String {
-    let tabs = "\t".repeat(depth);
-    match term {
-        Term::Variable(ref v) => format!("{}{}", tabs, v),
-        Term::Application(ref func, ref args) => {
-            let op_str = remove_prefix(func.name());
-            let return_type = remove_prefix(func.shape().return_type.name);
-            if args.is_empty() {
-                format!("{}{} -> {}", tabs, op_str, return_type)
-            } else {
-                let args_str = args
-                    .iter()
-                    .map(|arg| display_term_at_depth(&arg.term, depth + 1))
+        fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring: bool) -> String {
+            let tabs = "\t".repeat(depth);
+            match term {
+                Term::Variable(ref v) => format!("{}{}", tabs, v),
+                Term::Application(ref func, ref args) => {
+                    let op_str = remove_prefix(func.name());
+                    let return_type = remove_prefix(func.shape().return_type.name);
+                    let is_bitstring = if is_bitstring { "BS//" } else { "" };
+                    if args.is_empty() {
+                        format!("{}{}{} -> {}", tabs, is_bitstring, op_str, return_type)
+                    } else {
+                        let args_str = args
+                            .iter()
+                    .map(|arg| display_term_at_depth(&arg.term, depth + 1, !arg.is_symbolic()))
                     .join(",\n");
                 format!(
-                    "{}{}(\n{}\n{}) -> {}",
-                    tabs, op_str, args_str, tabs, return_type
+                    "{}{}{}(\n{}\n{}) -> {}",
+                    tabs, is_bitstring, op_str, args_str, tabs, return_type
                 )
             }
         }
@@ -368,10 +473,11 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         where
             PB: ProtocolBehavior<Matcher = M>,
     {
-        let (m, p_s) = self.eval_until_opaque(Vec::new(), context, with_payloads)?;
-        let mut e =  PB::any_get_encoding(m)?;
+        debug!("[evaluate_config] About to evaluate {}", &self);
+        let (m, p_s) = self.eval_until_opaque(Vec::new(), context, with_payloads, false)?;
+        let mut e =  PB::any_get_encoding(&m)?;
         if with_payloads {
-            replace_payloads(&mut e, p_s, self, context)?;
+            replace_payloads(&mut e, p_s)?;
         }
         Ok(e)
     }
@@ -437,17 +543,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 
 
     fn display_at_depth(&self, depth: usize) -> String {
-        match self.payloads {
-            None => {display_term_at_depth(&self.term, depth) },
-            Some(_) => {
-                let tabs = "\t".repeat(depth);
-                format!(
-                    "{}BITSTRING_OF:\n{}",
-                    tabs,
-                    display_term_at_depth(&self.term, depth)
-                )
-            }
-        }
+        display_term_at_depth(&self.term, depth, !self.is_symbolic())
     }
 
     fn is_symbolic(&self) -> bool {
@@ -464,177 +560,35 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 
 /// Operate the payloads replacements in to_replace, whose term is the term-representation
 /// payloads follow this order: deeper terms first
-pub fn replace_payloads<M, PB>(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath)>, term: &TermEval<M>, ctx: &TraceContext<PB>)
+pub fn replace_payloads(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath, usize, ConcreteMessage)>,)
                                -> Result<(), Error>
-    where M: Matcher,
-          PB: ProtocolBehavior<Matcher=M> {
-    for (payload, path) in payloads {
-        replace_payload(to_replace, payload, path, term, ctx)?;
+{
+    for (payload, path, pos, eval) in payloads {
+        trace!("--------> START replace_payload with {:?} and pos {pos} on message of length = {}", payload, to_replace.len());
+        let old_b_len = payload.payload_0.bytes().len();
+        let new_b = payload.payload.bytes();
+        if pos+old_b_len <= to_replace.len() { // TODO: check if it is < or <=
+            debug!("[replace_payload] About to splice for indices to_replace.len={}, range={pos}..{}. to_replace[pos..pos+old_b_len]={:?}.",
+                to_replace.len(), pos+old_b_len, &to_replace[pos..pos+old_b_len]);
+            // TO REMOVE IN PRODUCTION ! as it is costly!
+            if !(to_replace[pos..pos+old_b_len].to_vec() ==  payload.payload_0.bytes()) {
+                let ft = format!("[replace_payload] Payloads returned by eval_until_opaque were inconsistent!\n
+                 to_replace[pos..pos+old_b_len].to_vec() = !to_replace[{pos}..{}].to_vec() = {:?}\n\
+                 payload.payload_0.bytes() = {:?}\n\
+                 to_replace={to_replace:?}",
+                                 pos+old_b_len, to_replace[pos..pos+old_b_len].to_vec(), payload.payload_0.bytes());
+                error!("{}", ft);
+                return Err(Error::Term(ft))
+            }
+            let to_remove: Vec<u8> = to_replace.splice(pos..pos + old_b_len, new_b.to_vec()).collect();
+            trace!("[replace_payload] Removed elements (len={}): {:?}", to_remove.len(), &to_remove);
+        } else {
+            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={pos}..{}, ", to_replace.len(), pos+old_b_len);
+            error!("{}", ft);
+            return Err(Error::Term(ft))
+        }
     }
     Ok(())
-}
-
-/// Return the next strict subterm along the path and the updated path (relative to the subterm)
-fn next_subterm<'a, M>(term: &'a TermEval<M>, path: &mut TermPath) -> Result<&'a TermEval<M>, Error>
-    where M: Matcher {
-    if path.len() < 1 {
-        return Err(Error::Term(format!("Trying to access next strict subterm with an empty path for term {term}")));
-    } else {
-        let mut pathi = path[0..1].to_owned();
-        let subterm = find_term_by_term_path(term, &mut pathi).ok_or(Error::Term(format!("Not found subterm for argument #{}", path[0])))?;
-        path.remove(0);
-        return Ok((subterm))
-    }
-}
-
-/// Returns a unique matching starting position of to_find in term.evaluate() == eval_term, following path_refine
-fn find_unique_match<M, PB>(to_find: &[u8], eval_term: &[u8], term: &TermEval<M>, path: &mut TermPath, ctx: &TraceContext<PB>)
-                            -> Result<usize, Error>
-    where M: Matcher,
-          PB: ProtocolBehavior<Matcher=M> {
-    // Initially, to_find must be in eval_term = window, in case there are multiple match, we refine the windiw
-    // by following the path
-    let mut start_window = 0;
-    let mut window = eval_term.to_vec();
-    let mut current_term = term;
-    loop {
-        debug!("[find_unique_match] Loop1: for start_window={start_window} and for path={path:?} and term:\n{current_term}");
-        if let Some((start, is_unique)) = search_sub_vec_double(&window, to_find) {
-            if is_unique {
-                debug!("There is a match at position {}, length = {}. total_lenhgth = {}", start_window + start, to_find.len(), window.len());
-                return Ok(start_window + start)
-            } else {
-                debug!{"Double match!"}
-                // In that case, we need to refine the window, for this we follow the path until we find a subterm
-                // that, once evaluated, we can find in the current window. When found, we update the window
-                let mut found_stable = false;
-                while !found_stable {
-                    debug!("[find_unique_match] Loop2: for path={path:?}  and term:\n{current_term}");
-                    let sub = next_subterm(current_term, path)?;
-                    current_term = sub;
-                    let eval_sub = sub.evaluate_symbolic(ctx)?;
-                    if let Some(start_sub) = search_sub_vec(&window, &eval_sub) {
-                        error!("Found sub-term at pos {start_sub}");
-                        found_stable = true;
-                        window = eval_sub; // evaluate synbolic so WITHOUT any payloads applied :( :(
-                        start_window += start_sub;
-                    } else {
-                        warn!("Unable to find a subterm eval in window. To be expected if subterm is list: {}", sub.is_list());
-                    }
-                }
-            }
-        } else {
-            let ft = format!("[replace_payload] Failed to find a payload.payload (len={}, path:\
-            {:?}):\n{:?}\n in(len={}):\n{:?}\nfrom recipe {}\n\
-            Maybe the PUT is not deterministic? Full recipe:\n{:?}", to_find.len(), path, to_find,
-                             eval_term.len(), eval_term, term,
-                             term);
-            warn!("{}", ft);
-            return Err(Error::Term(ft));
-        }
-    }
-}
-
-pub fn replace_payload<M, PB>(to_replace: &mut ConcreteMessage, payload: &Payloads, path: TermPath, term: &TermEval<M>, ctx: &TraceContext<PB>)
-                              -> Result<(), Error>
-    where M: Matcher,
-          PB: ProtocolBehavior<Matcher=M> {
-    // error!("--------> START replace_payload with {:?} and path {path:?} on term\n{term}", payload);
-    // TODO: pour le moment je gere mal le fait que mes indices vont changer au cours du temps!!!
-    // + sans doute plus efficace de partir de la target en bottom up plutot que l'inverse pour trouver un unique match
-    let old_b = payload.payload_0.bytes();
-    let new_b = payload.payload.bytes();
-    if old_b.len() > 0 {
-        // let to_replace = term.evaluate_symbolic(&ctx)?;
-        let mut path_mut = path.clone();
-        let start_find = find_unique_match(old_b, &to_replace, term, &mut path_mut, ctx).with_context(|| "Failed to find a unique match to be able to replace payload.")?;
-        // Insert in-place new_b, replacing old_b in to_replace
-        debug!("About to run let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect(); with to_replace.len()={}, start_find={start_find}, end={}", to_replace.len(), (start_find + old_b.len()));
-        if (start_find + old_b.len()) <= to_replace.len() {
-            let removed_elements: Vec<u8> = to_replace.splice(start_find..(start_find + old_b.len()), new_b.to_vec()).collect();
-            debug!("Modified bitstring is:\n{:?}.\n removed elements: {:?}", to_replace, removed_elements);
-            Ok(())
-        } else {
-            let ft = format!("[replace_payload] Failed splice");
-            error!("{}", ft);
-            Err(Error::Term(ft))
-        }
-    } else { // Case with an empty payload to replace, need to locate the replacement window using a relative
-        if new_b.len() == 0 {
-            debug!("payload_0 and payload are both empty, we do nothing...");
-            return Ok(())
-        } else if path.len() == 0 {
-            debug!("payload_0 is empty, as well the corresponding path, we skip");
-            return Ok(())
-        } else {
-            // We locate where we need to insert new_b:
-            let last_arg = path[path.len() - 1];
-            let mut offset: isize = 0;
-            if last_arg > 0 {
-                offset = -1;
-            } else { // we will have to handle the failure case here in case this was the unique argument actually!
-                offset = 1;
-            }
-            let mut relative_path = path[0..path.len() - 1].to_owned();
-            relative_path.push((last_arg as isize + offset) as usize);
-            debug!("Empty payload_0, we use relative at position {relative_path:?} relative of {path:?}");
-
-            if let Some(brother) = find_term_by_term_path(term, &mut relative_path) {
-                debug!("Relative is brother {brother}");
-                let eval = term.evaluate_symbolic(&ctx)?;
-                let eval_brother = brother.evaluate_symbolic(ctx)?;
-                let start_find_subterm = find_unique_match(&eval_brother, &eval, term, &mut relative_path, &ctx)?;
-                // operate the replacement right after this brother
-                let start = if offset == -1 {
-                    start_find_subterm + eval_brother.len()
-                } else { start_find_subterm };
-                if new_b.len() + start <= to_replace.len() {
-                    let removed_elements: Vec<u8> = to_replace
-                        .splice(start..start, new_b.to_vec())
-                        .collect();
-                    assert_eq!(removed_elements.len(), 0);
-                    Ok(())
-                } else {
-                    let ft = format!("[replace_payload] Failed splice");
-                    error!("{}", ft);
-                    Err(Error::Term(ft))
-            }
-            } else {
-                if offset == 1 {
-                    debug!("Brother failed, we try out to use the father instead.");
-                    // Maybe the term was the unique argument of its parent, so we need to take the parent as relative
-                    let mut relative_path = path[0..path.len() - 1].to_owned();
-                    if let Some(father) = find_term_by_term_path(term, &mut relative_path) {
-                        debug!("Relative is father {father}");
-                        let eval = term.evaluate_symbolic(&ctx)?;
-                        let eval_father = father.evaluate_symbolic(ctx)?;
-                        let start_find_subterm = find_unique_match(&eval_father, &eval, term, &mut relative_path, &ctx)?;
-                        // operate the replacement right after the father
-                        let start = start_find_subterm + eval_father.len();
-                        if new_b.len() + start <= to_replace.len() {
-                        let removed_elements: Vec<u8> = to_replace
-                            .splice(start..start, new_b.to_vec())
-                            .collect();
-                        assert_eq!(removed_elements.len(), 0);
-                            Ok(())
-                        } else {
-                            let ft = format!("[replace_payload] Failed splice");
-                            error!("{}", ft);
-                            Err(Error::Term(ft))
-                        }
-                    } else {
-                        let ft = format!("[replace_payload] Failed to find a father subterm argument at path {relative_path:?} in term {term}");
-                        error!("{}", ft);
-                        Err(Error::Term(ft))
-                    }
-                } else {
-                    let ft = format!("[replace_payload] Unable to find a brother of a term which is not at argument 0. Path: {path:?}, term: \n{term}.");
-                    debug!("{}", ft);
-                    Err(Error::Term(ft))
-                }
-            }
-        }
-    }
 }
 
 pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {

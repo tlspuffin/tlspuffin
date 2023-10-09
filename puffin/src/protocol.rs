@@ -70,7 +70,7 @@ pub trait ProtocolBehavior: 'static {
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
 
     /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal structure
-    fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error>;
+    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error>;
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
     /// This fails for many types of messages!
