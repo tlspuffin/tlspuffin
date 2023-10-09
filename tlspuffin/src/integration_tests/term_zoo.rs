@@ -318,10 +318,9 @@ mod tests {
             if let Some((st_, (step, mut path))) = choose(&trace,
                                                           TermConstraints {not_inside_list: true, no_payload_in_subterm: true, weighted_depth: true, ..TermConstraints::default()}, rand) {
                 let st = find_term_by_term_path_mut(t, &mut path).unwrap();
-                if let Ok(evaluated) = st.evaluate_symbolic(&ctx) {
+                if let Ok(()) = st.make_payload(&ctx) {
                     i += 1;
-                    error!("Added payload for subterm at path {path:?}, evaluated={evaluated:?}, sub_term: {st_}");
-                    st.add_payloads(evaluated);
+                    error!("Added payload for subterm at path {path:?}, evaluated={:?}, sub_term: {st_}", st.payloads.as_ref().unwrap().payload_0);
                     if let Some(payloads) = &mut st.payloads {
                         let mut a: Vec<u8> = payloads.payload.clone().into();
                         a.push(2);

@@ -657,9 +657,8 @@ fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace
     // because, doing differently would dramatically complexify the computation of replace_payloads.
     // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
     // term in thje first place.
-    let evaluated = t.evaluate_symbolic(&ctx).with_context(||
+    t.make_payload(&ctx).with_context(||
         format!("failed to evaluate chosen sub-term"))?;
-    t.add_payloads(evaluated);
     Ok(())
 }
 
