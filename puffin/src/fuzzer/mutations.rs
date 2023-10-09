@@ -690,7 +690,7 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
         if let Some((chosen_term, (step_index, term_path))) =
             choose(trace, constraints_make_message, rand)
         {
-            warn!("Mutate MakeMessage on term {}", chosen_term);
+            debug!("Mutate MakeMessage on term {}", chosen_term);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 Ok(()) => Ok(MutationResult::Mutated),

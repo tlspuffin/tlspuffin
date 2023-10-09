@@ -485,7 +485,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         let (m, p_s) = self.eval_until_opaque(Vec::new(), context, with_payloads, false)?;
         let mut e =  PB::any_get_encoding(&m)?;
         if with_payloads {
-            error!("[evaluate_config] About to replace payloads {:?} in {e:?}", &p_s);
+            debug!("[evaluate_config] About to replace payloads {:?} in {e:?}", &p_s);
             replace_payloads(&mut e, p_s).with_context(|| format!("failing term: {self}"))?;
         }
         Ok(e)
