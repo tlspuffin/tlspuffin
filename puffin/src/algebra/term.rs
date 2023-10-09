@@ -214,7 +214,7 @@ impl<M: Matcher> TermEval<M> {
         }
     }
 
-    pub fn add_payloads(&mut self, payload: Vec<u8>) {
+    pub fn add_payload(&mut self, payload: Vec<u8>) {
         self.payloads = Option::from({
             Payloads {
                 payload_0: BytesInput::new(payload.clone()),
@@ -224,9 +224,17 @@ impl<M: Matcher> TermEval<M> {
         self.erase_payloads_subterms(false);
     }
 
+    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) ->
+        Result<(), Error>
+    where PB: ProtocolBehavior<Matcher = M> {
+        let eval = self.evaluate_symbolic(&ctx)?;
+        self.add_payload(eval.into());
+        Ok(())
+    }
+
     /// Return all payloads contains in a term, even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
-    /// see `add_payloads`.
+    /// see `add_payload/make_payload`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -477,7 +485,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         let (m, p_s) = self.eval_until_opaque(Vec::new(), context, with_payloads, false)?;
         let mut e =  PB::any_get_encoding(&m)?;
         if with_payloads {
-            replace_payloads(&mut e, p_s)?;
+            error!("[evaluate_config] About to replace payloads {:?} in {e:?}", &p_s);
+            replace_payloads(&mut e, p_s).with_context(|| format!("failing term: {self}"))?;
         }
         Ok(e)
     }
