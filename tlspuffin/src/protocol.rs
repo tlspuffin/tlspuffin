@@ -206,7 +206,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         create_corpus()
     }
 
-    fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
         any_get_encoding(message)
     }
 

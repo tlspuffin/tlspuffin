@@ -221,7 +221,11 @@ impl Countable for Vec<u8> {}
 
 impl<T: Codec + Countable> Codec for Vec<T> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_vec_u8(bytes, self)
+        if self.len() == 0 {
+            // encode_vec_u8(bytes, self) // TODO: investigate if this breaks something for some Countable types. At least we need it for Certificates list
+        } else {
+            encode_vec_u8(bytes, self)
+        }
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
