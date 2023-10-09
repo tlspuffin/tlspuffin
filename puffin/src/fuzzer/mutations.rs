@@ -579,7 +579,7 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            warn!("Mutate GenerateMutator on term {}", to_mutate);
+            debug!("Mutate GenerateMutator on term {}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 self.zoo.insert(TermZoo::generate(self.signature, rand))
@@ -693,6 +693,8 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
             debug!("Mutate MakeMessage on term {}", chosen_term);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
+                // TODO: possibly we would need to make sure the mutated trace can be executed (if not directly dropped
+                // by the feedback loop once executed)
                 Ok(()) => Ok(MutationResult::Mutated),
                 Err(e) => {
                     warn!("mutation::MakeMessage failed due to {e}");
