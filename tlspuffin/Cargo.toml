@@ -7,6 +7,8 @@ edition = "2021"
 [features]
 default = ["sancov_libafl", "introspection"]
 
+cput = []
+
 openssl-default = [
     "tls12",
     "tls13",

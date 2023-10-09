@@ -103,6 +103,8 @@
 //!
 
 pub mod claims;
+#[cfg(feature = "cput")]
+pub mod cput_openssl;
 pub mod debug;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
