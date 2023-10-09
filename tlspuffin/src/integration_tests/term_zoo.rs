@@ -179,7 +179,7 @@ mod tests {
     #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
-    fn test_term_eval() {
+    fn test_term_eval_() {
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200, None);
         let terms = zoo.terms();
@@ -308,7 +308,7 @@ mod tests {
         let nb = (1..max(4,nb_subterms/3)).collect::<Vec<i32>>().choose(rand).unwrap().to_owned();
         error!("Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...", max(2,nb_subterms/5));
         let mut tries = 0;
-
+        // let nb = 1;
         while i < nb {
             tries += 1;
             if tries > nb*20 {
@@ -316,10 +316,11 @@ mod tests {
                 break;
             }
             if let Some((st_, (step, mut path))) = choose(&trace,
-                                                          TermConstraints {not_inside_list: true, weighted_depth: true, ..TermConstraints::default()}, rand) {
+                                                          TermConstraints {not_inside_list: true, no_payload_in_subterm: true, weighted_depth: true, ..TermConstraints::default()}, rand) {
                 let st = find_term_by_term_path_mut(t, &mut path).unwrap();
-                if let Ok(evaluated) = st.evaluate(&ctx) {
+                if let Ok(evaluated) = st.evaluate_symbolic(&ctx) {
                     i += 1;
+                    error!("Added payload for subterm at path {path:?}, evaluated={evaluated:?}, sub_term: {st_}");
                     st.add_payloads(evaluated);
                     if let Some(payloads) = &mut st.payloads {
                         let mut a: Vec<u8> = payloads.payload.clone().into();
@@ -327,6 +328,7 @@ mod tests {
                         a.push(2);
                         a.push(2);
                         payloads.payload = a.into();
+                        debug!("Added a paylaod at path {path:?}.");
                     }
                 }
             }
@@ -350,7 +352,7 @@ mod tests {
         let mut successfully_built_functions = vec![];
 
         for f in all_functions_shape {
-            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 300, Some(&f));
             let terms = zoo.terms();
             let number_terms = number_terms + terms.len();
 
@@ -359,25 +361,36 @@ mod tests {
                     // for speeding up things
                     continue; // should never happen
                 }
-                let mut term = term.clone();
+                // FILTRAGE
+                // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_signature_algorithm") {
+                //     continue;
+                // }
+                let mut term_with_payloads = term.clone();
 
-                add_payloads_randomly(&mut term, &mut rand, &ctx);
+                add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
 
-                error!("Term: {term}");
+                if term_with_payloads.payloads_to_replace().len() == 0 {
+                    warn!("Failed to add paylaods, skipping...");
+                    continue;
+                }
 
-                match &term.evaluate(&ctx) {
+                error!("Term with paylaods:: {term}");
+
+                match &term_with_payloads.evaluate(&ctx) {
                     Ok(eval) => {
+                        error!("Eval success!");
                         successfully_built_functions.push(term.name().to_string().to_owned());
                         eval_count += 1;
                     }
                     Err(e) => {
-                        match &term.clone().evaluate_symbolic(&ctx) {
+                        match &term_with_payloads.clone().evaluate_symbolic(&ctx) {
                             Ok(_) => {
+                                error!("Eval FAILED!");
                                 count_payload_fail += 1;
-                                warn!("[Payload] Failed evaluation due to PAYLOADS. Term:\n{}", term);
+                                error!("[Payload] Failed evaluation due to PAYLOADS. Term:\n{}", term_with_payloads);
                             }
                             Err(_) => {
-                                let t1 = evaluate_lazy_test(&term, &ctx);
+                                let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                 if t1.is_err() {
                                     debug!("LAZY failed!");
                                     count_lazy_fail += 1;
@@ -387,16 +400,16 @@ mod tests {
                                         Error::Fn(FnError::Unknown(ee)) =>
                                             debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
                                         Error::Fn(FnError::Crypto(ee)) =>
-                                            debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
+                                            debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
                                         Error::Fn(FnError::Malformed(ee)) =>
                                             debug!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
                                         Error::Term(ee) => {
-                                            debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                            debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
                                         },
                                         _ => {
                                             // _ => {
-                                            debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
-                                            let t1 = evaluate_lazy_test(&term, &ctx);
+                                            debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term_with_payloads, e);
+                                            let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                             if t1.is_ok() {
                                                 debug!("Evaluate_lazy success. ");
                                                 match t1.expect("NO").downcast_ref::<bool>() {

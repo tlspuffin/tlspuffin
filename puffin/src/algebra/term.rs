@@ -526,12 +526,18 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn name(&self) -> &str {
-        if self.is_symbolic() {
+        if true || self.is_symbolic() { // we do not display this information for now
             match &self.term {
                 Term::Variable(v) => v.typ.name,
                 Term::Application(function, _) => function.name(),
             }
         } else {
+            // let str =
+            //     match &self.term {
+            //     Term::Variable(v) => v.typ.name,
+            //     Term::Application(function, _) => function.name(),
+            // };
+            // &format!("{}//{}", BITSTRING_NAME, str)
             BITSTRING_NAME
         }
     }
@@ -563,7 +569,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 pub fn replace_payloads(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath, usize, ConcreteMessage)>,)
                                -> Result<(), Error>
 {
-    for (payload, path, pos, eval) in payloads {
+    for (payload, path, pos, eval) in &payloads {
+        let pos = *pos;
         trace!("--------> START replace_payload with {:?} and pos {pos} on message of length = {}", payload, to_replace.len());
         let old_b_len = payload.payload_0.bytes().len();
         let new_b = payload.payload.bytes();
@@ -583,7 +590,7 @@ pub fn replace_payloads(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloa
             let to_remove: Vec<u8> = to_replace.splice(pos..pos + old_b_len, new_b.to_vec()).collect();
             trace!("[replace_payload] Removed elements (len={}): {:?}", to_remove.len(), &to_remove);
         } else {
-            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={pos}..{}, ", to_replace.len(), pos+old_b_len);
+            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={pos}..{}. Payloads: {payloads:?}", to_replace.len(), pos+old_b_len);
             error!("{}", ft);
             return Err(Error::Term(ft))
         }

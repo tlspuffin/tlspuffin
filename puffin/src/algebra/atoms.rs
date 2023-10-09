@@ -120,8 +120,10 @@ impl Function {
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decode_ecdh_pubkey"
-        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
+        // || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client"
     }
 
     /// Does the function symbol computes a list such as fn_append_certificate?
