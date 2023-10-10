@@ -224,7 +224,7 @@ no-swap = ["puffin/no-swap"]
 
 puffin = { path = "../puffin" }
 
-log = { version = "0.4.17", features = ["release_max_level_off"] }
+log = { version = "0.4.17", features = ["release_max_level_off", "max_level_warn"] }
 itertools = "0.10.3"
 smallvec = "1.8.1"
 libc = { version = "0.2.126" }
