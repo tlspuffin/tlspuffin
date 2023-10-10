@@ -57,10 +57,16 @@ pub fn trace_mutations<S, M: Matcher, PB>(
     BytesSetMutatorDY<S>,
     BytesRandSetMutatorDY<S>,
     BytesCopyMutatorDY<S>,
-      )
+    BytesInsertCopyMutatorDY<S>,
+    BytesSwapMutatorDY<S>,
+    CrossoverInsertMutatorDY<S>,
+    CrossoverReplaceMutatorDY<S>,
+    SpliceMutatorDY<S>,
+    )
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior,
+    <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length),

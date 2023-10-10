@@ -21,6 +21,7 @@ use std::{
     hash::Hash,
     marker::PhantomData,
 };
+use libafl::inputs::HasBytesVec;
 
 use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
@@ -317,6 +318,19 @@ pub struct Trace<M: Matcher> {
     pub descriptors: Vec<AgentDescriptor>,
     pub steps: Vec<Step<M>>,
     pub prior_traces: Vec<Trace<M>>,
+}
+
+// Either write this for the CrossOver and splice mutations in bit_mutations.rs
+// Or inline the real one but choosing the crossover manually and doing the
+// the same then.
+impl<M: Matcher> HasBytesVec for Trace<M> {
+    fn bytes(&self) -> &[u8] {
+        todo!()
+    }
+
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        todo!()
+    }
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
