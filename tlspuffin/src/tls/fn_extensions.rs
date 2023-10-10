@@ -147,14 +147,18 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
 pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)
 }
-/// MaxFragmentLength => 0x0001,
-nyi_fn!();
-/// ClientCertificateUrl => 0x0002,
-nyi_fn!();
-/// TrustedCAKeys => 0x0003,
-nyi_fn!();
-/// TruncatedHMAC => 0x0004,
-nyi_fn!();
+nyi_fn! {
+    /// MaxFragmentLength => 0x0001,
+}
+nyi_fn! {
+    /// ClientCertificateUrl => 0x0002,
+}
+nyi_fn! {
+    /// TrustedCAKeys => 0x0003,
+}
+nyi_fn! {
+    /// TruncatedHMAC => 0x0004,
+}
 /// StatusRequest => 0x0005,
 pub fn fn_status_request_extension(
     responder_ids: &Vec<Vec<u8>>,
@@ -187,15 +191,18 @@ pub fn fn_status_request_certificate_extension(
         ocsp_response: PayloadU24::new(ocsp_response.clone()),
     }))
 }
-
-/// UserMapping => 0x0006,
-nyi_fn!();
-/// ClientAuthz => 0x0007,
-nyi_fn!();
-/// ServerAuthz => 0x0008,
-nyi_fn!();
-/// CertificateType => 0x0009,
-nyi_fn!();
+nyi_fn! {
+    /// UserMapping => 0x0006,
+}
+nyi_fn! {
+    /// ClientAuthz => 0x0007,
+}
+nyi_fn! {
+    /// ServerAuthz => 0x0008,
+}
+nyi_fn! {
+    /// CertificateType => 0x0009,
+}
 /// EllipticCurves => 0x000a,
 pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::NamedGroups(NamedGroups(vec![*group])))
@@ -211,8 +218,9 @@ pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError
         ECPointFormat::Uncompressed,
     ])))
 }
-/// SRP => 0x000c,
-nyi_fn!();
+nyi_fn! {
+    /// SRP => 0x000c,
+}
 /// SignatureAlgorithms => 0x000d,
 pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(
@@ -230,10 +238,12 @@ pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, F
         ]),
     ))
 }
-/// UseSRTP => 0x000e,
-nyi_fn!();
-/// Heartbeat => 0x000f,
-nyi_fn!();
+nyi_fn! {
+    /// UseSRTP => 0x000e,
+}
+nyi_fn! {
+    /// Heartbeat => 0x000f,
+}
 /// ALProtocolNegotiation => 0x0010,
 pub fn fn_empty_vec_of_vec() -> Result<Vec<Vec<u8>>, FnError> {
     Ok(vec![])
@@ -265,8 +275,9 @@ pub fn fn_al_protocol_server_negotiation(
             .collect(),
     )))
 }
-/// status_request_v2 => 0x0011
-nyi_fn!();
+nyi_fn! {
+    /// status_request_v2 => 0x0011
+}
 /// SCT => 0x0012,
 pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignedCertificateTimestampRequest)
@@ -286,14 +297,18 @@ pub fn fn_signed_certificate_timestamp_certificate_extension(
         VecU16OfPayloadU16(vec![PayloadU16::new(Vec::from([42u8; 128]))]),
     ))
 }
-/// client_certificate_type => 0x0013,
-nyi_fn!();
-/// server_certificate_type => 0x0014,
-nyi_fn!();
-/// Padding => 0x0015,
-nyi_fn!();
-/// encrypt_then_mac => 0x0016,
-nyi_fn!();
+nyi_fn! {
+    /// client_certificate_type => 0x0013,
+}
+nyi_fn! {
+    /// server_certificate_type => 0x0014,
+}
+nyi_fn! {
+    /// Padding => 0x0015,
+}
+nyi_fn! {
+    /// encrypt_then_mac => 0x0016,
+}
 /// ExtendedMasterSecret => 0x0017,
 pub fn fn_extended_master_secret_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ExtendedMasterSecretRequest)
@@ -301,28 +316,39 @@ pub fn fn_extended_master_secret_extension() -> Result<ClientExtension, FnError>
 pub fn fn_extended_master_secret_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ExtendedMasterSecretAck)
 }
-/// token_binding => 0x0018,
-nyi_fn!();
-/// cached_info => 0x0019,
-nyi_fn!();
-/// tls_lts => 0x001A,
-nyi_fn!();
-/// compress_certificate => 0x001B,
-nyi_fn!();
-/// record_size_limit => 0x001C,
-nyi_fn!();
-/// pwd_protect => 0x001D,
-nyi_fn!();
-/// pwd_clear => 0x001E,
-nyi_fn!();
-/// password_salt => 0x001F,
-nyi_fn!();
-/// ticket_pinning => 0x0020,
-nyi_fn!();
-/// tls_cert_with_extern_psk => 0x0021,
-nyi_fn!();
-/// delegated_credentials => 0x0022,
-nyi_fn!();
+nyi_fn! {
+    /// token_binding => 0x0018,
+}
+nyi_fn! {
+    /// cached_info => 0x0019,
+}
+nyi_fn! {
+    /// tls_lts => 0x001A,
+}
+nyi_fn! {
+    /// compress_certificate => 0x001B,
+}
+nyi_fn! {
+    /// record_size_limit => 0x001C,
+}
+nyi_fn! {
+    /// pwd_protect => 0x001D,
+}
+nyi_fn! {
+    /// pwd_clear => 0x001E,
+}
+nyi_fn! {
+    /// password_salt => 0x001F,
+}
+nyi_fn! {
+    /// ticket_pinning => 0x0020,
+}
+nyi_fn! {
+    /// tls_cert_with_extern_psk => 0x0021,
+}
+nyi_fn! {
+    /// delegated_credentials => 0x0022,
+}
 /// SessionTicket => 0x0023,
 pub fn fn_session_ticket_request_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SessionTicket(ClientSessionTicket::Request))
@@ -337,14 +363,18 @@ pub fn fn_session_ticket_offer_extension(ticket: &Vec<u8>) -> Result<ClientExten
 pub fn fn_session_ticket_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)
 }
-/// TLMSP => 0x0024,
-nyi_fn!();
-/// TLMSP_proxying => 0x0025,
-nyi_fn!();
-/// TLMSP_delegate => 0x0026,
-nyi_fn!();
-/// supported_ekt_ciphers => 0x0027,
-nyi_fn!();
+nyi_fn! {
+    /// TLMSP => 0x0024,
+}
+nyi_fn! {
+    /// TLMSP_proxying => 0x0025,
+}
+nyi_fn! {
+    /// TLMSP_delegate => 0x0026,
+}
+nyi_fn! {
+    /// supported_ekt_ciphers => 0x0027,
+}
 /// PreSharedKey => 0x0029,
 pub fn fn_new_preshared_key_identity(identity: &Vec<u8>) -> Result<PresharedKeyIdentity, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
@@ -448,8 +478,9 @@ pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
         vec![PSKKeyExchangeMode::PSK_KE],
     )))
 }
-/// TicketEarlyDataInfo => 0x002e,
-nyi_fn!();
+nyi_fn! {
+    /// TicketEarlyDataInfo => 0x002e,
+}
 /// CertificateAuthorities => 0x002f,
 pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnError> {
     let mut r = VecU16OfPayloadU16(Vec::new());
@@ -462,10 +493,12 @@ pub fn fn_certificate_authorities_extension() -> Result<CertReqExtension, FnErro
 
     Ok(CertReqExtension::AuthorityNames(r))
 }
-/// OIDFilters => 0x0030,
-nyi_fn!();
-/// PostHandshakeAuth => 0x0031,
-nyi_fn!();
+nyi_fn! {
+    /// OIDFilters => 0x0030,
+}
+nyi_fn! {
+    /// PostHandshakeAuth => 0x0031,
+}
 /// SignatureAlgorithmsCert => 0x0032,
 pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithmsCert(
@@ -522,14 +555,18 @@ pub fn fn_key_share_hello_retry_extension(
 ) -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::KeyShare(*group))
 }
-/// transparency_info => 0x0034,
-nyi_fn!();
-/// connection_id => 0x0035,
-nyi_fn!();
-/// external_id_hash => 0x0037,
-nyi_fn!();
-/// external_session_id => 0x0038,
-nyi_fn!();
+nyi_fn! {
+    /// transparency_info => 0x0034,
+}
+nyi_fn! {
+    /// connection_id => 0x0035,
+}
+nyi_fn! {
+    /// external_id_hash => 0x0037,
+}
+nyi_fn! {
+    /// external_session_id => 0x0038,
+}
 /// TransportParameters/quic_transport_parameters => 0x0039,
 pub fn fn_transport_parameters_extension(parameters: &Vec<u8>) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
@@ -543,10 +580,12 @@ pub fn fn_transport_parameters_server_extension(
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ServerExtension::TransportParameters(parameters.clone()))
 }
-/// NextProtocolNegotiation => 0x3374,
-nyi_fn!();
-/// ChannelId => 0x754f,
-nyi_fn!();
+nyi_fn! {
+    /// NextProtocolNegotiation => 0x3374,
+}
+nyi_fn! {
+    /// ChannelId => 0x754f,
+}
 /// RenegotiationInfo => 0xff01,
 pub fn fn_renegotiation_info_extension(data: &Vec<u8>) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
