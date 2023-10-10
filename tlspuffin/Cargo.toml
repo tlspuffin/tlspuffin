@@ -211,7 +211,7 @@ introspection = ["puffin/introspection"]
 
 puffin = { path = "../puffin" }
 
-log = "0.4.17"
+log = { version = "0.4.17", features = ["release_max_level_off"] }
 itertools = "0.10.3"
 smallvec = "1.8.1"
 libc = { version = "0.2.126" }
