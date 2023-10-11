@@ -44,8 +44,14 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     Box::new(CPUTOpenSSLFactory)
 }
 
-pub struct CPUTOpenSSL {
-    pub raw: SSL,
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct C_PUT_TYPE {
+    pub version: ::std::option::Option<unsafe extern "C" fn() -> *const ::std::os::raw::c_char>,
+}
+
+extern "C" {
+    pub static mut CPUT: C_PUT_TYPE;
 }
 
 #[repr(C)]
@@ -56,6 +62,8 @@ pub struct SSL {
 extern "C" {
     pub fn new_ssl() -> *mut SSL;
 }
+
+pub struct CPUTOpenSSL {}
 
 impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
@@ -103,7 +111,12 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn version() -> String {
-        unsafe { (*new_ssl()).dummy_field.to_string() }
+        unsafe {
+            CStr::from_ptr((CPUT.version.unwrap())())
+                .to_str()
+                .unwrap()
+                .to_owned()
+        }
     }
 }
 
@@ -128,6 +141,12 @@ mod tests {
     #[test]
     fn create_cput_openssl() {
         CPUTOpenSSL::new();
+        return;
+    }
+
+    #[test]
+    fn valid_cput_version() {
+        assert_eq!(CPUTOpenSSL::version(), "0.0.1-dummy-cputopenssl");
         return;
     }
 }
