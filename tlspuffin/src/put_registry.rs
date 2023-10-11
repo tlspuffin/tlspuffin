@@ -29,8 +29,10 @@ pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
             crate::openssl::new_openssl_factory
         } else if #[cfg(feature = "wolfssl-binding")] {
             crate::wolfssl::new_wolfssl_factory
+        } else if #[cfg(feature = "cput")] {
+            crate::cput_openssl::new_cput_openssl_factory
         } else {
-             crate::tcp::new_tcp_factory
+            crate::tcp::new_tcp_factory
         }
     }
 };
