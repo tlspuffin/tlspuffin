@@ -1,3 +1,4 @@
+use std::env;
 use std::process::Command;
 
 fn main() {
@@ -21,5 +22,16 @@ fn main() {
     if cfg!(feature = "llvm_cov_analysis") {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
+    }
+
+    if cfg!(feature = "cput") {
+        let out_dir = env::var("OUT_DIR").unwrap();
+        let cput_source = "src/cput_openssl/put.c";
+
+        cc::Build::new().file(cput_source).compile("cput");
+
+        println!("cargo:rerun-if-changed={}", cput_source);
+        println!("cargo:rustc-link-search=native={}", out_dir);
+        println!("cargo:rustc-link-lib=static=cput");
     }
 }

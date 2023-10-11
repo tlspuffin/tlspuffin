@@ -2277,6 +2277,7 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "cfg-if",
  "criterion",
  "env_logger 0.9.3",
