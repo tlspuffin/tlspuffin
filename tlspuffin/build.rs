@@ -1,4 +1,5 @@
 use std::env;
+use std::path::Path;
 use std::process::Command;
 
 fn main() {
@@ -26,11 +27,29 @@ fn main() {
 
     if cfg!(feature = "cput") {
         let out_dir = env::var("OUT_DIR").unwrap();
+        let cput_header = "src/cput_openssl/put.h";
         let cput_source = "src/cput_openssl/put.c";
 
-        cc::Build::new().file(cput_source).compile("cput");
+        cc::Build::new()
+            .include(cput_header)
+            .file(cput_source)
+            .compile("cput");
+
+        let bindings_path = Path::new(&out_dir).join("bindings.rs");
+        bindgen::Builder::default()
+            .header(cput_header)
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            .generate()
+            .expect("Unable to generate bindings for cput")
+            .write_to_file(&bindings_path)
+            .expect("Couldn't write bindings!");
 
         println!("cargo:rerun-if-changed={}", cput_source);
+        println!("cargo:rerun-if-changed={}", cput_header);
+        println!(
+            "cargo:rustc-env=CPUT_BINDINGS_FILE={}",
+            bindings_path.to_string_lossy()
+        );
         println!("cargo:rustc-link-search=native={}", out_dir);
         println!("cargo:rustc-link-lib=static=cput");
     }

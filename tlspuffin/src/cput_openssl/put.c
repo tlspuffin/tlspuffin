@@ -1,10 +1,6 @@
 #include <stdlib.h>
 
-typedef struct C_PUT_TYPE
-{
-    void *(*new)();
-    const char *(*version)();
-} C_PUT_TYPE;
+#include "put.h"
 
 const char *cput_version()
 {

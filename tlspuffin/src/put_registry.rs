@@ -18,7 +18,7 @@ pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
         #[cfg(feature = "wolfssl-binding")]
         crate::wolfssl::new_wolfssl_factory,
         #[cfg(feature = "cput")]
-        crate::cput_openssl::new_cput_openssl_factory,
+        crate::cput_openssl::put::new_cput_openssl_factory,
     ],
     default: DEFAULT_PUT_FACTORY,
 };
@@ -30,7 +30,7 @@ pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
         } else if #[cfg(feature = "wolfssl-binding")] {
             crate::wolfssl::new_wolfssl_factory
         } else if #[cfg(feature = "cput")] {
-            crate::cput_openssl::new_cput_openssl_factory
+            crate::cput_openssl::put::new_cput_openssl_factory
         } else {
             crate::tcp::new_tcp_factory
         }
