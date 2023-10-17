@@ -52,5 +52,8 @@ fn main() {
         );
         println!("cargo:rustc-link-search=native={}", out_dir);
         println!("cargo:rustc-link-lib=static=cput");
+        println!("cargo:rustc-link-search=native=openssl_build/openssl");
+        println!("cargo:rustc-link-lib=static=ssl");
+        println!("cargo:rustc-link-lib=static=crypto");
     }
 }

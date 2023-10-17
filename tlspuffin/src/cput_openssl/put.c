@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <openssl/ssl.h>
 
 #include "put.h"
 
@@ -7,17 +8,10 @@ const char *openssl_version()
     return "0.0.1-dummy-cputopenssl";
 }
 
-typedef struct SSL
-{
-    int dummy_field;
-} SSL;
-
 void *new_ssl()
 {
-    SSL *result = (SSL *)malloc(8 * sizeof(SSL));
-    result->dummy_field = 42;
-
-    return result;
+    SSL_library_init();
+    return NULL;
 }
 
 void openssl_progress(void *put, uint8_t agent_name)
