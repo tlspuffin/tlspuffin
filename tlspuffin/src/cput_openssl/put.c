@@ -51,12 +51,12 @@ const char *openssl_shutdown(void *put)
     return "";
 }
 
-int openssl_add_inbound(void *put, const uint8_t *bytes, size_t length)
+int openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written)
 {
     return 0;
 }
 
-int openssl_take_outbound(void *put, uint8_t **bytes, size_t *length)
+int openssl_take_outbound(void *put, uint8_t **bytes)
 {
     return 0;
 }

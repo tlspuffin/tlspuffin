@@ -14,8 +14,8 @@ typedef struct C_PUT_TYPE
     void (*set_deterministic)(void *put);
     const char *(*shutdown)(void *put);
 
-    int (*add_inbound)(void *put, const uint8_t *bytes, size_t length);
-    int (*take_outbound)(void *put, uint8_t **bytes, size_t *length);
+    int (*add_inbound)(void *put, const uint8_t *bytes, size_t length, size_t *written);
+    int (*take_outbound)(void *put, uint8_t **bytes);
 } C_PUT_TYPE;
 
 const C_PUT_TYPE CPUT;

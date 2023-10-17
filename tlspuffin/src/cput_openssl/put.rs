@@ -1,11 +1,11 @@
-use log::info;
-use puffin::codec::Reader;
+use log::{error, info};
+use puffin::codec::{Codec, Reader};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
-use std::io::Write;
+use std::io::{ErrorKind, Read, Write};
 use std::rc::Rc;
 
-use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void};
+use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void, size_t};
 
 use crate::{
     protocol::TLSProtocolBehavior,
@@ -20,7 +20,7 @@ use crate::{
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    protocol::MessageResult,
+    protocol::{MessageResult, ProtocolMessageDeframer},
     put::{Put, PutName},
     put_registry::Factory,
     stream::{MemoryStream, Stream},
@@ -81,20 +81,73 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
 pub struct CPUTOpenSSL {
     pub config: TlsPutConfig,
+    pub deframer: MessageDeframer,
     pub c_data: *mut ::std::os::raw::c_void,
 }
 
 impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
-    fn add_to_inbound(&mut self, message: &OpaqueMessage) {}
+    fn add_to_inbound(&mut self, message: &OpaqueMessage) {
+        let bytes = message.get_encoding();
+        let mut written = 0usize;
+        let raw_result = unsafe {
+            (CPUT.add_inbound.unwrap())(
+                self.c_data,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut written as *mut usize,
+            )
+        };
+    }
 
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-        // make a vec<u8> and convert it to channel to use puffin::stream::Stream implementation
-        let mut stream = MemoryStream::new(MessageDeframer::new());
-        let content = vec![1u8, 2u8];
-        stream.write(&content);
-        stream.take_message_from_outbound()
+        let raw = unsafe {
+            let c_ptr: *mut *mut u8 = &mut std::ptr::null_mut();
+            let cput_result = (CPUT.take_outbound.unwrap())(self.c_data, c_ptr);
+            std::ptr::slice_from_raw_parts(*c_ptr, OpaqueMessage::MAX_WIRE_SIZE).as_ref()
+        }
+        .unwrap();
+
+        let mut buf = std::io::Cursor::new(raw);
+
+        let opaque_message = loop {
+            if let Some(opaque_message) = self.deframer.pop_frame() {
+                break Some(opaque_message);
+            } else {
+                match self.deframer.read(buf.get_mut()) {
+                    Ok(v) => {
+                        buf.set_position(0);
+                        if v == 0 {
+                            break None;
+                        }
+                    }
+                    Err(err) => match err.kind() {
+                        ErrorKind::WouldBlock => {
+                            // This is not a hard error. It just means we will should read again from
+                            // the TCPStream in the next steps.
+                            break None;
+                        }
+                        _ => return Err(err.into()),
+                    },
+                }
+            }
+        };
+
+        if let Some(opaque_message) = opaque_message {
+            let message = match opaque_message.clone().try_into() {
+                Ok(message) => Some(message),
+                Err(err) => {
+                    error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", Into::<Error>::into(err));
+                    None
+                }
+            };
+
+            Ok(Some(MessageResult(message, opaque_message)))
+        } else {
+            // no message to return
+            Ok(None)
+        }
     }
 }
 
@@ -158,13 +211,11 @@ impl CPUTOpenSSL {
     fn new(config: TlsPutConfig) -> Result<CPUTOpenSSL, Error> {
         Ok(CPUTOpenSSL {
             config,
+            deframer: MessageDeframer::new(),
             c_data: unsafe { (CPUT.new.unwrap())() },
         })
     }
 }
-
-// pub unsafe extern "C" _log(mut ap: ...) {
-// }
 
 #[cfg(test)]
 mod tests {
