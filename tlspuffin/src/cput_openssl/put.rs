@@ -1,6 +1,8 @@
 use log::info;
+use puffin::codec::Reader;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
+use std::io::Write;
 use std::rc::Rc;
 
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void};
@@ -9,17 +11,19 @@ use crate::{
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::C_PUT,
-    tls::rustls::msgs::message::{Message, OpaqueMessage},
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
 };
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
-    put::Put,
-    put::PutName,
+    put::{Put, PutName},
     put_registry::Factory,
-    stream::Stream,
+    stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
 
@@ -81,24 +85,28 @@ pub struct CPUTOpenSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        panic!("C PUT (OpenSSL) stream add_to_inbound not implemented")
-    }
+    fn add_to_inbound(&mut self, message: &OpaqueMessage) {}
 
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-        panic!("C PUT (OpenSSL) stream take_message_from_outbound not implemented")
+        // make a vec<u8> and convert it to channel to use puffin::stream::Stream implementation
+        let mut stream = MemoryStream::new(MessageDeframer::new());
+        let content = vec![1u8, 2u8];
+        stream.write(&content);
+        stream.take_message_from_outbound()
     }
 }
 
 impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
-        panic!("C PUT (OpenSSL) not implemented: progress")
+    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
+        unsafe { (CPUT.progress.unwrap())(self.c_data, (*agent_name).into()) };
+        Ok(())
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        panic!("C PUT (OpenSSL) not implemented: reset")
+        unsafe { (CPUT.reset.unwrap())(self.c_data, agent_name.into()) };
+        Ok(())
     }
 
     fn descriptor(&self) -> &AgentDescriptor {
@@ -106,23 +114,34 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        panic!("C PUT (OpenSSL) not implemented: rename_agent")
+        unsafe { (CPUT.rename_agent.unwrap())(self.c_data, agent_name.into()) };
+        Ok(())
     }
 
     fn describe_state(&self) -> &str {
-        panic!("C PUT (OpenSSL) not implemented: describe_state")
+        unsafe {
+            CStr::from_ptr((CPUT.describe_state.unwrap())(self.c_data))
+                .to_str()
+                .unwrap()
+        }
     }
 
     fn is_state_successful(&self) -> bool {
-        panic!("C PUT (OpenSSL) not implemented: is_state_successful")
+        unsafe { (CPUT.is_state_successful.unwrap())(self.c_data) }
     }
 
     fn set_deterministic(&mut self) -> Result<(), Error> {
-        panic!("C PUT (OpenSSL) not implemented: set_deterministic")
+        unsafe { (CPUT.set_deterministic.unwrap())(self.c_data) };
+        Ok(())
     }
 
     fn shutdown(&mut self) -> String {
-        panic!("C PUT (OpenSSL) not implemented: shutdown")
+        unsafe {
+            CStr::from_ptr((CPUT.shutdown.unwrap())(self.c_data))
+                .to_str()
+                .unwrap()
+                .to_string()
+        }
     }
 
     fn version() -> String {
@@ -143,6 +162,9 @@ impl CPUTOpenSSL {
         })
     }
 }
+
+// pub unsafe extern "C" _log(mut ap: ...) {
+// }
 
 #[cfg(test)]
 mod tests {
