@@ -12,6 +12,8 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
     "v5.1.0-stable"
 } else if cfg!(feature = "vendored-wolfssl430") {
     "v4.3.0-stable"
+} else if cfg!(feature = "vendored-wolfssl563") {
+    "v5.6.3-stable"
 } else if cfg!(feature = "vendored-master") {
     "master"
 } else {
