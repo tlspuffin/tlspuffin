@@ -1,6 +1,7 @@
 use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
+use clap::ArgMatches;
 
 use crate::{protocol::ProtocolBehavior, put_registry::PutRegistry, GIT_MSG, GIT_REF};
 
@@ -19,6 +20,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     title: impl Display,
     description_text: impl Display,
     put_registry: &PutRegistry<PB>,
+    commands: &ArgMatches
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\
@@ -26,6 +28,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
+                * Launched with: {command:?}\n\
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
@@ -33,6 +36,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
         date = Local::now().to_rfc3339(),
         git_ref = GIT_REF,
         git_msg = GIT_MSG,
+        command=commands,
         description = description_text
     );
 

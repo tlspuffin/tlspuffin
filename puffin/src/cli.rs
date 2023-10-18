@@ -207,9 +207,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     } else {
-        let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title: &String = matches.get_one("title").unwrap();
-            let description: &String = matches.get_one("description").unwrap();
+        let experiment_path = if let Some(matches_exp) = matches.subcommand_matches("experiment") {
+            let title: &String = matches_exp.get_one("title").unwrap();
+            let description: &String = matches_exp.get_one("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
             let experiment_path = experiments_root.join(format_title(Some(title), None));
             if experiment_path.as_path().exists() {
@@ -217,7 +217,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
+                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
@@ -240,7 +240,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
+                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
