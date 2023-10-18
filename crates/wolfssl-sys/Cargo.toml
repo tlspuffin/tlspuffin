@@ -21,6 +21,7 @@ vendored-wolfssl510 = []
 vendored-wolfssl520 = []
 vendored-wolfssl530 = []
 vendored-wolfssl540 = []
+vendored-wolfssl563 = []
 vendored-master = []
 
 sancov = []
