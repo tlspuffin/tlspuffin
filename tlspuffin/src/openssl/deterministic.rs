@@ -30,6 +30,6 @@ mod tests {
         set_openssl_deterministic();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [70, 100]);
+        assert_eq!(buf1, [102, 143]);
     }
 }

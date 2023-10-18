@@ -19,6 +19,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     "fuzz-OpenSSL_1_1_1j"
 } else if cfg!(feature = "openssl111u") {
     "fuzz-OpenSSL_1_1_1u"
+} else if cfg!(feature = "openssl312") {
+    "fuzz-OpenSSL_3_1_2"
 } else {
     "master"
 };
@@ -28,7 +30,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     feature = "openssl102u",
     feature = "openssl111k",
     feature = "openssl111j",
-    feature = "openssl111u"
+    feature = "openssl111u",
+    feature = "openssl312"
 )))]
 compile_error!("You need to choose an OpenSSL version!");
 
@@ -146,6 +149,7 @@ impl Build {
         configure.arg("./Configure");
 
         configure.arg(&format!("--prefix={}", install_dir.display()));
+        configure.arg(&format!("--libdir={}/lib", install_dir.display()));
 
         configure
             // No shared objects, we just want static libraries
@@ -187,6 +191,7 @@ impl Build {
         let mut cflags = "".to_owned();
 
         configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
+        cflags.push_str(" -g ");
 
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
