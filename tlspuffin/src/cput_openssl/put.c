@@ -5,7 +5,7 @@
 
 const char *openssl_version()
 {
-    return "0.0.1-dummy-cputopenssl";
+    return OPENSSL_FULL_VERSION_STR;
 }
 
 void *new_ssl()

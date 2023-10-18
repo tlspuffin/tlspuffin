@@ -220,18 +220,10 @@ impl CPUTOpenSSL {
 #[cfg(test)]
 mod tests {
     use super::new_cput_openssl_factory;
-    use super::CPUTOpenSSL;
-    use puffin::put::Put;
 
     #[test]
     fn create_cput_openssl_factory() {
         new_cput_openssl_factory();
-        return;
-    }
-
-    #[test]
-    fn valid_cput_version() {
-        assert_eq!(CPUTOpenSSL::version(), "0.0.1-dummy-cputopenssl");
         return;
     }
 }
