@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::{error, info, Level};
 use puffin::codec::{Codec, Reader};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -28,6 +28,7 @@ use puffin::{
 };
 
 use crate::cput_openssl::bindings::CPUT;
+use crate::cput_openssl::bindings::C_TLSPUFFIN;
 
 pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct CPUTOpenSSLFactory;
@@ -216,6 +217,33 @@ impl CPUTOpenSSL {
         })
     }
 }
+
+#[no_mangle]
+pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
+    error: Some(c_log_error),
+    warn: Some(c_log_warn),
+    info: Some(c_log_info),
+    debug: Some(c_log_debug),
+    trace: Some(c_log_trace),
+};
+
+macro_rules! define_extern_c_log {
+    ( $level:ident, $name:ident ) => {
+        unsafe extern "C" fn $name(message: *const ::std::os::raw::c_char) {
+            log::log!(
+                log::Level::$level,
+                "{}",
+                CStr::from_ptr(message).to_string_lossy()
+            );
+        }
+    };
+}
+
+define_extern_c_log!(Error, c_log_error);
+define_extern_c_log!(Warn, c_log_warn);
+define_extern_c_log!(Info, c_log_info);
+define_extern_c_log!(Debug, c_log_debug);
+define_extern_c_log!(Trace, c_log_trace);
 
 #[cfg(test)]
 mod tests {

@@ -18,4 +18,15 @@ typedef struct C_PUT_TYPE
     int (*take_outbound)(void *put, uint8_t **bytes);
 } C_PUT_TYPE;
 
+typedef struct
+{
+    void (*error)(const char *message);
+    void (*warn)(const char *message);
+    void (*info)(const char *message);
+    void (*debug)(const char *message);
+    void (*trace)(const char *message);
+} C_TLSPUFFIN;
+
 const C_PUT_TYPE CPUT;
+
+extern const C_TLSPUFFIN TLSPUFFIN;
