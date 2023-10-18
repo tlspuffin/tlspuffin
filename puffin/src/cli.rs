@@ -71,11 +71,6 @@ fn create_app() -> Command {
                 .arg(arg!(<output> "The file to write serialized data to"))
         ])
 }
-use std::{ffi::c_void, os::raw::c_int};
-extern "C" {
-    fn malloc(size: c_int) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-}
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,
@@ -87,11 +82,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             return ExitCode::FAILURE;
         }
     };
-
-    unsafe {
-        println!("leaking!!!!");
-        malloc(100);
-    }
 
     let matches = create_app().get_matches();
 
