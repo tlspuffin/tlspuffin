@@ -107,15 +107,6 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-        // let raw = unsafe {
-        //     let c_ptr: *mut *mut u8 = &mut std::ptr::null_mut();
-        //     let cput_result = (CPUT.take_outbound.unwrap())(self.c_data, c_ptr);
-        //     std::ptr::slice_from_raw_parts(*c_ptr, OpaqueMessage::MAX_WIRE_SIZE).as_ref()
-        // }
-        // .unwrap();
-
-        // let mut buf = std::io::Cursor::new(raw);
-
         let opaque_message = loop {
             if let Some(opaque_message) = self.deframer.pop_frame() {
                 break Some(opaque_message);
@@ -124,8 +115,7 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
                     c_data: self.c_data,
                 };
 
-                let deframer = self.deframer.get_mut();
-                match deframer.read(&mut reader) {
+                match self.deframer.read(&mut reader) {
                     Ok(v) => {
                         if v == 0 {
                             break None;
