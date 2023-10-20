@@ -72,6 +72,9 @@ fn create_app() -> Command {
             Command::new("tcp")
                 .about("Executes a trace against a TCP client/server")
                 .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(-c --cwd [p] "The current working directory for the binary"))
+                .arg(arg!(-b --binary [p] "The program to start"))
+                .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..)))
@@ -214,6 +217,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     } else if let Some(matches) = matches.subcommand_matches("tcp") {
         let input: &String = matches.get_one("input").unwrap();
+        let prog: Option<&String> = matches.get_one("binary");
+        let args: Option<&String> = matches.get_one("args");
+        let cwd: Option<&String> = matches.get_one("cwd");
         let default_host = "127.0.0.1".to_string();
         let host: &String = matches.get_one("host").unwrap_or(&default_host);
         let port = matches
@@ -224,9 +230,23 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
         let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
+        let mut options = vec![("port", port.as_str()), ("host", &host)];
+
+        if let Some(prog) = prog {
+            options.push(("prog", &prog))
+        }
+
+        if let Some(args) = args {
+            options.push(("args", &args))
+        }
+
+        if let Some(cwd) = cwd {
+            options.push(("cwd", &cwd))
+        }
+
         let put = PutDescriptor {
             name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
-            options: PutOptions::from_slice_vec(vec![("port", &port), ("host", &host)]),
+            options: PutOptions::from_slice_vec(options),
         };
 
         let server = trace.descriptors[0].name;
