@@ -1,4 +1,5 @@
 use log::{error, info, Level};
+use puffin::agent::Agent;
 use puffin::codec::{Codec, Reader};
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -7,6 +8,7 @@ use std::rc::Rc;
 
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void, size_t};
 
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::{
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -18,7 +20,7 @@ use crate::{
 };
 
 use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
     protocol::{MessageResult, ProtocolMessageDeframer},
     put::{Put, PutName},
@@ -27,8 +29,10 @@ use puffin::{
     trace::TraceContext,
 };
 
-use crate::cput_openssl::bindings::CPUT;
-use crate::cput_openssl::bindings::C_TLSPUFFIN;
+use crate::cput_openssl::bindings::{
+    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, C_PUT_TYPE, C_TLSPUFFIN, PEM,
+    TLS_VERSION_V1_2, TLS_VERSION_V1_3,
+};
 
 pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct CPUTOpenSSLFactory;
@@ -103,22 +107,26 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-        let raw = unsafe {
-            let c_ptr: *mut *mut u8 = &mut std::ptr::null_mut();
-            let cput_result = (CPUT.take_outbound.unwrap())(self.c_data, c_ptr);
-            std::ptr::slice_from_raw_parts(*c_ptr, OpaqueMessage::MAX_WIRE_SIZE).as_ref()
-        }
-        .unwrap();
+        // let raw = unsafe {
+        //     let c_ptr: *mut *mut u8 = &mut std::ptr::null_mut();
+        //     let cput_result = (CPUT.take_outbound.unwrap())(self.c_data, c_ptr);
+        //     std::ptr::slice_from_raw_parts(*c_ptr, OpaqueMessage::MAX_WIRE_SIZE).as_ref()
+        // }
+        // .unwrap();
 
-        let mut buf = std::io::Cursor::new(raw);
+        // let mut buf = std::io::Cursor::new(raw);
 
         let opaque_message = loop {
             if let Some(opaque_message) = self.deframer.pop_frame() {
                 break Some(opaque_message);
             } else {
-                match self.deframer.read(buf.get_mut()) {
+                let mut reader = CReader {
+                    c_data: self.c_data,
+                };
+
+                let deframer = self.deframer.get_mut();
+                match deframer.read(&mut reader) {
                     Ok(v) => {
-                        buf.set_position(0);
                         if v == 0 {
                             break None;
                         }
@@ -149,6 +157,21 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
             // no message to return
             Ok(None)
         }
+    }
+}
+
+struct CReader {
+    c_data: *mut ::std::os::raw::c_void,
+}
+
+impl Read for CReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut readbytes = 0usize as size_t;
+        let cput_result = unsafe {
+            (CPUT.take_outbound.unwrap())(self.c_data, buf.as_mut_ptr(), buf.len(), &mut readbytes)
+        };
+
+        Ok(readbytes)
     }
 }
 
@@ -210,10 +233,12 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
 
 impl CPUTOpenSSL {
     fn new(config: TlsPutConfig) -> Result<CPUTOpenSSL, Error> {
+        let c_data = unsafe { (CPUT.create.unwrap())(Box::into_raw(make_descriptor(&config))) };
+
         Ok(CPUTOpenSSL {
             config,
+            c_data,
             deframer: MessageDeframer::new(),
-            c_data: unsafe { (CPUT.new.unwrap())() },
         })
     }
 }
@@ -244,6 +269,51 @@ define_extern_c_log!(Warn, c_log_warn);
 define_extern_c_log!(Info, c_log_info);
 define_extern_c_log!(Debug, c_log_debug);
 define_extern_c_log!(Trace, c_log_trace);
+
+fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
+    let (cert, pkey, store) = match config.descriptor.typ {
+        AgentType::Server => (ALICE_CERT, ALICE_PRIVATE_KEY, [BOB_CERT, EVE_CERT]),
+        AgentType::Client => (BOB_CERT, BOB_PRIVATE_KEY, [ALICE_CERT, EVE_CERT]),
+    };
+
+    let store = Box::new([
+        Box::into_raw(Box::new(PEM {
+            bytes: ALICE_CERT.0.as_ptr(),
+            length: ALICE_CERT.0.len(),
+        })),
+        Box::into_raw(Box::new(PEM {
+            bytes: EVE_CERT.0.as_ptr(),
+            length: EVE_CERT.0.len(),
+        })),
+        std::ptr::null(),
+    ]);
+
+    Box::new(AGENT_DESCRIPTOR {
+        name: config.descriptor.name.into(),
+        type_: match config.descriptor.typ {
+            AgentType::Client => AGENT_TYPE_CLIENT,
+            AgentType::Server => AGENT_TYPE_SERVER,
+        },
+        tls_version: match config.descriptor.tls_version {
+            puffin::agent::TLSVersion::V1_3 => TLS_VERSION_V1_3,
+            puffin::agent::TLSVersion::V1_2 => TLS_VERSION_V1_2,
+        },
+        client_authentication: config.descriptor.client_authentication,
+        server_authentication: config.descriptor.server_authentication,
+
+        cert: PEM {
+            bytes: cert.0.as_ptr(),
+            length: cert.0.len(),
+        },
+
+        pkey: PEM {
+            bytes: pkey.0.as_ptr(),
+            length: pkey.0.len(),
+        },
+
+        store: Box::into_raw(store) as *mut _,
+    })
+}
 
 #[cfg(test)]
 mod tests {
