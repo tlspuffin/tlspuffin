@@ -22,7 +22,7 @@ use crate::{
         start, FuzzerConfig,
     },
     graphviz::write_graphviz,
-    log::create_stdout_config,
+    log::create_stderr_config,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
     put_registry::PutRegistry,
@@ -68,14 +68,20 @@ fn create_app() -> Command {
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
-                .arg(arg!(<output> "The file to write serialized data to"))
+                .arg(arg!(<output> "The file to write serialized data to")),
+            Command::new("tcp")
+                .about("Executes a trace against a TCP client/server")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
+                .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
+                    .value_parser(value_parser!(u16).range(1..)))
         ])
 }
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,
 ) -> ExitCode {
-    let handle = match log4rs::init_config(create_stdout_config(LevelFilter::Info)) {
+    let handle = match log4rs::init_config(create_stderr_config(LevelFilter::Info)) {
         Ok(handle) => handle,
         Err(err) => {
             error!("Failed to init logging: {:?}", err);
@@ -206,6 +212,28 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
+    } else if let Some(matches) = matches.subcommand_matches("tcp") {
+        let input: &String = matches.get_one("input").unwrap();
+        let default_host = "127.0.0.1".to_string();
+        let host: &String = matches.get_one("host").unwrap_or(&default_host);
+        let port = matches
+            .get_one::<u16>("port")
+            .unwrap_or(&44338u16)
+            .to_string();
+
+        let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
+        let ctx = TraceContext::new(put_registry, default_put_options().clone());
+
+        let put = PutDescriptor {
+            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
+            options: PutOptions::from_slice_vec(vec![("port", &port), ("host", &host)]),
+        };
+
+        let server = trace.descriptors[0].name;
+        trace
+            .execute_with_non_default_puts(&put_registry, &[(server, put)])
+            .unwrap();
+        return ExitCode::SUCCESS;
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let title: &String = matches.get_one("title").unwrap();
@@ -346,6 +374,11 @@ use nix::{
         },
     },
     unistd::{fork, ForkResult},
+};
+
+use crate::{
+    algebra::TermType,
+    put::{PutDescriptor, PutName},
 };
 
 pub fn expect_crash<R>(func: R)

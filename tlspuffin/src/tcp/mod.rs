@@ -43,28 +43,46 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             let options = &put_descriptor.options;
 
-            let args = options
-                .get_option("args")
-                .ok_or_else(|| Error::Agent("Unable to find args".to_string()))?
-                .to_owned();
-            let prog = options
-                .get_option("prog")
-                .ok_or_else(|| Error::Agent("Unable to find prog".to_string()))?
-                .to_owned();
-            let cwd = options
-                .get_option("cwd")
-                .map(|cwd| Some(cwd.to_owned()))
-                .unwrap_or_default();
-
-            if agent_descriptor.typ == AgentType::Client {
-                let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
-                server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
-                Ok(Box::new(server))
+            if options.get_option("args").is_some() {
+                info!("Trace contains TCP running information we shall reuse.");
+                let args = options
+                    .get_option("args")
+                    .ok_or_else(|| {
+                        Error::Agent(format!(
+                            "{} // {:?}",
+                            "Unable to find args".to_string(),
+                            put_descriptor
+                        ))
+                    })?
+                    .to_owned();
+                let prog = options
+                    .get_option("prog")
+                    .ok_or_else(|| Error::Agent("Unable to find prog".to_string()))?
+                    .to_owned();
+                let cwd = options
+                    .get_option("cwd")
+                    .map(|cwd| Some(cwd.to_owned()))
+                    .unwrap_or_default();
+                if agent_descriptor.typ == AgentType::Client {
+                    let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
+                    Ok(Box::new(server))
+                } else {
+                    let process = TLSProcess::new(&prog, &args, cwd);
+                    let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    client.set_process(process);
+                    Ok(Box::new(client))
+                }
             } else {
-                let process = TLSProcess::new(&prog, &args, cwd);
-                let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
-                client.set_process(process);
-                Ok(Box::new(client))
+                info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
+                if agent_descriptor.typ == AgentType::Client {
+                    let server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    Ok(Box::new(server))
+                } else {
+                    // let process = TLSProcess::new(&prog, &args, cwd);
+                    let client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    Ok(Box::new(client))
+                }
             }
         }
 
@@ -316,7 +334,14 @@ fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrPa
     let port = options
         .get_option("port")
         .and_then(|value| u16::from_str(value).ok())
-        .expect("Failed to parse port option");
+        .unwrap_or_else(|| {
+            let port = 44338;
+            warn!(
+                "Failed to parse port option (maybe you executed a trace that was not produced in \
+            TCP mode?). We anyway fall back to port {port}."
+            );
+            port
+        });
 
     Ok(SocketAddr::new(IpAddr::from_str(host)?, port))
 }
