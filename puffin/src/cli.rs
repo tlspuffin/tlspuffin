@@ -138,6 +138,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let is_batch: bool = matches.get_one::<usize>("index").is_some();
         let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
 
         let mut paths = inputs
@@ -177,7 +178,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
         for path in lookup_paths {
             info!("Executing: {}", path.display());
-            execute(&path, put_registry);
+            execute(&path, put_registry, is_batch);
         }
 
         if !lookup_paths.is_empty() {
@@ -369,14 +370,27 @@ where
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     put_registry: &'static PutRegistry<PB>,
+    is_batch: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    // When generating coverage a crash means that no coverage is stored
-    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
-    expect_crash(move || {
+    if is_batch {
+        // When generating coverage a crash means that no coverage is stored
+        // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+        info!("Executing a batch so: Executing in a fork to avoid not being able to gather coverage in case of crash (for coverage evaluation).");
+        expect_crash(move || {
+            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            if let Err(err) = trace.execute(&mut ctx) {
+                error!(
+                "Failed to execute trace {}: {:?}",
+                input.as_ref().display(),
+                err
+            );
+            }
+        });
+    } else {
         let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
         if let Err(err) = trace.execute(&mut ctx) {
             error!(
@@ -385,8 +399,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
                 err
             );
         }
-    });
-
+    }
     Ok(())
 }
 
