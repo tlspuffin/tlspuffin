@@ -91,16 +91,26 @@ pub struct CPUTOpenSSL {
     pub c_data: *mut ::std::os::raw::c_void,
 }
 
+macro_rules! ccall {
+    ( $function_name:ident ) => {
+        (CPUT.$function_name.unwrap())()
+    };
+    ( $function_name:ident, $($arg:expr),*) => {
+        (CPUT.$function_name.unwrap())($($arg),*)
+    };
+}
+
 impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn add_to_inbound(&mut self, message: &OpaqueMessage) {
         let bytes = message.get_encoding();
         let mut written = 0usize;
         unsafe {
-            (CPUT.add_inbound.unwrap())(
+            ccall!(
+                add_inbound,
                 self.c_data,
                 bytes.as_ptr(),
                 bytes.len(),
-                &mut written as *mut usize,
+                &mut written as *mut usize
             )
         };
     }
@@ -158,8 +168,15 @@ struct CReader {
 impl Read for CReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut readbytes = 0usize as size_t;
+
         unsafe {
-            (CPUT.take_outbound.unwrap())(self.c_data, buf.as_mut_ptr(), buf.len(), &mut readbytes)
+            ccall!(
+                take_outbound,
+                self.c_data,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut readbytes
+            )
         };
 
         Ok(readbytes)
@@ -168,12 +185,12 @@ impl Read for CReader {
 
 impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
-        unsafe { (CPUT.progress.unwrap())(self.c_data, (*agent_name).into()) };
+        unsafe { ccall!(progress, self.c_data, (*agent_name).into()) };
         Ok(())
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        unsafe { (CPUT.reset.unwrap())(self.c_data, agent_name.into()) };
+        unsafe { ccall!(reset, self.c_data, agent_name.into()) };
         Ok(())
     }
 
@@ -182,30 +199,30 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        unsafe { (CPUT.rename_agent.unwrap())(self.c_data, agent_name.into()) };
+        unsafe { ccall!(rename_agent, self.c_data, agent_name.into()) };
         Ok(())
     }
 
     fn describe_state(&self) -> &str {
         unsafe {
-            CStr::from_ptr((CPUT.describe_state.unwrap())(self.c_data))
+            CStr::from_ptr(ccall!(describe_state, self.c_data))
                 .to_str()
                 .unwrap()
         }
     }
 
     fn is_state_successful(&self) -> bool {
-        unsafe { (CPUT.is_state_successful.unwrap())(self.c_data) }
+        unsafe { ccall!(is_state_successful, self.c_data) }
     }
 
     fn set_deterministic(&mut self) -> Result<(), Error> {
-        unsafe { (CPUT.set_deterministic.unwrap())(self.c_data) };
+        unsafe { ccall!(set_deterministic, self.c_data) };
         Ok(())
     }
 
     fn shutdown(&mut self) -> String {
         unsafe {
-            CStr::from_ptr((CPUT.shutdown.unwrap())(self.c_data))
+            CStr::from_ptr(ccall!(shutdown, self.c_data))
                 .to_str()
                 .unwrap()
                 .to_string()
@@ -213,18 +230,13 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn version() -> String {
-        unsafe {
-            CStr::from_ptr((CPUT.version.unwrap())())
-                .to_str()
-                .unwrap()
-                .to_owned()
-        }
+        unsafe { CStr::from_ptr(ccall!(version)).to_str().unwrap().to_owned() }
     }
 }
 
 impl CPUTOpenSSL {
     fn new(config: TlsPutConfig) -> Result<CPUTOpenSSL, Error> {
-        let c_data = unsafe { (CPUT.create.unwrap())(Box::into_raw(make_descriptor(&config))) };
+        let c_data = unsafe { ccall!(create, Box::into_raw(make_descriptor(&config))) };
 
         Ok(CPUTOpenSSL {
             config,
