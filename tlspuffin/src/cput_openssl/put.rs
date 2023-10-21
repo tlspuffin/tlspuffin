@@ -1,12 +1,11 @@
-use log::{error, info, Level};
-use puffin::agent::Agent;
-use puffin::codec::{Codec, Reader};
+use log::{error, info};
+use puffin::codec::Codec;
 use std::cell::RefCell;
-use std::ffi::{CStr, CString};
-use std::io::{ErrorKind, Read, Write};
+use std::ffi::CStr;
+use std::io::{ErrorKind, Read};
 use std::rc::Rc;
 
-use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void, size_t};
+use libc::size_t;
 
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::{
@@ -20,17 +19,17 @@ use crate::{
 };
 
 use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::{MessageResult, ProtocolMessageDeframer},
     put::{Put, PutName},
     put_registry::Factory,
-    stream::{MemoryStream, Stream},
+    stream::Stream,
     trace::TraceContext,
 };
 
 use crate::cput_openssl::bindings::{
-    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, C_PUT_TYPE, C_TLSPUFFIN, PEM,
+    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, C_TLSPUFFIN, PEM,
     TLS_VERSION_V1_2, TLS_VERSION_V1_3,
 };
 
@@ -94,7 +93,7 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn add_to_inbound(&mut self, message: &OpaqueMessage) {
         let bytes = message.get_encoding();
         let mut written = 0usize;
-        let raw_result = unsafe {
+        unsafe {
             (CPUT.add_inbound.unwrap())(
                 self.c_data,
                 bytes.as_ptr(),
@@ -157,7 +156,7 @@ struct CReader {
 impl Read for CReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut readbytes = 0usize as size_t;
-        let cput_result = unsafe {
+        unsafe {
             (CPUT.take_outbound.unwrap())(self.c_data, buf.as_mut_ptr(), buf.len(), &mut readbytes)
         };
 
