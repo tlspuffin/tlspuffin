@@ -7,7 +7,9 @@ use std::rc::Rc;
 
 use libc::size_t;
 
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, PEMDER,
+};
 use crate::{
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -259,23 +261,26 @@ define_extern_c_log!(Info, c_log_info);
 define_extern_c_log!(Debug, c_log_debug);
 define_extern_c_log!(Trace, c_log_trace);
 
+impl Into<PEM> for PEMDER {
+    fn into(self) -> PEM {
+        PEM {
+            bytes: self.0.as_ptr(),
+            length: self.0.len(),
+        }
+    }
+}
+
 fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
     let (cert, pkey, store) = match config.descriptor.typ {
         AgentType::Server => (ALICE_CERT, ALICE_PRIVATE_KEY, [BOB_CERT, EVE_CERT]),
         AgentType::Client => (BOB_CERT, BOB_PRIVATE_KEY, [ALICE_CERT, EVE_CERT]),
     };
 
-    let store = Box::new([
-        Box::into_raw(Box::new(PEM {
-            bytes: ALICE_CERT.0.as_ptr(),
-            length: ALICE_CERT.0.len(),
-        })),
-        Box::into_raw(Box::new(PEM {
-            bytes: EVE_CERT.0.as_ptr(),
-            length: EVE_CERT.0.len(),
-        })),
-        std::ptr::null(),
-    ]);
+    let store = store
+        .iter()
+        .map(|c| Box::into_raw(Box::new(Into::<PEM>::into(*c))))
+        .chain(std::iter::once(std::ptr::null_mut()))
+        .collect();
 
     Box::new(AGENT_DESCRIPTOR {
         name: config.descriptor.name.into(),
@@ -290,15 +295,8 @@ fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
         client_authentication: config.descriptor.client_authentication,
         server_authentication: config.descriptor.server_authentication,
 
-        cert: PEM {
-            bytes: cert.0.as_ptr(),
-            length: cert.0.len(),
-        },
-
-        pkey: PEM {
-            bytes: pkey.0.as_ptr(),
-            length: pkey.0.len(),
-        },
+        cert: Into::<PEM>::into(cert),
+        pkey: Into::<PEM>::into(pkey),
 
         store: Box::into_raw(store) as *mut _,
     })
