@@ -7,6 +7,8 @@
 
 typedef struct
 {
+    AGENT_DESCRIPTOR *descriptor;
+
     SSL *ssl;
 
     BIO *in;
@@ -54,6 +56,8 @@ const C_PUT_TYPE CPUT = {
 void log(void (*logger)(const char *), const char *format, ...);
 
 const int tls_version[] = {TLS1_3_VERSION, TLS1_2_VERSION};
+const char *version_str[] = {"V1_3", "V1_2"};
+const char *type_str[] = {"client", "server"};
 
 const char *openssl_version()
 {
@@ -62,10 +66,7 @@ const char *openssl_version()
 
 void *openssl_create(AGENT_DESCRIPTOR *descriptor)
 {
-    static const char *version[] = {"V1_3", "V1_2"};
-    static const char *type[] = {"client", "server"};
-
-    log(TLSPUFFIN.info, "descriptor %u version: %s type: %s", descriptor->name, version[descriptor->tls_version], type[descriptor->type]);
+    log(TLSPUFFIN.info, "descriptor %u version: %s type: %s", descriptor->name, version_str[descriptor->tls_version], type_str[descriptor->type]);
 
     SSL_library_init();
 
@@ -150,7 +151,7 @@ int openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
-    SSL_CTX_set_min_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
+    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 
     // Disallow EXPORT in client
     SSL_CTX_set_cipher_list(ssl_ctx, "ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2");
@@ -195,6 +196,7 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
     SSL_set_connect_state(ssl);
 
     AGENT *agent = malloc(sizeof(AGENT));
+    agent->descriptor = descriptor;
     agent->ssl = ssl;
 
     agent->in = BIO_new(BIO_s_mem());
@@ -207,7 +209,7 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
-    SSL_CTX_set_min_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
+    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 
     // Allow EXPORT in server
     SSL_CTX_set_cipher_list(ssl_ctx, "ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2");
@@ -249,6 +251,7 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     SSL_set_accept_state(ssl);
 
     AGENT *agent = malloc(sizeof(AGENT));
+    agent->descriptor = descriptor;
     agent->ssl = ssl;
 
     agent->in = BIO_new(BIO_s_mem());
