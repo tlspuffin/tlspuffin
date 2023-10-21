@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
 // FIXME: C/Rust duplication of type definitions
 //

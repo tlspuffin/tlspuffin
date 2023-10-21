@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <openssl/ssl.h>
 #include <openssl/decoder.h>
 
