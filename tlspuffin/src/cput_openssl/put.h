@@ -58,16 +58,16 @@ typedef struct C_PUT_TYPE
     void *(*const create)(AGENT_DESCRIPTOR *descriptor);
     const char *(*const version)();
 
-    void (*const progress)(void *put, uint8_t agent_name);
-    void (*const reset)(void *put, uint8_t agent_name);
-    void (*const rename_agent)(void *put, uint8_t agent_name);
-    const char *(*const describe_state)(void *put);
-    bool (*const is_state_successful)(void *put);
-    void (*const set_deterministic)(void *put);
-    const char *(*const shutdown)(void *put);
+    void (*const progress)(void *agent);
+    void (*const reset)(void *agent);
+    void (*const rename_agent)(void *agent, uint8_t agent_name);
+    const char *(*const describe_state)(void *agent);
+    bool (*const is_state_successful)(void *agent);
+    void (*const set_deterministic)(void *agent);
+    const char *(*const shutdown)(void *agent);
 
-    RESULT (*const add_inbound)(void *put, const uint8_t *bytes, size_t length, size_t *written);
-    RESULT (*const take_outbound)(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
+    RESULT (*const add_inbound)(void *agent, const uint8_t *bytes, size_t length, size_t *written);
+    RESULT (*const take_outbound)(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 } C_PUT_TYPE;
 
 typedef struct

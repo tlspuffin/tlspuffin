@@ -21,15 +21,15 @@ const char *openssl_version();
 void *openssl_create(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor);
-void openssl_progress(void *put, uint8_t agent_name);
-void openssl_reset(void *put, uint8_t agent_name);
-void openssl_rename(void *put, uint8_t agent_name);
-const char *openssl_describe_state(void *put);
-bool openssl_is_successful(void *put);
-void openssl_set_deterministic(void *put);
-const char *openssl_shutdown(void *put);
-RESULT openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written);
-RESULT openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
+void openssl_progress(void *agent);
+void openssl_reset(void *agent);
+void openssl_rename(void *agent, uint8_t agent_name);
+const char *openssl_describe_state(void *agent);
+bool openssl_is_successful(void *agent);
+void openssl_set_deterministic(void *agent);
+const char *openssl_shutdown(void *agent);
+RESULT openssl_add_inbound(void *agent, const uint8_t *bytes, size_t length, size_t *written);
+RESULT openssl_take_outbound(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 
 char *get_error_reason();
 
@@ -88,32 +88,32 @@ void *openssl_create(AGENT_DESCRIPTOR *descriptor)
     return NULL;
 }
 
-void openssl_progress(void *put, uint8_t agent_name)
+void openssl_progress(void *agent)
 {
-    if (!openssl_is_successful(put))
+    if (!openssl_is_successful(agent))
     {
         // not connected yet -> do handshake
-        SSL_do_handshake(((AGENT *)put)->ssl);
+        SSL_do_handshake(((AGENT *)agent)->ssl);
         return;
     }
 
     // trigger another read
     void *buf = malloc(128);
-    SSL_read(((AGENT *)put)->ssl, buf, 128);
+    SSL_read(((AGENT *)agent)->ssl, buf, 128);
     return;
 }
 
-void openssl_reset(void *put, uint8_t agent_name)
+void openssl_reset(void *agent)
 {
-    SSL_clear(((AGENT *)put)->ssl);
+    SSL_clear(((AGENT *)agent)->ssl);
 }
 
-void openssl_rename(void *put, uint8_t agent_name)
+void openssl_rename(void *agent, uint8_t agent_name)
 {
     return;
 }
 
-const char *openssl_describe_state(void *put)
+const char *openssl_describe_state(void *agent)
 {
     // NOTE: Very useful for nonblocking according to docs:
     //     https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
@@ -121,33 +121,33 @@ const char *openssl_describe_state(void *put)
     //     When using nonblocking sockets, the function call performing the
     //     handshake may return with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE
     //     condition, so that SSL_state_string[_long]() may be called.
-    return SSL_state_string_long(((AGENT *)put)->ssl);
+    return SSL_state_string_long(((AGENT *)agent)->ssl);
 }
 
-bool openssl_is_successful(void *put)
+bool openssl_is_successful(void *agent)
 {
-    return (strstr(openssl_describe_state(put), "SSL negotiation finished successfully") != NULL);
+    return (strstr(openssl_describe_state(agent), "SSL negotiation finished successfully") != NULL);
 }
 
-void openssl_set_deterministic(void *put)
+void openssl_set_deterministic(void *agent)
 {
 }
 
-const char *openssl_shutdown(void *put)
+const char *openssl_shutdown(void *agent)
 {
     return "";
 }
 
-RESULT openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written)
+RESULT openssl_add_inbound(void *agent, const uint8_t *bytes, size_t length, size_t *written)
 {
-    int ret = BIO_write_ex(((AGENT *)put)->in, bytes, length, written);
+    int ret = BIO_write_ex(((AGENT *)agent)->in, bytes, length, written);
 
     if (ret == 1)
     {
         return TLSPUFFIN.make_result(RESULT_OK, NULL);
     }
 
-    int result = SSL_get_error(((AGENT *)put)->ssl, ret);
+    int result = SSL_get_error(((AGENT *)agent)->ssl, ret);
     switch (result)
     {
     case SSL_ERROR_NONE:
@@ -161,16 +161,16 @@ RESULT openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_
     }
 }
 
-RESULT openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes)
+RESULT openssl_take_outbound(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
 {
-    int ret = BIO_read_ex(((AGENT *)put)->out, bytes, max_length, readbytes);
+    int ret = BIO_read_ex(((AGENT *)agent)->out, bytes, max_length, readbytes);
 
     if (ret == 1)
     {
         return TLSPUFFIN.make_result(RESULT_OK, NULL);
     }
 
-    int result = SSL_get_error(((AGENT *)put)->ssl, ret);
+    int result = SSL_get_error(((AGENT *)agent)->ssl, ret);
     switch (result)
     {
     case SSL_ERROR_NONE:

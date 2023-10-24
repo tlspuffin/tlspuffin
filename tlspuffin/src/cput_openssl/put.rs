@@ -193,13 +193,13 @@ impl Read for CReader {
 }
 
 impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
-        unsafe { ccall!(progress, self.c_data, (*agent_name).into()) };
+    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+        unsafe { ccall!(progress, self.c_data) };
         Ok(())
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        unsafe { ccall!(reset, self.c_data, agent_name.into()) };
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+        unsafe { ccall!(reset, self.c_data) };
         Ok(())
     }
 
