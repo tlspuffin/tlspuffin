@@ -49,16 +49,6 @@ const C_PUT_TYPE CPUT = {
     .take_outbound = openssl_take_outbound,
 };
 
-// TODO: `log` should be moved to the public cput interface
-//
-//     The `log` function is a convenient utility function and should be useful
-//     for every implementer of the cput interface.
-//
-//     The declaration should be part of the standard header for cput `put.h`.
-//     The implementation should be statically linked inside tlspuffin.
-
-void log(void (*logger)(const char *), const char *format, ...);
-
 const int tls_version[] = {TLS1_3_VERSION, TLS1_2_VERSION};
 const char *version_str[] = {"V1_3", "V1_2"};
 const char *type_str[] = {"client", "server"};
@@ -70,7 +60,7 @@ const char *openssl_version()
 
 void *openssl_create(AGENT_DESCRIPTOR *descriptor)
 {
-    log(TLSPUFFIN.info, "descriptor %u version: %s type: %s", descriptor->name, version_str[descriptor->tls_version], type_str[descriptor->type]);
+    _log(TLSPUFFIN.info, "descriptor %u version: %s type: %s", descriptor->name, version_str[descriptor->tls_version], type_str[descriptor->type]);
 
     SSL_library_init();
 
@@ -84,7 +74,7 @@ void *openssl_create(AGENT_DESCRIPTOR *descriptor)
         return openssl_create_server(descriptor);
     }
 
-    log(TLSPUFFIN.error, "unknown agent type for descriptor %u: %u", descriptor->name, descriptor->type);
+    _log(TLSPUFFIN.error, "unknown agent type for descriptor %u: %u", descriptor->name, descriptor->type);
     return NULL;
 }
 
@@ -329,19 +319,6 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     return agent;
 }
 
-void log(void (*logger)(const char *), const char *format, ...)
-{
-    char *message = NULL;
-    va_list args;
-
-    va_start(args, format);
-    vasprintf(&message, format, args);
-    va_end(args);
-    logger(message);
-
-    free(message);
-}
-
 char *get_error_reason()
 {
     BIO *bio = BIO_new(BIO_s_mem());
@@ -358,4 +335,21 @@ char *get_error_reason()
     BIO_free(bio);
 
     return ret;
+}
+
+// TODO: `_log` implementation should be linked to tlspuffin
+//
+//     There is no need to reimplement this logging function for every C PUT.
+//     The implementation should be statically linked inside tlspuffin.
+void _log(void (*logger)(const char *), const char *format, ...)
+{
+    char *message = NULL;
+    va_list args;
+
+    va_start(args, format);
+    vasprintf(&message, format, args);
+    va_end(args);
+    logger(message);
+
+    free(message);
 }

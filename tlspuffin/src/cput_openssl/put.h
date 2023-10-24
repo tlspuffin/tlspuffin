@@ -81,6 +81,8 @@ typedef struct
     RESULT (*const make_result)(RESULT_CODE code, const char *description);
 } C_TLSPUFFIN;
 
+void _log(void (*logger)(const char *), const char *format, ...);
+
 const C_PUT_TYPE CPUT;
 
 extern const C_TLSPUFFIN TLSPUFFIN;
