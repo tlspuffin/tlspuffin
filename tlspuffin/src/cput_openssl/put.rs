@@ -30,8 +30,8 @@ use puffin::{
 };
 
 use crate::cput_openssl::bindings::{
-    RESULT_CODE, RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_ERROR_OTHER,
-    RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK,
+    RESULT_CODE, RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_IO_WOULD_BLOCK,
+    RESULT_CODE_RESULT_OK,
 };
 
 use crate::cput_openssl::bindings::{
@@ -194,8 +194,13 @@ impl Read for CReader {
 
 impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
-        unsafe { ccall!(progress, self.c_data) };
-        Ok(())
+        let result =
+            *unsafe { Box::from_raw(ccall!(progress, self.c_data) as *mut Result<String, CError>) };
+
+        match result {
+            Ok(s) => Ok(()),
+            Err(cerror) => Err(cerror.into()),
+        }
     }
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
@@ -314,6 +319,12 @@ impl From<CError> for io::Error {
             },
             e.reason,
         )
+    }
+}
+
+impl From<CError> for Error {
+    fn from(e: CError) -> Error {
+        Error::Put(e.reason)
     }
 }
 

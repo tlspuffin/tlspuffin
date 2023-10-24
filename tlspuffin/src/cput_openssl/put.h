@@ -58,7 +58,7 @@ typedef struct C_PUT_TYPE
     void *(*const create)(AGENT_DESCRIPTOR *descriptor);
     const char *(*const version)();
 
-    void (*const progress)(void *agent);
+    RESULT (*const progress)(void *agent);
     void (*const reset)(void *agent);
     void (*const rename_agent)(void *agent, uint8_t agent_name);
     const char *(*const describe_state)(void *agent);

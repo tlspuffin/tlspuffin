@@ -21,7 +21,7 @@ const char *openssl_version();
 void *openssl_create(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor);
-void openssl_progress(void *agent);
+RESULT openssl_progress(void *agent);
 void openssl_reset(void *agent);
 void openssl_rename(void *agent, uint8_t agent_name);
 const char *openssl_describe_state(void *agent);
@@ -88,19 +88,51 @@ void *openssl_create(AGENT_DESCRIPTOR *descriptor)
     return NULL;
 }
 
-void openssl_progress(void *agent)
+RESULT openssl_progress(void *agent)
 {
     if (!openssl_is_successful(agent))
     {
         // not connected yet -> do handshake
-        SSL_do_handshake(((AGENT *)agent)->ssl);
-        return;
+        int ret = SSL_do_handshake(((AGENT *)agent)->ssl);
+        if (ret <= 0)
+        {
+            int result = SSL_get_error(((AGENT *)agent)->ssl, ret);
+            switch (result)
+            {
+            case SSL_ERROR_NONE:
+                return TLSPUFFIN.make_result(RESULT_OK, NULL);
+
+            case SSL_ERROR_WANT_READ:
+            case SSL_ERROR_WANT_WRITE:
+                return TLSPUFFIN.make_result(RESULT_OK, get_error_reason());
+            default:
+                return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+            }
+        }
+
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
     }
 
     // trigger another read
     void *buf = malloc(128);
-    SSL_read(((AGENT *)agent)->ssl, buf, 128);
-    return;
+    int ret = SSL_read(((AGENT *)agent)->ssl, buf, 128);
+    if (ret > 0)
+    {
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+    }
+
+    int result = SSL_get_error(((AGENT *)agent)->ssl, ret);
+    switch (result)
+    {
+    case SSL_ERROR_NONE:
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        return TLSPUFFIN.make_result(RESULT_OK, get_error_reason());
+    default:
+        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+    }
 }
 
 void openssl_reset(void *agent)
