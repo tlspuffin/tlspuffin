@@ -1,6 +1,6 @@
-#include <stdlib.h>
-#include <stdbool.h>
 #include <inttypes.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 // FIXME: C/Rust duplication of type definitions
 //
@@ -12,6 +12,8 @@
 //     informations from Rust. This has the advantage to completely hide the
 //     rust structs at the price of a small performance cost each time one of
 //     these functions is called.
+
+typedef void *RESULT;
 
 typedef enum
 {
@@ -30,6 +32,14 @@ typedef struct
     const uint8_t *const bytes;
     const size_t length;
 } PEM;
+
+typedef enum
+{
+    RESULT_OK,
+    RESULT_IO_WOULD_BLOCK,
+    RESULT_ERROR_FATAL,
+    RESULT_ERROR_OTHER
+} RESULT_CODE;
 
 typedef struct
 {
@@ -56,8 +66,8 @@ typedef struct C_PUT_TYPE
     void (*const set_deterministic)(void *put);
     const char *(*const shutdown)(void *put);
 
-    int (*const add_inbound)(void *put, const uint8_t *bytes, size_t length, size_t *written);
-    int (*const take_outbound)(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
+    RESULT (*const add_inbound)(void *put, const uint8_t *bytes, size_t length, size_t *written);
+    RESULT (*const take_outbound)(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
 } C_PUT_TYPE;
 
 typedef struct
@@ -67,6 +77,8 @@ typedef struct
     void (*const info)(const char *message);
     void (*const debug)(const char *message);
     void (*const trace)(const char *message);
+
+    RESULT (*const make_result)(RESULT_CODE code, const char *description);
 } C_TLSPUFFIN;
 
 const C_PUT_TYPE CPUT;

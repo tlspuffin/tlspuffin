@@ -1,7 +1,9 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <openssl/ssl.h>
+#include <stdlib.h>
+
 #include <openssl/decoder.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include "put.h"
 
@@ -26,8 +28,10 @@ const char *openssl_describe_state(void *put);
 bool openssl_is_successful(void *put);
 void openssl_set_deterministic(void *put);
 const char *openssl_shutdown(void *put);
-int openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written);
-int openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
+RESULT openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written);
+RESULT openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes);
+
+char *get_error_reason();
 
 const C_PUT_TYPE CPUT = {
     .create = openssl_create,
@@ -134,18 +138,50 @@ const char *openssl_shutdown(void *put)
     return "";
 }
 
-int openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written)
+RESULT openssl_add_inbound(void *put, const uint8_t *bytes, size_t length, size_t *written)
 {
-    int result = BIO_write_ex(((AGENT *)put)->in, bytes, length, written);
+    int ret = BIO_write_ex(((AGENT *)put)->in, bytes, length, written);
 
-    return (result == 1) ? 0 : -1;
+    if (ret == 1)
+    {
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+    }
+
+    int result = SSL_get_error(((AGENT *)put)->ssl, ret);
+    switch (result)
+    {
+    case SSL_ERROR_NONE:
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        return TLSPUFFIN.make_result(RESULT_IO_WOULD_BLOCK, get_error_reason());
+    default:
+        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+    }
 }
 
-int openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes)
+RESULT openssl_take_outbound(void *put, uint8_t *bytes, size_t max_length, size_t *readbytes)
 {
-    int result = BIO_read_ex(((AGENT *)put)->out, bytes, max_length, readbytes);
+    int ret = BIO_read_ex(((AGENT *)put)->out, bytes, max_length, readbytes);
 
-    return (result == 1) ? 0 : -1;
+    if (ret == 1)
+    {
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+    }
+
+    int result = SSL_get_error(((AGENT *)put)->ssl, ret);
+    switch (result)
+    {
+    case SSL_ERROR_NONE:
+        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        return TLSPUFFIN.make_result(RESULT_IO_WOULD_BLOCK, get_error_reason());
+    default:
+        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+    }
 }
 
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
@@ -272,4 +308,22 @@ void log(void (*logger)(const char *), const char *format, ...)
     logger(message);
 
     free(message);
+}
+
+char *get_error_reason()
+{
+    BIO *bio = BIO_new(BIO_s_mem());
+    ERR_print_errors(bio);
+
+    char *buf = NULL;
+    size_t len = BIO_get_mem_data(bio, &buf);
+    char *ret = (char *)calloc(1, 1 + len);
+    if (ret)
+    {
+        memcpy(ret, buf, len);
+    }
+
+    BIO_free(bio);
+
+    return ret;
 }

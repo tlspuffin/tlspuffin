@@ -1,10 +1,10 @@
 use log::{error, info};
 use puffin::codec::Codec;
 use std::cell::RefCell;
-use std::io::{ErrorKind, Read};
+use std::io::{self, ErrorKind, Read};
 use std::rc::Rc;
 
-use libc::{c_char, size_t};
+use libc::{c_char, c_void, size_t};
 
 use crate::static_certs::{
     ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, PEMDER,
@@ -27,6 +27,11 @@ use puffin::{
     put_registry::Factory,
     stream::Stream,
     trace::TraceContext,
+};
+
+use crate::cput_openssl::bindings::{
+    RESULT_CODE, RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_ERROR_OTHER,
+    RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK,
 };
 
 use crate::cput_openssl::bindings::{
@@ -103,15 +108,17 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn add_to_inbound(&mut self, message: &OpaqueMessage) {
         let bytes = message.get_encoding();
         let mut written = 0usize;
-        unsafe {
-            ccall!(
+        let result = unsafe {
+            Box::from_raw(ccall!(
                 add_inbound,
                 self.c_data,
                 bytes.as_ptr(),
                 bytes.len(),
                 &mut written as *mut usize
-            )
+            ) as *mut Result<String, CError>)
         };
+
+        return;
     }
 
     fn take_message_from_outbound(
@@ -168,17 +175,20 @@ impl Read for CReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut readbytes = 0usize as size_t;
 
-        unsafe {
-            ccall!(
+        let result = *unsafe {
+            Box::from_raw(ccall!(
                 take_outbound,
                 self.c_data,
                 buf.as_mut_ptr(),
                 buf.len(),
                 &mut readbytes
-            )
+            ) as *mut Result<String, CError>)
         };
 
-        Ok(readbytes)
+        match result {
+            Ok(s) => Ok(readbytes),
+            Err(cerror) => Err(cerror.into()),
+        }
     }
 }
 
@@ -243,11 +253,12 @@ pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
     info: Some(c_log_info),
     debug: Some(c_log_debug),
     trace: Some(c_log_trace),
+    make_result: Some(make_result),
 };
 
 macro_rules! define_extern_c_log {
     ( $level:ident, $name:ident ) => {
-        unsafe extern "C" fn $name(message: *const ::std::os::raw::c_char) {
+        unsafe extern "C" fn $name(message: *const c_char) {
             log::log!(log::Level::$level, "{}", to_string(message));
         }
     };
@@ -258,6 +269,53 @@ define_extern_c_log!(Warn, c_log_warn);
 define_extern_c_log!(Info, c_log_info);
 define_extern_c_log!(Debug, c_log_debug);
 define_extern_c_log!(Trace, c_log_trace);
+
+#[derive(Debug, Clone)]
+pub struct CError {
+    kind: CErrorKind,
+    reason: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum CErrorKind {
+    IOWouldBlock,
+    Error,
+    Fatal,
+}
+
+unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) -> *mut c_void {
+    let reason = to_string(description);
+
+    let result = Box::new(match code {
+        RESULT_CODE_RESULT_OK => Ok(reason),
+        RESULT_CODE_RESULT_IO_WOULD_BLOCK => Err(CError {
+            kind: CErrorKind::IOWouldBlock,
+            reason,
+        }),
+        RESULT_CODE_RESULT_ERROR_FATAL => Err(CError {
+            kind: CErrorKind::Fatal,
+            reason,
+        }),
+        _ => Err(CError {
+            kind: CErrorKind::Error,
+            reason,
+        }),
+    });
+
+    return Box::into_raw(result) as *mut _;
+}
+
+impl From<CError> for io::Error {
+    fn from(e: CError) -> io::Error {
+        io::Error::new(
+            match e.kind {
+                CErrorKind::IOWouldBlock => io::ErrorKind::WouldBlock,
+                _ => io::ErrorKind::Other,
+            },
+            e.reason,
+        )
+    }
+}
 
 impl Into<PEM> for PEMDER {
     fn into(self) -> PEM {
@@ -302,6 +360,10 @@ fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
 
 unsafe fn to_string(ptr: *const c_char) -> String {
     use std::ffi::CStr;
+
+    if ptr.is_null() {
+        return "".to_owned();
+    }
 
     CStr::from_ptr(ptr).to_string_lossy().as_ref().to_owned()
 }
