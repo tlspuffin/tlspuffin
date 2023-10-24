@@ -348,7 +348,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         Ok(())
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
@@ -403,7 +403,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 

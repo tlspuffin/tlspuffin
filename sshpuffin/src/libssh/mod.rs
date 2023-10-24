@@ -310,12 +310,12 @@ impl Put<SshProtocolBehavior> for LibSSL {
         panic!("Not supported")
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // TODO: We can use internal state
         match self.state {
-            PutState::ExchangingKeys => "ExchangingKeys",
-            PutState::Authenticating => "Authenticating",
-            PutState::Done => "Done",
+            PutState::ExchangingKeys => "ExchangingKeys".to_owned(),
+            PutState::Authenticating => "Authenticating".to_owned(),
+            PutState::Done => "Done".to_owned(),
         }
     }
 

@@ -1,11 +1,10 @@
 use log::{error, info};
 use puffin::codec::Codec;
 use std::cell::RefCell;
-use std::ffi::CStr;
 use std::io::{ErrorKind, Read};
 use std::rc::Rc;
 
-use libc::size_t;
+use libc::{c_char, size_t};
 
 use crate::static_certs::{
     ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, PEMDER,
@@ -203,12 +202,8 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
         Ok(())
     }
 
-    fn describe_state(&self) -> &str {
-        unsafe {
-            CStr::from_ptr(ccall!(describe_state, self.c_data))
-                .to_str()
-                .unwrap()
-        }
+    fn describe_state(&self) -> String {
+        unsafe { to_string(ccall!(describe_state, self.c_data)) }
     }
 
     fn is_state_successful(&self) -> bool {
@@ -221,16 +216,11 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn shutdown(&mut self) -> String {
-        unsafe {
-            CStr::from_ptr(ccall!(shutdown, self.c_data))
-                .to_str()
-                .unwrap()
-                .to_string()
-        }
+        unsafe { to_string(ccall!(shutdown, self.c_data)) }
     }
 
     fn version() -> String {
-        unsafe { CStr::from_ptr(ccall!(version)).to_str().unwrap().to_owned() }
+        unsafe { to_string(ccall!(version)) }
     }
 }
 
@@ -258,11 +248,7 @@ pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
 macro_rules! define_extern_c_log {
     ( $level:ident, $name:ident ) => {
         unsafe extern "C" fn $name(message: *const ::std::os::raw::c_char) {
-            log::log!(
-                log::Level::$level,
-                "{}",
-                CStr::from_ptr(message).to_string_lossy()
-            );
+            log::log!(log::Level::$level, "{}", to_string(message));
         }
     };
 }
@@ -312,6 +298,12 @@ fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
 
         store: Box::into_raw(store) as *mut _,
     })
+}
+
+unsafe fn to_string(ptr: *const c_char) -> String {
+    use std::ffi::CStr;
+
+    CStr::from_ptr(ptr).to_string_lossy().as_ref().to_owned()
 }
 
 #[cfg(test)]

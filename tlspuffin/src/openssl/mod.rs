@@ -302,13 +302,13 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         Ok(())
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
         // with SSL_ERROR_WANT_READ or SSL_ERROR_WANT_WRITE condition,
         // so that SSL_state_string[_long]() may be called.
-        self.stream.ssl().state_string_long()
+        self.stream.ssl().state_string_long().to_owned()
     }
 
     fn is_state_successful(&self) -> bool {
