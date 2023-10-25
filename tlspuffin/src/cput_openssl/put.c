@@ -209,6 +209,13 @@ RESULT openssl_take_outbound(void *agent, uint8_t *bytes, size_t max_length, siz
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
+
+    // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
+    // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
+    // for now.
+    // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
+    SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
+
     SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 
     // Disallow EXPORT in client
@@ -267,6 +274,10 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
+
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALLOW_NO_DHE_KEX);
+    SSL_CTX_clear_options(ssl_ctx, SSL_OP_ENABLE_MIDDLEBOX_COMPAT);
+
     SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 
     // Allow EXPORT in server
