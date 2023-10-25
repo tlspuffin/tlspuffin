@@ -107,8 +107,8 @@ RESULT openssl_progress(void *a)
     }
 
     // trigger another read
-    void *buf = malloc(128);
-    int ret = SSL_read(agent->ssl, buf, 128);
+    uint8_t buf[128];
+    int ret = SSL_read(agent->ssl, &buf, 128);
     if (ret > 0)
     {
         return TLSPUFFIN.make_result(RESULT_OK, NULL);
