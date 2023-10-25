@@ -59,7 +59,7 @@ typedef struct C_PUT_TYPE
     const char *(*const version)();
 
     RESULT (*const progress)(void *agent);
-    void (*const reset)(void *agent);
+    RESULT (*const reset)(void *agent);
     void (*const rename_agent)(void *agent, uint8_t agent_name);
     const char *(*const describe_state)(void *agent);
     bool (*const is_state_successful)(void *agent);

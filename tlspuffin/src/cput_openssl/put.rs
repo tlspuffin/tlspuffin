@@ -204,8 +204,13 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        unsafe { ccall!(reset, self.c_data) };
-        Ok(())
+        let result =
+            *unsafe { Box::from_raw(ccall!(reset, self.c_data) as *mut Result<String, CError>) };
+
+        match result {
+            Ok(s) => Ok(()),
+            Err(cerror) => Err(cerror.into()),
+        }
     }
 
     fn descriptor(&self) -> &AgentDescriptor {

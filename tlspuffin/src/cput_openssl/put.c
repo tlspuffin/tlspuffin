@@ -22,7 +22,7 @@ void *openssl_create(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor);
 RESULT openssl_progress(void *agent);
-void openssl_reset(void *agent);
+RESULT openssl_reset(void *agent);
 void openssl_rename(void *agent, uint8_t agent_name);
 const char *openssl_describe_state(void *agent);
 bool openssl_is_successful(void *agent);
@@ -128,11 +128,17 @@ RESULT openssl_progress(void *a)
     }
 }
 
-void openssl_reset(void *a)
+RESULT openssl_reset(void *a)
 {
     AGENT *agent = as_agent(a);
 
-    SSL_clear(agent->ssl);
+    int ret = SSL_clear(agent->ssl);
+    if (ret == 0)
+    {
+        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+    }
+
+    return TLSPUFFIN.make_result(RESULT_OK, NULL);
 }
 
 void openssl_rename(void *a, uint8_t agent_name)
