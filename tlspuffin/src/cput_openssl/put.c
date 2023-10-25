@@ -34,6 +34,13 @@ RESULT openssl_take_outbound(void *agent, uint8_t *bytes, size_t max_length, siz
 static AGENT *as_agent(void *ptr);
 static char *get_error_reason();
 
+static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert);
+static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey);
+
+static X509_STORE *make_store(const PEM *const *store);
+static X509 *load_inmem_cert(const PEM *pem);
+static EVP_PKEY *load_inmem_pkey(const PEM *pem);
+
 const C_PUT_TYPE CPUT = {
     .create = openssl_create,
     .version = openssl_version,
@@ -246,19 +253,12 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->client_authentication)
     {
-        // load cert
-        X509 *cert = X509_new();
-        BIO *cert_bio = BIO_new_mem_buf(descriptor->cert.bytes, descriptor->cert.length);
-        cert = PEM_read_bio_X509(cert_bio, &cert, NULL, NULL);
-        SSL_CTX_use_certificate(ssl_ctx, cert);
-
-        // load pkey
-        EVP_PKEY *pkey = NULL;
-        BIO *pkey_bio = BIO_new_mem_buf(descriptor->pkey.bytes, descriptor->pkey.length);
-        OSSL_DECODER_CTX *dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, NULL, OSSL_KEYMGMT_SELECT_KEYPAIR, NULL, NULL);
-        OSSL_DECODER_from_bio(dctx, pkey_bio);
-        OSSL_DECODER_CTX_free(dctx);
-        SSL_CTX_use_PrivateKey(ssl_ctx, pkey);
+        ssl_ctx = set_cert(ssl_ctx, &descriptor->cert);
+        ssl_ctx = set_pkey(ssl_ctx, &descriptor->pkey);
+        if (ssl_ctx == NULL)
+        {
+            return NULL;
+        }
     }
 
     if (descriptor->server_authentication)
@@ -266,14 +266,10 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
         // load certs in store
-        X509_STORE *store = X509_STORE_new();
-        for (size_t i = 0; descriptor->store[i] != NULL; ++i)
+        X509_STORE *store = make_store(descriptor->store);
+        if (store == NULL)
         {
-            const PEM *const pem = descriptor->store[i];
-
-            BIO *cert_bio = BIO_new_mem_buf(pem->bytes, pem->length);
-            X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
-            X509_STORE_add_cert(store, cert);
+            return NULL;
         }
 
         SSL_CTX_set_cert_store(ssl_ctx, store);
@@ -306,33 +302,22 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_cipher_list(ssl_ctx, "ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2");
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-    // load cert
-    X509 *cert = X509_new();
-    BIO *cert_bio = BIO_new_mem_buf(descriptor->cert.bytes, descriptor->cert.length);
-    cert = PEM_read_bio_X509(cert_bio, &cert, NULL, NULL);
-    SSL_CTX_use_certificate(ssl_ctx, cert);
-
-    // load pkey
-    EVP_PKEY *pkey = NULL;
-    BIO *pkey_bio = BIO_new_mem_buf(descriptor->pkey.bytes, descriptor->pkey.length);
-    OSSL_DECODER_CTX *dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, NULL, OSSL_KEYMGMT_SELECT_KEYPAIR, NULL, NULL);
-    OSSL_DECODER_from_bio(dctx, pkey_bio);
-    OSSL_DECODER_CTX_free(dctx);
-    SSL_CTX_use_PrivateKey(ssl_ctx, pkey);
+    ssl_ctx = set_cert(ssl_ctx, &descriptor->cert);
+    ssl_ctx = set_pkey(ssl_ctx, &descriptor->pkey);
+    if (ssl_ctx == NULL)
+    {
+        return NULL;
+    }
 
     if (descriptor->client_authentication)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
         // load certs in store
-        X509_STORE *store = X509_STORE_new();
-        for (size_t i = 0; descriptor->store[i] != NULL; ++i)
+        X509_STORE *store = make_store(descriptor->store);
+        if (store == NULL)
         {
-            const PEM *const pem = descriptor->store[i];
-
-            BIO *cert_bio = BIO_new_mem_buf(pem->bytes, pem->length);
-            X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
-            X509_STORE_add_cert(store, cert);
+            return NULL;
         }
 
         SSL_CTX_set_cert_store(ssl_ctx, store);
@@ -350,6 +335,93 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     SSL_set_bio(agent->ssl, agent->in, agent->out);
 
     return agent;
+}
+
+static X509 *load_inmem_cert(const PEM *pem)
+{
+    BIO *cert_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    if (cert_bio == NULL)
+    {
+        return NULL;
+    }
+
+    X509 *cert = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+
+    BIO_free(cert_bio);
+    return cert;
+}
+
+static EVP_PKEY *load_inmem_pkey(const PEM *pem)
+{
+    EVP_PKEY *pkey = NULL;
+    BIO *pkey_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+    OSSL_DECODER_CTX *dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, NULL, OSSL_KEYMGMT_SELECT_KEYPAIR, NULL, NULL);
+    OSSL_DECODER_from_bio(dctx, pkey_bio);
+    OSSL_DECODER_CTX_free(dctx);
+
+    return pkey;
+}
+
+static X509_STORE *make_store(const PEM *const *pem)
+{
+    X509_STORE *store = X509_STORE_new();
+    if (store == NULL)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0; pem[i] != NULL; ++i)
+    {
+        const PEM *const pem_cert = pem[i];
+
+        X509 *cert = load_inmem_cert(pem_cert);
+        if (cert == NULL)
+        {
+            X509_STORE_free(store);
+            return NULL;
+        }
+        X509_STORE_add_cert(store, cert);
+    }
+
+    return store;
+}
+
+static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert)
+{
+    X509 *cert = load_inmem_cert(pem_cert);
+    if (cert == NULL)
+    {
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
+    }
+
+    if (SSL_CTX_use_certificate(ssl_ctx, cert) != 1)
+    {
+        X509_free(cert);
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
+    }
+
+    return ssl_ctx;
+}
+
+static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey)
+{
+    EVP_PKEY *pkey = load_inmem_pkey(pem_pkey);
+    if (pkey == NULL)
+    {
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
+    }
+
+    if (SSL_CTX_use_PrivateKey(ssl_ctx, pkey) != 1)
+    {
+        EVP_PKEY_free(pkey);
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
+    }
+
+    return ssl_ctx;
 }
 
 static char *get_error_reason()
