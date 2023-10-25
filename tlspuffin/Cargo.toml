@@ -7,7 +7,12 @@ edition = "2021"
 [features]
 default = ["sancov_libafl", "introspection"]
 
-cput = []
+cput = [
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+]
 
 openssl-default = [
     "tls12",
