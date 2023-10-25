@@ -135,9 +135,11 @@ void openssl_reset(void *a)
     SSL_clear(agent->ssl);
 }
 
-void openssl_rename(void *agent, uint8_t agent_name)
+void openssl_rename(void *a, uint8_t agent_name)
 {
-    return;
+    AGENT *agent = as_agent(a);
+
+    agent->descriptor->name = agent_name;
 }
 
 const char *openssl_describe_state(void *a)
