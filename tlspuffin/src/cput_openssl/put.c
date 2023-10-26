@@ -36,8 +36,9 @@ static char *get_error_reason();
 
 static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert);
 static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey);
+static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems);
 
-static X509_STORE *make_store(const PEM *const *store);
+static X509_STORE *make_store(const PEM *const *pems);
 static X509 *load_inmem_cert(const PEM *pem);
 static EVP_PKEY *load_inmem_pkey(const PEM *pem);
 
@@ -265,14 +266,11 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        // load certs in store
-        X509_STORE *store = make_store(descriptor->store);
-        if (store == NULL)
+        ssl_ctx = set_store(ssl_ctx, descriptor->store);
+        if (ssl_ctx == NULL)
         {
             return NULL;
         }
-
-        SSL_CTX_set_cert_store(ssl_ctx, store);
     }
 
     SSL *ssl = SSL_new(ssl_ctx);
@@ -313,14 +311,11 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        // load certs in store
-        X509_STORE *store = make_store(descriptor->store);
-        if (store == NULL)
+        ssl_ctx = set_store(ssl_ctx, descriptor->store);
+        if (ssl_ctx == NULL)
         {
             return NULL;
         }
-
-        SSL_CTX_set_cert_store(ssl_ctx, store);
     }
 
     SSL *ssl = SSL_new(ssl_ctx);
@@ -362,7 +357,7 @@ static EVP_PKEY *load_inmem_pkey(const PEM *pem)
     return pkey;
 }
 
-static X509_STORE *make_store(const PEM *const *pem)
+static X509_STORE *make_store(const PEM *const *pems)
 {
     X509_STORE *store = X509_STORE_new();
     if (store == NULL)
@@ -370,11 +365,11 @@ static X509_STORE *make_store(const PEM *const *pem)
         return NULL;
     }
 
-    for (size_t i = 0; pem[i] != NULL; ++i)
+    for (size_t i = 0; pems[i] != NULL; ++i)
     {
-        const PEM *const pem_cert = pem[i];
+        const PEM *const pem = pems[i];
 
-        X509 *cert = load_inmem_cert(pem_cert);
+        X509 *cert = load_inmem_cert(pem);
         if (cert == NULL)
         {
             X509_STORE_free(store);
@@ -421,6 +416,19 @@ static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey)
         return NULL;
     }
 
+    return ssl_ctx;
+}
+
+static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems)
+{
+    X509_STORE *store = make_store(pems);
+    if (store == NULL)
+    {
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
+    }
+
+    SSL_CTX_set_cert_store(ssl_ctx, store);
     return ssl_ctx;
 }
 
