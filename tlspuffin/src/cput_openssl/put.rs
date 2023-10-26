@@ -256,6 +256,12 @@ impl CPUTOpenSSL {
     }
 }
 
+impl Drop for CPUTOpenSSL {
+    fn drop(&mut self) {
+        unsafe { ccall!(destroy, self.c_data) }
+    }
+}
+
 #[no_mangle]
 pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
     error: Some(c_log_error),

@@ -56,6 +56,8 @@ typedef struct
 typedef struct C_PUT_TYPE
 {
     void *(*const create)(AGENT_DESCRIPTOR *descriptor);
+    void (*const destroy)(void *agent);
+
     const char *(*const version)();
 
     RESULT (*const progress)(void *agent);

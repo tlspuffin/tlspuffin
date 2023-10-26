@@ -21,6 +21,7 @@ const char *openssl_version();
 void *openssl_create(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor);
 void *openssl_create_server(AGENT_DESCRIPTOR *descriptor);
+void openssl_destroy(void *agent);
 RESULT openssl_progress(void *agent);
 RESULT openssl_reset(void *agent);
 void openssl_rename(void *agent, uint8_t agent_name);
@@ -32,18 +33,21 @@ RESULT openssl_add_inbound(void *agent, const uint8_t *bytes, size_t length, siz
 RESULT openssl_take_outbound(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 
 static AGENT *as_agent(void *ptr);
+static RESULT_CODE result_code(AGENT *agent, int retcode);
 static char *get_error_reason();
 
 static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert);
 static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey);
 static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems);
 
+static AGENT *make_agent(SSL_CTX *ssl_ctx, AGENT_DESCRIPTOR *descriptor);
 static X509_STORE *make_store(const PEM *const *pems);
 static X509 *load_inmem_cert(const PEM *pem);
 static EVP_PKEY *load_inmem_pkey(const PEM *pem);
 
 const C_PUT_TYPE CPUT = {
     .create = openssl_create,
+    .destroy = openssl_destroy,
     .version = openssl_version,
 
     .progress = openssl_progress,
@@ -87,6 +91,13 @@ void *openssl_create(AGENT_DESCRIPTOR *descriptor)
     return NULL;
 }
 
+void openssl_destroy(void *a)
+{
+    AGENT *agent = as_agent(a);
+    SSL_free(agent->ssl);
+    free(agent);
+}
+
 RESULT openssl_progress(void *a)
 {
     AGENT *agent = as_agent(a);
@@ -95,23 +106,18 @@ RESULT openssl_progress(void *a)
     {
         // not connected yet -> do handshake
         int ret = SSL_do_handshake(agent->ssl);
-        if (ret <= 0)
-        {
-            int result = SSL_get_error(agent->ssl, ret);
-            switch (result)
-            {
-            case SSL_ERROR_NONE:
-                return TLSPUFFIN.make_result(RESULT_OK, NULL);
 
-            case SSL_ERROR_WANT_READ:
-            case SSL_ERROR_WANT_WRITE:
-                return TLSPUFFIN.make_result(RESULT_OK, get_error_reason());
-            default:
-                return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
-            }
+        RESULT_CODE ecode = result_code(agent, ret);
+        if (ecode == RESULT_IO_WOULD_BLOCK)
+        {
+            ecode = RESULT_OK;
         }
 
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
+        char *reason = get_error_reason();
+        RESULT result = TLSPUFFIN.make_result(ecode, reason);
+        free(reason);
+
+        return result;
     }
 
     // trigger another read
@@ -122,18 +128,17 @@ RESULT openssl_progress(void *a)
         return TLSPUFFIN.make_result(RESULT_OK, NULL);
     }
 
-    int result = SSL_get_error(agent->ssl, ret);
-    switch (result)
+    RESULT_CODE ecode = result_code(agent, ret);
+    if (ecode == RESULT_IO_WOULD_BLOCK)
     {
-    case SSL_ERROR_NONE:
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
-
-    case SSL_ERROR_WANT_READ:
-    case SSL_ERROR_WANT_WRITE:
-        return TLSPUFFIN.make_result(RESULT_OK, get_error_reason());
-    default:
-        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+        ecode = RESULT_OK;
     }
+
+    char *reason = get_error_reason();
+    RESULT result = TLSPUFFIN.make_result(ecode, reason);
+    free(reason);
+
+    return result;
 }
 
 RESULT openssl_reset(void *a)
@@ -192,23 +197,12 @@ RESULT openssl_add_inbound(void *a, const uint8_t *bytes, size_t length, size_t 
 
     int ret = BIO_write_ex(agent->in, bytes, length, written);
 
-    if (ret == 1)
-    {
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
-    }
+    RESULT_CODE ecode = result_code(agent, ret);
+    char *reason = get_error_reason();
+    RESULT result = TLSPUFFIN.make_result(ecode, reason);
+    free(reason);
 
-    int result = SSL_get_error(agent->ssl, ret);
-    switch (result)
-    {
-    case SSL_ERROR_NONE:
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
-
-    case SSL_ERROR_WANT_READ:
-    case SSL_ERROR_WANT_WRITE:
-        return TLSPUFFIN.make_result(RESULT_IO_WOULD_BLOCK, get_error_reason());
-    default:
-        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
-    }
+    return result;
 }
 
 RESULT openssl_take_outbound(void *a, uint8_t *bytes, size_t max_length, size_t *readbytes)
@@ -217,23 +211,12 @@ RESULT openssl_take_outbound(void *a, uint8_t *bytes, size_t max_length, size_t 
 
     int ret = BIO_read_ex(agent->out, bytes, max_length, readbytes);
 
-    if (ret == 1)
-    {
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
-    }
+    RESULT_CODE ecode = result_code(agent, ret);
+    char *reason = get_error_reason();
+    RESULT result = TLSPUFFIN.make_result(ecode, reason);
+    free(reason);
 
-    int result = SSL_get_error(agent->ssl, ret);
-    switch (result)
-    {
-    case SSL_ERROR_NONE:
-        return TLSPUFFIN.make_result(RESULT_OK, NULL);
-
-    case SSL_ERROR_WANT_READ:
-    case SSL_ERROR_WANT_WRITE:
-        return TLSPUFFIN.make_result(RESULT_IO_WOULD_BLOCK, get_error_reason());
-    default:
-        return TLSPUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
-    }
+    return result;
 }
 
 void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
@@ -273,16 +256,13 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
         }
     }
 
-    SSL *ssl = SSL_new(ssl_ctx);
-    SSL_set_connect_state(ssl);
+    AGENT *agent = make_agent(ssl_ctx, descriptor);
+    if (agent == NULL)
+    {
+        return NULL;
+    }
 
-    AGENT *agent = malloc(sizeof(AGENT));
-    agent->descriptor = descriptor;
-    agent->ssl = ssl;
-
-    agent->in = BIO_new(BIO_s_mem());
-    agent->out = BIO_new(BIO_s_mem());
-    SSL_set_bio(agent->ssl, agent->in, agent->out);
+    SSL_set_connect_state(agent->ssl);
 
     return agent;
 }
@@ -318,16 +298,13 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
         }
     }
 
-    SSL *ssl = SSL_new(ssl_ctx);
-    SSL_set_accept_state(ssl);
+    AGENT *agent = make_agent(ssl_ctx, descriptor);
+    if (agent == NULL)
+    {
+        return NULL;
+    }
 
-    AGENT *agent = malloc(sizeof(AGENT));
-    agent->descriptor = descriptor;
-    agent->ssl = ssl;
-
-    agent->in = BIO_new(BIO_s_mem());
-    agent->out = BIO_new(BIO_s_mem());
-    SSL_set_bio(agent->ssl, agent->in, agent->out);
+    SSL_set_accept_state(agent->ssl);
 
     return agent;
 }
@@ -352,8 +329,9 @@ static EVP_PKEY *load_inmem_pkey(const PEM *pem)
     BIO *pkey_bio = BIO_new_mem_buf(pem->bytes, pem->length);
     OSSL_DECODER_CTX *dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, NULL, OSSL_KEYMGMT_SELECT_KEYPAIR, NULL, NULL);
     OSSL_DECODER_from_bio(dctx, pkey_bio);
-    OSSL_DECODER_CTX_free(dctx);
 
+    OSSL_DECODER_CTX_free(dctx);
+    BIO_free(pkey_bio);
     return pkey;
 }
 
@@ -376,6 +354,7 @@ static X509_STORE *make_store(const PEM *const *pems)
             return NULL;
         }
         X509_STORE_add_cert(store, cert);
+        X509_free(cert);
     }
 
     return store;
@@ -397,6 +376,7 @@ static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert)
         return NULL;
     }
 
+    X509_free(cert);
     return ssl_ctx;
 }
 
@@ -429,7 +409,41 @@ static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems)
     }
 
     SSL_CTX_set_cert_store(ssl_ctx, store);
+
     return ssl_ctx;
+}
+
+static AGENT *make_agent(SSL_CTX *ssl_ctx, AGENT_DESCRIPTOR *descriptor)
+{
+    SSL *ssl = SSL_new(ssl_ctx);
+
+    AGENT *agent = malloc(sizeof(AGENT));
+    agent->descriptor = descriptor;
+    agent->ssl = ssl;
+
+    agent->in = BIO_new(BIO_s_mem());
+    agent->out = BIO_new(BIO_s_mem());
+    SSL_set_bio(agent->ssl, agent->in, agent->out);
+
+    SSL_CTX_free(ssl_ctx);
+
+    return agent;
+}
+
+static RESULT_CODE result_code(AGENT *agent, int retcode)
+{
+    int ssl_ecode = SSL_get_error(agent->ssl, retcode);
+    switch (ssl_ecode)
+    {
+    case SSL_ERROR_NONE:
+        return RESULT_OK;
+
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+        return RESULT_IO_WOULD_BLOCK;
+    default:
+        return RESULT_ERROR_OTHER;
+    }
 }
 
 static char *get_error_reason()
@@ -440,7 +454,7 @@ static char *get_error_reason()
     char *buf = NULL;
     size_t len = BIO_get_mem_data(bio, &buf);
     char *ret = (char *)calloc(1, 1 + len);
-    if (ret)
+    if (ret != NULL)
     {
         memcpy(ret, buf, len);
     }
