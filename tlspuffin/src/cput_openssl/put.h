@@ -48,14 +48,16 @@ typedef struct
     TLS_VERSION tls_version;
     bool client_authentication;
     bool server_authentication;
-    const PEM cert;
-    const PEM pkey;
+    const PEM *cert;
+    const PEM *pkey;
+
     const PEM *const *const store;
+    const size_t store_length;
 } AGENT_DESCRIPTOR;
 
 typedef struct C_PUT_TYPE
 {
-    void *(*const create)(AGENT_DESCRIPTOR *descriptor);
+    void *(*const create)(const AGENT_DESCRIPTOR *descriptor);
     void (*const destroy)(void *agent);
 
     const char *(*const version)();

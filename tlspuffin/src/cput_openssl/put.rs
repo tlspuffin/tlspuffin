@@ -246,7 +246,22 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
 
 impl CPUTOpenSSL {
     fn new(config: TlsPutConfig) -> Result<CPUTOpenSSL, Error> {
-        let c_data = unsafe { ccall!(create, Box::into_raw(make_descriptor(&config))) };
+        let descriptor = match config.descriptor.typ {
+            AgentType::Server => make_descriptor(
+                &config,
+                &ALICE_CERT.into(),
+                &ALICE_PRIVATE_KEY.into(),
+                &[&BOB_CERT.into() as *const _, &EVE_CERT.into() as *const _],
+            ),
+            AgentType::Client => make_descriptor(
+                &config,
+                &BOB_CERT.into(),
+                &BOB_PRIVATE_KEY.into(),
+                &[&ALICE_CERT.into() as *const _, &EVE_CERT.into() as *const _],
+            ),
+        };
+
+        let c_data = unsafe { ccall!(create, &descriptor as *const _) };
 
         Ok(CPUTOpenSSL {
             config,
@@ -348,19 +363,13 @@ impl Into<PEM> for PEMDER {
     }
 }
 
-fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
-    let (cert, pkey, store) = match config.descriptor.typ {
-        AgentType::Server => (ALICE_CERT, ALICE_PRIVATE_KEY, [BOB_CERT, EVE_CERT]),
-        AgentType::Client => (BOB_CERT, BOB_PRIVATE_KEY, [ALICE_CERT, EVE_CERT]),
-    };
-
-    let store = store
-        .iter()
-        .map(|c| Box::into_raw(Box::new(Into::<PEM>::into(*c))))
-        .chain(std::iter::once(std::ptr::null_mut()))
-        .collect();
-
-    Box::new(AGENT_DESCRIPTOR {
+fn make_descriptor(
+    config: &TlsPutConfig,
+    cert: &PEM,
+    pkey: &PEM,
+    store: &[*const PEM],
+) -> AGENT_DESCRIPTOR {
+    AGENT_DESCRIPTOR {
         name: config.descriptor.name.into(),
         type_: match config.descriptor.typ {
             AgentType::Client => AGENT_TYPE_CLIENT,
@@ -373,11 +382,12 @@ fn make_descriptor(config: &TlsPutConfig) -> Box<AGENT_DESCRIPTOR> {
         client_authentication: config.descriptor.client_authentication,
         server_authentication: config.descriptor.server_authentication,
 
-        cert: Into::<PEM>::into(cert),
-        pkey: Into::<PEM>::into(pkey),
+        cert: cert as *const _,
+        pkey: pkey as *const _,
 
-        store: Box::into_raw(store) as *mut _,
-    })
+        store: store.as_ptr(),
+        store_length: store.len() as size_t,
+    }
 }
 
 unsafe fn to_string(ptr: *const c_char) -> String {

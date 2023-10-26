@@ -9,7 +9,7 @@
 
 typedef struct
 {
-    AGENT_DESCRIPTOR *descriptor;
+    uint8_t name;
 
     SSL *ssl;
 
@@ -18,9 +18,9 @@ typedef struct
 } AGENT;
 
 const char *openssl_version();
-void *openssl_create(AGENT_DESCRIPTOR *descriptor);
-void *openssl_create_client(AGENT_DESCRIPTOR *descriptor);
-void *openssl_create_server(AGENT_DESCRIPTOR *descriptor);
+void *openssl_create(const AGENT_DESCRIPTOR *descriptor);
+void *openssl_create_client(const AGENT_DESCRIPTOR *descriptor);
+void *openssl_create_server(const AGENT_DESCRIPTOR *descriptor);
 void openssl_destroy(void *agent);
 RESULT openssl_progress(void *agent);
 RESULT openssl_reset(void *agent);
@@ -38,10 +38,10 @@ static char *get_error_reason();
 
 static SSL_CTX *set_cert(SSL_CTX *ssl_ctx, const PEM *pem_cert);
 static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey);
-static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems);
+static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store_length);
 
-static AGENT *make_agent(SSL_CTX *ssl_ctx, AGENT_DESCRIPTOR *descriptor);
-static X509_STORE *make_store(const PEM *const *pems);
+static AGENT *make_agent(SSL_CTX *ssl_ctx, const AGENT_DESCRIPTOR *descriptor);
+static X509_STORE *make_store(const PEM *const *pems, size_t store_length);
 static X509 *load_inmem_cert(const PEM *pem);
 static EVP_PKEY *load_inmem_pkey(const PEM *pem);
 
@@ -71,7 +71,7 @@ const char *openssl_version()
     return OPENSSL_FULL_VERSION_STR;
 }
 
-void *openssl_create(AGENT_DESCRIPTOR *descriptor)
+void *openssl_create(const AGENT_DESCRIPTOR *descriptor)
 {
     _log(TLSPUFFIN.info, "descriptor %u version: %s type: %s", descriptor->name, version_str[descriptor->tls_version], type_str[descriptor->type]);
 
@@ -157,8 +157,7 @@ RESULT openssl_reset(void *a)
 void openssl_rename(void *a, uint8_t agent_name)
 {
     AGENT *agent = as_agent(a);
-
-    agent->descriptor->name = agent_name;
+    agent->name = agent_name;
 }
 
 const char *openssl_describe_state(void *a)
@@ -219,7 +218,7 @@ RESULT openssl_take_outbound(void *a, uint8_t *bytes, size_t max_length, size_t 
     return result;
 }
 
-void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
+void *openssl_create_client(const AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 
@@ -237,8 +236,8 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->client_authentication)
     {
-        ssl_ctx = set_cert(ssl_ctx, &descriptor->cert);
-        ssl_ctx = set_pkey(ssl_ctx, &descriptor->pkey);
+        ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
+        ssl_ctx = set_pkey(ssl_ctx, descriptor->pkey);
         if (ssl_ctx == NULL)
         {
             return NULL;
@@ -249,7 +248,7 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        ssl_ctx = set_store(ssl_ctx, descriptor->store);
+        ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
         if (ssl_ctx == NULL)
         {
             return NULL;
@@ -267,7 +266,7 @@ void *openssl_create_client(AGENT_DESCRIPTOR *descriptor)
     return agent;
 }
 
-void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
+void *openssl_create_server(const AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 
@@ -280,8 +279,8 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_cipher_list(ssl_ctx, "ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2");
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-    ssl_ctx = set_cert(ssl_ctx, &descriptor->cert);
-    ssl_ctx = set_pkey(ssl_ctx, &descriptor->pkey);
+    ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
+    ssl_ctx = set_pkey(ssl_ctx, descriptor->pkey);
     if (ssl_ctx == NULL)
     {
         return NULL;
@@ -291,7 +290,7 @@ void *openssl_create_server(AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
-        ssl_ctx = set_store(ssl_ctx, descriptor->store);
+        ssl_ctx = set_store(ssl_ctx, descriptor->store, descriptor->store_length);
         if (ssl_ctx == NULL)
         {
             return NULL;
@@ -335,7 +334,7 @@ static EVP_PKEY *load_inmem_pkey(const PEM *pem)
     return pkey;
 }
 
-static X509_STORE *make_store(const PEM *const *pems)
+static X509_STORE *make_store(const PEM *const *pems, size_t store_length)
 {
     X509_STORE *store = X509_STORE_new();
     if (store == NULL)
@@ -343,7 +342,7 @@ static X509_STORE *make_store(const PEM *const *pems)
         return NULL;
     }
 
-    for (size_t i = 0; pems[i] != NULL; ++i)
+    for (size_t i = 0; i < store_length; ++i)
     {
         const PEM *const pem = pems[i];
 
@@ -399,9 +398,9 @@ static SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey)
     return ssl_ctx;
 }
 
-static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems)
+static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store_length)
 {
-    X509_STORE *store = make_store(pems);
+    X509_STORE *store = make_store(pems, store_length);
     if (store == NULL)
     {
         SSL_CTX_free(ssl_ctx);
@@ -413,12 +412,12 @@ static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems)
     return ssl_ctx;
 }
 
-static AGENT *make_agent(SSL_CTX *ssl_ctx, AGENT_DESCRIPTOR *descriptor)
+static AGENT *make_agent(SSL_CTX *ssl_ctx, const AGENT_DESCRIPTOR *descriptor)
 {
     SSL *ssl = SSL_new(ssl_ctx);
 
     AGENT *agent = malloc(sizeof(AGENT));
-    agent->descriptor = descriptor;
+    agent->name = descriptor->name;
     agent->ssl = ssl;
 
     agent->in = BIO_new(BIO_s_mem());
