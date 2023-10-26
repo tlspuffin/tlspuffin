@@ -38,6 +38,7 @@ fn main() {
         let bindings_path = Path::new(&out_dir).join("bindings.rs");
         bindgen::Builder::default()
             .header(cput_header)
+            .no_copy("^AGENT_DESCRIPTOR$")
             .parse_callbacks(Box::new(bindgen::CargoCallbacks))
             .generate()
             .expect("Unable to generate bindings for cput")
