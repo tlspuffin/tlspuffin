@@ -57,10 +57,29 @@ typedef struct
 
 typedef struct C_PUT_TYPE
 {
-    void *(*const create)(const AGENT_DESCRIPTOR *descriptor);
-    void (*const destroy)(void *agent);
-
+    /*
+     * Write the PUT version into the provided buffer. The result written is
+     * assumed to be a valid C null-terminated string.
+     */
     const char *(*const version)();
+
+    /*
+     * Creates a new agent following the specification in the <descriptor>.
+     *
+     * Returns a pointer to an opaque object representing the created agent or
+     * NULL if an error occurred.
+     *
+     * Note that the caller keeps ownership of the input <descriptor>. The
+     * created agent should copy any data it needs in the future and not keep
+     * any reference to the <descriptor>'s memory.
+     */
+    void *(*const create)(const AGENT_DESCRIPTOR *descriptor);
+
+    /*
+     * Perform cleanup tasks and release memory for an agent previously
+     * allocated with ".create()".
+     */
+    void (*const destroy)(void *agent);
 
     RESULT (*const progress)(void *agent);
     RESULT (*const reset)(void *agent);
@@ -70,7 +89,22 @@ typedef struct C_PUT_TYPE
     void (*const set_deterministic)(void *agent);
     const char *(*const shutdown)(void *agent);
 
+    /*
+     * Attempt to write <length> bytes from <bytes> into the <agent> input
+     * buffer.
+     *
+     * It can happen that only <written> bytes (less than <length>) are written.
+     * In that case, the caller should re-attempt to call this function on the
+     * remaining data at a later time.
+     */
     RESULT (*const add_inbound)(void *agent, const uint8_t *bytes, size_t length, size_t *written);
+
+    /*
+     * Attempt to read a maximum of <max_length> bytes from the <agent> output
+     * buffer into <bytes>.
+     *
+     * The number of bytes actually placed in <bytes> is given in <readbytes>.
+     */
     RESULT (*const take_outbound)(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 } C_PUT_TYPE;
 
@@ -85,6 +119,19 @@ typedef struct
     RESULT (*const make_result)(RESULT_CODE code, const char *description);
 } C_TLSPUFFIN;
 
+/*
+ * Add a message into the puffin logs at the log-level of the given <logger>.
+ *
+ * This is a variadic function that follows the same <format> as the standard
+ * "printf" family of functions.
+ *
+ * Example:
+ *     // log a debug message:
+ *     _log(TLSPUFFIN.debug, "reached function %s", __func__);
+ *
+ *     // log an error:
+ *     _log(TLSPUFFIN.error, "an error happened at line %d", 42);
+ */
 void _log(void (*logger)(const char *), const char *format, ...);
 
 const C_PUT_TYPE CPUT;
