@@ -92,7 +92,7 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 pub struct CPUTOpenSSL {
     pub config: TlsPutConfig,
     pub deframer: MessageDeframer,
-    pub c_data: *mut ::std::os::raw::c_void,
+    pub c_agent: *mut c_void,
 }
 
 macro_rules! ccall {
@@ -104,19 +104,36 @@ macro_rules! ccall {
     };
 }
 
+macro_rules! take_res {
+    ( $call:expr ) => {
+        *unsafe { Box::from_raw($call as *mut Result<String, CError>) }
+    };
+}
+
+macro_rules! r_ccall {
+    ( $function_name:ident ) => {
+        take_res!(ccall!($function_name))
+    };
+    ( $function_name:ident, $($arg:expr),*) => {
+        take_res!(ccall!($function_name, $($arg),*))
+    };
+}
+
 impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
     fn add_to_inbound(&mut self, message: &OpaqueMessage) {
         let bytes = message.get_encoding();
         let mut written = 0usize;
-        let result = unsafe {
-            Box::from_raw(ccall!(
-                add_inbound,
-                self.c_data,
-                bytes.as_ptr(),
-                bytes.len(),
-                &mut written as *mut usize
-            ) as *mut Result<String, CError>)
-        };
+        let result = r_ccall!(
+            add_inbound,
+            self.c_agent,
+            bytes.as_ptr(),
+            bytes.len(),
+            &mut written as *mut usize
+        );
+
+        if let Err(cerror) = result {
+            error!("C PUT agent add_to_inbound() failed: {}", cerror.reason);
+        }
 
         return;
     }
@@ -129,7 +146,7 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
                 break Some(opaque_message);
             } else {
                 let mut reader = CReader {
-                    c_data: self.c_data,
+                    c_agent: self.c_agent,
                 };
 
                 match self.deframer.read(&mut reader) {
@@ -168,25 +185,23 @@ impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
 }
 
 struct CReader {
-    c_data: *mut ::std::os::raw::c_void,
+    c_agent: *mut c_void,
 }
 
 impl Read for CReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut readbytes = 0usize as size_t;
 
-        let result = *unsafe {
-            Box::from_raw(ccall!(
-                take_outbound,
-                self.c_data,
-                buf.as_mut_ptr(),
-                buf.len(),
-                &mut readbytes
-            ) as *mut Result<String, CError>)
-        };
+        let result = r_ccall!(
+            take_outbound,
+            self.c_agent,
+            buf.as_mut_ptr(),
+            buf.len(),
+            &mut readbytes
+        );
 
         match result {
-            Ok(s) => Ok(readbytes),
+            Ok(_) => Ok(readbytes),
             Err(cerror) => Err(cerror.into()),
         }
     }
@@ -194,23 +209,15 @@ impl Read for CReader {
 
 impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
-        let result =
-            *unsafe { Box::from_raw(ccall!(progress, self.c_data) as *mut Result<String, CError>) };
+        r_ccall!(progress, self.c_agent)?;
 
-        match result {
-            Ok(s) => Ok(()),
-            Err(cerror) => Err(cerror.into()),
-        }
+        Ok(())
     }
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        let result =
-            *unsafe { Box::from_raw(ccall!(reset, self.c_data) as *mut Result<String, CError>) };
+        r_ccall!(reset, self.c_agent)?;
 
-        match result {
-            Ok(s) => Ok(()),
-            Err(cerror) => Err(cerror.into()),
-        }
+        Ok(())
     }
 
     fn descriptor(&self) -> &AgentDescriptor {
@@ -218,25 +225,25 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 
     fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        unsafe { ccall!(rename_agent, self.c_data, agent_name.into()) };
+        unsafe { ccall!(rename, self.c_agent, agent_name.into()) };
         Ok(())
     }
 
     fn describe_state(&self) -> String {
-        unsafe { to_string(ccall!(describe_state, self.c_data)) }
+        unsafe { to_string(ccall!(describe_state, self.c_agent)) }
     }
 
     fn is_state_successful(&self) -> bool {
-        unsafe { ccall!(is_state_successful, self.c_data) }
+        unsafe { ccall!(is_state_successful, self.c_agent) }
     }
 
     fn set_deterministic(&mut self) -> Result<(), Error> {
-        unsafe { ccall!(set_deterministic, self.c_data) };
+        unsafe { ccall!(set_deterministic, self.c_agent) };
         Ok(())
     }
 
     fn shutdown(&mut self) -> String {
-        unsafe { to_string(ccall!(shutdown, self.c_data)) }
+        unsafe { to_string(ccall!(shutdown, self.c_agent)) }
     }
 
     fn version() -> String {
@@ -261,11 +268,11 @@ impl CPUTOpenSSL {
             ),
         };
 
-        let c_data = unsafe { ccall!(create, &descriptor as *const _) };
+        let c_agent = unsafe { ccall!(create, &descriptor as *const _) };
 
         Ok(CPUTOpenSSL {
             config,
-            c_data,
+            c_agent,
             deframer: MessageDeframer::new(),
         })
     }
@@ -273,7 +280,7 @@ impl CPUTOpenSSL {
 
 impl Drop for CPUTOpenSSL {
     fn drop(&mut self) {
-        unsafe { ccall!(destroy, self.c_data) }
+        unsafe { ccall!(destroy, self.c_agent) }
     }
 }
 

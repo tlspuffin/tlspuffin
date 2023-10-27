@@ -52,7 +52,7 @@ const C_PUT_TYPE CPUT = {
 
     .progress = openssl_progress,
     .reset = openssl_reset,
-    .rename_agent = openssl_rename,
+    .rename = openssl_rename,
     .describe_state = openssl_describe_state,
     .is_state_successful = openssl_is_successful,
     .set_deterministic = openssl_set_deterministic,
