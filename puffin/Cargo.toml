@@ -29,7 +29,8 @@ libafl = "0.10.1"
 libafl_targets = "0.10.1"
 
 # Logging
-log = { version = "0.4.17", features = ["release_max_level_off", "max_level_warn"] }
+log = { version = "0.4.17" }
+#features = ["release_max_level_off", "max_level_warn"]
 log4rs = "1.2.0"
 
 # Other Dependencies
