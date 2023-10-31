@@ -330,6 +330,7 @@ impl<M: Matcher> TermEval<M> {
                 // (if we manage to evaluate the current term)
                 if all_p.len() > 0 {
                     if let Ok(eval) = PB::any_get_encoding(&result) {
+                        trace!("We update payloads for whole app term whose evaluation is {eval:?}");
                         for (i, ((p, path_p, pos, eval_sub), num_arg)) in all_p.into_iter().enumerate() {
                             trace!("Updating payload #{i} from arg #{num_arg:?}: {p:?}, path_p={path_p:?}, pos={pos}, eval_sub={eval_sub:?}");
                             if !eval_sub.is_empty() {
@@ -349,19 +350,46 @@ impl<M: Matcher> TermEval<M> {
                                             //  associate to payload item is just an option ConcreteMessage in case it has "lagged"
                                         } else { // We shall refine the window, using left or right brother
                                             if num_arg > 0 || num_arg < dynamic_args.len() - 1 { // there is a brother node we can compare with
-                                                let index = if num_arg > 0 { num_arg - 1 } else { num_arg + 1 };
-                                                // index of the arg to compare with
-                                                trace!("[eval_until_opaque] [Multiple matches] Compared with brother at index {index}.");
-                                                if let Ok(eval_index) = PB::any_get_encoding(&dynamic_args[index]) {
-                                                    if let Some((start_brother, is_unique_brother)) = search_sub_vec_double(&eval, &eval_index) {
-                                                        let window = if num_arg > 0 { &eval[start_brother + eval_index.len()..] } else { &eval[..start_brother] };
-                                                        if let Some((start_retry, is_unique_retry)) = search_sub_vec_double(window, &eval_sub) {
-                                                            let new_pos = if num_arg > 0 {pos + start_retry + start_brother + eval_index.len()} else {pos + start_retry};
-                                                            if is_unique {
-                                                                trace!("[eval_until_opaque] [Retried successful] Found eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                            trace!("[eval_until_opaque] [Multiple matches] Compared with brother. Looking for a suitable brother to compare with.");
+                                                let mut brother_index = num_arg;
+                                                let mut brother_eval = vec![];
+                                                while brother_index > 0 {
+                                                    brother_index -= 1;
+                                                    if let Ok(brother_eval_) = PB::any_get_encoding(&dynamic_args[brother_index]) {
+                                                        if brother_eval_.len() > 0 {
+                                                            brother_eval = brother_eval_;
+                                                            trace!("Brother at index {brother_index} eval: {brother_eval:?}");
+                                                            break
+                                                        }
+                                                    }
+                                                }
+                                                if brother_index == num_arg {
+                                                    while brother_index < dynamic_args.len() {
+                                                        brother_index += 1;
+                                                        if let Ok(brother_eval_) = PB::any_get_encoding(&dynamic_args[brother_index]) {
+                                                            if brother_eval_.len() > 0 {
+                                                                brother_eval = brother_eval_;
+                                                                trace!("Brother at index {brother_index} eval: {brother_eval:?}");
+                                                                break
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if brother_index == num_arg {
+                                                        warn!("[eval_until_opaque] Failed to find or evaluate brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                        return_p.push((p, path_p, pos + start, eval.clone()));
+                                                } else {
+                                                    trace!("Compare with Brother at index {brother_index}.");
+                                                    if let Some((start_brother, is_unique_brother)) = search_sub_vec_double(&eval, &brother_eval) {
+                                                        let window = if brother_index < num_arg { &eval[start_brother + brother_eval.len()..] } else { &eval[..start_brother] };
+                                                        trace!("New window is: {:?}", window);
+                                                        if let Some((start_in_window, is_unique_retry)) = search_sub_vec_double(window, &eval_sub) {
+                                                            let new_pos = if brother_index < num_arg {pos + start_brother + brother_eval.len() + start_in_window } else {pos + start_in_window };
+                                                            if is_unique_retry {
+                                                                trace!("[eval_until_opaque] [Retried successful] Found eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={pos} to {new_pos} for payload={:?}.", p);
                                                                 return_p.push((p, path_p, new_pos, eval.clone()));
                                                             } else {
-                                                                debug!("[eval_until_opaque] Still not unique. WAS UNABLE TO DISAMBIGUATE RETRIED. FALL BACK TO the last non-unique solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
+                                                                warn!("[eval_until_opaque] Still not unique. WAS UNABLE TO DISAMBIGUATE RETRIED. FALL BACK TO the last non-unique solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, new_pos, p);
                                                                 return_p.push((p, path_p, new_pos, eval.clone()));
                                                                 // Could be improved with choosing another brother but I don't think it worths it
                                                             }
@@ -373,9 +401,6 @@ impl<M: Matcher> TermEval<M> {
                                                         warn!("[eval_until_opaque] Failed to find brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
                                                         return_p.push((p, path_p, pos + start, eval.clone()));
                                                     }
-                                                } else {
-                                                    warn!("[eval_until_opaque] Failed to evaluate brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
-                                                    return_p.push((p, path_p, pos + start, eval.clone()));
                                                 }
                                             } else {
                                                 debug!("[eval_until_opaque] Failed to locate brother. WAS UNABLE TO DISAMBIGUATE. FALL BACK TO first solution\nFound eval_sub for current path = {path:?} and payload path={path_p:?}. Update pos={} to {} for payload={:?}.\n -- We found {eval_sub:?} in {eval:?} at pos={start}", pos, pos+start, p);
@@ -417,7 +442,7 @@ impl<M: Matcher> TermEval<M> {
                     trace!("End Application path={path:?} with eval={:?}", PB::any_get_encoding(&result));
                     // Processing the potential payload at root position
                     if let Some(payload) = &self.payloads {
-                        trace!("[eval_until_opaque] Add a paylaod for an application at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&result));
+                        trace!("[eval_until_opaque] Add a payload for an application at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&result));
                         return_p.push((payload, path, 0, payload.payload_0.bytes().to_vec()))  // no offset for the current payload
                     }
                     Ok((result, return_p))
