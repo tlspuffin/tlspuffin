@@ -8,6 +8,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use log::{debug, error, warn};
 
 use crate::{
     algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
@@ -27,11 +28,15 @@ const SHOW_LABELS: bool = false */
 // Thesis theme
 const FONT: &str = "Latin Modern Roman";
 const SHAPE: &str = "none";
+const SHAPE_PAYLOAD: &str = "box";
 const SHAPE_LEAVES: &str = "none";
+const SHAPE_LEAVES_PAYLOAD: &str = "parallelogram";
+
 const STYLE: &str = "";
-const COLOR: &str = "#00000000";
+const COLOR: &str = "#ffff0000";
 const COLOR_LEAVES: &str = "#00000000";
-const COLOR_PAYLOADS: &str = "#ff0000";
+const COLOR_LEAVES_PAYLOAD: &str = "#ff00ff";
+const COLOR_PAYLOAD: &str = "#ff0000";
 const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -75,6 +80,7 @@ impl<M: Matcher> Trace<M> {
     }
 
     pub fn dot_subgraphs(&self, tree_mode: bool) -> Vec<String> {
+        warn!("Calling dot_subgraphs on: {}", self);
         let mut subgraphs = Vec::new();
 
         for (i, step) in self.steps.iter().enumerate() {
@@ -144,35 +150,45 @@ impl<M: Matcher> TermEval<M> {
         cluster_id: usize,
         statements: &mut Vec<String>,
     ) {
+        if !term.is_symbolic() {
+            error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
+        }
         match &term.term {
             Term::Variable(variable) => {
+                let color = if term.is_symbolic() {COLOR_LEAVES} else {COLOR_LEAVES_PAYLOAD};
+                let shape = if term.is_symbolic() {SHAPE_LEAVES} else {SHAPE_LEAVES_PAYLOAD};
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
-                    Self::node_attributes(variable, COLOR_LEAVES, SHAPE_LEAVES),
+                    Self::node_attributes(variable, color, shape),
                     FONT
                 ));
             }
             Term::Application(func, subterms) => {
+                let color = if term.is_symbolic() {
+                    if func.arity() == 0 {
+                        COLOR_LEAVES
+                    } else {
+                        COLOR
+                    }
+                } else { COLOR_PAYLOAD };
+                let shape = if term.is_symbolic() {
+                    if func.arity() == 0 {
+                        SHAPE_LEAVES
+                    } else {
+                        SHAPE
+                    }
+                } else { SHAPE_PAYLOAD };
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
-                        remove_fn_prefix(&remove_prefix(func.name())),
                         if term.is_symbolic() {
-                            COLOR_PAYLOADS
+                            remove_fn_prefix(&remove_prefix(func.name()))
                         } else {
-                            if func.arity() == 0 {
-                                COLOR_LEAVES
-                            } else {
-                                COLOR
-                            }
-                        },
-                        if func.arity() == 0 {
-                            SHAPE_LEAVES
-                        } else {
-                            SHAPE
-                        }
+                            format!("BS//{}", remove_fn_prefix(&remove_prefix(func.name())))},
+                        color,
+                        shape,
                     ),
                     FONT
                 ));
