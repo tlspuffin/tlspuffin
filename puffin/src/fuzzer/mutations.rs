@@ -68,58 +68,7 @@ where
     PB: ProtocolBehavior,
     <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
 {
-    #[cfg(feature = "no-repeat")]
-    let l = tuple_list!(
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    #[cfg(feature = "no-skip")]
-    let l = tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    #[cfg(feature = "no-replaceR")]
-    let l = tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    #[cfg(feature = "no-replaceM")]
-    let l = tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    #[cfg(feature = "no-remove")]
-    let l = tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints));
-    #[cfg(feature = "no-swap")]
-    let l = tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-    );
-    
-    #[cfg(not(any(feature = "no-repeat", feature = "no-skip", feature = "no-replaceR", feature = "no-replaceM", feature = "no-remove", feature = "no-gen", feature = "no-swap")))]
-    let l = tuple_list!(
+    tuple_list!(
         RepeatMutator::new(max_trace_length),
         SkipMutator::new(min_trace_length),
         ReplaceReuseMutator::new(constraints),
