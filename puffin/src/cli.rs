@@ -26,6 +26,8 @@ use crate::{
     put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
+use crate::agent::AgentName;
+use crate::put::{PutDescriptor, PutName};
 
 fn create_app() -> Command<'static> {
     Command::new(crate_name!())
@@ -60,7 +62,15 @@ fn create_app() -> Command<'static> {
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
-                .arg(arg!(<output> "The file to write serialized data to"))
+                .arg(arg!(<output> "The file to write serialized data to")),
+            Command::new("tcp")
+                .about("Executes a trace against a TCP client/server")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(-c --cwd [p] "The current working directory for the binary"))
+                .arg(arg!(-b --binary [p] "The program to start"))
+                .arg(arg!(-a --args [a] "The args of the program"))
+                .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
+                .arg(arg!(-p --port [n] "The client port to connect to, or the server port"))
         ])
 }
 
@@ -148,6 +158,52 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
+    } else if let Some(matches) = matches.subcommand_matches("tcp") {
+        let input: &str = matches.value_of("input").unwrap();
+        let prog: Option<&str> = matches.value_of("binary");
+        let args: Option<&str> = matches.value_of("args");
+        let cwd: Option<&str> = matches.value_of("cwd");
+        let default_host = "127.0.0.1".to_string();
+        let host: &str = matches.value_of("host").unwrap_or(&default_host);
+        let port = matches
+            .value_of("port")
+            .unwrap()
+            .parse::<u16>()
+            .unwrap_or(44338u16)
+            .to_string();
+
+        let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
+        let ctx = TraceContext::new(put_registry, default_put_options().clone());
+
+        let mut options = vec![("port", port.as_str()), ("host", &host)];
+
+        if let Some(prog) = prog {
+            options.push(("prog", &prog))
+        }
+
+        if let Some(args) = args {
+            options.push(("args", &args))
+        }
+
+        if let Some(cwd) = cwd {
+            options.push(("cwd", &cwd))
+        }
+
+        println!("Options: {:?}", &options);
+        let put = PutDescriptor {
+            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
+            options: PutOptions::from_slice_vec(options),
+        };
+        let server = trace.descriptors[0].name;
+        let mut context = trace
+            .execute_with_non_default_puts(&put_registry, &[(server, put)])
+            .unwrap();
+
+        let server = AgentName::first();
+        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        info!("{}", shutdown);
+
+        return ExitCode::SUCCESS;
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let title = matches.value_of("title").unwrap();
