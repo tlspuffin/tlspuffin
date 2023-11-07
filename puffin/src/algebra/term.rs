@@ -294,7 +294,7 @@ impl<M: Matcher> TermEval<M> {
                 }
             },
             Term::Application(func, args) => {
-                debug!("eval_until_opaque : Application from path={path:?}");
+                debug!("eval_until_opaque : Application from path={path:?}");  //term = {}", self);
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 let mut all_p = vec![];
                 for (i, ti) in args.iter().enumerate() {
@@ -305,7 +305,7 @@ impl<M: Matcher> TermEval<M> {
                         let typei = func.shape().argument_types[i];
                         let di = PB::try_read_bytes(bi, typei.into())
                             .with_context(||
-                                format!("Failed for typeid: {}, typeid: {:?} on term (arg: {i}:\n {}",
+                                format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}:\n {}",
                                         typei, TypeId::from(typei), &self))
                             .map_err(|e| {
                                 error!("[eval_until_opaque] Err: {}", e);

@@ -53,14 +53,13 @@ mod tests {
 
 
     // UNI TESTS for eval_until_opaque and replace_payloads
-    // Do not test terms with opaque sub-terms though!
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test_log::test]
     #[test]
     fn test_replace_bitstring_multiple() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
         ctx.set_deterministic(true);
         let mut trace = seed_client_attacker_full.build_trace();
+        trace.execute(&mut ctx);
         let mut fn_hello_b = vec![
             22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
@@ -86,6 +85,42 @@ mod tests {
             98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91, 73, 108, 166,
             52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4,
         ];
+
+        if let Input(input2) = &mut trace.steps[2].action {
+            // Testing if adding a payload under TLS 1.3 encryption works!
+            // It requires a deterministic PUT! (since the encryption is otherwise randomized and
+            // the evaluation changes).
+            let mut ch_term = &mut input2.recipe;
+            let e = ch_term.evaluate(&ctx).expect("OUPS1");
+            // error!("Recipe 2: {ch_term}\n eval: {e:?}"); //      eval: []
+            let path = vec![6];
+            error!("Term: {ch_term}."); //      eval: []
+            let mut sub = find_term_by_term_path_mut(&mut ch_term, &mut path.clone()).expect("OUPS2");
+            error!("Subterm: {sub}"); //      eval: []
+            let e_sub = sub.evaluate(&ctx).expect("OUPS3");
+            let e_sub_ = e_sub.clone();
+            let mut e2 = e_sub.clone(); e2[2] = 4; //e2.push(44); e2.push(44);
+            let p0 = Payloads{
+                payload_0: e_sub.into(),
+                payload: e2.into(),
+            };
+            sub.payloads = Some(p0.clone());
+            let e_sub = sub.evaluate(&ctx).expect("OUPS4");
+            let e_ = ch_term.evaluate(&ctx).expect("OUPS5");
+            // error!("Subterm eval before: {e_sub_:?}"); //      eval: []
+            // error!("Subterm eval after: {e_sub:?}"); //      eval: []
+            // error!("Recipe 2 with payloads: xx\n eval before : {e:?}\n eval after : {e_:?}"); //      eval: []
+            // warn!("Eval0: {:?}", e);
+
+            error!("Assert eq..");
+            assert_eq!(e_,
+                       [23, 3, 3, 0, 53, 95, 173, 194, 83, 254, 59, 65, 207, 138, 104, 198, 5, 30, 206, 101, 59, 125, 74, 123, 166, 250, 13, 81, 212, 80, 123, 116, 110, 39, 155, 212, 38, 175, 180, 58, 251, 43, 177, 73, 62, 67, 27, 152, 23, 191, 190, 139, 111, 116, 174, 162, 185, 90]
+            );
+
+            error!("Execute trace..");
+            trace.execute(&mut ctx);
+
+        }
 
         if let Input(input) = &mut trace.steps[0].action {
             let mut ch_term = &mut input.recipe;

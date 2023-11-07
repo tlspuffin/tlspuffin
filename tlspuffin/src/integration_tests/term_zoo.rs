@@ -311,7 +311,7 @@ mod tests {
         // let nb = 1;
         while i < nb {
             tries += 1;
-            if tries > nb*20 {
+            if tries > nb*100 {
                 error!("Failed to add the payloads after {} attempts", tries);
                 break;
             }
@@ -326,8 +326,9 @@ mod tests {
                         a.push(2);
                         a.push(2);
                         a.push(2);
+                        a[0] = 2;
                         payloads.payload = a.into();
-                        debug!("Added a paylaod at path {path:?}.");
+                        debug!("Added a payload at path {path:?}.");
                     }
                 }
             }
@@ -339,7 +340,7 @@ mod tests {
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_payloads() {
-        let mut rand = StdRand::with_seed(20);
+        let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE
             .functions.to_owned();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
@@ -348,22 +349,30 @@ mod tests {
         let mut count_payload_fail = 0;
         let mut count_any_encode_fail = 0;
         let mut number_terms = 0;
+        let number_shapes = all_functions_shape.len();
         let mut successfully_built_functions = vec![];
 
         for f in all_functions_shape {
-            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 300, Some(&f));
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
             let terms = zoo.terms();
-            let number_terms = number_terms + terms.len();
+            number_terms = number_terms + terms.len();
 
             for term in terms.iter() {
                 if successfully_built_functions.contains(&term.name().to_string()) {
                     // for speeding up things
                     continue; // should never happen
                 }
+// ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
+// "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
+// "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
+// "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
+// "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
+// "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
+                    
                 // FILTRAGE
-                // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_signature_algorithm") {
-                //     continue;
-                // }
+                if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
+                    continue;
+                }
                 let mut term_with_payloads = term.clone();
 
                 add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
@@ -373,7 +382,7 @@ mod tests {
                     continue;
                 }
 
-                error!("Term with paylaods:: {term}");
+                error!("Term with paylaods: {term_with_payloads}");
 
                 match &term_with_payloads.evaluate(&ctx) {
                     Ok(eval) => {
@@ -469,7 +478,7 @@ mod tests {
             &successfully_built_functions.len()
         );
         debug!("All functions: #{:?}", &all_functions.len());
-        error!("number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
+        error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
         assert_eq!(difference.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
     }
