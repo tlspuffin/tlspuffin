@@ -51,7 +51,7 @@ fn fn_debug(
 
 #[macro_export]
 macro_rules! nyi_fn {
-    () => {};
+    ($(#[$attr:meta])*) => {};
 }
 
 define_signature!(

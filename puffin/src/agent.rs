@@ -46,6 +46,12 @@ impl fmt::Display for AgentName {
     }
 }
 
+impl Into<u8> for AgentName {
+    fn into(self) -> u8 {
+        return self.0;
+    }
+}
+
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 ///

@@ -7,6 +7,13 @@ edition = "2021"
 [features]
 default = ["sancov_libafl", "introspection"]
 
+cput = [
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+]
+
 openssl-default = [
     "tls12",
     "tls13",
@@ -246,6 +253,8 @@ foreign-types = { version = "0.5.0", optional = true }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+cc = "1.0"
+bindgen = "0.65"
 
 [dev-dependencies]
 test-log = "0.2.10"

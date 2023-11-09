@@ -8,6 +8,7 @@ use crate::protocol::TLSProtocolBehavior;
 pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
 pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
 pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
+pub const C_PUT: PutName = PutName(['C', '_', 'O', 'P', 'E', 'N', 'S', 'S', 'L', '_']);
 
 pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
     factories: &[
@@ -16,6 +17,8 @@ pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
         crate::openssl::new_openssl_factory,
         #[cfg(feature = "wolfssl-binding")]
         crate::wolfssl::new_wolfssl_factory,
+        #[cfg(feature = "cput")]
+        crate::cput_openssl::put::new_cput_openssl_factory,
     ],
     default: DEFAULT_PUT_FACTORY,
 };
@@ -26,8 +29,10 @@ pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
             crate::openssl::new_openssl_factory
         } else if #[cfg(feature = "wolfssl-binding")] {
             crate::wolfssl::new_wolfssl_factory
+        } else if #[cfg(feature = "cput")] {
+            crate::cput_openssl::put::new_cput_openssl_factory
         } else {
-             crate::tcp::new_tcp_factory
+            crate::tcp::new_tcp_factory
         }
     }
 };

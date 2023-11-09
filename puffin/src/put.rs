@@ -94,7 +94,7 @@ pub trait Put<PB: ProtocolBehavior>:
     fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
 
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &str;
+    fn describe_state(&self) -> String;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;

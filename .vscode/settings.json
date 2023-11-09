@@ -4,7 +4,20 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "rust-analyzer.cargo.buildScripts.enable": false,
     "rust-analyzer.procMacro.enable": false,
+    "rust-analyzer.showUnlinkedFileNotification": false,
     "rust-analyzer.cargo.features": [
-        "openssl111j"
+        "cput"
+    ],
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[c]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
+    },
+    "conventionalCommits.scopes": [
+        "cput"
     ]
 }
