@@ -12,6 +12,9 @@ members = [
     "crates/wolfssl-sys",
     "crates/wolfssl-src",
     "crates/libssh-sys",
+    "crates/boringssl-src",
+    "crates/boringssl-sys",
+    "crates/boring"
 ]
 
 exclude = [ "crates/openssl-src-111" ]
