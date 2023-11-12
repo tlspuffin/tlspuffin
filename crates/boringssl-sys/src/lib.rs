@@ -12,12 +12,9 @@
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-/*
-This file is derived from https://github.com/cloudflare/boring/blob/cdb76dcba2cd0f36bc9ba94c1a3b23137a8bbfe5/boring-sys/src/lib.rs
-And is dual licensed under the terms of both the Apache License, Version 2.0 and
-the MIT license without any additional terms or conditions.
-*/
-
+/// This file is derived from https://github.com/cloudflare/boring/blob/cdb76dcba2cd0f36bc9ba94c1a3b23137a8bbfe5/boring-sys/src/lib.rs
+/// And is dual licensed under the terms of both the Apache License, Version 2.0 and
+/// the MIT license without any additional terms or conditions.
 use std::convert::TryInto;
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int, c_uint, c_ulong};

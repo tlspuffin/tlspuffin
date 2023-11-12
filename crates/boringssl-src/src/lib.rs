@@ -53,7 +53,6 @@ fn _patch_boringssl<P: AsRef<Path>>(
 }
 
 fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std::io::Result<()> {
-    //return Ok(());
     std::fs::remove_dir_all(dest)?;
     let status = Command::new("git")
         .arg("clone")
@@ -73,6 +72,8 @@ fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std:
 }
 
 fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> PathBuf {
+    // BoringSSL is written in C and C++, so all flags have to be given with
+    // cflags and cxxflags
     let mut boring_conf = Config::new(&options.source_dir);
     boring_conf
         .define("BUILD_SHARED_LIBS", "OFF")
@@ -136,20 +137,6 @@ pub fn build(options: &BoringSSLOptions) -> std::io::Result<()> {
     clone_boringssl(&options.source_dir, options)?;
 
     let _ = build_boringssl(&options.out_dir, options);
-
-    // let bindings = bindgen::Builder::default()
-    //     .size_t_is_usize(false)
-    //     .header(format!("{}/wrapper.h", options.source_dir.display()))
-    //     .header(format!("{}/wolfssl/internal.h", out_dir.display()))
-    //     .clang_arg(format!("-I{}/include/", out_dir.display()))
-    //     .parse_callbacks(Box::new(ignored_macros))
-    //     .rustfmt_bindings(true)
-    //     .generate()
-    //     .expect("Unable to generate bindings");
-
-    // bindings
-    //     .write_to_file(dst.join("bindings.rs"))
-    //     .expect("Couldn't write bindings!");
 
     Ok(())
 }
