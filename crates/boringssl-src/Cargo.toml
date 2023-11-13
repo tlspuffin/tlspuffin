@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 cmake = "0.1"
+bindgen = "0.69.1"
 
