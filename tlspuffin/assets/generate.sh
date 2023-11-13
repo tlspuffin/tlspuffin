@@ -22,3 +22,5 @@ openssl x509 -in bob.pem -out bob.der -outform DER
 openssl x509 -in eve.pem -out eve.der -outform DER
 openssl x509 -in alice.pem -out alice.der -outform DER
 openssl x509 -in random-ec.pem -out random-ec.der -outform DER
+
+openssl dgst -sha1 -sign eve-key.pem -out eve-signature
