@@ -78,7 +78,7 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
 }
 
 pub fn fn_eve_pkcs1_signature() -> Result<Vec<u8>, FnError> {
-    Ok(Vec::from(include_bytes!("../../assets/eve-signature")))
+    Ok(include_bytes!("../../assets/eve-signature").to_vec())
 }
 pub fn fn_rsa_sign_client(
     transcript: &HandshakeHash,
