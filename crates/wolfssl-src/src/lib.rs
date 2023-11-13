@@ -196,6 +196,7 @@ pub fn build(options: &WolfSSLOptions) -> std::io::Result<()> {
         .header(format!("{}/wrapper.h", options.source_dir.display()))
         .header(format!("{}/wolfssl/internal.h", out_dir.display()))
         .clang_arg(format!("-I{}/include/", out_dir.display()))
+        .clang_arg("-U__STDC_HOSTED__") // The stdatomic.h header is empty without this flag
         .parse_callbacks(Box::new(ignored_macros))
         .rustfmt_bindings(true)
         .generate()
