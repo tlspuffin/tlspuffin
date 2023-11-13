@@ -8,6 +8,7 @@ edition = "2021"
 default = ["sancov_libafl", "introspection"]
 
 cput = [
+    "tlspuffin-cbindings",
     "tls12",
     "tls13",
     "tls12-session-resumption",
@@ -217,6 +218,7 @@ introspection = ["puffin/introspection"]
 [dependencies]
 
 puffin = { path = "../puffin" }
+tlspuffin-cbindings = { path = "../cbindings", optional = true}
 
 log = "0.4.17"
 itertools = "0.10.3"

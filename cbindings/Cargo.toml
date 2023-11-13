@@ -1,0 +1,24 @@
+[package]
+name = "tlspuffin-cbindings"
+version = "0.1.0"
+authors = ["Michael Mera <dev@michaelmera.com>"]
+edition = "2021"
+
+[features]
+default = []
+
+[dependencies]
+puffin = { path = "../puffin" }
+log = "0.4.17"
+
+[build-dependencies]
+cc = "1.0"
+bindgen = "0.65"
+
+[lib]
+name = "tlspuffin_cbindings"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tlspuffin-config"
+path = "src/main.rs"

@@ -6,9 +6,7 @@ use std::rc::Rc;
 
 use libc::{c_char, c_void, size_t};
 
-use crate::static_certs::{
-    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, PEMDER,
-};
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::{
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -29,12 +27,12 @@ use puffin::{
     trace::TraceContext,
 };
 
-use crate::cput_openssl::bindings::{
+use tlspuffin_cbindings::bindings::{
     RESULT_CODE, RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_IO_WOULD_BLOCK,
     RESULT_CODE_RESULT_OK,
 };
 
-use crate::cput_openssl::bindings::{
+use tlspuffin_cbindings::bindings::{
     AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, C_TLSPUFFIN, PEM,
     TLS_VERSION_V1_2, TLS_VERSION_V1_3,
 };
@@ -93,6 +91,15 @@ pub struct CPUTOpenSSL {
     pub config: TlsPutConfig,
     pub deframer: MessageDeframer,
     pub c_agent: *mut c_void,
+}
+
+macro_rules! pem {
+    ( $pemder:expr ) => {
+        PEM {
+            bytes: $pemder.0.as_ptr(),
+            length: $pemder.0.len(),
+        }
+    };
 }
 
 macro_rules! ccall {
@@ -256,15 +263,15 @@ impl CPUTOpenSSL {
         let descriptor = match config.descriptor.typ {
             AgentType::Server => make_descriptor(
                 &config,
-                &ALICE_CERT.into(),
-                &ALICE_PRIVATE_KEY.into(),
-                &[&BOB_CERT.into() as *const _, &EVE_CERT.into() as *const _],
+                &pem!(ALICE_CERT),
+                &pem!(ALICE_PRIVATE_KEY),
+                &[&pem!(BOB_CERT) as *const _, &pem!(EVE_CERT) as *const _],
             ),
             AgentType::Client => make_descriptor(
                 &config,
-                &BOB_CERT.into(),
-                &BOB_PRIVATE_KEY.into(),
-                &[&ALICE_CERT.into() as *const _, &EVE_CERT.into() as *const _],
+                &pem!(BOB_CERT),
+                &pem!(BOB_PRIVATE_KEY),
+                &[&pem!(ALICE_CERT) as *const _, &pem!(EVE_CERT) as *const _],
             ),
         };
 
@@ -358,15 +365,6 @@ impl From<CError> for io::Error {
 impl From<CError> for Error {
     fn from(e: CError) -> Error {
         Error::Put(e.reason)
-    }
-}
-
-impl Into<PEM> for PEMDER {
-    fn into(self) -> PEM {
-        PEM {
-            bytes: self.0.as_ptr(),
-            length: self.0.len(),
-        }
     }
 }
 

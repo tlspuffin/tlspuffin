@@ -2301,9 +2301,20 @@ dependencies = [
  "smallvec",
  "tempfile",
  "test-log",
+ "tlspuffin-cbindings",
  "webpki",
  "wolfssl",
  "wolfssl-sys",
+]
+
+[[package]]
+name = "tlspuffin-cbindings"
+version = "0.1.0"
+dependencies = [
+ "bindgen 0.65.1",
+ "cc",
+ "log",
+ "puffin",
 ]
 
 [[package]]
