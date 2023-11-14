@@ -193,6 +193,7 @@ pub fn build(options: &WolfSSLOptions) -> std::io::Result<()> {
     let ignored_macros = IgnoreMacros(ignored_macros);
 
     let bindings = bindgen::Builder::default()
+        .size_t_is_usize(false)
         .header(format!("{}/wrapper.h", options.source_dir.display()))
         .header(format!("{}/wolfssl/internal.h", out_dir.display()))
         .clang_arg(format!("-I{}/include/", out_dir.display()))
