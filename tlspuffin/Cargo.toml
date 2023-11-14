@@ -173,6 +173,17 @@ wolfssl563 = [
     # FIXME: support "claims", "deterministic"
 ]
 
+wolfssl564 = [
+    "wolfssl-sys/vendored-wolfssl564",
+    "tls12",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction"
+    # FIXME: support "claims", "deterministic"
+]
 
 fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
 fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640"]
