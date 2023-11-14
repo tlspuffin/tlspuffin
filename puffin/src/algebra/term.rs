@@ -364,7 +364,7 @@ impl<M: Matcher> TermEval<M> {
                                                     }
                                                 }
                                                 if brother_index == num_arg {
-                                                    while brother_index < dynamic_args.len() {
+                                                    while brother_index < dynamic_args.len() - 1 {
                                                         brother_index += 1;
                                                         if let Ok(brother_eval_) = PB::any_get_encoding(&dynamic_args[brother_index]) {
                                                             if brother_eval_.len() > 0 {
