@@ -1,23 +1,12 @@
-use std::{
-    any,
-    any::{Any, TypeId},
-    cell::{Ref, RefCell, RefMut},
-    fmt::{Debug, Display},
-    ops::Deref,
-    rc::Rc,
-    slice::Iter,
-    sync::Arc,
-};
+use std::{any::Any, fmt::Debug};
 
-use itertools::Itertools;
-use log::{debug, trace};
-use smallvec::SmallVec;
-
-use crate::{
+use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
+    claims::Claim,
     variable_data::VariableData,
 };
+use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
@@ -156,15 +145,19 @@ pub enum ClaimData {
 }
 
 #[derive(Debug, Clone)]
-pub struct Claim {
+pub struct TlsClaim {
     pub agent_name: AgentName,
     pub origin: AgentType,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
 }
 
-impl Claim {
-    pub fn id(&self) -> TypeShape {
+impl Claim for TlsClaim {
+    fn agent_name(&self) -> AgentName {
+        self.agent_name
+    }
+
+    fn id(&self) -> TypeShape {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         type Type = TypeShape;
@@ -187,133 +180,26 @@ impl Claim {
         }
     }
 
-    pub fn clone_boxed_any(&self) -> Box<dyn Any> {
+    fn inner(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         type Type = TypeShape;
         match &self.data {
             ClaimData::Message(message) => match message {
-                Message::ClientHello(claim) => claim.as_any(),
-                Message::ServerHello(claim) => claim.as_any(),
-                Message::Certificate(claim) => claim.as_any(),
-                Message::CertificateVerify(claim) => claim.as_any(),
-                Message::Finished(claim) => claim.as_any(),
+                Message::ClientHello(claim) => claim.boxed_any(),
+                Message::ServerHello(claim) => claim.boxed_any(),
+                Message::Certificate(claim) => claim.boxed_any(),
+                Message::CertificateVerify(claim) => claim.boxed_any(),
+                Message::Finished(claim) => claim.boxed_any(),
             },
             ClaimData::Transcript(transcript) => match transcript {
-                Transcript::ClientHello(claim) => claim.as_any(),
-                Transcript::PartialClientHello(claim) => claim.as_any(),
-                Transcript::ServerHello(claim) => claim.as_any(),
-                Transcript::ServerFinished(claim) => claim.as_any(),
-                Transcript::ClientFinished(claim) => claim.as_any(),
-                Transcript::Certificate(claim) => claim.as_any(),
+                Transcript::ClientHello(claim) => claim.boxed_any(),
+                Transcript::PartialClientHello(claim) => claim.boxed_any(),
+                Transcript::ServerHello(claim) => claim.boxed_any(),
+                Transcript::ServerFinished(claim) => claim.boxed_any(),
+                Transcript::ClientFinished(claim) => claim.boxed_any(),
+                Transcript::Certificate(claim) => claim.boxed_any(),
             },
         }
-    }
-}
-
-pub trait AsAny: Any {
-    fn as_any(&self) -> Box<dyn any::Any>;
-}
-
-impl<T> AsAny for T
-where
-    T: Any + Clone,
-{
-    fn as_any(&self) -> Box<dyn Any> {
-        Box::new(self.clone())
-    }
-}
-
-pub struct Policy {
-    pub func: fn(claims: &[Claim]) -> Option<&'static str>,
-}
-
-pub trait CheckViolation {
-    fn check_violation(&self, policy: Policy) -> Option<&'static str>;
-}
-
-#[derive(Clone, Debug)]
-pub struct ClaimList {
-    claims: Vec<Claim>,
-}
-
-impl CheckViolation for ClaimList {
-    fn check_violation(&self, policy: Policy) -> Option<&'static str> {
-        (policy.func)(&self.claims)
-    }
-}
-
-impl ClaimList {
-    pub fn iter(&self) -> Iter<'_, Claim> {
-        self.claims.iter()
-    }
-
-    /// finds the last claim matching `type`
-    pub fn find_last_claim_by_type<T: 'static>(&self, agent_name: AgentName) -> Option<&Claim> {
-        self.find_last_claim(agent_name, TypeShape::of::<T>())
-    }
-
-    pub fn find_last_claim(&self, agent_name: AgentName, shape: TypeShape) -> Option<&Claim> {
-        self.claims
-            .iter()
-            .rev()
-            .find(|claim| claim.id() == shape && claim.agent_name == agent_name)
-    }
-
-    pub fn slice(&self) -> &[Claim] {
-        &self.claims
-    }
-}
-
-impl ClaimList {
-    pub fn log(&self) {
-        debug!(
-            "New Claims: {}",
-            &self
-                .claims
-                .iter()
-                .map(|claim| format!("{}", claim.type_name()))
-                .join(", ")
-        );
-        for claim in &self.claims {
-            trace!("{:?}", claim);
-        }
-    }
-}
-
-impl From<Vec<Claim>> for ClaimList {
-    fn from(claims: Vec<Claim>) -> Self {
-        Self { claims }
-    }
-}
-
-impl ClaimList {
-    pub fn new() -> Self {
-        Self { claims: vec![] }
-    }
-
-    pub fn claim_sized(&mut self, claim: Claim) {
-        self.claims.push(claim);
-    }
-}
-
-#[derive(Clone)]
-pub struct GlobalClaimList {
-    claims: Rc<RefCell<ClaimList>>,
-}
-
-impl GlobalClaimList {
-    pub fn new() -> Self {
-        Self {
-            claims: Rc::new(RefCell::new(ClaimList::new())),
-        }
-    }
-
-    pub fn deref_borrow(&self) -> Ref<'_, ClaimList> {
-        self.claims.deref().borrow()
-    }
-
-    pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList> {
-        self.claims.deref().borrow_mut()
     }
 }

@@ -1,25 +1,29 @@
+use puffin::algebra::error::FnError;
 use ring::{digest, hkdf::Prk};
-use rustls::{
-    hash_hs::HandshakeHash,
-    msgs::enums::NamedGroup,
-    tls13::key_schedule::{
-        KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake,
-        KeyScheduleTrafficWithClientFinishedPending,
-    },
-    NoKeyLog, SupportedCipherSuite,
-};
 
-use crate::tls::{error::FnError, key_exchange::tls13_key_exchange};
+use crate::tls::{
+    key_exchange::tls13_key_exchange,
+    rustls::{
+        hash_hs::HandshakeHash,
+        key_log::NoKeyLog,
+        msgs::enums::NamedGroup,
+        suites::SupportedCipherSuite,
+        tls13::key_schedule::{
+            KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart,
+            KeySchedulePreHandshake, KeyScheduleTrafficWithClientFinishedPending,
+        },
+    },
+};
 
 pub fn tls13_handshake_traffic_secret(
     server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
-    server: bool,
+    client: bool,
+    group: &NamedGroup,
 ) -> Result<(&'static SupportedCipherSuite, Prk, KeyScheduleHandshake), FnError> {
     let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://github.com/tlspuffin/tlspuffin/issues/129
-    let group = NamedGroup::secp384r1; // todo https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites() https://github.com/tlspuffin/tlspuffin/issues/129
     let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
@@ -30,7 +34,7 @@ pub fn tls13_handshake_traffic_secret(
 
     Ok((
         suite,
-        if server { client_secret } else { server_secret },
+        if client { client_secret } else { server_secret },
         hs,
     ))
 }
@@ -40,7 +44,8 @@ pub fn tls13_application_traffic_secret(
     server_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
-    server: bool,
+    group: &NamedGroup,
+    client: bool,
 ) -> Result<
     (
         &'static SupportedCipherSuite,
@@ -51,7 +56,7 @@ pub fn tls13_application_traffic_secret(
 > {
     let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
     let (suite, _key, key_schedule) =
-        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, server)?;
+        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, client, group)?;
 
     let (pending, client_secret, server_secret) = key_schedule
         .into_traffic_with_client_finished_pending_raw(
@@ -61,7 +66,7 @@ pub fn tls13_application_traffic_secret(
         );
     Ok((
         suite,
-        if server { client_secret } else { server_secret },
+        if client { client_secret } else { server_secret },
         pending,
     ))
 }
@@ -72,12 +77,14 @@ pub fn tls13_derive_psk(
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let (_, _, pending) = tls13_application_traffic_secret(
         server_hello,
         server_finished,
         server_key_share,
         &None,
+        group,
         true,
     )?;
 
@@ -93,13 +100,13 @@ pub fn tls13_derive_psk(
 
 pub fn dhe_key_schedule(
     suite: &SupportedCipherSuite,
-    group: NamedGroup,
+    group: &NamedGroup,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
 ) -> Result<KeyScheduleHandshakeStart, FnError> {
     let hkdf_algorithm = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
 
     // Key Schedule with or without PSK

@@ -1,18 +1,25 @@
 use std::any::Any;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use libafl::{
-    bolts::rands::{RomuDuoJrRand, StdRand},
-    corpus::InMemoryCorpus,
-    mutators::Mutator,
-    state::StdState,
+use puffin::{
+    algebra::{dynamic_function::make_dynamic, error::FnError, Term},
+    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
+    libafl::{
+        bolts::rands::{RomuDuoJrRand, StdRand},
+        corpus::InMemoryCorpus,
+        mutators::Mutator,
+        state::StdState,
+    },
+    term,
+    trace::Trace,
 };
 use tlspuffin::{
-    algebra::dynamic_function::make_dynamic,
-    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
-    term,
-    tls::{error::FnError, fn_impl::*, seeds::*},
-    trace::Trace,
+    query::TlsQueryMatcher,
+    tls::{
+        fn_impl::*,
+        seeds::*,
+        trace_helper::{TraceExecutor, TraceHelper},
+    },
 };
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
@@ -37,9 +44,14 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.finish()
 }
 
-fn create_state() -> StdState<InMemoryCorpus<Trace>, Trace, RomuDuoJrRand, InMemoryCorpus<Trace>> {
+fn create_state() -> StdState<
+    Trace<TlsQueryMatcher>,
+    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    RomuDuoJrRand,
+    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+> {
     let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace> = InMemoryCorpus::new();
+    let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
@@ -64,7 +76,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello = term! {
+        let client_hello: Term<TlsQueryMatcher> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,
@@ -82,7 +94,7 @@ fn benchmark_trace(c: &mut Criterion) {
                                 (fn_client_extensions_append(
                                     (fn_client_extensions_append(
                                         fn_client_extensions_new,
-                                        fn_secp384r1_support_group_extension
+                                        (fn_support_group_extension(fn_named_group_secp384r1))
                                     )),
                                     fn_signature_algorithm_extension
                                 )),
@@ -112,9 +124,9 @@ fn benchmark_seeds(c: &mut Criterion) {
         })
     });
 
-    group.bench_function("seed_successful12", |b| {
+    group.bench_function("seed_successful12_with_tickets", |b| {
         b.iter(|| {
-            seed_successful12.execute_trace();
+            seed_successful12_with_tickets.execute_trace();
         })
     });
 

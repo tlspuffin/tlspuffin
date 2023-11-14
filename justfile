@@ -4,7 +4,7 @@
 
 set shell := ["bash", "-c"]
 
-export NIGHTLY_TOOLCHAIN := "nightly-2022-04-04-x86_64-unknown-linux-gnu"
+export NIGHTLY_TOOLCHAIN := "nightly-2023-04-18"
 export CARGO_TERM_COLOR := "always"
 export RUST_BACKTRACE := "1"
 
@@ -28,7 +28,7 @@ build PROJECT ARCH FEATURES CARGO_FLAGS="":
   cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
 benchmark:
-  cargo bench -p tlspuffin --features "openssl111"
+  cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111"
 
 install-rustfmt: nightly-toolchain
   rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN
@@ -45,3 +45,10 @@ default-toolchain:
 
 book-serve:
   mdbook serve docs
+
+clear-gh-caches:
+    gh api --paginate -H "Accept: application/vnd.github+json" \
+            /repos/tlspuffin/tlspuffin/actions/caches \
+            | for ID in `jq '.actions_caches[].id'`; \
+              do echo "Deleting $ID"; \
+                 gh api --method DELETE /repos/tlspuffin/tlspuffin/actions/caches/$ID | echo; done

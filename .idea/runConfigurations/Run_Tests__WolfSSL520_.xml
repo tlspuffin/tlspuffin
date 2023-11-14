@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Tests (WolfSSL520)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="test -p tlspuffin --lib --features wolfssl520" />
+  <configuration default="false" name="Run Tests (WolfSSL520)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Tests">
+    <option name="command" value="test -p tlspuffin --features wolfssl520" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
@@ -16,6 +16,7 @@
     <option name="redirectInputPath" value="" />
     <method v="2">
       <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Run Tests (puffin)" run_configuration_type="CargoCommandRunConfiguration" />
     </method>
   </configuration>
 </component>

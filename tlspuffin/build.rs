@@ -1,29 +1,25 @@
 use std::process::Command;
 
-pub fn get_git_ref() -> String {
-    Command::new("git")
-        .args(&["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|git_ref| git_ref[..6].to_string())
-        .unwrap_or_else(|| "unknown".to_string())
-        .trim()
-        .to_string()
-}
-
-pub fn get_git_msg() -> String {
-    Command::new("git")
-        .args(&["log", "-1", "--pretty=%B"])
-        .output()
-        .ok()
-        .and_then(|output| String::from_utf8(output.stdout).ok())
-        .unwrap_or_else(|| "unknown".to_string())
-        .trim()
-        .to_string()
-}
-
 fn main() {
-    println!("cargo:rustc-env=GIT_REF={}", get_git_ref());
-    println!("cargo:rustc-env=GIT_MSG={}", get_git_msg());
+    if cfg!(feature = "asan") {
+        let output = Command::new("clang")
+            .args(["--print-resource-dir"])
+            .output()
+            .expect("failed to clang to get resource dir");
+        let clang: &str = std::str::from_utf8(&output.stdout).unwrap().trim();
+
+        println!("cargo:rustc-link-arg=-Wl,-rpath={}/lib/linux/", clang);
+        println!("cargo:rustc-link-arg=-fsanitize=address");
+        println!("cargo:rustc-link-arg=-shared-libasan");
+    }
+
+    if cfg!(feature = "gcov_analysis") {
+        println!("cargo:rustc-link-arg=-ftest-coverage");
+        println!("cargo:rustc-link-arg=-fprofile-arcs");
+    }
+
+    if cfg!(feature = "llvm_cov_analysis") {
+        println!("cargo:rustc-link-arg=-fprofile-instr-generate");
+        println!("cargo:rustc-link-arg=-fcoverage-mapping");
+    }
 }

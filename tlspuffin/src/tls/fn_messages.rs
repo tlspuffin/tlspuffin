@@ -8,26 +8,23 @@
 //! Return type is `Message`
 //!
 
-use rustls::{
-    internal::msgs::{
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        handshake::*,
-        heartbeat::HeartbeatPayload,
-        message::{Message, MessagePayload},
-    },
-    msgs::{
-        alert::AlertMessagePayload,
-        base::{PayloadU16, PayloadU24, PayloadU8},
-        enums::*,
-        handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension},
-        message::OpaqueMessage,
-    },
-    CipherSuite, ProtocolVersion, SignatureScheme,
-};
-use HandshakePayload::EncryptedExtensions;
+use puffin::algebra::error::FnError;
 
-use crate::{nyi_fn, tls::error::FnError};
+use crate::{
+    nyi_fn,
+    tls::rustls::{
+        key,
+        msgs::{
+            alert::AlertMessagePayload,
+            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+            ccs::ChangeCipherSpecPayload,
+            enums::*,
+            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+            heartbeat::HeartbeatPayload,
+            message::{Message, MessagePayload, OpaqueMessage},
+        },
+    },
+};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())
@@ -191,7 +188,7 @@ pub fn fn_server_hello(
         }),
     })
 }
-/// hello_verify_request_RESERVED => 0x03,
+// hello_verify_request_RESERVED => 0x03,
 nyi_fn!();
 /// NewSessionTicket => 0x04,
 pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
@@ -224,12 +221,12 @@ pub fn fn_new_session_ticket13(
                 age_add: 12,
                 nonce: PayloadU8::new(nonce.clone()),
                 ticket: PayloadU16::new(ticket.clone()),
-                exts: extensions.clone(),
+                exts: NewSessionTicketExtensions(extensions.clone()),
             }),
         }),
     })
 }
-/// EndOfEarlyData => 0x05,
+// EndOfEarlyData => 0x05,
 nyi_fn!();
 /// HelloRetryRequest => 0x06,
 pub fn fn_hello_retry_request(
@@ -259,21 +256,23 @@ pub fn fn_encrypted_extensions(
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::EncryptedExtensions,
-            payload: EncryptedExtensions(server_extensions.clone()),
+            payload: HandshakePayload::EncryptedExtensions(EncryptedExtensions(
+                server_extensions.clone(),
+            )),
         }),
     })
 }
-/// RequestConnectionId => 0x09,
+// RequestConnectionId => 0x09,
 nyi_fn!();
-/// NewConnectionId => 0x0a,
+// NewConnectionId => 0x0a,
 nyi_fn!();
 /// Certificate => 0x0b,
-pub fn fn_certificate(certs: &CertificatePayload) -> Result<Message, FnError> {
+pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Certificate,
-            payload: HandshakePayload::Certificate(certs.clone()),
+            payload: HandshakePayload::Certificate(CertificatePayload(certs.clone())),
         }),
     })
 }
@@ -316,9 +315,11 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequest(CertificateRequestPayload {
-                certtypes: vec![ClientCertificateType::RSASign],
-                sigschemes: vec![SignatureScheme::ED25519],
-                canames: vec![PayloadU16::new("some ca name?".as_bytes().to_vec())],
+                certtypes: ClientCertificateTypes(vec![ClientCertificateType::RSASign]),
+                sigschemes: SupportedSignatureSchemes(vec![SignatureScheme::ED25519]),
+                canames: VecU16OfPayloadU16(vec![PayloadU16::new(
+                    "some ca name?".as_bytes().to_vec(),
+                )]),
             }),
         }),
     })
@@ -336,7 +337,7 @@ pub fn fn_certificate_request13(
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequestTLS13(CertificateRequestPayloadTLS13 {
                 context: PayloadU8::new(context.clone()),
-                extensions: extensions.clone(),
+                extensions: CertReqExtensions(extensions.clone()),
             }),
         }),
     })
@@ -363,19 +364,19 @@ pub fn fn_certificate_verify(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
-                scheme: scheme.clone(),
+                scheme: *scheme,
                 sig: PayloadU16::new(signature.clone()),
             }),
         }),
     })
 }
 /// ClientKeyExchange => 0x10,
-pub fn fn_client_key_exchange(data: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_client_key_exchange(encoded_pubkey_data: &Vec<u8>) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::ClientKeyExchange,
-            payload: HandshakePayload::ClientKeyExchange(Payload::new(data.clone())),
+            payload: HandshakePayload::ClientKeyExchange(Payload::new(encoded_pubkey_data.clone())),
         }),
     })
 }
@@ -389,7 +390,7 @@ pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, FnError> {
         }),
     })
 }
-/// CertificateURL => 0x15,
+// CertificateURL => 0x15,
 nyi_fn!();
 /// CertificateStatus => 0x16,
 pub fn fn_certificate_status(ocsp_response: &Vec<u8>) -> Result<Message, FnError> {
@@ -422,9 +423,9 @@ pub fn fn_key_update_not_requested() -> Result<Message, FnError> {
         }),
     })
 }
-/// compressed_certificate => 0x019,
+// compressed_certificate => 0x019,
 nyi_fn!();
-/// ekt_key => 0x01A,
+// ekt_key => 0x01A,
 nyi_fn!();
 /// MessageHash => 0xfe
 pub fn fn_message_hash(hash: &Vec<u8>) -> Result<Message, FnError> {

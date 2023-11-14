@@ -6,17 +6,22 @@
   <strong>TLS Protocol Under FuzzINg</strong>
 </div>
 <div align="center">
-  A symbolic-model-guided fuzzer for TLS
+  A Dolev-Yao guided fuzzer for TLS
 </div>
 
 <div align="center">
   <img src="https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square" 
       alt="Stability" />
   <a href="https://github.com/tlspuffin/tlspuffin/actions/workflows/rust.yml">    
-    <img src="https://img.shields.io/github/workflow/status/tlspuffin/tlspuffin/Rust?style=flat-square"
+    <img src="https://github.com/tlspuffin/tlspuffin/actions/workflows/on_main_push.yml/badge.svg"
         alt="Build status" />
   </a>
 </div>
+
+<div align="center">
+  Developed at LORIA, Inria, France and Trail of Bits, USA
+</div>
+
 
 <div align="center">
   <h3>
@@ -78,7 +83,10 @@ coverage, expressiveness of executable protocol traces and stable and extensible
 * Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
 * Fuzzer which is inspired by the [Dolev-Yao symbolic model](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
 * Domain specific mutators for Protocol Fuzzing!
-* Supported Libraries Under Test: OpenSSL 1.0.1f, 1.0.2u, 1.1.1k and LibreSSL 3.3.3
+* Supported Libraries Under Test: 
+  * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
+  * LibreSSL 3.3.3
+  * wolfSSL 5.1.0 - 5.4.0
 * Reproducible for each LUT. We use Git submodules to link to forks this are in the  [tlspuffin organisation](https://github.com/tlspuffin)
 * 70% Test Coverage
 * Writtin in Rust!
@@ -106,7 +114,7 @@ For the python `tlspuffin-analyzer`:
 Build the project:
 
 ```bash
-git clone git@github.com/tlspuffin/tlspuffin
+git clone https://github.com/tlspuffin/tlspuffin.git
 git submodule update --init --recursive
 cargo build
 ```

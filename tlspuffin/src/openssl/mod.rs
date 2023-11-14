@@ -7,34 +7,46 @@ use std::{
     rc::Rc,
 };
 
+use log::{info, warn};
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+    ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream, SslVerifyMode},
     stack::Stack,
     x509::{
         store::{X509Store, X509StoreBuilder},
         X509Ref, X509StoreContext, X509,
     },
 };
-use rustls::msgs::message::OpaqueMessage;
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    error::Error,
+    protocol::MessageResult,
+    put::{Put, PutDescriptor, PutName},
+    put_registry::Factory,
+    stream::{MemoryStream, Stream},
+    trace::TraceContext,
+};
 use smallvec::SmallVec;
 
 use crate::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     claims::{
-        Claim, ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished,
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
         TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
-    error::Error,
-    io::{MemoryStream, MessageResult, Stream},
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    put::{Put, PutConfig, PutName},
-    put_registry::{Factory, OPENSSL111_PUT},
+    protocol::TLSProtocolBehavior,
+    put::TlsPutConfig,
+    put_registry::OPENSSL111_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
+    tls::rustls::msgs::{
+        deframer::MessageDeframer,
+        message::{Message, OpaqueMessage},
+    },
 };
 
+mod bindings;
 #[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
@@ -46,42 +58,58 @@ mod util;
    git checkout OpenSSL_1_1_1j
 */
 
-pub fn new_openssl_factory() -> Box<dyn Factory> {
+pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct OpenSSLFactory;
-    impl Factory for OpenSSLFactory {
+    impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
-            agent: &AgentDescriptor,
-            config: PutConfig,
-        ) -> Result<Box<dyn Put>, Error> {
-            Ok(Box::new(OpenSSL::new(agent, config)?))
+            context: &TraceContext<TLSProtocolBehavior>,
+            agent_descriptor: &AgentDescriptor,
+        ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
+            let put_descriptor = context.put_descriptor(agent_descriptor);
+
+            let options = &put_descriptor.options;
+
+            let use_clear = options
+                .get_option("use_clear")
+                .map(|value| value.parse().unwrap_or(false))
+                .unwrap_or(false);
+
+            // FIXME: Add non-clear method like in wolfssl
+            if !use_clear {
+                info!("OpenSSL put does not support clearing mode")
+            }
+
+            let config = TlsPutConfig {
+                descriptor: agent_descriptor.clone(),
+                claims: context.claims().clone(),
+                authenticate_peer: agent_descriptor.typ == AgentType::Client
+                    && agent_descriptor.server_authentication
+                    || agent_descriptor.typ == AgentType::Server
+                        && agent_descriptor.client_authentication,
+                extract_deferred: Rc::new(RefCell::new(None)),
+                use_clear,
+            };
+            Ok(Box::new(OpenSSL::new(config).map_err(|err| {
+                Error::Put(format!("Failed to create client/server: {}", err))
+            })?))
         }
 
-        fn put_name(&self) -> PutName {
+        fn name(&self) -> PutName {
             OPENSSL111_PUT
         }
 
-        fn put_version(&self) -> &'static str {
+        fn version(&self) -> String {
             OpenSSL::version()
-        }
-
-        fn make_deterministic(&self) {
-            OpenSSL::make_deterministic()
         }
     }
 
     Box::new(OpenSSLFactory)
 }
 
-impl From<ErrorStack> for Error {
-    fn from(err: ErrorStack) -> Self {
-        Error::OpenSSL(err.to_string())
-    }
-}
-
 pub struct OpenSSL {
-    stream: SslStream<MemoryStream>,
-    config: PutConfig,
+    stream: SslStream<MemoryStream<MessageDeframer>>,
+    config: TlsPutConfig,
 }
 
 impl Drop for OpenSSL {
@@ -91,13 +119,21 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream for OpenSSL {
+impl Stream<Message, OpaqueMessage> for OpenSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        self.stream.get_mut().add_to_inbound(result)
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+            self.stream.get_mut(),
+            result,
+        )
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult>, Error> {
-        self.stream.get_mut().take_message_from_outbound()
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+        let memory_stream = self.stream.get_mut();
+        //memory_stream.take_message_from_outbound()
+
+        MemoryStream::take_message_from_outbound(memory_stream)
     }
 }
 
@@ -198,23 +234,7 @@ fn to_claim_data(protocol_version: TLSVersion, claim: security_claims::Claim) ->
     }
 }
 
-impl Put for OpenSSL {
-    fn new(agent: &AgentDescriptor, config: PutConfig) -> Result<OpenSSL, Error> {
-        let ssl = match config.typ {
-            AgentType::Server => Self::create_server(agent)?,
-            AgentType::Client => Self::create_client(agent)?,
-        };
-
-        let stream = SslStream::new(ssl, MemoryStream::new())?;
-
-        let mut openssl = OpenSSL { config, stream };
-
-        #[cfg(feature = "claims")]
-        openssl.register_claimer(agent.name);
-
-        Ok(openssl)
-    }
-
+impl Put<TLSProtocolBehavior> for OpenSSL {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
@@ -230,28 +250,29 @@ impl Put for OpenSSL {
     }
 
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.stream.clear();
+        bindings::clear(self.stream.ssl()); // FIXME: Add non-clear method like in wolfssl
+
         Ok(())
     }
 
-    fn config(&self) -> &PutConfig {
-        &self.config
+    fn descriptor(&self) -> &AgentDescriptor {
+        &self.config.descriptor
     }
 
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.tls_version;
-            let origin = self.config.typ;
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
                     if let Some(data) = to_claim_data(protocol_version, claim) {
-                        claims.deref_borrow_mut().claim_sized(Claim {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
                             protocol_version,
@@ -266,7 +287,7 @@ impl Put for OpenSSL {
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         unsafe {
-            use foreign_types_shared::ForeignTypeRef;
+            use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
@@ -281,7 +302,7 @@ impl Put for OpenSSL {
         Ok(())
     }
 
-    fn describe_state(&self) -> &'static str {
+    fn describe_state(&self) -> &str {
         // Very useful for nonblocking according to docs:
         // https://www.openssl.org/docs/manmaster/man3/SSL_state_string.html
         // When using nonblocking sockets, the function call performing the handshake may return
@@ -295,19 +316,50 @@ impl Put for OpenSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn version() -> &'static str {
-        openssl::version::version()
+    fn set_deterministic(&mut self) -> Result<(), Error> {
+        #[cfg(feature = "deterministic")]
+        {
+            deterministic::set_openssl_deterministic();
+            Ok(())
+        }
+        #[cfg(not(feature = "deterministic"))]
+        {
+            Err(Error::Agent(
+                "Unable to make OpenSSL deterministic!".to_string(),
+            ))
+        }
     }
 
-    fn make_deterministic() {
-        #[cfg(all(feature = "deterministic", feature = "openssl111"))]
-        deterministic::set_openssl_deterministic();
-        #[cfg(not(feature = "openssl111"))]
-        log::warn!("Unable to make PUT determinisitic!");
+    fn shutdown(&mut self) -> String {
+        panic!("Unsupported with OpenSSL PUT")
+    }
+
+    fn version() -> String {
+        openssl::version::version().to_string()
     }
 }
 
 impl OpenSSL {
+    fn new(config: TlsPutConfig) -> Result<OpenSSL, ErrorStack> {
+        let agent_descriptor = &config.descriptor;
+        let mut ssl = match agent_descriptor.typ {
+            AgentType::Server => Self::create_server(agent_descriptor)?,
+            AgentType::Client => Self::create_client(agent_descriptor)?,
+        };
+
+        let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
+
+        #[cfg(feature = "claims")]
+        let agent_name = agent_descriptor.name;
+
+        let mut openssl = OpenSSL { config, stream };
+
+        #[cfg(feature = "claims")]
+        openssl.register_claimer(agent_name);
+
+        Ok(openssl)
+    }
+
     fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
@@ -321,33 +373,27 @@ impl OpenSSL {
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
 
-            /*let mut chain = Stack::new().unwrap();
-            let mut context = X509StoreContext::new().unwrap();
-            assert!(context
-                .init(&store, &cert, &chain, |c| c.verify_cert())
-                .unwrap());*/
-
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx_builder.set_cert_store(store);
         } else {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        #[cfg(feature = "openssl111")]
-        ctx_builder.set_options(openssl::ssl::SslOptions::ALLOW_NO_DHE_KEX);
+        #[cfg(feature = "openssl111-binding")]
+        bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
-        #[cfg(any(feature = "openssl101f", feature = "openssl102u"))]
+        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
         {
             ctx_builder.set_tmp_ecdh(
                 &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
             )?;
 
-            ctx_builder.set_tmp_rsa(&openssl::rsa::Rsa::generate(512)?)?;
+            bindings::set_tmp_rsa(&ctx_builder, &openssl::rsa::Rsa::generate(512)?)?;
         }
 
         // Allow EXPORT in server
@@ -365,7 +411,7 @@ impl OpenSSL {
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
         // for now.
         // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111")]
+        #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
@@ -382,18 +428,12 @@ impl OpenSSL {
         }
 
         if descriptor.server_authentication {
-            ctx_builder.set_verify(SslVerifyMode::PEER);
+            ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(ALICE_CERT.0.as_bytes())?)?;
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
             let store = store.build();
-
-            /*let mut chain = Stack::new().unwrap();
-            let mut context = X509StoreContext::new().unwrap();
-            assert!(context
-                .init(&store, &cert, &chain, |c| c.verify_cert())
-                .unwrap());*/
 
             ctx_builder.set_cert_store(store);
         } else {
@@ -427,7 +467,7 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
                 // OpenSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
-                MaybeError::Err(Error::OpenSSL(ssl_error.to_string()))
+                MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {
                 MaybeError::Ok
             }

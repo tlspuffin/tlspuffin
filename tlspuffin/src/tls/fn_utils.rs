@@ -3,28 +3,30 @@
 
 use std::convert::TryFrom;
 
-use rustls::{
-    conn::Side,
-    hash_hs::HandshakeHash,
-    internal::msgs::enums::HandshakeType,
-    key,
-    msgs::{
-        base::PayloadU8,
-        codec::{Codec, Reader},
-        handshake::{
-            CertificateEntry, CertificateExtension, HandshakeMessagePayload, HandshakePayload,
-            Random, ServerECDHParams,
-        },
-        message::{Message, MessagePayload, PlainMessage},
-    },
-    tls13::key_schedule::KeyScheduleEarly,
-    Certificate,
+use puffin::{
+    algebra::error::FnError,
+    codec::{Codec, Reader},
 };
 
 use crate::tls::{
-    error::FnError,
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
+    rustls::{
+        conn::Side,
+        hash_hs::HandshakeHash,
+        key::Certificate,
+        msgs::{
+            base::PayloadU8,
+            enums::{HandshakeType, NamedGroup},
+            handshake::{
+                CertificateEntry, CertificateExtension, CertificateExtensions,
+                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+            },
+            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+        },
+        tls12,
+        tls13::key_schedule::KeyScheduleEarly,
+    },
 };
 
 // ----
@@ -32,7 +34,7 @@ use crate::tls::{
 // ----
 
 pub fn fn_new_transcript() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256;
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
@@ -52,23 +54,29 @@ pub fn fn_decrypt_handshake(
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_handshake_traffic_secret(
         server_hello_transcript,
         server_key_share,
         psk,
-        false, // false, because only clients are decrypting right now, todo support both
+        !*client,
+        group,
     )?;
     let decrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
-    let message = decrypter.decrypt(
-        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-        *sequence,
-    )?;
-    Ok(Message::try_from(message)?)
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+    Message::try_from(message)
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -85,6 +93,8 @@ pub fn fn_decrypt_application(
     server_finished_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
 ) -> Result<Message, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
@@ -92,17 +102,23 @@ pub fn fn_decrypt_application(
         server_finished_transcript,
         server_key_share,
         psk,
-        false, // false, because only clients are decrypting right now, todo support both
+        group,
+        !*client,
     )?;
     let decrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
-    let message = decrypter.decrypt(
-        PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-        *sequence,
-    )?;
-    Ok(Message::try_from(message)?)
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|_err| {
+            FnError::Crypto("Failed to decrypt it fn_decrypt_application".to_string())
+        })?;
+    Message::try_from(message)
+        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
 pub fn fn_encrypt_handshake(
@@ -110,17 +126,20 @@ pub fn fn_encrypt_handshake(
     server_hello: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
-) -> Result<Message, FnError> {
+) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) =
-        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, true)?;
+        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, *client, group)?;
     let encrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
-    let application_data =
-        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(application_data.into_plain_message())?)
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+    Ok(application_data)
 }
 
 pub fn fn_encrypt_application(
@@ -129,22 +148,27 @@ pub fn fn_encrypt_application(
     server_finished_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
     sequence: &u64,
-) -> Result<Message, FnError> {
+) -> Result<OpaqueMessage, FnError> {
     let (suite, key, _) = tls13_application_traffic_secret(
         server_hello_transcript,
         server_finished_transcript,
         server_key_share,
         psk,
+        group,
         true,
     )?;
     let encrypter = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
-    let application_data =
-        encrypter.encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(application_data.into_plain_message())?)
+    let application_data = encrypter
+        .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_application".to_string())
+        })?;
+    Ok(application_data)
 }
 
 pub fn fn_derive_psk(
@@ -153,6 +177,7 @@ pub fn fn_derive_psk(
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
+    group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let psk = tls13_derive_psk(
         server_hello,
@@ -160,6 +185,7 @@ pub fn fn_derive_psk(
         client_finished,
         server_key_share,
         new_ticket_nonce,
+        group,
     )?;
 
     Ok(psk)
@@ -174,10 +200,10 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
     let hkdf_alg = suite
         .tls13()
-        .ok_or_else(|| FnError::Rustls("No tls 1.3 suite".to_owned()))?
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
     let suite_hash = suite.hash_algorithm();
 
@@ -256,41 +282,53 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
 // ----
 
 pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
-    let suite = &rustls::cipher_suite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
+    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256;
 
     let transcript = HandshakeHash::new(suite.hash_algorithm());
     Ok(transcript)
 }
 
-pub fn fn_decode_ecdh_params(data: &Vec<u8>) -> Result<ServerECDHParams, FnError> {
+pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
-    ServerECDHParams::read(&mut rd)
-        .ok_or_else(|| FnError::Unknown("Failed to create ServerECDHParams".to_string()))
+    let params = ServerECDHParams::read(&mut rd)
+        .ok_or_else(|| FnError::Unknown("Failed to parse ecdh public key".to_string()))?;
+    Ok(params.public.0)
 }
 
-pub fn fn_new_pubkey12() -> Result<Vec<u8>, FnError> {
-    let kx = tls12_key_exchange()?;
+pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
+    let kx = tls12_key_exchange(group)?;
+    Ok(Vec::from(kx.pubkey.as_ref()))
+}
 
+pub fn fn_encode_ec_pubkey12(pubkey: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut buf = Vec::new();
-    let ecpoint = PayloadU8::new(Vec::from(kx.pubkey.as_ref()));
+    let ecpoint = PayloadU8::new(pubkey.clone());
     ecpoint.encode(&mut buf);
+
     Ok(buf)
 }
 
 pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
-    server_ecdh_params: &ServerECDHParams,
+    server_ecdh_pubkey: &Vec<u8>,
+    group: &NamedGroup,
+    client: &bool,
     sequence: &u64,
-) -> Result<Message, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_params)?;
+) -> Result<OpaqueMessage, FnError> {
+    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
 
-    let (_decrypter, encrypter) = secrets.make_cipher_pair(Side::Client);
-    let encrypted = encrypter.encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)?;
-    Ok(Message::try_from(encrypted.into_plain_message())?)
+    let (_decrypter, encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
+    let encrypted = encrypter
+        .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
+    Ok(encrypted)
 }
 
-pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
+pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     let der_cert = hex::decode(
         "308203473082022fa003020102021406f7fb1d20\
     b39f71b9a222e8f03a0ab0a79ec54d300d060\
@@ -317,13 +355,13 @@ pub fn fn_new_certificate() -> Result<key::Certificate, FnError> {
     })?))
 }
 
-pub fn fn_new_certificates() -> Result<Vec<key::Certificate>, FnError> {
+pub fn fn_new_certificates() -> Result<Vec<Certificate>, FnError> {
     Ok(vec![])
 }
 
 pub fn fn_append_certificate(
-    certs: &Vec<key::Certificate>,
-    cert: &key::Certificate,
+    certs: &Vec<Certificate>,
+    cert: &Certificate,
 ) -> Result<Vec<Certificate>, FnError> {
     let mut new_certs = certs.clone();
     new_certs.push(cert.clone());
@@ -337,14 +375,22 @@ pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
 
 pub fn fn_append_certificate_entry(
     certs: &Vec<CertificateEntry>,
-    cert: &key::Certificate,
+    cert: &Certificate,
     extensions: &Vec<CertificateExtension>,
 ) -> Result<Vec<CertificateEntry>, FnError> {
     let mut new_certs = certs.clone();
     new_certs.push(CertificateEntry {
         cert: cert.clone(),
-        exts: extensions.clone(),
+        exts: CertificateExtensions(extensions.clone()),
     });
 
     Ok(new_certs)
+}
+
+pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::secp384r1)
+}
+
+pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::X25519)
 }
