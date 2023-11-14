@@ -18,6 +18,9 @@ runs:
     - name: Install toolchain
       shell: bash
       run: just default-toolchain
+    - name: Remove dotnet to have more disk space available
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet
     - uses: Swatinem/rust-cache@v2
       with:
         sharedKey: ${{ inputs.key }}
