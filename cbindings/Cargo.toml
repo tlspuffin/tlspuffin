@@ -9,6 +9,7 @@ links="tlspuffin-cbindings"
 default = []
 
 [dependencies]
+libc = { version = "0.2.126" }
 puffin = { path = "../puffin" }
 log = "0.4.17"
 

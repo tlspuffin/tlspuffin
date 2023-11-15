@@ -467,20 +467,3 @@ static AGENT *as_agent(void *ptr)
 {
     return (AGENT *)ptr;
 }
-
-// TODO: `_log` implementation should be linked to tlspuffin
-//
-//     There is no need to reimplement this logging function for every C PUT.
-//     The implementation should be statically linked inside tlspuffin.
-void _log(void (*logger)(const char *), const char *format, ...)
-{
-    char *message = NULL;
-    va_list args;
-
-    va_start(args, format);
-    vasprintf(&message, format, args);
-    va_end(args);
-    logger(message);
-
-    free(message);
-}

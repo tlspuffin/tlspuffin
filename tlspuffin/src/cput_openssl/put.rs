@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::io::{self, ErrorKind, Read};
 use std::rc::Rc;
 
-use libc::{c_char, c_void, size_t};
+use libc::{c_void, size_t};
 
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::{
@@ -28,14 +28,11 @@ use puffin::{
 };
 
 use tlspuffin_cbindings::bindings::{
-    RESULT_CODE, RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_IO_WOULD_BLOCK,
-    RESULT_CODE_RESULT_OK,
+    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, PEM, TLS_VERSION_V1_2,
+    TLS_VERSION_V1_3,
 };
 
-use tlspuffin_cbindings::bindings::{
-    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, C_TLSPUFFIN, PEM,
-    TLS_VERSION_V1_2, TLS_VERSION_V1_3,
-};
+use tlspuffin_cbindings::{to_string, CError};
 
 pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct CPUTOpenSSLFactory;
@@ -291,83 +288,6 @@ impl Drop for CPUTOpenSSL {
     }
 }
 
-#[no_mangle]
-pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
-    error: Some(c_log_error),
-    warn: Some(c_log_warn),
-    info: Some(c_log_info),
-    debug: Some(c_log_debug),
-    trace: Some(c_log_trace),
-    make_result: Some(make_result),
-};
-
-macro_rules! define_extern_c_log {
-    ( $level:ident, $name:ident ) => {
-        unsafe extern "C" fn $name(message: *const c_char) {
-            log::log!(log::Level::$level, "{}", to_string(message));
-        }
-    };
-}
-
-define_extern_c_log!(Error, c_log_error);
-define_extern_c_log!(Warn, c_log_warn);
-define_extern_c_log!(Info, c_log_info);
-define_extern_c_log!(Debug, c_log_debug);
-define_extern_c_log!(Trace, c_log_trace);
-
-#[derive(Debug, Clone)]
-pub struct CError {
-    kind: CErrorKind,
-    reason: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum CErrorKind {
-    IOWouldBlock,
-    Error,
-    Fatal,
-}
-
-unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) -> *mut c_void {
-    let reason = to_string(description);
-
-    let result = Box::new(match code {
-        RESULT_CODE_RESULT_OK => Ok(reason),
-        RESULT_CODE_RESULT_IO_WOULD_BLOCK => Err(CError {
-            kind: CErrorKind::IOWouldBlock,
-            reason,
-        }),
-        RESULT_CODE_RESULT_ERROR_FATAL => Err(CError {
-            kind: CErrorKind::Fatal,
-            reason,
-        }),
-        _ => Err(CError {
-            kind: CErrorKind::Error,
-            reason,
-        }),
-    });
-
-    return Box::into_raw(result) as *mut _;
-}
-
-impl From<CError> for io::Error {
-    fn from(e: CError) -> io::Error {
-        io::Error::new(
-            match e.kind {
-                CErrorKind::IOWouldBlock => io::ErrorKind::WouldBlock,
-                _ => io::ErrorKind::Other,
-            },
-            e.reason,
-        )
-    }
-}
-
-impl From<CError> for Error {
-    fn from(e: CError) -> Error {
-        Error::Put(e.reason)
-    }
-}
-
 fn make_descriptor(
     config: &TlsPutConfig,
     cert: &PEM,
@@ -393,16 +313,6 @@ fn make_descriptor(
         store: store.as_ptr(),
         store_length: store.len() as size_t,
     }
-}
-
-unsafe fn to_string(ptr: *const c_char) -> String {
-    use std::ffi::CStr;
-
-    if ptr.is_null() {
-        return "".to_owned();
-    }
-
-    CStr::from_ptr(ptr).to_string_lossy().as_ref().to_owned()
 }
 
 #[cfg(test)]

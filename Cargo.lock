@@ -2313,6 +2313,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen 0.65.1",
  "cc",
+ "libc",
  "log",
  "puffin",
 ]
