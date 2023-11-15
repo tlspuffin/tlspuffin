@@ -5,7 +5,7 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#include "put.h"
+#include <tlspuffin/put.h>
 
 typedef struct
 {

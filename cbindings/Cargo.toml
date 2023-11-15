@@ -3,6 +3,7 @@ name = "tlspuffin-cbindings"
 version = "0.1.0"
 authors = ["Michael Mera <dev@michaelmera.com>"]
 edition = "2021"
+links="tlspuffin-cbindings"
 
 [features]
 default = []
@@ -18,7 +19,3 @@ bindgen = "0.65"
 [lib]
 name = "tlspuffin_cbindings"
 path = "src/lib.rs"
-
-[[bin]]
-name = "tlspuffin-config"
-path = "src/main.rs"

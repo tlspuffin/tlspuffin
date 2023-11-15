@@ -27,11 +27,11 @@ fn main() {
 
     if cfg!(feature = "cput") {
         let out_dir = env::var("OUT_DIR").unwrap();
-        let cbindings_includes = "../cbindings/src";
+        let cbindings_include = env::var("DEP_TLSPUFFIN_CBINDINGS_INCLUDE").unwrap();
         let cput_source = "src/cput_openssl/put.c";
 
         cc::Build::new()
-            .include(cbindings_includes)
+            .include(cbindings_include)
             .file(cput_source)
             .compile("cput");
 
