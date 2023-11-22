@@ -58,7 +58,7 @@ fn _patch_boringssl<P: AsRef<Path>>(
 }
 
 fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std::io::Result<()> {
-    std::fs::remove_dir_all(dest)?;
+    std::fs::remove_dir_all(dest).unwrap_or(());
     let status = match &options.git_ref {
         GitRef::Branch(branch_name) => Command::new("git")
             .arg("clone")
