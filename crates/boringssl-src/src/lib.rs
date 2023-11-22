@@ -16,9 +16,14 @@ pub struct BoringSSLOptions {
     pub gcov_analysis: bool,
     pub llvm_cov_analysis: bool,
 
-    pub git_ref: String,
+    pub git_ref: GitRef,
     pub out_dir: PathBuf,
     pub source_dir: PathBuf,
+}
+
+pub enum GitRef {
+    Branch(String),
+    Commit(String),
 }
 
 #[derive(Debug)]
@@ -54,15 +59,31 @@ fn _patch_boringssl<P: AsRef<Path>>(
 
 fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
-    let status = Command::new("git")
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("--branch")
-        .arg(&options.git_ref)
-        .arg("https://github.com/google/boringssl.git")
-        .arg(dest.as_ref().to_str().unwrap())
-        .status()?;
+    let status = match &options.git_ref {
+        GitRef::Branch(branch_name) => Command::new("git")
+            .arg("clone")
+            .arg("--depth")
+            .arg("1")
+            .arg("--branch")
+            .arg(&branch_name)
+            .arg("https://github.com/google/boringssl.git")
+            .arg(dest.as_ref().to_str().unwrap())
+            .status()?,
+        GitRef::Commit(commit_id) => {
+            Command::new("git")
+                .arg("clone")
+                .arg("--depth")
+                .arg("1")
+                .arg("https://github.com/google/boringssl.git")
+                .arg(dest.as_ref().to_str().unwrap())
+                .status()?;
+            Command::new("git")
+                .current_dir(dest.as_ref().to_str().unwrap())
+                .arg("checkout")
+                .arg(commit_id)
+                .status()?
+        }
+    };
 
     if !status.success() {
         return Err(io::Error::from(ErrorKind::Other));

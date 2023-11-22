@@ -1,14 +1,15 @@
 use std::{env, path::PathBuf};
 
-use boringssl_src::{build, BoringSSLOptions};
-
-const REF: &str = if cfg!(feature = "vendored-master") {
-    "master"
-} else {
-    "master"
-};
+use boringssl_src::{build, BoringSSLOptions, GitRef};
 
 fn main() {
+    let git_ref: GitRef = if cfg!(feature = "arbitrary-v1") {
+        GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
+    } else if cfg!(feature = "vendored-master") {
+        GitRef::Branch(String::from("master"))
+    } else {
+        GitRef::Branch(String::from("master"))
+    };
     let source_dir =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../boringssl-src/boringssl");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boring");
@@ -18,7 +19,7 @@ fn main() {
         gcov_analysis: cfg!(feature = "gcov_analysis"),
         llvm_cov_analysis: cfg!(feature = "llvm_cov_analysis"),
         deterministic: cfg!(feature = "deterministic"),
-        git_ref: REF.to_string(),
+        git_ref,
         out_dir: out_dir.clone(),
         source_dir: source_dir.clone(),
     })

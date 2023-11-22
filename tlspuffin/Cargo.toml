@@ -178,6 +178,19 @@ boringsslmaster = [
     "deterministic",
 ]
 
+boringsslv1 = [
+    "boringssl-sys/arbitrary-v1",
+    "tls12",
+    "tls13",
+    "boringssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+    "deterministic",
+]
+
+
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive

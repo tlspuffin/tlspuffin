@@ -10,6 +10,7 @@ bindgen = "0.69.1"
 
 [features]
 vendored-master = []
+arbitrary-v1 = []
 
 sancov = []
 asan = []

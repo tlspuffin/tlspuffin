@@ -1,6 +1,6 @@
 use std::{env, path::PathBuf};
 
-use boringssl_src::{build, BoringSSLOptions};
+use boringssl_src::{build, BoringSSLOptions, GitRef};
 
 fn main() {
     // let out_dir = PathBuf::from("out_dir");
@@ -20,7 +20,7 @@ fn main() {
         deterministic: false,
         asan: false,
         sancov: true,
-        git_ref: "master".to_string(),
+        git_ref: GitRef::Branch("master".to_string()),
         out_dir,
         source_dir: PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("boringssl"),
     })
