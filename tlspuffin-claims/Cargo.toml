@@ -10,4 +10,4 @@ hex = "0.4.3"
 itertools = "0.10.3"
 
 [build-dependencies]
-bindgen = "0.60.1"
+bindgen = "0.69.1"
