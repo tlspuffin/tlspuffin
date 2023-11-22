@@ -26,6 +26,7 @@ jobs:
           - openssl102u
           - libressl
           - wolfssl430
+          - wolfssl510
           - wolfssl530
           - wolfssl530_asan
           - wolfssl540
@@ -51,6 +52,9 @@ jobs:
           - name: wolfssl430
             crate: tlspuffin
             features: wolfssl430
+          - name: wolfssl510
+            crate: tlspuffin
+            features: wolfssl510
           - name: wolfssl530
             crate: tlspuffin
             features: wolfssl530
