@@ -144,8 +144,12 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         boring_conf
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
+            .cflag("-Wno-unused-command-line-argument")
+            .cflag(format!("-Wl,-rpath={}/lib/linux/", clang))
             .cxxflag("-fsanitize=address")
             .cxxflag("-shared-libsan")
+            .cxxflag("-Wno-unused-command-line-argument")
+            .cxxflag(format!("-Wl,-rpath={}/lib/linux/", clang))
             .define("OPENSSL_NO_BUF_FREELISTS", "1")
             .define("OPENSSL_NO_ASM", "1");
     }
