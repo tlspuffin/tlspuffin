@@ -2387,6 +2387,8 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
+ "boring",
+ "boringssl-sys",
  "cfg-if",
  "criterion",
  "env_logger 0.9.3",

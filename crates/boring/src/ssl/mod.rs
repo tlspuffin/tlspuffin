@@ -3286,6 +3286,20 @@ impl SslRef {
 
         Ok(())
     }
+
+    /// Configure as an outgoing stream from a client.
+    pub fn set_connect_state(&mut self) {
+        unsafe { ffi::SSL_set_connect_state(self.as_ptr()) }
+    }
+
+    /// Configure as an incoming stream to a server.
+    pub fn set_accept_state(&mut self) {
+        unsafe { ffi::SSL_set_accept_state(self.as_ptr()) }
+    }
+
+    pub fn clear(&mut self) -> i32 {
+        unsafe { ffi::SSL_clear(self.as_ptr()) }
+    }
 }
 
 /// An SSL stream midway through the handshake process.
