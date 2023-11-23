@@ -188,7 +188,7 @@ pub fn fn_server_hello(
         }),
     })
 }
-/// hello_verify_request_RESERVED => 0x03,
+// hello_verify_request_RESERVED => 0x03,
 nyi_fn!();
 /// NewSessionTicket => 0x04,
 pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
@@ -226,7 +226,7 @@ pub fn fn_new_session_ticket13(
         }),
     })
 }
-/// EndOfEarlyData => 0x05,
+// EndOfEarlyData => 0x05,
 nyi_fn!();
 /// HelloRetryRequest => 0x06,
 pub fn fn_hello_retry_request(
@@ -262,9 +262,9 @@ pub fn fn_encrypted_extensions(
         }),
     })
 }
-/// RequestConnectionId => 0x09,
+// RequestConnectionId => 0x09,
 nyi_fn!();
-/// NewConnectionId => 0x0a,
+// NewConnectionId => 0x0a,
 nyi_fn!();
 /// Certificate => 0x0b,
 pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError> {
@@ -390,7 +390,7 @@ pub fn fn_finished(verify_data: &Vec<u8>) -> Result<Message, FnError> {
         }),
     })
 }
-/// CertificateURL => 0x15,
+// CertificateURL => 0x15,
 nyi_fn!();
 /// CertificateStatus => 0x16,
 pub fn fn_certificate_status(ocsp_response: &Vec<u8>) -> Result<Message, FnError> {
@@ -423,9 +423,9 @@ pub fn fn_key_update_not_requested() -> Result<Message, FnError> {
         }),
     })
 }
-/// compressed_certificate => 0x019,
+// compressed_certificate => 0x019,
 nyi_fn!();
-/// ekt_key => 0x01A,
+// ekt_key => 0x01A,
 nyi_fn!();
 /// MessageHash => 0xfe
 pub fn fn_message_hash(hash: &Vec<u8>) -> Result<Message, FnError> {
