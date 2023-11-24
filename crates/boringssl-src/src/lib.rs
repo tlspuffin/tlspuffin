@@ -72,8 +72,6 @@ fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std:
         GitRef::Commit(commit_id) => {
             Command::new("git")
                 .arg("clone")
-                .arg("--depth")
-                .arg("1")
                 .arg("https://github.com/google/boringssl.git")
                 .arg(dest.as_ref().to_str().unwrap())
                 .status()?;
