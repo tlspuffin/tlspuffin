@@ -34,9 +34,9 @@ use tlspuffin_cbindings::bindings::{
 
 use tlspuffin_cbindings::{to_string, CError};
 
-pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct CPUTOpenSSLFactory;
-    impl Factory<TLSProtocolBehavior> for CPUTOpenSSLFactory {
+pub fn new_cput_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
+    struct CPUTFactory;
+    impl Factory<TLSProtocolBehavior> for CPUTFactory {
         fn create(
             &self,
             context: &TraceContext<TLSProtocolBehavior>,
@@ -53,7 +53,7 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
+                info!("C PUT does not support clearing mode")
             }
 
             let config = TlsPutConfig {
@@ -67,7 +67,7 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 use_clear,
             };
 
-            Ok(Box::new(CPUTOpenSSL::new(config).map_err(|err| {
+            Ok(Box::new(CPUTImpl::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
             })?))
         }
@@ -77,14 +77,24 @@ pub fn new_cput_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn version(&self) -> String {
-            CPUTOpenSSL::version()
+            CPUTImpl::version()
         }
     }
 
-    Box::new(CPUTOpenSSLFactory)
+    Box::new(CPUTFactory)
 }
 
-pub struct CPUTOpenSSL {
+pub struct CPUTImpl {
+    // FIXME: CPUTImpl should be named CPUT
+    //
+    //     The name that makes the most sense would be CPUT since this is the
+    //     structure that binds together all the functionalities of a C PUT and is
+    //     generated from the CPUTFactory.
+    //
+    //     The name CPUT is already used for the singleton CPUT exposed from the
+    //     tlspuffin_cbindings crate. Once there is support for several C PUTs
+    //     this global variable will not be necessary anymore and we can reuse
+    //     the name here.
     pub config: TlsPutConfig,
     pub deframer: MessageDeframer,
     pub c_agent: *mut c_void,
@@ -123,7 +133,7 @@ macro_rules! r_ccall {
     };
 }
 
-impl Stream<Message, OpaqueMessage> for CPUTOpenSSL {
+impl Stream<Message, OpaqueMessage> for CPUTImpl {
     fn add_to_inbound(&mut self, message: &OpaqueMessage) {
         let bytes = message.get_encoding();
         let mut written = 0usize;
@@ -211,7 +221,7 @@ impl Read for CReader {
     }
 }
 
-impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
+impl Put<TLSProtocolBehavior> for CPUTImpl {
     fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         r_ccall!(progress, self.c_agent)?;
 
@@ -255,8 +265,8 @@ impl Put<TLSProtocolBehavior> for CPUTOpenSSL {
     }
 }
 
-impl CPUTOpenSSL {
-    fn new(config: TlsPutConfig) -> Result<CPUTOpenSSL, Error> {
+impl CPUTImpl {
+    fn new(config: TlsPutConfig) -> Result<CPUTImpl, Error> {
         let descriptor = match config.descriptor.typ {
             AgentType::Server => make_descriptor(
                 &config,
@@ -274,7 +284,7 @@ impl CPUTOpenSSL {
 
         let c_agent = unsafe { ccall!(create, &descriptor as *const _) };
 
-        Ok(CPUTOpenSSL {
+        Ok(CPUTImpl {
             config,
             c_agent,
             deframer: MessageDeframer::new(),
@@ -282,7 +292,7 @@ impl CPUTOpenSSL {
     }
 }
 
-impl Drop for CPUTOpenSSL {
+impl Drop for CPUTImpl {
     fn drop(&mut self) {
         unsafe { ccall!(destroy, self.c_agent) }
     }
@@ -317,11 +327,11 @@ fn make_descriptor(
 
 #[cfg(test)]
 mod tests {
-    use super::new_cput_openssl_factory;
+    use super::new_cput_factory;
 
     #[test]
-    fn create_cput_openssl_factory() {
-        new_cput_openssl_factory();
+    fn create_cput_factory() {
+        new_cput_factory();
         return;
     }
 }
