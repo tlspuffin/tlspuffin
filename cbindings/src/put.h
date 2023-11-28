@@ -134,6 +134,6 @@ typedef struct
  */
 void _log(void (*logger)(const char *), const char *format, ...);
 
-const C_PUT_TYPE CPUT;
+extern const C_PUT_TYPE CPUT;
 
 extern const C_TLSPUFFIN TLSPUFFIN;

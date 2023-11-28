@@ -1,0 +1,12 @@
+[package]
+name = "cputopenssl"
+version = "0.1.0"
+authors = ["Michael Mera <dev@michaelmera.com>"]
+edition = "2021"
+
+[features]
+default = []
+
+[dependencies]
+cc = "1.0"
+tlspuffin-cbindings = { path = "../../cbindings" }

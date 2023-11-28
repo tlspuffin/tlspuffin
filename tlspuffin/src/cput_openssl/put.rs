@@ -1,7 +1,7 @@
 use log::{error, info};
 use puffin::codec::Codec;
 use std::cell::RefCell;
-use std::io::{self, ErrorKind, Read};
+use std::io::{ErrorKind, Read};
 use std::rc::Rc;
 
 use libc::{c_void, size_t};

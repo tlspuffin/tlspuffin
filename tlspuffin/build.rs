@@ -25,21 +25,6 @@ fn main() {
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }
 
-    if cfg!(feature = "cput") {
-        let out_dir = env::var("OUT_DIR").unwrap();
-        let cbindings_include = env::var("DEP_TLSPUFFIN_CBINDINGS_INCLUDE").unwrap();
-        let cput_source = "src/cput_openssl/put.c";
-
-        cc::Build::new()
-            .include(cbindings_include)
-            .file(cput_source)
-            .compile("cput");
-
-        println!("cargo:rerun-if-changed={}", cput_source);
-        println!("cargo:rustc-link-search=native={}", out_dir);
-        println!("cargo:rustc-link-lib=static=cput");
-        println!("cargo:rustc-link-search=native=openssl_build/openssl");
-        println!("cargo:rustc-link-lib=static=ssl");
-        println!("cargo:rustc-link-lib=static=crypto");
-    }
+    #[cfg(feature = "cputopenssl")]
+    cputopenssl::build();
 }
