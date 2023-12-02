@@ -1,6 +1,7 @@
 /target
 /target-*
 /crashes
+/vendor
 
 experiments/
 experiments*/

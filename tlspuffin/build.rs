@@ -1,5 +1,5 @@
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
@@ -27,35 +27,30 @@ fn main() {
 
     #[cfg(feature = "cputopenssl")]
     {
-        fn openssl_config() -> (PathBuf, PathBuf) {
-            if env::var("OSSL_DIR").is_ok() {
-                let ossl_dir = PathBuf::from(env::var("OSSL_DIR").unwrap());
-                let ossl_lib = ossl_dir.join("");
-                let ossl_inc = ossl_dir.join("include");
+        println!("cargo:rerun-if-env-changed=VENDOR_DIR");
+        println!("cargo:rerun-if-env-changed=OPENSSL_DIR");
+        println!("cargo:rerun-if-env-changed=OPENSSL_VERSION");
 
-                return (ossl_lib, ossl_inc);
+        fn openssl_prefix() -> PathBuf {
+            if env::var("OPENSSL_DIR").is_ok() {
+                return PathBuf::from(env::var("OPENSSL_DIR").unwrap());
             }
 
-            if env::var("OSSL_VERSION").is_ok() {
-                // TODO build OpenSSL from sources
-                //
-                //     If no pre-built OpenSSL is provided through the OSSL_DIR
-                //     env variable then we build it from sources using the
-                //     provided OSSL_VERSION.
-                //
-                //     This variable should contain a valid reference to a git
-                //     branch or tag in the OpenSSL repository.
-                let _ = env::var("OSSL_VERSION").unwrap();
+            if env::var("OPENSSL_VERSION").is_ok() {
+                let version = env::var("OPENSSL_VERSION").unwrap();
+                let vendor_dir = PathBuf::from(
+                    env::var("VENDOR_DIR")
+                        .unwrap_or(concat!(env!("CARGO_MANIFEST_DIR"), "/../vendor").to_string()),
+                );
+
+                return cputopenssl::build_vendor(vendor_dir, &version);
             }
 
-            panic!("native dependency not found: need either OSSL_DIR or OSSL_VERSION environment variable");
+            panic!("native dependency not found: need either OPENSSL_DIR or OPENSSL_VERSION environment variable");
         }
 
-        let (libdir, incdir) = openssl_config();
+        let cbindings_include = PathBuf::from(env::var("DEP_TLSPUFFIN_CBINDINGS_INCLUDE").unwrap());
 
-        cputopenssl::build(
-            libdir.to_string_lossy().into(),
-            incdir.to_string_lossy().into(),
-        );
+        cputopenssl::build(openssl_prefix(), cbindings_include);
     }
 }
