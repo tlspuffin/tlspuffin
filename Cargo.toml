@@ -4,7 +4,6 @@ resolver = "2"
 
 members = [
     "puffin",
-    "cbindings",
     "tlspuffin",
     "sshpuffin",
     "tlspuffin-claims",
@@ -13,7 +12,7 @@ members = [
     "crates/wolfssl-sys",
     "crates/wolfssl-src",
     "crates/libssh-sys",
-    "puts/openssl",
+    "puts",
 ]
 
 exclude = [ "crates/openssl-src-111" ]

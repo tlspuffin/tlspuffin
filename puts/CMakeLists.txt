@@ -14,7 +14,7 @@ if(NOT DEFINED TLSPUFFIN_INCDIR)
   )
 endif()
 
-project(cputopenssl VERSION 0.1)
+project(puts VERSION 0.1)
 
 # NOTE this indirectly add OPENSSL_DIR to PKG_CONFIG_PATH
 #
@@ -49,17 +49,17 @@ if(NOT own_openssl)
       "  got OPENSSL_DIR=${OPENSSL_DIR}")
 endif()
 
-add_library(cputopenssl-interface STATIC src/put.c)
-target_include_directories(cputopenssl-interface PRIVATE ${TLSPUFFIN_INCDIR})
+add_library(puts-interface STATIC src/put_openssl.c)
+target_include_directories(puts-interface PRIVATE ${TLSPUFFIN_INCDIR})
 
 # bundle the PUT interface with the vendor libraries
 set(mri_file ${CMAKE_BINARY_DIR}/bundle-cput.mri)
 set(out_file
-    ${CMAKE_BINARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${CMAKE_PROJECT_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}
+    ${CMAKE_BINARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}puts-libs${CMAKE_STATIC_LIBRARY_SUFFIX}
 )
 
 file(WRITE ${mri_file}.in "CREATE ${out_file}\n")
-file(APPEND ${mri_file}.in "ADDLIB $<TARGET_FILE:cputopenssl-interface>\n")
+file(APPEND ${mri_file}.in "ADDLIB $<TARGET_FILE:puts-interface>\n")
 foreach(dep IN LISTS OPENSSL_LINK_LIBRARIES)
   file(APPEND ${mri_file}.in "ADDLIB ${dep}\n")
 endforeach()
@@ -78,10 +78,10 @@ add_custom_command(
   VERBATIM)
 
 add_custom_target(mkbundle ALL DEPENDS ${out_file})
-add_dependencies(mkbundle cputopenssl-interface)
+add_dependencies(mkbundle puts-interface)
 
-add_library(cputopenssl STATIC IMPORTED)
-set_target_properties(cputopenssl PROPERTIES IMPORTED_LOCATION ${out_file})
-add_dependencies(cputopenssl mkbundle)
+add_library(puts-libs STATIC IMPORTED)
+set_target_properties(puts-libs PROPERTIES IMPORTED_LOCATION ${out_file})
+add_dependencies(puts-libs mkbundle)
 
-install(FILES $<TARGET_FILE:cputopenssl> DESTINATION ".")
+install(FILES $<TARGET_FILE:puts-libs> DESTINATION ".")

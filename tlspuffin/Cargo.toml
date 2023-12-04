@@ -8,8 +8,7 @@ edition = "2021"
 default = ["sancov_libafl", "introspection"]
 
 cput = [
-    "cputopenssl",
-    "tlspuffin-cbindings",
+    "ffi",
     "tls12",
     "tls13",
     "tls12-session-resumption",
@@ -217,9 +216,8 @@ client-authentication-transcript-extraction = []
 introspection = ["puffin/introspection"]
 
 [dependencies]
-
 puffin = { path = "../puffin" }
-tlspuffin-cbindings = { path = "../cbindings", optional = true}
+ffi = { package = "puts-sys", path = "../puts", optional = true }
 
 log = "0.4.17"
 itertools = "0.10.3"
@@ -256,8 +254,6 @@ foreign-types = { version = "0.5.0", optional = true }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
-tlspuffin-cbindings = { path = "../cbindings", optional = true}
-cputopenssl = { path = "../puts/openssl", optional = true}
 cc = "1.0"
 bindgen = "0.65"
 

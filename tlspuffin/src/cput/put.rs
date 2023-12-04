@@ -27,12 +27,10 @@ use puffin::{
     trace::TraceContext,
 };
 
-use tlspuffin_cbindings::bindings::{
-    AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, PEM, TLS_VERSION_V1_2,
-    TLS_VERSION_V1_3,
+use ffi::{
+    to_string, CError, AGENT_DESCRIPTOR, AGENT_TYPE_CLIENT, AGENT_TYPE_SERVER, CPUT, PEM,
+    TLS_VERSION_V1_2, TLS_VERSION_V1_3,
 };
-
-use tlspuffin_cbindings::{to_string, CError};
 
 pub fn new_cput_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct CPUTFactory;

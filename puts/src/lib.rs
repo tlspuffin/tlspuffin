@@ -1,6 +1,15 @@
-pub mod bindings;
+mod bindings {
+    #![allow(non_upper_case_globals)]
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+    #![allow(improper_ctypes)]
+    #![allow(dead_code)]
+    #![allow(clippy::all)]
+    include!(env!("RUST_BINDINGS_FILE"));
+}
 
-use crate::bindings::{C_TLSPUFFIN, RESULT_CODE};
+pub use bindings::*;
+
 use puffin::error::Error;
 use std::io;
 
