@@ -1,7 +1,8 @@
 [package]
 name = "puffin"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [features]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*

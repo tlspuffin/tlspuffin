@@ -17,6 +17,11 @@ members = [
 
 exclude = [ "crates/openssl-src-111" ]
 
+[workspace.package]
+version = "0.1.0"
+authors = ["Maximilian Ammann <max@maxammann.org>", "Michael Mera <dev@michaelmera.com>"]
+edition = "2021"
+
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }
 wolfssl-src = { path = "crates/wolfssl-src" }

@@ -1,9 +1,10 @@
 [package]
-build = "build.rs"
 name = "security-claims"
+build = "build.rs"
 description = "Optional instrumentation for PUTs"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 hex = "0.4.3"
