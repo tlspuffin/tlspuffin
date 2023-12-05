@@ -3,6 +3,7 @@
 
 #include <openssl/decoder.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
 
 #include <tlspuffin/put.h>
@@ -180,9 +181,23 @@ bool openssl_is_successful(void *a)
     return (strstr(openssl_describe_state(agent), "SSL negotiation finished successfully") != NULL);
 }
 
+RAND_METHOD stdlib_rand_meth;
 void openssl_set_deterministic(void *agent)
 {
-    return;
+    // FIXME use of deprecated OpenSSL API
+    //
+    //     The deterministic RNG's registration uses an API deprecated since
+    //     version 3.0 of OpenSSL. Because external builds of OpenSSL can hide
+    //     these functions, the PUT interface creation might fail.
+    //
+    //     To support a wide range of OpenSSL versions, we need to detect API
+    //     support in the provided OpenSSL headers and only fallback to this
+    //     implementation for older versions, providing a more modern
+    //     implementation for 3.0 onwards.
+    //
+    //     - see also: https://www.openssl.org/docs/man3.2/man3/RAND_set_rand_method.html
+
+    RAND_set_rand_method(&stdlib_rand_meth);
 }
 
 const char *openssl_shutdown(void *agent)
@@ -466,4 +481,119 @@ static char *get_error_reason()
 static AGENT *as_agent(void *ptr)
 {
     return (AGENT *)ptr;
+}
+
+// NOTE implements a deterministic RNG for OpenSSL
+//
+//     The deterministic random generator uses stdlib's RNG `srand`, which has
+//     been part of the C standard since C89 and should be available on
+//     virtually all platforms.
+//
+//     - based on: https://stackoverflow.com/a/7510354
+//     - see also: https://maxammann.org/posts/2021/06/openssl-no-random/
+//     - see also: https://www.openssl.org/docs/man3.2/man3/RAND_set_rand_method.html
+//     - see also: https://en.cppreference.com/w/c/numeric/random/srand
+
+static int stdlib_rand_seed(const void *buf, int num);
+static int stdlib_rand_bytes(unsigned char *buf, int num);
+static int stdlib_rand_add(const void *buf, int num, double add_entropy);
+static int stdlib_rand_status();
+static void stdlib_rand_cleanup();
+
+RAND_METHOD stdlib_rand_meth = {stdlib_rand_seed, stdlib_rand_bytes, stdlib_rand_cleanup, stdlib_rand_add, stdlib_rand_bytes, stdlib_rand_status};
+
+static int stdlib_rand_seed(const void *buf, int num)
+{
+    // FIXME confusing behavior: seemingly different seeds have the same effect
+    //
+    //     We seed the stdlib random generator through `srand()` which only
+    //     seeds from a single unsigned int. In the current implementation, when
+    //     a longer seed is provided, the remainder is simply ignored.
+    //
+    //     This implies that if we ever try to seed the PUT in deterministic
+    //     mode, providing seemingly different seeds will likely result in the
+    //     same RNG initialization, which might be confusing. Since we cannot
+    //     change `srand` we cannot improve the collision rate but at least we
+    //     could make sure that seeds that are visually very similar for a human
+    //     user (bit-flip, additional bytes, ...) are less likely to have the
+    //     same effect.
+    //
+    //     A reasonable solution could be to XOR the buffer by portions of size
+    //     `sizeof(unsigned int)` to make use of the entire seed provided.
+
+    if (num < 1)
+    {
+        srand(0);
+
+        // FIXME (question) Should we really signal an error here?
+        //
+        //     A return value of zero from this function signals an error: The
+        //     documentation for this function was not up-to-date for a long
+        //     time and even now it is unclear what the return value should be,
+        //     but from looking at the current code base for OpenSSL, zero
+        //     signals an error.
+        //
+        //     We only care about seeding the RNG in a deterministic manner and
+        //     we can still do it when the seed is empty. In fact, at least some
+        //     RNG providers in OpenSSL seem to work when the size of the
+        //     additional seed data provided by the user is zero.
+        //
+        //     - see also: https://github.com/openssl/openssl/blob/b6dcdbfc94c482f6c15ba725754fc9e827e41851/crypto/rand/md_rand.c#L190
+        return 0;
+    }
+
+    // FIXME possible out-of-bounds memory read
+    //
+    //     If `buf` length is less than `sizeof(unsigned int)` bytes, `srand`
+    //     will read out-of-bounds memory. The previous guard `(num < 1)` does
+    //     not prevent this case.
+    srand(*((unsigned int *)buf));
+    return 1;
+}
+
+static int stdlib_rand_bytes(unsigned char *buf, int num)
+{
+    for (int index = 0; index < num; ++index)
+    {
+        // FIXME dubious modulo computation
+        //
+        //     A C assignment implicitly converts the rhs to the (unqualified)
+        //     lvalue type. When integer narrowing occurs (like in this case),
+        //     this process is not straightforward:
+        //       - for unsigned target types modulo arithmetic applies
+        //       - for signed target types the behavior is
+        //         implementation-defined
+        //
+        //     In the general case, when implementing an RNG, it seems unwise to
+        //     explicitely set most bits to zero by performing a modulo before
+        //     handing the result to the compiler for narrowing. In this
+        //     instance, because the lvalue is of type "unsigned int" the modulo
+        //     is (probably) merely redundant.
+        //
+        //     see also: https://en.cppreference.com/w/c/language/conversion
+        //     see also: https://wiki.sei.cmu.edu/confluence/display/c/INT31-C.+Ensure+that+integer+conversions+do+not+result+in+lost+or+misinterpreted+data
+        buf[index] = rand() % 256;
+    }
+
+    return 1;
+}
+
+static void stdlib_rand_cleanup()
+{
+}
+
+static int stdlib_rand_status()
+{
+    return 1;
+}
+
+#define UNUSED(x) (void)(x)
+static int stdlib_rand_add(const void *buf, int num, double add_entropy)
+{
+
+    UNUSED(buf);
+    UNUSED(num);
+    UNUSED(add_entropy);
+
+    return 1;
 }
