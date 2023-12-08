@@ -2,7 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if OPENSSL_VERSION_MAJOR >= 3
 #include <openssl/decoder.h>
+#endif
+
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/ssl.h>
@@ -47,6 +50,24 @@ static X509_STORE *make_store(const PEM *const *pems, size_t store_length);
 static X509 *load_inmem_cert(const PEM *pem);
 static EVP_PKEY *load_inmem_pkey(const PEM *pem);
 
+#ifdef HAS_CLAIMS
+#include "claim-interface.h"
+
+// NOTE implements claimer interface for OpenSSL
+//
+//     For now we only provide a dummy interface for initial registration. This
+//     is to ensure that an OpenSSL library that implements claims will not
+//     crash at runtime: currently when no callback is registered there is no
+//     check whether the callback pointer function is NULL or not and the code
+//     will attempt to dereference this pointer each time a claim is made.
+
+void openssl_on_claim(Claim claim, void *ctx)
+{
+    // TODO implement claims for OpenSSL C PUT
+}
+
+#endif
+
 const C_PUT_TYPE CPUT = {
     .create = openssl_create,
     .destroy = openssl_destroy,
@@ -70,7 +91,11 @@ const char *type_str[] = {"client", "server"};
 
 const char *openssl_version()
 {
+#if OPENSSL_VERSION_MAJOR >= 3
     return OPENSSL_FULL_VERSION_STR;
+#else
+    return OPENSSL_VERSION_TEXT;
+#endif
 }
 
 void *openssl_create(const AGENT_DESCRIPTOR *descriptor)
@@ -342,10 +367,15 @@ static EVP_PKEY *load_inmem_pkey(const PEM *pem)
 {
     EVP_PKEY *pkey = NULL;
     BIO *pkey_bio = BIO_new_mem_buf(pem->bytes, pem->length);
+
+#if OPENSSL_VERSION_MAJOR >= 3
     OSSL_DECODER_CTX *dctx = OSSL_DECODER_CTX_new_for_pkey(&pkey, "PEM", NULL, NULL, OSSL_KEYMGMT_SELECT_KEYPAIR, NULL, NULL);
     OSSL_DECODER_from_bio(dctx, pkey_bio);
-
     OSSL_DECODER_CTX_free(dctx);
+#else
+    pkey = PEM_read_bio_PrivateKey(pkey_bio, NULL, NULL, NULL);
+#endif
+
     BIO_free(pkey_bio);
     return pkey;
 }
@@ -431,6 +461,10 @@ static SSL_CTX *set_store(SSL_CTX *ssl_ctx, const PEM *const *pems, size_t store
 static AGENT *make_agent(SSL_CTX *ssl_ctx, const AGENT_DESCRIPTOR *descriptor)
 {
     SSL *ssl = SSL_new(ssl_ctx);
+
+#ifdef HAS_CLAIMS
+    register_claimer(ssl, openssl_on_claim, NULL);
+#endif
 
     AGENT *agent = malloc(sizeof(AGENT));
     agent->name = descriptor->name;
