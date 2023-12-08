@@ -13,6 +13,7 @@ cput = [
     "tls13",
     "tls12-session-resumption",
     "tls13-session-resumption",
+    "deterministic",
 ]
 
 openssl-default = [

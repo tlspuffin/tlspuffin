@@ -87,7 +87,7 @@ fn build_bindings() {
     //
     //     It might be confusing that we never actually tell cargo where to find
     //     this native library. This is because the `cc` crate automatically
-    //     emits this flags.
+    //     emits these flags.
     //
     //     If we ever replace `cc`, we will need to manually emit the cargo
     //     metadata `cargo:rustc-link-lib` and `cargo:rustc-link-search`.
@@ -106,6 +106,7 @@ pub fn main() {
     println!("cargo:rerun-if-env-changed=VENDOR_DIR");
     println!("cargo:rerun-if-env-changed=OPENSSL_DIR");
     println!("cargo:rerun-if-env-changed=OPENSSL_VERSION");
+    println!("cargo:rerun-if-changed={}", env!("CARGO_MANIFEST_DIR"));
 
     build_bindings();
 

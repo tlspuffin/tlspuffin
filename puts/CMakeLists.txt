@@ -14,16 +14,21 @@ if(NOT DEFINED TLSPUFFIN_INCDIR)
   )
 endif()
 
-project(puts VERSION 0.1)
+project(
+  puts
+  VERSION 0.1
+  LANGUAGES C)
 
-# NOTE this indirectly add OPENSSL_DIR to PKG_CONFIG_PATH
+# NOTE this indirectly adds OPENSSL_DIR to PKG_CONFIG_PATH
 #
 # CMAKE_PREFIX_PATH is appended to PKG_CONFIG_PATH, resulting in OPENSSL_DIR
 # being the prefered search location when calling `pkg_check_modules`.
 set(CMAKE_PREFIX_PATH ${OPENSSL_DIR})
 
+unset(OPENSSL_FOUND CACHE)
+unset(OPENSSL_HAS_CLAIMS CACHE)
 include(FindPkgConfig)
-pkg_check_modules(OPENSSL REQUIRED openssl)
+pkg_check_modules(OPENSSL REQUIRED QUIET openssl)
 
 if(NOT OPENSSL_FOUND)
   message(
@@ -46,7 +51,8 @@ if(NOT own_openssl)
   message(
     FATAL_ERROR
       "OPENSSL_DIR does not contain a valid installation of OpenSSL.\n"
-      "  got OPENSSL_DIR=${OPENSSL_DIR}")
+      "  got OPENSSL_DIR=${OPENSSL_DIR}"
+      "  but found PKG_CONFIG_OPENSSL=${OPENSSL_PREFIX}")
 endif()
 
 add_library(puts-interface STATIC src/put_openssl.c)
@@ -73,7 +79,7 @@ file(
 add_custom_command(
   COMMAND ${CMAKE_AR} -M < ${mri_file}
   OUTPUT ${out_file}
-  DEPENDS ${mri_file}
+  DEPENDS ${mri_file} ${OPENSSL_LINK_LIBRARIES} puts-interface
   COMMENT "Bundling OpenSSL with PUT interface"
   VERBATIM)
 
