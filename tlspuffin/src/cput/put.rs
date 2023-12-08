@@ -261,6 +261,12 @@ impl Put<TLSProtocolBehavior> for CPUTImpl {
     fn version() -> String {
         unsafe { to_string(ccall!(version)) }
     }
+
+    #[cfg(feature = "claims")]
+    fn register_claimer(&mut self, agent_name: AgentName) {}
+
+    #[cfg(feature = "claims")]
+    fn deregister_claimer(&mut self) {}
 }
 
 impl CPUTImpl {

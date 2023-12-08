@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 if(NOT DEFINED OPENSSL_DIR)
   message(
     FATAL_ERROR
@@ -55,8 +57,18 @@ if(NOT own_openssl)
       "  but found PKG_CONFIG_OPENSSL=${OPENSSL_PREFIX}")
 endif()
 
+include(CheckOpenSSLHasClaims)
+check_openssl_has_claims("${CMAKE_CURRENT_SOURCE_DIR}/../tlspuffin-claims")
+
 add_library(puts-interface STATIC src/put_openssl.c)
-target_include_directories(puts-interface PRIVATE ${TLSPUFFIN_INCDIR})
+target_include_directories(puts-interface PRIVATE ${TLSPUFFIN_INCDIR}
+                                                  ${OPENSSL_INCLUDE_DIRS})
+
+if(OPENSSL_HAS_CLAIMS)
+  target_compile_definitions(puts-interface PRIVATE HAS_CLAIMS=1)
+  target_include_directories(
+    puts-interface PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../tlspuffin-claims)
+endif()
 
 # bundle the PUT interface with the vendor libraries
 set(mri_file ${CMAKE_BINARY_DIR}/bundle-cput.mri)
