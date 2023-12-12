@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+NAME="mk_vendor"
+VERSION="0.1"
+USAGE="Usage:
+  ${NAME} make <put> [put-options]
+  ${NAME} info <put> [put-options]
+  ${NAME} list
+  ${NAME} -h | --help
+  ${NAME} --version
+
+build and interact with vendor PUT libraries
+
+Commands:
+    Get help for commands with ${NAME} COMMAND --help
+
+    make   build the vendor library
+    info   display the PUT configuration
+    list   display the PUTs known to this script
+
+Common Options:
+    -h, --help  display help and exit
+    --version   display version and exit
+
+Examples:
+    build the default version of OpenSSL:
+      \$ ${NAME} make openssl
+
+    build OpenSSL sources at a git tag:
+      \$ ${NAME} make openssl --ref=fuzz-OpenSSL_1_1_1k
+
+    print a summary of the configuration for the default OpenSSL:
+      \$ ${NAME} info openssl
+"
+
+MAKE_USAGE="Usage:
+    ${NAME} make <put> [put-options]
+    ${NAME} make -h | --help
+
+download, configure, build and install a vendor PUT library
+
+PUT Options:
+    -g, --git=STRING   use the PUT sources in repository STRING
+    -r, --ref=STRING   use the tag, branch or commit hash STRING
+
+Options:
+    -h, --help  display help and exit
+
+Examples:
+    create the default version of OpenSSL:
+      \$ ${NAME} make openssl
+
+    create OpenSSL sources at a git tag from the default repository:
+      \$ ${NAME} make openssl --ref=fuzz-OpenSSL_1_1_1k
+"
+
+die() {
+    echo "error: ${NAME}: $1" >&2
+    exit 1
+}
+
+fatal() {
+    echo "error: ${NAME} internal error: $1" >&2
+    exit 2
+}
+
+need_cmd() {
+    if ! command -v "$1" > /dev/null 2>&1; then
+        die "required command not found: '$1'"
+    fi
+}
+
+need_cmd pwd
+need_cmd dirname
+need_cmd mkdir
+need_cmd head
+need_cmd cmake
+
+
+SCRIPT_DIR=$( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+VENDOR_DIR=${SCRIPT_DIR}/../vendor
+
+run_cmd_help() {
+    echo "${USAGE}"
+    exit 0
+}
+
+run_cmd_version() {
+    echo "${VERSION}"
+    exit 0
+}
+
+run_cmd_list() {
+    fatal 'not implemented yet'
+}
+
+run_cmd_make() {
+    PUT=""
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            -h|--help)
+                echo "${MAKE_USAGE}"
+                exit 0
+                ;;
+            -g|--git|--git=*)
+                echo $1
+                ;;
+            -r|--ref|--ref=*)
+                echo $1
+                ;;
+            -*)
+                die "unknown option $1. run '${NAME} make --help' for usage."
+                ;;
+            *)
+                if [ -n "${PUT}" ]; then
+                    die "unexpected positional arg '$1': PUT already set to '${PUT}'"
+                fi
+
+                PUT=$1
+                ;;
+        esac
+
+        shift
+    done
+
+    if [ -z "${PUT}" ]; then
+        die "missing <put> positional argument"
+    fi
+
+    PUT_ID=$(echo -n "${PUT}" | shasum -a 256 | head -c 12)
+    OUTDIR=${VENDOR_DIR}/${PUT}/${PUT_ID}
+
+    GIT_REPO=https://github.com/tlspuffin/openssl
+    GIT_REF=fuzz-OpenSSL_1_1_1j
+
+    mkdir -p "${OUTDIR}"
+
+    echo "configuring ${PUT} in ${OUTDIR}/build"
+    cmake "${SCRIPT_DIR}/../puts/vendor/${PUT}" \
+          -B "${OUTDIR}/build"                  \
+          -DCMAKE_INSTALL_PREFIX="${OUTDIR}"    \
+          -DOPENSSL_GIT_REF="${GIT_REF}"
+
+    echo "building ${PUT} in ${OUTDIR}"
+    cmake --build "${OUTDIR}/build" --target "${PUT}"
+
+    exit 0
+}
+
+run_cmd_info() {
+    fatal 'not implemented yet'
+}
+
+if [ $# -lt 1 ]; then
+    die "missing command argument. run '${NAME} --help' for usage."
+fi
+
+case $1 in
+    -h|--help)
+        run_cmd_help "$@"
+        ;;
+    --version)
+        run_cmd_version "$@"
+        ;;
+    -*)
+        die "unexpected option: please provide a command first"
+        ;;
+    *)
+        CMD_NAME=$1
+        shift
+
+        CMD=run_cmd_${CMD_NAME}
+        if [ "$(type -t "${CMD}")" != 'function' ]; then
+            die "unknown command '${CMD_NAME}'"
+        fi
+
+        "${CMD}" "$@"
+        ;;
+esac
+
+# should never reach this location
+fatal "command should not return"
