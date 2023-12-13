@@ -188,6 +188,15 @@ impl Build {
 
         configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
 
+        // Recent versions of Clang returns implicit-function-declaration
+        // errors when building OpenSSL111
+        #[cfg(any(
+            feature = "openssl111k",
+            feature = "openssl111j",
+            feature = "openssl111u"
+        ))]
+        cflags.push_str(" -Wno-implicit-function-declaration ");
+
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
         }
