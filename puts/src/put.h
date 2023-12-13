@@ -1,3 +1,6 @@
+#ifndef TLSPUFFIN_PUT_H
+#define TLSPUFFIN_PUT_H
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -137,3 +140,5 @@ void _log(void (*logger)(const char *), const char *format, ...);
 extern const C_PUT_TYPE CPUT;
 
 extern const C_TLSPUFFIN TLSPUFFIN;
+
+#endif // TLSPUFFIN_PUT_H
