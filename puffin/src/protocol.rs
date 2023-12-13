@@ -73,7 +73,7 @@ pub trait ProtocolBehavior: 'static {
     fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error>;
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
-    /// This fails for many types of messages!
+    /// This is expected to fail for many types of messages!
     fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error>;
 }
 
