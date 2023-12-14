@@ -22,7 +22,7 @@ pub trait SecurityViolationPolicy<C: Claim> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
 }
@@ -82,7 +82,7 @@ impl<C: Claim> ClaimList<C> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq, Debug)]
 pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }

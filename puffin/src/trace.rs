@@ -64,6 +64,7 @@ impl<M: Matcher> Knowledge<M> {
 /// [Knowledge] describes an atomic piece of knowledge inferred
 /// by the [`crate::variable_data::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+#[derive(Debug)]
 pub struct Knowledge<M: Matcher> {
     pub agent_name: AgentName,
     pub matcher: Option<M>,
@@ -96,11 +97,12 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
+#[derive(Debug)]
 pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge<PB::Matcher>>,
     agents: Vec<Agent<PB>>,
-    claims: GlobalClaimList<PB::Claim>,
+    claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
     put_registry: &'static PutRegistry<PB>,
     deterministic_put: bool,
@@ -108,6 +110,19 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
 
     phantom: PhantomData<PB>,
+}
+
+
+impl<PB:ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
+    fn eq(&self, other: &Self) -> bool {
+            self.agents == other.agents &&
+            self.put_registry == other.put_registry &&
+            self.deterministic_put == other.deterministic_put &&
+            self.default_put_options == other.default_put_options &&
+            self.non_default_put_descriptors == other.non_default_put_descriptors &&
+            format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge) &&
+            format!("{:?}", self.claims) == format!("{:?}", other.claims)
+    }
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
