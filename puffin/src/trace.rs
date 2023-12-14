@@ -115,16 +115,15 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     phantom: PhantomData<PB>,
 }
 
-
-impl<PB:ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
+impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
-            self.agents == other.agents &&
-            self.put_registry == other.put_registry &&
-            self.deterministic_put == other.deterministic_put &&
-            self.default_put_options == other.default_put_options &&
-            self.non_default_put_descriptors == other.non_default_put_descriptors &&
-            format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge) &&
-            format!("{:?}", self.claims) == format!("{:?}", other.claims)
+        self.agents == other.agents
+            && self.put_registry == other.put_registry
+            && self.deterministic_put == other.deterministic_put
+            && self.default_put_options == other.default_put_options
+            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
+            && format!("{:?}", self.claims) == format!("{:?}", other.claims)
     }
 }
 

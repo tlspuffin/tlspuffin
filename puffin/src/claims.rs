@@ -82,7 +82,7 @@ impl<C: Claim> ClaimList<C> {
     }
 }
 
-#[derive(Clone,PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }
