@@ -2,7 +2,7 @@ use std::{fmt, fmt::Formatter, io};
 
 use crate::algebra::error::FnError;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
     Fn(FnError),

@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use crate::{
     agent::AgentDescriptor,
     error::Error,
@@ -10,9 +11,18 @@ pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
+#[derive(PartialEq)]
 pub struct PutRegistry<PB: 'static> {
     pub factories: &'static [fn() -> Box<dyn Factory<PB>>],
     pub default: fn() -> Box<dyn Factory<PB>>,
+}
+
+impl<PB: ProtocolBehavior + 'static> Debug for PutRegistry<PB> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PutRegistry (default only)")
+            .field("default", &(self.default)().name())
+            .finish()
+    }
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {

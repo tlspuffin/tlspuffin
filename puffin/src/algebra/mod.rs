@@ -499,6 +499,7 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
