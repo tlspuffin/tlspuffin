@@ -21,15 +21,13 @@ pub fn set_openssl_deterministic() {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::format;
-    use openssl::rand::rand_bytes;
-    use crate::tls::seeds::{create_corpus, seed_client_attacker_full};
-    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
     use crate::put_registry::TLS_PUT_REGISTRY;
+    use crate::tls::seeds::{create_corpus, seed_client_attacker_full};
+    use crate::tls::trace_helper::TraceHelper;
+    use openssl::rand::rand_bytes;
     use puffin::put::PutOptions;
-    use crate::tls::{
-        trace_helper::TraceHelper,
-    };
+    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
+    use std::fmt::format;
     #[test]
     #[cfg(feature = "openssl111-binding")]
     fn test_openssl_no_randomness_simple() {
