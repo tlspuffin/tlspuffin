@@ -379,22 +379,7 @@ impl BoringSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        // #[cfg(feature = "openssl111-binding")]
-        // ctx_builder.clear_options(boring::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-
-        // #[cfg(feature = "openssl111-binding")]
-        // bindings::set_allow_no_dhe_kex(&mut ctx_builder);
-
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
-
-        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
-        {
-            ctx_builder.set_tmp_ecdh(
-                &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
-            )?;
-
-            bindings::set_tmp_rsa(&ctx_builder, &openssl::rsa::Rsa::generate(512)?)?;
-        }
 
         // Allow EXPORT in server
         ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -407,13 +392,6 @@ impl BoringSSL {
 
     fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
-        // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
-        // for now.
-        // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111-binding")]
-        ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client
