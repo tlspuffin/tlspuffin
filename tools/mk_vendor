@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
+# disable unwarranted warnings about unreachable code:
+# shellcheck disable=SC2317
+
 NAME="mk_vendor"
 VERSION="0.1"
+
 USAGE="Usage:
   ${NAME} make <put> [put-options]
-  ${NAME} info <put> [put-options]
   ${NAME} list
   ${NAME} -h | --help
   ${NAME} --version
@@ -15,7 +18,6 @@ Commands:
     Get help for commands with ${NAME} COMMAND --help
 
     make   build the vendor library
-    info   display the PUT configuration
     list   display the PUTs known to this script
 
 Common Options:
@@ -28,9 +30,6 @@ Examples:
 
     build OpenSSL sources at a git tag:
       \$ ${NAME} make openssl --ref=fuzz-OpenSSL_1_1_1k
-
-    print a summary of the configuration for the default OpenSSL:
-      \$ ${NAME} info openssl
 "
 
 MAKE_USAGE="Usage:
@@ -40,10 +39,10 @@ MAKE_USAGE="Usage:
 download, configure, build and install a vendor PUT library
 
 PUT Options:
-    -g, --git=STRING   use the PUT sources in repository STRING
+    -s, --src=STRING   get the sources from the location STRING (directory, git url, tarball, ...)
     -r, --ref=STRING   use the tag, branch or commit hash STRING
 
-Options:
+Other Options:
     -h, --help  display help and exit
 
 Examples:
@@ -52,6 +51,27 @@ Examples:
 
     create OpenSSL sources at a git tag from the default repository:
       \$ ${NAME} make openssl --ref=fuzz-OpenSSL_1_1_1k
+"
+
+LIST_USAGE="Usage:
+    ${NAME} list [list-options] <path> 
+    ${NAME} list -h | --help
+
+display known information about vendor PUT libraries in <path>
+
+List Options:
+    -t, --type=STRING  the type of <path> [prefix, vendor (default)]
+    -f, --full-path    keep <path> prefix when displaying paths
+
+Other Options:
+    -h, --help  display help and exit
+
+Examples:
+    list the PUTs in vendor dir:
+      \$ ${NAME} list ./vendor
+
+    list the recognized PUTs in the system path:
+      \$ ${NAME} list --type=prefix /usr
 "
 
 die() {
@@ -70,15 +90,73 @@ need_cmd() {
     fi
 }
 
+normalize_path() {
+    if command -v readlink > /dev/null 2>&1; then
+        if readlink -f "$1" > /dev/null 2>&1; then
+            readlink -f "$1" 2> /dev/null
+            return
+        fi
+    fi
+
+    if command -v perl > /dev/null 2>&1; then
+        if perl -MCwd -le 'print Cwd::abs_path shift' "$1" > /dev/null 2>&1; then
+            perl -MCwd -le 'print Cwd::abs_path shift' "$1" 2> /dev/null
+            return
+        fi
+    fi
+
+    local dir="${1%/*}"
+    (cd "${dir}" && echo "$(pwd -P)")
+}
+
+
 need_cmd pwd
 need_cmd dirname
-need_cmd mkdir
 need_cmd head
 need_cmd cmake
+need_cmd grep
+need_cmd cut
 
 
-SCRIPT_DIR=$( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-VENDOR_DIR=${SCRIPT_DIR}/../vendor
+SCRIPT_DIR=$(normalize_path $( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd ))
+VENDOR_DIR=$(normalize_path ${SCRIPT_DIR}/../vendor)
+PUTS_DIR=$(normalize_path "${SCRIPT_DIR}/../puts")
+
+is_known_put() {
+    local _put=$1
+
+    [ -d "${PUTS_DIR}/vendor/${_put}" ]
+}
+
+has_git_ref() {
+    need_cmd git
+
+    local _repo=$1
+    local _ref=$2
+
+    git ls-remote --quiet --exit-code "${_repo}" "${_ref}" > /dev/null
+}
+
+check_prefix() {
+    local prefix=$1
+
+    # TODO trap halting signals to properly remove tmpdir
+    local tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'tmpdir')
+
+    # TODO add WITH_<put_name> for all known puts not only OPENSSL
+    local raw_out=$(cmake \
+          -B "${tmpdir}/build"                          \
+          -DCMAKE_INSTALL_PREFIX="${tmpdir}"            \
+          -DWITH_OPENSSL="${prefix}"                    \
+          "${PUTS_DIR}" 2>/dev/null)
+
+    echo "${raw_out}" | grep "PUT:" | cut -d':' -f2- | while IFS=',' read -r put prefix version with_claims
+    do
+        echo "${put},${prefix},${version},${with_claims}"
+    done
+
+    rm -rf "${tmpdir}"
+}
 
 run_cmd_help() {
     echo "${USAGE}"
@@ -91,11 +169,110 @@ run_cmd_version() {
 }
 
 run_cmd_list() {
-    fatal 'not implemented yet'
+    REQUEST_PATH=""
+    REQUEST_TYPE="vendor"
+    FULL_PATH=0
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            -h|--help)
+                echo "${LIST_USAGE}"
+                exit 0
+                ;;
+            -f|--full-path)
+                FULL_PATH=1
+                ;;
+            -t|--type)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                REQUEST_TYPE=$1
+                ;;
+            --type=*)
+                REQUEST_TYPE=${1#--type=}
+                ;;
+            -*)
+                die "unknown option $1. run '${NAME} make --help' for usage."
+                ;;
+            *)
+                if [ -n "${REQUEST_PATH}" ]; then
+                    die "unexpected positional arg '$1': request path already set to '${REQUEST_PATH}'"
+                fi
+
+                REQUEST_PATH=$1
+                ;;
+        esac
+
+        shift
+    done
+
+    if [ -z "${REQUEST_PATH}" ]; then
+        die "missing positional argument <path>"
+    fi
+
+    if ! [ -e "${REQUEST_PATH}" ]; then
+        die "provided <path> argument does not exist: '${REQUEST_PATH}'"
+    fi
+
+    REQUEST_PATH="$(normalize_path ${REQUEST_PATH})"
+
+    if [ "$REQUEST_TYPE" = 'vendor' ]; then
+        for put in $(find "${REQUEST_PATH}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n')
+        do
+            for put_hash in $(find "${REQUEST_PATH}/${put}" -maxdepth 1 -mindepth 1 -type d -printf '%f\n')
+            do
+                check_prefix "${REQUEST_PATH}/${put}/${put_hash}" | while IFS=',' read -r put prefix version with_claims
+                do
+                    if [ "${FULL_PATH}" -ne 1 ]; then
+                        if [ "${prefix}" == "${REQUEST_PATH}" ]; then
+                            prefix='.'
+                        else
+                            prefix=${prefix#${REQUEST_PATH}/}
+                        fi
+                    fi
+
+                    echo "${put}"
+                    echo "  PREFIX      = ${prefix}"
+                    echo "  VERSION     = ${version}"
+                    echo "  WITH_CLAIMS = ${with_claims}"
+                done
+
+            done
+        done
+
+        exit 0
+    fi
+
+    if [ "$REQUEST_TYPE" = 'prefix' ]; then
+        check_prefix "${REQUEST_PATH}" | while IFS=',' read -r put prefix version with_claims
+        do
+            if [ "${FULL_PATH}" -ne 1 ]; then
+                if [ "${prefix}" == "${REQUEST_PATH}" ]; then
+                    prefix='.'
+                else
+                    prefix=${prefix#${REQUEST_PATH}}
+                fi
+            fi
+
+            echo "${put}"
+            echo "  PREFIX      = ${prefix}"
+            echo "  VERSION     = ${version}"
+            echo "  WITH_CLAIMS = ON"
+        done
+
+        exit 0
+    fi
+
+    die "unknown search type '${REQUEST_TYPE}' (should be in {vendor, prefix})"
 }
 
 run_cmd_make() {
     PUT=""
+    SRC_ARG=""
+    GIT_REF=""
+    GIT_SHALLOW=OFF
     while [[ $# -gt 0 ]]
     do
         case $1 in
@@ -103,11 +280,27 @@ run_cmd_make() {
                 echo "${MAKE_USAGE}"
                 exit 0
                 ;;
-            -g|--git|--git=*)
-                echo $1
+            -s|--src)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                SRC_ARG=$1
                 ;;
-            -r|--ref|--ref=*)
-                echo $1
+            --src=*)
+                SRC_ARG=${1#--src=}
+                ;;
+            -r|--ref)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                GIT_REF=$1
+                ;;
+            --ref=*)
+                GIT_REF=${1#--ref=}
                 ;;
             -*)
                 die "unknown option $1. run '${NAME} make --help' for usage."
@@ -125,31 +318,74 @@ run_cmd_make() {
     done
 
     if [ -z "${PUT}" ]; then
-        die "missing <put> positional argument"
+        die "missing positional argument <put>"
     fi
 
-    PUT_ID=$(echo -n "${PUT}" | shasum -a 256 | head -c 12)
-    OUTDIR=${VENDOR_DIR}/${PUT}/${PUT_ID}
+    if ! is_known_put "${PUT}"; then
+        die "unknown <put> '${PUT}' (search path is '${PUTS_DIR}/vendor')"
+    fi
 
-    GIT_REPO=https://github.com/tlspuffin/openssl
-    GIT_REF=fuzz-OpenSSL_1_1_1j
+    local src_type="SRC_USE_GIT"
 
-    mkdir -p "${OUTDIR}"
+    local -a src_flags=()
+    case ${src_type} in
+        SRC_USE_GIT)
+            src_flags+=("-DOPENSSL_SOURCES=GIT")
 
-    echo "configuring ${PUT} in ${OUTDIR}/build"
-    cmake "${SCRIPT_DIR}/../puts/vendor/${PUT}" \
-          -B "${OUTDIR}/build"                  \
-          -DCMAKE_INSTALL_PREFIX="${OUTDIR}"    \
-          -DOPENSSL_GIT_REF="${GIT_REF}"
+            GIT_REPO=${SRC_ARG}
+            if [ -z "${GIT_REPO}" ]; then
+                GIT_REPO=https://github.com/tlspuffin/openssl
+            fi
 
-    echo "building ${PUT} in ${OUTDIR}"
-    cmake --build "${OUTDIR}/build" --target "${PUT}"
+            src_flags+=("-DOPENSSL_GIT_REPO='${GIT_REPO}'")
+
+            if [ -z "${GIT_REF}" ]; then
+                # TODO default should be HEAD branch
+                GIT_REF=fuzz-OpenSSL_1_1_1j
+            fi
+
+            src_flags+=("-DOPENSSL_GIT_REF='${GIT_REF}'")
+
+            if has_git_ref "${GIT_REPO}" "${GIT_REF}" ]; then
+                # we can do a shallow clone since the git ref exists
+                GIT_SHALLOW=ON
+            fi
+
+            src_flags+=("-DOPENSSL_GIT_SHALLOW='${GIT_SHALLOW}'")
+            ;;
+        SRC_USE_DIR)
+            src_flags+=("-DOPENSSL_SOURCES=DIR")
+
+            SRC_DIR=${SRC_ARG}
+            if [ -z "${SRC_DIR}" ]; then
+                fatal "should not be is dir-mode if no source directory was provided"
+            fi
+
+            src_flags+=("-DOPENSSL_SOURCES_DIR='${SRC_DIR}'")
+            ;;
+        *)
+            fatal "unknown src type"
+    esac
+
+    echo "PUT = ${PUT}"
+    echo "SRC_FLAGS = ${src_flags[@]}"
+
+    CONFID=$(echo -n "${PUT}${src_flags[@]}" | shasum -a 256 | head -c 12)
+    OUTDIR=${VENDOR_DIR}/${PUT}/${CONFID}
+
+    if ! cmake \
+          -B "${OUTDIR}/build"                   \
+          -DCMAKE_INSTALL_PREFIX="${OUTDIR}"     \
+          "${src_flags[@]}"                      \
+          "${PUTS_DIR}/vendor/${PUT}"; then
+        die "failed configuration step for PUT '${PUT}'"
+    fi
+
+    if ! cmake --build "${OUTDIR}/build" --target "${PUT}"; then
+        die "failed build step for PUT '${PUT}'"
+    fi
 
     exit 0
-}
-
-run_cmd_info() {
-    fatal 'not implemented yet'
 }
 
 if [ $# -lt 1 ]; then

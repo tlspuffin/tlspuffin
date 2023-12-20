@@ -1,58 +1,36 @@
 use std::env;
 use std::path::PathBuf;
 
-pub fn build_vendor(vendor_dir: PathBuf, version: &str) -> PathBuf {
-    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-
-    // TODO add features to the vendor path
-    //
-    //     The vendor library need to be rebuilt each time a cargo PUT feature
-    //     changes and coexist with other libs that have a different set of
-    //     features. To distinguish between the different variants, we should
-    //     had a path component that is unique to the combination of features
-    //     passed to cargo.
-    //
-    //     They are mainly two ways to solve the problem: create a hashed
-    //     version of the features set or simply concatenate the features.  The
-    //     advantage of keeping the feature names is the improved
-    //     discoverability for the user, but depending on the number of features
-    //     we expose through cargo this might result is very long paths.
-    //
-    //     If we choose to use a hash for the features, it would make sense to
-    //     add a file containing the set of features inside the install prefix
-    //     directory, so that the user can still figure out against which
-    //     configuration he's building the PUT.
-    //
-    let vendor_prefix = vendor_dir
-        .join(env::var("TARGET").unwrap())
-        .join("openssl")
-        .join(version);
-
-    cmake::Config::new(src_dir.join("vendor/openssl"))
-        .always_configure(false)
-        .define("OPENSSL_GIT_REF", version)
-        .out_dir(&vendor_prefix)
-        .build_target("openssl")
-        .build();
-
-    vendor_prefix
-}
-
-pub fn build_libs(vendor_prefix: PathBuf) {
+pub fn build_libs_with_openssl(openssl_root: PathBuf) {
     let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let inc_dir = out_dir.join("include");
 
     cmake::Config::new(src_dir)
-        .define("OPENSSL_DIR", vendor_prefix)
-        .define("TLSPUFFIN_INCDIR", inc_dir)
+        .profile("Debug")
+        .define("BUILD_SHARED_LIBS", "OFF")
+        .define("WITH_OPENSSL", openssl_root)
         .build();
 
     println!(
         "cargo:rustc-link-search=native={}",
         out_dir.to_str().unwrap()
     );
-    println!("cargo:rustc-link-lib=static=puts-libs");
+    println!("cargo:rustc-link-lib=static=bundle-puts");
+}
+
+pub fn build_libs(vendor_dir: PathBuf) {
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    cmake::Config::new(src_dir)
+        .define("VENDOR_DIR", vendor_dir)
+        .build();
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        out_dir.to_str().unwrap()
+    );
+    println!("cargo:rustc-link-lib=static=bundle-puts");
 }
 
 fn build_bindings() {
@@ -60,7 +38,7 @@ fn build_bindings() {
 
     let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
     bindgen::Builder::default()
-        .header("src/put.h")
+        .header("include/tlspuffin/put.h")
         .no_copy("^AGENT_DESCRIPTOR$")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
@@ -73,8 +51,9 @@ fn build_bindings() {
         bindings_path.to_string_lossy()
     );
 
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let inc_dir = src_dir.join("include");
     let dst_dir = PathBuf::from(out_dir);
-    let inc_dir = dst_dir.join("include/tlspuffin");
 
     std::fs::create_dir_all(&inc_dir).unwrap();
 
@@ -96,37 +75,34 @@ fn build_bindings() {
         .file("src/put.c")
         .compile("puts-sys-c");
 
-    std::fs::copy("src/put.h", inc_dir.join("put.h")).unwrap();
-
     println!("cargo:root={}", dst_dir.to_str().unwrap());
-    println!("cargo:include={}/include", dst_dir.to_str().unwrap());
+    println!("cargo:include={}", inc_dir.to_str().unwrap());
 }
 
 pub fn main() {
+    println!("cargo:rerun-if-env-changed=WITH_OPENSSL");
     println!("cargo:rerun-if-env-changed=VENDOR_DIR");
-    println!("cargo:rerun-if-env-changed=OPENSSL_DIR");
-    println!("cargo:rerun-if-env-changed=OPENSSL_VERSION");
     println!("cargo:rerun-if-changed={}", env!("CARGO_MANIFEST_DIR"));
 
     build_bindings();
 
-    fn openssl_prefix() -> PathBuf {
-        if env::var("OPENSSL_DIR").is_ok() {
-            return PathBuf::from(env::var("OPENSSL_DIR").unwrap());
-        }
+    let openssl_root = PathBuf::from(
+        env::var("WITH_OPENSSL").expect("missing mandatory env variable WITH_OPENSSL"),
+    );
+    build_libs_with_openssl(openssl_root);
 
-        if env::var("OPENSSL_VERSION").is_ok() {
-            let version = env::var("OPENSSL_VERSION").unwrap();
-            let vendor_dir = PathBuf::from(
-                env::var("VENDOR_DIR")
-                    .unwrap_or(concat!(env!("CARGO_MANIFEST_DIR"), "/../vendor").to_string()),
-            );
+    // FIXME should drop support for WITH_OPENSSL
+    //
+    //     This will only be possible when we support linking tlspuffin against
+    //     several C PUTs. In the meantime, we let cargo users specify the path
+    //     to an OpenSSL install directory in the env variable WITH_OPENSSL.
+    //
+    //     In replacement, the following commented code look for a VENDOR_DIR
+    //     and link tlspuffin with every C PUTs found inside.
 
-            return build_vendor(vendor_dir, &version);
-        }
-
-        panic!("native dependency not found: need either OPENSSL_DIR or OPENSSL_VERSION environment variable");
-    }
-
-    build_libs(openssl_prefix());
+    // let vendor_dir = PathBuf::from(
+    //     env::var("VENDOR_DIR")
+    //         .unwrap_or(concat!(env!("CARGO_MANIFEST_DIR"), "/../vendor").to_string()),
+    // );
+    // build_libs(vendor_dir);
 }
