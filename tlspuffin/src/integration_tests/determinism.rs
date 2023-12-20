@@ -15,10 +15,12 @@ fn test_attacker_full_det_recreate() {
     let mut ctx_1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
     trace.execute(&mut ctx_1);
 
-    let mut ctx_2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-    trace.execute(&mut ctx_2);
-
-    assert_eq!(ctx_1, ctx_2);
+    for i in 0..200 {
+        println!("Attempt #{i}...");
+        let mut ctx_2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        trace.execute(&mut ctx_2);
+        assert_eq!(ctx_1, ctx_2);
+    }
 
     // For debugging, knowledge by knowledge:
     // let server = AgentName::mew();
