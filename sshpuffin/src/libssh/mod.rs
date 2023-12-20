@@ -334,7 +334,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
     fn shutdown(&mut self) -> String {
         panic!("Not supported")
     }
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Put(
             "libssh does not support determinism".to_string(),
         ))

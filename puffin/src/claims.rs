@@ -12,7 +12,7 @@ use log::{debug, trace};
 
 use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
 
-pub trait Claim: VariableData {
+pub trait Claim: VariableData  + Debug {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape;
     fn inner(&self) -> Box<dyn Any>;
