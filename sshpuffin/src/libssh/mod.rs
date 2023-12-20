@@ -151,6 +151,17 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
         fn version(&self) -> String {
             LibSSL::version()
         }
+
+        fn determinism_set_reseed(&self) -> () {
+            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
+        }
+
+        fn determinism_reseed(&self) -> () {
+            debug!(
+                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
+                self.name()
+            );
+        }
     }
 
     Box::new(LibSSLFactory)
