@@ -1,9 +1,9 @@
 use crate::put_registry::TLS_PUT_REGISTRY;
 
-mod mutations;
-mod term_zoo;
 #[cfg(feature = "deterministic")]
 mod determinism;
+mod mutations;
+mod term_zoo;
 
 #[test]
 fn version_test() {

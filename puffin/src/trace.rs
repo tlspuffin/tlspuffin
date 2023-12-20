@@ -17,7 +17,7 @@ use core::fmt;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    fmt::{Display,Debug},
+    fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
 };
@@ -114,7 +114,11 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
 
 impl<PB: ProtocolBehavior + 'static> fmt::Display for TraceContext<PB> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Knowledge [not displaying other fields] (size={}):", self.knowledge.len());
+        write!(
+            f,
+            "Knowledge [not displaying other fields] (size={}):",
+            self.knowledge.len()
+        );
         for k in &self.knowledge {
             write!(f, "\n   {},          --  {:?}", k, k);
         }

@@ -29,6 +29,7 @@ use puffin::{
 };
 use smallvec::SmallVec;
 
+use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
     claims::{
         ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
@@ -45,7 +46,6 @@ use crate::{
         message::{Message, OpaqueMessage},
     },
 };
-use crate::openssl::deterministic::{determinism_set_reseed_openssl, determinism_reseed_openssl};
 
 mod bindings;
 #[cfg(feature = "deterministic")]

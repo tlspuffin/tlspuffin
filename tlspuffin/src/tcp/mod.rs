@@ -81,7 +81,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_reseed(&self) -> () {
-            debug!(" [Determinism] Factory {} has no support for determinism. We cannot reseed.", self.name());
+            debug!(
+                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
+                self.name()
+            );
         }
     }
 

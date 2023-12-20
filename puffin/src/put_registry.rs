@@ -5,8 +5,8 @@ use crate::{
     put::{Put, PutName},
     trace::TraceContext,
 };
-use std::fmt::{Debug, Formatter};
 use log::debug;
+use std::fmt::{Debug, Formatter};
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 
@@ -79,5 +79,4 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn determinism_set_reseed(&self) -> ();
 
     fn determinism_reseed(&self) -> ();
-
 }
