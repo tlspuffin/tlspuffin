@@ -2,10 +2,10 @@
 #include <openssl/rand.h>
 #include <stdlib.h>
 
-unsigned int seed = 0;
-unsigned int m = 0xFFFFFFFF;
-unsigned int a = 22695477;
-unsigned int c = 1;
+unsigned int tlspuffin_seed = 42;
+const unsigned int m = 0xFFFFFFFF;
+const unsigned int a = 22695477;
+const unsigned int c = 1;
 
 #define UNUSED(x) (void)(x)
 
@@ -17,7 +17,7 @@ static int stdlib_rand_seed(const void *buf, int num)
     {
         return 0;
     }
-    seed = *((unsigned int *) buf);
+    tlspuffin_seed = *((unsigned int *) buf);
     return 1;
 }
 
@@ -27,8 +27,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        seed = (a * seed + c) % m;
-        buf[index] = seed % 256;
+        tlspuffin_seed = (a * tlspuffin_seed + c) % m;
+        buf[index] = tlspuffin_seed % 256;
     }
     return 1;
 }
