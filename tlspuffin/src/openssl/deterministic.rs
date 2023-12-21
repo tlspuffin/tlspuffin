@@ -10,9 +10,7 @@ extern "C" {
 }
 
 pub fn get_seed() -> u32 {
-    unsafe {
-        return tlspuffin_seed
-    }
+    unsafe { return tlspuffin_seed }
 }
 #[cfg(feature = "deterministic")]
 pub fn determinism_set_reseed_openssl() {
@@ -36,7 +34,7 @@ pub fn determinism_reseed_openssl() {
 
 #[cfg(test)]
 mod tests {
-    use crate::openssl::deterministic::{determinism_set_reseed_openssl,get_seed};
+    use crate::openssl::deterministic::{determinism_set_reseed_openssl, get_seed};
     use openssl::rand::rand_bytes;
 
     #[test]
@@ -51,6 +49,5 @@ mod tests {
         assert_ne!(get_seed(), 42);
         determinism_set_reseed_openssl();
         assert_eq!(get_seed(), 42);
-
     }
 }
