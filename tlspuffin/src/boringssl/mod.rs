@@ -1,11 +1,12 @@
 use std::{
-    any::Any,
     cell::RefCell,
     fmt::{Debug, Formatter},
     io,
     io::ErrorKind,
     rc::Rc,
 };
+
+use log::debug;
 
 use boring::{
     error::ErrorStack,
@@ -46,9 +47,8 @@ use crate::{
     },
 };
 
-// mod bindings;
-// #[cfg(feature = "deterministic")]
-// mod deterministic;
+#[cfg(feature = "deterministic")]
+mod deterministic;
 mod util;
 
 /*
@@ -97,6 +97,13 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             BORINGSSL_PUT
+        }
+
+        fn determinism_set_reseed(&self) -> () {}
+
+        fn determinism_reseed(&self) -> () {
+            debug!("[Determinism] reseed");
+            deterministic::reset_rand();
         }
 
         fn version(&self) -> String {
@@ -316,16 +323,15 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn set_deterministic(&mut self) -> Result<(), Error> {
+    fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            // deterministic::set_openssl_deterministic();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]
         {
             Err(Error::Agent(
-                "Unable to make OpenSSL deterministic!".to_string(),
+                "Unable to make BoringSSL deterministic!".to_string(),
             ))
         }
     }

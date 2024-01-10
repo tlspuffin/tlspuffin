@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    io,
+    fs, io,
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Command,
@@ -39,16 +39,14 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-fn _patch_boringssl<P: AsRef<Path>>(
-    source_dir: &PathBuf,
-    out_dir: P,
-    patch: &str,
-) -> std::io::Result<()> {
+fn patch_boringssl<P: AsRef<Path>>(out_dir: P, patch: &str) -> std::io::Result<()> {
+    let patch_path = Path::new("../boringssl-src/patches").join(patch);
     let status = Command::new("git")
         .current_dir(out_dir)
-        .arg("am")
-        .arg(source_dir.join("patches").join(patch).to_str().unwrap())
-        .status()?;
+        .arg("apply")
+        .arg(fs::canonicalize(patch_path).unwrap().to_str().unwrap())
+        .status()
+        .unwrap();
 
     if !status.success() {
         return Err(io::Error::from(ErrorKind::Other));
@@ -101,12 +99,14 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         .define("CMAKE_CXX_COMPILER", "clang++")
         .pic(true)
         .cflag("-g")
-        .cxxflag("-g");
+        .cxxflag("-g")
+        .define("CMAKE_BUILD_TYPE", "Release")
+        .define("OPENSSL_NO_BUF_FREELISTS", "1")
+        .define("OPENSSL_NO_ASM", "1");
 
     if options.deterministic {
-        boring_conf
-            .define("FUZZ", "1")
-            .define("NO_FUZZER_MODE", "1");
+        boring_conf.define("FUZZ", "1");
+        boring_conf.define("NO_FUZZER_MODE", "1");
     }
 
     if options.sancov {
@@ -147,9 +147,7 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
             .cxxflag("-fsanitize=address")
             .cxxflag("-shared-libsan")
             .cxxflag("-Wno-unused-command-line-argument")
-            .cxxflag(format!("-Wl,-rpath={}/lib/linux/", clang))
-            .define("OPENSSL_NO_BUF_FREELISTS", "1")
-            .define("OPENSSL_NO_ASM", "1");
+            .cxxflag(format!("-Wl,-rpath={}/lib/linux/", clang));
     }
 
     boring_conf.build();
@@ -158,6 +156,9 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
 
 pub fn build(options: &BoringSSLOptions) -> std::io::Result<()> {
     clone_boringssl(&options.source_dir, options)?;
+
+    // Patching CMakeList.txt to disable ASAN when using the fuzzer mode
+    let _ = patch_boringssl(&options.source_dir, "no_asan.patch").unwrap();
 
     let _ = build_boringssl(&options.out_dir, options);
 

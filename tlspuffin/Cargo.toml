@@ -185,8 +185,8 @@ boringsslv1 = [
     "boringssl-binding",
     "tls12-session-resumption",
     "tls13-session-resumption",
-    "transcript-extraction",
-    "client-authentication-transcript-extraction",
+    # "transcript-extraction",
+    # "client-authentication-transcript-extraction",
     "deterministic",
 ]
 
@@ -224,7 +224,7 @@ tls13-session-resumption = []
 # PUT supports session resumption through RFC5077
 tls12-session-resumption = []
 # PUT is determinisitic
-deterministic = []
+deterministic = ["boringssl-sys?/deterministic"]
 # Require the PUT to implement the claim-interface.h
 claims = ["puffin/claims"]
 # Whether transcript extraction is supported. This is needed for simplified traces.

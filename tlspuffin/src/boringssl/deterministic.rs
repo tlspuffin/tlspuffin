@@ -1,35 +1,36 @@
-use std::os::raw::c_int;
-
+use boringssl_sys::RAND_reset_for_fuzzing;
 use log::warn;
 
-#[cfg(feature = "deterministic")]
-extern "C" {
-    fn make_openssl_deterministic();
-    fn RAND_seed(buf: *mut u8, num: c_int);
-}
-
-#[cfg(feature = "deterministic")]
-pub fn set_openssl_deterministic() {
-    warn!("OpenSSL is no longer random!");
+/// Reset BoringSSL PRNG
+/// BUG : it doesn't seems to work
+pub fn reset_rand() {
     unsafe {
-        make_openssl_deterministic();
-        let mut seed: [u8; 4] = 42u32.to_le().to_ne_bytes();
-        let buf = seed.as_mut_ptr();
-        RAND_seed(buf, 4);
+        RAND_reset_for_fuzzing();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use openssl::rand::rand_bytes;
+    use crate::boringssl::deterministic::reset_rand;
+    use crate::put_registry::TLS_PUT_REGISTRY;
+    use crate::tls::seeds::{create_corpus, seed_client_attacker_boring};
+    use crate::tls::trace_helper::TraceHelper;
+    use puffin::put::PutOptions;
+    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
+    use std::fmt::format;
 
     #[test]
-    #[cfg(feature = "openssl111-binding")]
-    fn test_openssl_no_randomness() {
-        use crate::openssl::deterministic::set_openssl_deterministic;
-        set_openssl_deterministic();
-        let mut buf1 = [0; 2];
-        rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [70, 100]);
+    fn test_boringssl_no_randomness_full() {
+        let trace = seed_client_attacker_boring.build_trace();
+        let mut ctx1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        ctx1.set_deterministic(true);
+        trace.execute(&mut ctx1);
+        let mut ctx2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        ctx2.set_deterministic(true);
+        trace.execute(&mut ctx2);
+
+        // println!("Left: {:#?}\n", ctx1);
+        // println!("Right: {:#?}\n", ctx2);
+        assert_eq!(ctx1, ctx2);
     }
 }

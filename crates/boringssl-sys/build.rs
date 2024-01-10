@@ -53,6 +53,11 @@ fn main() {
         .clang_arg("-I")
         .clang_arg(include_path.display().to_string());
 
+    if cfg!(feature = "deterministic") {
+        // Exposes RAND_reset_for_fuzzing
+        builder = builder.clang_arg("-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE=1");
+    }
+
     let headers = [
         "aes.h",
         "asn1_mac.h",
