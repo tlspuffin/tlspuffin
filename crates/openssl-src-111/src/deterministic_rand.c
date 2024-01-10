@@ -2,6 +2,11 @@
 #include <openssl/rand.h>
 #include <stdlib.h>
 
+unsigned int seed = 0;
+unsigned int m = 0xFFFFFFFF;
+unsigned int a = 22695477;
+unsigned int c = 1;
+
 #define UNUSED(x) (void)(x)
 
 // Seed the RNG. srand() takes an unsigned int, so we just use the first
@@ -10,10 +15,9 @@ static int stdlib_rand_seed(const void *buf, int num)
 {
     if (num < 1)
     {
-        srand(0);
         return 0;
     }
-    srand(*((unsigned int *) buf));
+    seed = *((unsigned int *) buf);
     return 1;
 }
 
@@ -23,7 +27,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        buf[index] = rand() % 256;
+        seed = (a * seed + c) % m;
+        buf[index] = seed % 256;
     }
     return 1;
 }

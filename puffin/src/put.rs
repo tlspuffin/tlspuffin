@@ -100,7 +100,8 @@ pub trait Put<PB: ProtocolBehavior>:
     fn is_state_successful(&self) -> bool;
 
     /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
-    fn set_deterministic(&mut self) -> Result<(), Error>;
+    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
+    fn determinism_reseed(&mut self) -> Result<(), Error>;
 
     /// checks whether a agent is reusable with the descriptor
     fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
