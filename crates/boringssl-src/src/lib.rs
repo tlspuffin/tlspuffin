@@ -16,6 +16,7 @@ pub struct BoringSSLOptions {
     pub gcov_analysis: bool,
     pub llvm_cov_analysis: bool,
 
+    pub git_repo: String,
     pub git_ref: GitRef,
     pub out_dir: PathBuf,
     pub source_dir: PathBuf,
@@ -64,13 +65,14 @@ fn clone_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> std:
             .arg("1")
             .arg("--branch")
             .arg(&branch_name)
-            .arg("https://github.com/google/boringssl.git")
+            .arg(&options.git_repo)
             .arg(dest.as_ref().to_str().unwrap())
             .status()?,
         GitRef::Commit(commit_id) => {
             Command::new("git")
                 .arg("clone")
-                .arg("https://github.com/google/boringssl.git")
+                .arg("--filter=tree:0")
+                .arg(&options.git_repo)
                 .arg(dest.as_ref().to_str().unwrap())
                 .status()?;
             Command::new("git")
@@ -155,7 +157,7 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
 }
 
 pub fn build(options: &BoringSSLOptions) -> std::io::Result<()> {
-    clone_boringssl(&options.source_dir, options)?;
+    clone_boringssl(&options.source_dir, options).unwrap();
 
     // Patching CMakeList.txt to disable ASAN when using the fuzzer mode
     let _ = patch_boringssl(&options.source_dir, "no_asan.patch").unwrap();
