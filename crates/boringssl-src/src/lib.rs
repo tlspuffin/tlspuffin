@@ -162,6 +162,11 @@ pub fn build(options: &BoringSSLOptions) -> std::io::Result<()> {
     // Patching CMakeList.txt to disable ASAN when using the fuzzer mode
     let _ = patch_boringssl(&options.source_dir, "no_asan.patch").unwrap();
 
+    if options.deterministic {
+        // Patching boringssl to reset the DRBG
+        let _ = patch_boringssl(&options.source_dir, "reset_drbg.patch").unwrap();
+    }
+
     let _ = build_boringssl(&options.out_dir, options);
 
     Ok(())

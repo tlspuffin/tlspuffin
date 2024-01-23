@@ -1,7 +1,7 @@
 From c1d43d464d33140729f2524afad1d1bcf63267f7 Mon Sep 17 00:00:00 2001
 From: Tom Gouville <tom.gouville@protonmail.com>
 Date: Tue, 9 Jan 2024 17:55:47 +0100
-Subject: [PATCH] oui
+Subject: [PATCH] disable asan flags when building in FUZZ mode
 
 ---
  CMakeLists.txt | 2 --
