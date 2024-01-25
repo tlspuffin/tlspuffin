@@ -1,0 +1,20 @@
+[package]
+name = "boringssl-sys"
+version = "0.1.0"
+edition = "2021"
+links = "boring"
+
+[build-dependencies]
+boringssl-src = { path = "../boringssl-src" }
+bindgen = "0.69.1"
+
+[features]
+vendored-master = []
+arbitrary-v1 = []
+
+sancov = []
+asan = []
+deterministic = []
+
+gcov_analysis = []
+llvm_cov_analysis = []
