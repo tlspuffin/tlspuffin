@@ -17,7 +17,7 @@ use core::fmt;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
-    fmt::Debug,
+    fmt::{Debug, Display},
     hash::Hash,
     marker::PhantomData,
 };
@@ -124,6 +124,20 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
             && self.non_default_put_descriptors == other.non_default_put_descriptors
             && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
+    }
+}
+
+impl<PB: ProtocolBehavior + 'static> fmt::Display for TraceContext<PB> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Knowledge [not displaying other fields] (size={}):",
+            self.knowledge.len()
+        );
+        for k in &self.knowledge {
+            write!(f, "\n   {},          --  {:?}", k, k);
+        }
+        Ok(())
     }
 }
 
@@ -372,7 +386,7 @@ impl<M: Matcher> Trace<M> {
 
             if ctx.deterministic_put {
                 if let Ok(agent) = ctx.find_agent_mut(name) {
-                    if let Err(err) = agent.put_mut().set_deterministic() {
+                    if let Err(err) = agent.put_mut().determinism_reseed() {
                         warn!("Unable to make agent {} deterministic: {}", name, err)
                     }
                 }
@@ -386,6 +400,9 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
+        // We reseed all PUTs before executing a trace!
+        ctx.put_registry.determinism_reseed_all_factories();
+
         for trace in &self.prior_traces {
             trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;

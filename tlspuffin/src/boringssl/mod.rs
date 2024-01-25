@@ -1,11 +1,12 @@
 use std::{
-    any::Any,
     cell::RefCell,
     fmt::{Debug, Formatter},
     io,
     io::ErrorKind,
     rc::Rc,
 };
+
+use log::debug;
 
 use boring::{
     error::ErrorStack,
@@ -46,9 +47,8 @@ use crate::{
     },
 };
 
-// mod bindings;
-// #[cfg(feature = "deterministic")]
-// mod deterministic;
+#[cfg(feature = "deterministic")]
+mod deterministic;
 mod util;
 
 /*
@@ -97,6 +97,13 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             BORINGSSL_PUT
+        }
+
+        fn determinism_set_reseed(&self) -> () {}
+
+        fn determinism_reseed(&self) -> () {
+            debug!("[Determinism] reseed");
+            deterministic::reset_rand();
         }
 
         fn version(&self) -> String {
@@ -316,16 +323,15 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn set_deterministic(&mut self) -> Result<(), Error> {
+    fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            // deterministic::set_openssl_deterministic();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]
         {
             Err(Error::Agent(
-                "Unable to make OpenSSL deterministic!".to_string(),
+                "Unable to make BoringSSL deterministic!".to_string(),
             ))
         }
     }
@@ -379,22 +385,7 @@ impl BoringSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        // #[cfg(feature = "openssl111-binding")]
-        // ctx_builder.clear_options(boring::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-
-        // #[cfg(feature = "openssl111-binding")]
-        // bindings::set_allow_no_dhe_kex(&mut ctx_builder);
-
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
-
-        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
-        {
-            ctx_builder.set_tmp_ecdh(
-                &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
-            )?;
-
-            bindings::set_tmp_rsa(&ctx_builder, &openssl::rsa::Rsa::generate(512)?)?;
-        }
 
         // Allow EXPORT in server
         ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -407,13 +398,6 @@ impl BoringSSL {
 
     fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
-        // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
-        // for now.
-        // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111-binding")]
-        ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
-
         set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client

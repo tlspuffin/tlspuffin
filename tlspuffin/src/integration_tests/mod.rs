@@ -1,5 +1,7 @@
 use crate::put_registry::TLS_PUT_REGISTRY;
 
+#[cfg(feature = "deterministic")]
+mod determinism;
 mod mutations;
 mod term_zoo;
 mod terms;

@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use log::{error, info, warn};
+use log::{error, info, warn, debug};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
@@ -86,6 +86,17 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             TcpClientPut::version()
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
+        }
+
+        fn determinism_reseed(&self) -> () {
+            debug!(
+                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
+                self.name()
+            );
         }
     }
 
@@ -328,10 +339,7 @@ fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrPa
     let port = options
         .get_option("port")
         .and_then(|value| u16::from_str(value).ok())
-        .unwrap_or({
-            warn!("Failed to parse port option (maybe you executed a trace that was not produced in \
-            TCP mode?). We anyway fall back to port 44338.");
-            44338});
+        .expect("Failed to parse port option");
 
     Ok(SocketAddr::new(IpAddr::from_str(host)?, port))
 }
@@ -371,9 +379,9 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         false
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "Unable to make TCP PUT deterministic!".to_string(),
+            "[deterministic] Unable to reseed TCP PUT!".to_string(),
         ))
     }
 
@@ -426,9 +434,9 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         false
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "Unable to make TCP PUT deterministic!".to_string(),
+            "[deterministic] Unable to reseed TCP PUT!".to_string(),
         ))
     }
 

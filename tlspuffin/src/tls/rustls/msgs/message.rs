@@ -90,6 +90,43 @@ impl MessagePayload {
         .ok_or_else(|| Error::corrupt_message(typ))*/
     }
 
+    /// Extract multiple messages payloads from one ApplicationData message
+    pub fn multiple_new(
+        typ: ContentType,
+        vers: ProtocolVersion,
+        payload: Payload,
+    ) -> Result<Vec<Self>, Error> {
+        let fallback_payload = payload.clone();
+        let mut r = Reader::init(&payload.0);
+        let mut parsed: Vec<Self> = vec![];
+        while r.any_left() {
+            let parsed_msg = match typ {
+                ContentType::ApplicationData => Some(Self::ApplicationData(payload.clone())),
+                ContentType::Alert => AlertMessagePayload::read(&mut r).map(MessagePayload::Alert),
+                ContentType::Handshake => {
+                    HandshakeMessagePayload::read_version(&mut r, vers)
+                        .map(MessagePayload::Handshake)
+                        // this type is for TLS 1.2 encrypted handshake messages
+                        .or(Some(MessagePayload::TLS12EncryptedHandshake(
+                            fallback_payload.clone(),
+                        )))
+                }
+                ContentType::ChangeCipherSpec => {
+                    ChangeCipherSpecPayload::read(&mut r).map(MessagePayload::ChangeCipherSpec)
+                }
+                ContentType::Heartbeat => {
+                    HeartbeatPayload::read(&mut r).map(MessagePayload::Heartbeat)
+                }
+                _ => None,
+            };
+            if let Some(msg) = parsed_msg {
+                parsed.push(msg);
+            }
+        }
+
+        Ok(parsed)
+    }
+
     pub fn content_type(&self) -> ContentType {
         match self {
             Self::Alert(_) => ContentType::Alert,

@@ -10,6 +10,7 @@ fn main() {
     } else {
         GitRef::Branch(String::from("master"))
     };
+    let repo = "https://github.com/google/boringssl.git".into();
     let source_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boringssl");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boring");
     build(&BoringSSLOptions {
@@ -18,6 +19,7 @@ fn main() {
         gcov_analysis: cfg!(feature = "gcov_analysis"),
         llvm_cov_analysis: cfg!(feature = "llvm_cov_analysis"),
         deterministic: cfg!(feature = "deterministic"),
+        git_repo: repo,
         git_ref,
         out_dir: out_dir.clone(),
         source_dir: source_dir.clone(),
@@ -52,6 +54,11 @@ fn main() {
         .prepend_enum_name(true)
         .clang_arg("-I")
         .clang_arg(include_path.display().to_string());
+
+    if cfg!(feature = "deterministic") {
+        // Exposes RAND_reset_for_fuzzing
+        builder = builder.clang_arg("-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE=1");
+    }
 
     let headers = [
         "aes.h",
