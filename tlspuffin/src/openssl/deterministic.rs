@@ -34,8 +34,8 @@ mod tests {
     #[test]
     #[cfg(all(feature = "deterministic", feature = "openssl111-binding"))]
     fn test_openssl_no_randomness() {
-        use crate::openssl::deterministic::set_openssl_deterministic;
-        set_openssl_deterministic();
+        use crate::openssl::deterministic::determinism_set_reseed_openssl;
+        determinism_set_reseed_openssl();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
         assert_eq!(buf1, [70, 100]);

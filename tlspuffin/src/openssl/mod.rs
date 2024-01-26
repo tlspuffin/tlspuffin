@@ -331,7 +331,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         #[cfg(feature = "deterministic")]
         {
             determinism_reseed_openssl();
-            deterministic::set_openssl_deterministic();
             warn!("OpenSSL is deterministic now!!");
             Ok(())
         }
