@@ -99,10 +99,13 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             BORINGSSL_PUT
         }
 
-        fn determinism_set_reseed(&self) -> () {}
+        fn determinism_set_reseed(&self) -> () {
+            debug!("[Determinism] BoringSSL set (already done at compile time) and reseed RAND");
+            deterministic::reset_rand();
+        }
 
         fn determinism_reseed(&self) -> () {
-            debug!("[Determinism] reseed");
+            debug!("[Determinism] reseed BoringSSL");
             deterministic::reset_rand();
         }
 

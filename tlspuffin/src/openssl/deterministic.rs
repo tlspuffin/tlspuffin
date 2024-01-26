@@ -1,6 +1,6 @@
 use std::os::raw::c_int;
 
-use log::warn;
+use log::{warn,debug};
 
 #[cfg(feature = "deterministic")]
 extern "C" {
@@ -10,7 +10,7 @@ extern "C" {
 
 #[cfg(feature = "deterministic")]
 pub fn determinism_set_reseed_openssl() {
-    println!("Making OpenSSL fully deterministic: reset rand and reseed to a constant...");
+    debug!("Making OpenSSL fully deterministic: reset rand and reseed to a constant...");
     unsafe {
         make_openssl_deterministic();
     }
@@ -19,7 +19,7 @@ pub fn determinism_set_reseed_openssl() {
 
 #[cfg(feature = "deterministic")]
 pub fn determinism_reseed_openssl() {
-    println!(" - Reseed RAND for OpenSSL");
+    debug!(" - Reseed RAND for OpenSSL");
     unsafe {
         let mut seed: [u8; 4] = 42u32.to_le().to_ne_bytes();
         let buf = seed.as_mut_ptr();
