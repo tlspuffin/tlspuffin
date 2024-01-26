@@ -14,6 +14,7 @@
 //!
 
 use core::fmt;
+use libafl::inputs::HasBytesVec;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -21,9 +22,8 @@ use std::{
     hash::Hash,
     marker::PhantomData,
 };
-use libafl::inputs::HasBytesVec;
 
-use log::{debug, trace, warn};
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::{TermEval, TermType};
@@ -80,13 +80,13 @@ impl<M: Matcher> Knowledge<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.as_ref().type_id();
-        debug!(
+        warn!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
         );
-        trace!("Knowledge data: {:?}", self.data);
+        warn!("Knowledge data: {:?}", self.data);
     }
 }
 impl<M: Matcher> fmt::Display for Knowledge<M> {
@@ -396,7 +396,11 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute_until_step<PB>(&self, ctx: &mut TraceContext<PB>, nb_steps: usize) -> Result<(), Error>
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        nb_steps: usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -433,8 +437,8 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
     pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-        where
-            PB: ProtocolBehavior<Matcher = M>,
+    where
+        PB: ProtocolBehavior<Matcher = M>,
     {
         self.execute_until_step(ctx, self.steps.len())
     }
