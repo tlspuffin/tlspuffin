@@ -1,5 +1,5 @@
 use std::{
-    env, collections::HashSet,
+    collections::HashSet,
     fs, io,
     io::ErrorKind,
     path::{Path, PathBuf},
@@ -164,15 +164,15 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
 }
 
 pub fn build(options: &BoringSSLOptions) -> std::io::Result<()> {
-    // clone_boringssl(&options.source_dir, options).unwrap();
+    clone_boringssl(&options.source_dir, options).unwrap();
 
     // Patching CMakeList.txt to disable ASAN when using the fuzzer mode
-    // let _ = patch_boringssl(&options.source_dir, "no_asan.patch").unwrap();
+    let _ = patch_boringssl(&options.source_dir, "no_asan.patch").unwrap();
 
-    // if options.deterministic {
-    //     // Patching boringssl to reset the DRBG
-    //     let _ = patch_boringssl(&options.source_dir, "reset_drbg.patch").unwrap();
-    // }
+    if options.deterministic {
+        // Patching boringssl to reset the DRBG
+        let _ = patch_boringssl(&options.source_dir, "reset_drbg.patch").unwrap();
+    }
 
     let _ = build_boringssl(&options.out_dir, options);
 
