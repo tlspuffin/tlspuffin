@@ -20,17 +20,15 @@ mod tests {
     use std::fmt::format;
 
     #[test]
+    #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))]
     fn test_boringssl_no_randomness_full() {
         let trace = seed_client_attacker_boring.build_trace();
         let mut ctx1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-        ctx1.set_deterministic(true);
+
         trace.execute(&mut ctx1);
         let mut ctx2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-        ctx2.set_deterministic(true);
         trace.execute(&mut ctx2);
 
-        // println!("Left: {:#?}\n", ctx1);
-        // println!("Right: {:#?}\n", ctx2);
         assert_eq!(ctx1, ctx2);
     }
 }

@@ -32,7 +32,7 @@ mod tests {
     use openssl::rand::rand_bytes;
 
     #[test]
-    #[cfg(feature = "openssl111-binding")]
+    #[cfg(all(feature = "deterministic", feature = "openssl111-binding"))]
     fn test_openssl_no_randomness() {
         use crate::openssl::deterministic::set_openssl_deterministic;
         set_openssl_deterministic();
