@@ -1784,9 +1784,9 @@ pub fn _seed_client_attacker_boring(
 
     (
         trace,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
+        server_hello_transcript.into(),
+        server_finished_transcript.into(),
+        client_finished_transcript.into(),
     )
 }
 

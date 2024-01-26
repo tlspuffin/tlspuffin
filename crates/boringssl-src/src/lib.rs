@@ -106,6 +106,13 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         .define("OPENSSL_NO_BUF_FREELISTS", "1")
         .define("OPENSSL_NO_ASM", "1");
 
+    if env::var("TARGET") == Ok("aarch64-apple-darwin".into()) {
+        // We rely on llvm installed with homebrew on Mac OS X since Xcode does not ship llvm with libfuzzer!
+        boring_conf
+            .define("CMAKE_C_COMPILER", "/opt/homebrew/opt/llvm/bin/clang")
+            .define("CMAKE_CXX_COMPILER", "/opt/homebrew/opt/llvm/bin/clang++");
+    }
+
     if options.deterministic {
         boring_conf.define("FUZZ", "1");
         boring_conf.define("NO_FUZZER_MODE", "1");

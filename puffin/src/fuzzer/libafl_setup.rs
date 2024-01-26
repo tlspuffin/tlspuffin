@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, path::PathBuf};
+use std::{env, fmt, path::PathBuf};
 
 use libafl::{
     corpus::ondisk::OnDiskMetadataFormat,
@@ -370,7 +370,12 @@ where
         #[cfg(test)]
         let map = unsafe {
             // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
-            pub const EDGES_MAP_SIZE: usize = 65536;
+            pub const EDGES_MAP_SIZE: usize =
+                if env::var("TARGET") == Ok("aarch64-apple-darwin".into()) {
+                    131072
+                } else {
+                    65536
+                };
             pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
             pub static mut MAX_EDGES_NUM: usize = 0;
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
