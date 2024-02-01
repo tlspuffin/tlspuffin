@@ -461,11 +461,6 @@ impl BoringSSL {
 
         move |ssl: &mut SslRef, _info_type: i32| {
             if let Some((transcript, status)) = extract_current_transcript(ssl) {
-                println!(
-                    "JE SUIS DANS LE CALLBACK à l'étape '{}' et le transcript est {:02x?}",
-                    status, transcript.0
-                );
-
                 let claim = match status.as_str() {
                     "TLS 1.3 server read_client_finished" => Some(ClaimData::Transcript(
                         ClaimDataTranscript::ClientFinished(TranscriptClientFinished(transcript)),
