@@ -21,6 +21,7 @@ fn main() {
         asan: false,
         sancov: true,
         git_ref: GitRef::Branch("master".to_string()),
+        git_repo: "https://github.com/google/boringssl".into(),
         out_dir,
         source_dir: PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("boringssl"),
     })

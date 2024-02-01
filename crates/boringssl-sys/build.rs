@@ -91,6 +91,7 @@ fn main() {
         "srtp.h",
         "trust_token.h",
         "x509v3.h",
+        "ssl.h",
     ];
     for header in &headers {
         builder = builder.header(include_path.join("openssl").join(header).to_str().unwrap());
