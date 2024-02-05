@@ -5,13 +5,15 @@
 #define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
 #define CLAIM_SESSION_ID_LENGTH 32
 
-typedef enum ClaimTLSVersion {
+typedef enum ClaimTLSVersion
+{
     CLAIM_TLS_VERSION_UNDEFINED = 0,
     CLAIM_TLS_VERSION_V1_2 = 1,
     CLAIM_TLS_VERSION_V1_3 = 2,
 } TLSVersion;
 
-typedef enum ClaimType {
+typedef enum ClaimType
+{
     CLAIM_NOT_SET = -1,
     CLAIM_UNKNOWN,
 
@@ -45,7 +47,8 @@ typedef enum ClaimType {
     CLAIM_ENCRYPTED_EXTENSIONS,
 } ClaimType;
 
-typedef enum ClaimKeyType {
+typedef enum ClaimKeyType
+{
     CLAIM_KEY_TYPE_NOT_SET,
     CLAIM_KEY_TYPE_UNKNOWN,
     CLAIM_KEY_TYPE_DSA,
@@ -60,44 +63,53 @@ typedef enum ClaimKeyType {
     CLAIM_KEY_TYPE_ED448,
 } ClaimKeyType;
 
-typedef struct ClaimSecret {
+typedef struct ClaimSecret
+{
     unsigned char secret[CLAIM_MAX_SECRET_SIZE];
 } ClaimSecret;
 
-typedef struct ClaimCertData {
+typedef struct ClaimCertData
+{
     ClaimKeyType key_type;
     int key_length;
 } ClaimCertData;
 
-typedef struct ClaimCipher {
+typedef struct ClaimCipher
+{
     unsigned short data;
 } ClaimCipher;
 
-typedef struct ClaimCiphers {
+typedef struct ClaimCiphers
+{
     // OpenSSL 1.1.1k supports 60 ciphers on arch linux, add roughly double the space here
     int length;
     ClaimCipher ciphers[CLAIM_MAX_AVAILABLE_CIPHERS];
 } ClaimCiphers;
 
-typedef struct ClaimVersion {
+typedef struct ClaimVersion
+{
     TLSVersion data;
 } ClaimVersion;
 
-typedef struct ClaimRandom {
+typedef struct ClaimRandom
+{
     unsigned char data[CLAIM_SESSION_ID_LENGTH];
 } ClaimRandom;
 
-typedef struct ClaimSessionId {
+typedef struct ClaimSessionId
+{
     int length;
     unsigned char data[CLAIM_SESSION_ID_LENGTH];
 } ClaimSessionId;
 
-typedef struct ClaimTranscript {
+typedef struct ClaimTranscript
+{
     int length;
     unsigned char data[CLAIM_MAX_SECRET_SIZE]; // it contains a hash -> use CLAIM_MAX_SECRET_SIZE
 } ClaimTranscript;
 
-typedef struct Claim {
+typedef struct Claim
+{
     ClaimType typ;
 
     // writing or processing messages
