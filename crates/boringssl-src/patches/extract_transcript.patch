@@ -12,12 +12,11 @@ diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
 index 2e19253c2..54346a8a9 100644
 --- a/include/openssl/ssl.h
 +++ b/include/openssl/ssl.h
-@@ -170,6 +170,9 @@ extern "C" {
+@@ -170,6 +170,8 @@ extern "C" {
  // SSL implementation.
  
  
 +OPENSSL_EXPORT int PUFFIN_extract_transcript(SSL* ssl, uint8_t* out, size_t* out_len);
-+OPENSSL_EXPORT const char* PUFFIN_get_server_handshake_state(SSL *ssl);
 +
  // SSL contexts.
  //
@@ -26,7 +25,7 @@ diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
 index 58b68e675..ee9bc76fe 100644
 --- a/ssl/ssl_lib.cc
 +++ b/ssl/ssl_lib.cc
-@@ -499,6 +499,28 @@ BSSL_NAMESPACE_END
+@@ -499,6 +499,18 @@ BSSL_NAMESPACE_END
  
  using namespace bssl;
  
@@ -41,16 +40,6 @@ index 58b68e675..ee9bc76fe 100644
 +
 +  return 1;
 +}
-+
-+
-+const char *PUFFIN_get_server_handshake_state(SSL *ssl) {
-+  SSL_HANDSHAKE *hs = ssl->s3->hs.get();
-+  if (hs == NULL) {
-+    return "NULL HANDSHAKE";
-+  }
-+  return tls13_server_handshake_state(hs);
-+}
-+
 +
  int SSL_library_init(void) {
    CRYPTO_library_init();

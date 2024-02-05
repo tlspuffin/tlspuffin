@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+use std::{cell::RefCell, fmt::Pointer, io::ErrorKind, rc::Rc};
 
 use foreign_types::ForeignTypeRef;
 use log::debug;
@@ -249,9 +249,6 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
             maybe_error.into()
         };
 
-        self.set_info_callback(Self::create_info_callback(agent_name.clone(), &self.config))
-            .expect("Failed to set info_callback to extract transcript");
-
         result
     }
 
@@ -266,35 +263,38 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
 
     #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
+        self.set_info_callback(Self::create_info_callback(agent_name.clone(), &self.config))
+            .expect("Failed to set info_callback to extract transcript");
 
-            let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
+        // unsafe {
+        //     use foreign_types_openssl::ForeignTypeRef;
 
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    if let Some(data) = to_claim_data(protocol_version, claim) {
-                        claims.deref_borrow_mut().claim_sized(TlsClaim {
-                            agent_name,
-                            origin,
-                            protocol_version,
-                            data,
-                        })
-                    }
-                },
-            );
-        }
+        //     let claims = self.config.claims.clone();
+        //     let protocol_version = self.config.descriptor.tls_version;
+        //     let origin = self.config.descriptor.typ;
+
+        //     security_claims::register_claimer(
+        //         self.stream.ssl().as_ptr().cast(),
+        //         move |claim: security_claims::Claim| {
+        //             if let Some(data) = to_claim_data(protocol_version, claim) {
+        //                 claims.deref_borrow_mut().claim_sized(TlsClaim {
+        //                     agent_name,
+        //                     origin,
+        //                     protocol_version,
+        //                     data,
+        //                 })
+        //             }
+        //         },
+        //     );
+        // }
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
+        // unsafe {
+        //     use foreign_types_openssl::ForeignTypeRef;
+        //     security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+        // }
     }
 
     #[allow(unused_variables)]
@@ -304,6 +304,7 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
             self.deregister_claimer();
             self.register_claimer(agent_name);
         }
+        self.register_claimer(agent_name);
         Ok(())
     }
 
@@ -353,15 +354,12 @@ impl BoringSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
 
-        #[cfg(feature = "claims")]
         let agent_name = agent_descriptor.name;
 
         let mut boringssl = BoringSSL { config, stream };
 
         #[cfg(feature = "claims")]
         boringssl.register_claimer(agent_name);
-
-        // boringssl.set_info_callback(Self::create_info_callback(agent_name, &boringssl.config));
 
         Ok(boringssl)
     }
@@ -460,25 +458,29 @@ impl BoringSSL {
         let claims = config.claims.clone();
 
         move |ssl: &mut SslRef, _info_type: i32| {
-            if let Some((transcript, status)) = extract_current_transcript(ssl) {
-                let claim = match status.as_str() {
-                    "TLS 1.3 server read_client_finished" => Some(ClaimData::Transcript(
-                        ClaimDataTranscript::ClientFinished(TranscriptClientFinished(transcript)),
-                    )),
-                    "TLS 1.3 server done" => Some(ClaimData::Transcript(
-                        ClaimDataTranscript::ServerFinished(TranscriptServerFinished(transcript)),
-                    )),
-                    _ => None,
-                };
-
-                if let Some(data) = claim {
-                    claims.deref_borrow_mut().claim_sized(TlsClaim {
-                        agent_name,
-                        origin,
-                        protocol_version,
-                        data,
-                    });
+            let claim = match ssl.state_string_long() {
+                "TLS 1.3 server read_client_finished" => {
+                    extract_current_transcript(ssl).map_or(None, |t| {
+                        Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
+                            TranscriptClientFinished(t),
+                        )))
+                    })
                 }
+                "TLS 1.3 server done" => extract_current_transcript(ssl).map_or(None, |t| {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                        TranscriptServerFinished(t),
+                    )))
+                }),
+                _ => None,
+            };
+
+            if let Some(data) = claim {
+                claims.deref_borrow_mut().claim_sized(TlsClaim {
+                    agent_name,
+                    origin,
+                    protocol_version,
+                    data,
+                });
             }
         }
     }
@@ -498,6 +500,12 @@ pub unsafe extern "C" fn boring_info_callback<F>(ssl: *const ssl_st, info_type: 
 where
     F: Fn(&mut SslRef, i32) + 'static,
 {
+    // Exit the callback if it's called from a state that doesn's increase the knowledge
+    // Here `SSL_CB_ACCEPT_LOOP` seems to allow to get all the transcript changes
+    // All the states types for the callback are defined in `include/openssl/ssl.h` in BoringSSL
+    if !(info_type == boringssl_sys::SSL_CB_ACCEPT_LOOP) {
+        return;
+    }
     let ssl = SslRef::from_ptr_mut(ssl as *mut ssl_st);
 
     // Getting the callback from ex_data index 0
