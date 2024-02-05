@@ -613,7 +613,7 @@ fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace
     // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
     // term in thje first place.
     t.make_payload(&ctx).with_context(||
-        format!("failed to evaluate chosen sub-term"))?;
+        format!("[make_message_term] failed to evaluate chosen sub-term"))?;
     Ok(())
 }
 

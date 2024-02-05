@@ -198,6 +198,9 @@ impl<M: Matcher> TermEval<M> {
     }
 
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
+        if is_subterm {
+            self.payloads = None;
+        }
         let is_opaque = self.is_opaque();
         match &mut self.term {
             Term::Variable(_) => {}
@@ -205,7 +208,7 @@ impl<M: Matcher> TermEval<M> {
                 if is_subterm {
                     self.payloads = None;
                 }
-                if !is_opaque { // if opaque, we keep payloads in stric sub-terms
+                if !is_opaque { // if opaque, we keep payloads in strict sub-terms
                     for t in args {
                         t.erase_payloads_subterms(true);
                     }
@@ -511,7 +514,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         let mut e =  PB::any_get_encoding(&m)?;
         if with_payloads {
             debug!("[evaluate_config] About to replace payloads {:?} in {e:?}", &p_s);
-            replace_payloads(&mut e, p_s).with_context(|| format!("failing term: {self}"))?;
+            replace_payloads(&mut e, p_s)?; // .with_context(|| format!("failing term: {self}"))?;
         }
         Ok(e)
     }
@@ -599,32 +602,40 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 }
 
 /// Operate the payloads replacements in to_replace, whose term is the term-representation
-/// payloads follow this order: deeper terms first
+/// payloads follow this order: deeper terms first, left-to-right, assuming no overlap (no two terms
+/// one being a subterm of the other).
 pub fn replace_payloads(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloads, TermPath, usize, ConcreteMessage)>,)
                                -> Result<(), Error>
 {
+    trace!("[replace_payload] --------> START");
+    let mut shift = 0 as isize; // Number of bytes we need to shift on the right to apply the splicing, taking into account
+    // previous payloads replacements). We assume the invariant expressed in the DOC above,
     for (payload, path, pos, eval) in &payloads {
         let pos = *pos;
-        trace!("--------> START replace_payload with {:?} and pos {pos} on message of length = {}", payload, to_replace.len());
+        trace!("[replace_payload] --------> treating {:?} and pos {pos} on message of length = {}. Shift = {shift}", payload, to_replace.len());
         let old_b_len = payload.payload_0.bytes().len();
         let new_b = payload.payload.bytes();
-        if pos+old_b_len <= to_replace.len() { // TODO: check if it is < or <=
-            debug!("[replace_payload] About to splice for indices to_replace.len={}, range={pos}..{}. to_replace[pos..pos+old_b_len]={:?}.",
-                to_replace.len(), pos+old_b_len, &to_replace[pos..pos+old_b_len]);
-            // TO REMOVE IN PRODUCTION ! as it is costly!
-            if !(to_replace[pos..pos+old_b_len].to_vec() ==  payload.payload_0.bytes()) {
+        let start = (pos as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
+        let end = start + old_b_len;
+        if end <= to_replace.len() { // TODO: check if it is < or <=
+            debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end}. to_replace[start..end]={:?}.",
+                to_replace.len(), &to_replace[start..end]);
+            // SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
+            if !(to_replace[start..end].to_vec() ==  payload.payload_0.bytes()) {
                 let ft = format!("[replace_payload] Payloads returned by eval_until_opaque were inconsistent!\n
-                 to_replace[pos..pos+old_b_len].to_vec() = !to_replace[{pos}..{}].to_vec() = {:?}\n\
+                 to_replace[start..end].to_vec() = !to_replace[{start}..{end}].to_vec() = {:?}\n\
                  payload.payload_0.bytes() = {:?}\n\
                  to_replace={to_replace:?}",
-                                 pos+old_b_len, to_replace[pos..pos+old_b_len].to_vec(), payload.payload_0.bytes());
+                                 to_replace[start..end].to_vec(), payload.payload_0.bytes());
                 error!("{}", ft);
                 return Err(Error::Term(ft))
             }
-            let to_remove: Vec<u8> = to_replace.splice(pos..pos + old_b_len, new_b.to_vec()).collect();
+            let to_remove: Vec<u8> = to_replace.splice(start..end, new_b.to_vec()).collect();
             trace!("[replace_payload] Removed elements (len={}): {:?}", to_remove.len(), &to_remove);
+            trace!("[replace_payload] Shift update!: New_b: {}, old_b_len: {old_b_len}, shift: {shift}", new_b.len());
+            shift += (new_b.len() as isize - old_b_len as isize);
         } else {
-            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={pos}..{}. Payloads: {payloads:?}", to_replace.len(), pos+old_b_len);
+            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={start}..{end}. Payloads: {payloads:?}", to_replace.len());
             error!("{}", ft);
             return Err(Error::Term(ft))
         }
