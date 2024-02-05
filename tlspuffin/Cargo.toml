@@ -1,8 +1,15 @@
 [package]
 name = "tlspuffin"
-version = "0.1.0"
-authors = ["Maximilian Ammann <max@maxammann.org>"]
-edition = "2021"
+description = "TLS protocol implementation for fuzzing with tlspuffin"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = ["sancov_libafl", "introspection"]
