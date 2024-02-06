@@ -123,7 +123,6 @@ impl Build {
 
     pub fn build(&mut self) -> Artifacts {
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
-        let host = &self.host.as_ref().expect("HOST dir not set")[..];
         let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
         let build_dir = out_dir.join("build");
         let install_dir = out_dir.join("install");
@@ -188,7 +187,7 @@ impl Build {
             // TODO configure.arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION");
         }
 
-        let mut cc = "clang".to_owned();
+        let cc = "clang".to_owned();
         let mut cflags = "".to_owned();
 
         configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
@@ -294,8 +293,16 @@ impl Artifacts {
         &self.lib_dir
     }
 
+    pub fn bin_dir(&self) -> &Path {
+        &self.bin_dir
+    }
+
     pub fn libs(&self) -> &[String] {
         &self.libs
+    }
+
+    pub fn target(&mut self) -> String {
+        self.target.clone()
     }
 
     pub fn print_cargo_metadata(&self) {

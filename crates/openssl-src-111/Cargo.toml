@@ -1,6 +1,7 @@
 [package]
 name = "openssl-src"
 version = "111.22.0+1.1.1q"
+edition = "2021"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
@@ -23,7 +24,7 @@ path = "src/combined.rs"
 [features]
 # Enables features which are neccassary to make openssl ready for fuzzing, somehow I'm ont able to patch these in,
 # therefore we need to specify them here.
-default = [ ]
+default = []
 # Enables compilation of some older algorithms: md2 (hash), rc5 (block cypher) and enabled use of
 # some weaker algorithms in SSL connections. These are generally not recommended for use.
 weak-crypto = []
@@ -56,8 +57,8 @@ openssl111j = []
 openssl111u = []
 openssl312 = []
 
-libressl333 = [ "libressl-src", "libressl", "libressl-src/vendored-libressl333" ]
-libressl = [ ]
+libressl333 = ["libressl-src", "libressl", "libressl-src/vendored-libressl333"]
+libressl = []
 
 [workspace]
 members = ['testcrate']

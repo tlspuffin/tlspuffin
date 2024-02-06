@@ -1,10 +1,4 @@
-#[cfg(not(feature = "libressl"))]
-mod lib;
-#[cfg(not(feature = "libressl"))]
-pub use lib::*;
+#[cfg_attr(feature = "libressl", path = "libressl.rs")]
+mod openssl;
 
-#[cfg(feature = "libressl")]
-extern crate libressl_src;
-
-#[cfg(feature = "libressl")]
-pub use libressl_src::*;
+pub use openssl::*;
