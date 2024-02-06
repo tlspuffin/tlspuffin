@@ -1,28 +1,16 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    fmt::{Debug, Formatter},
-    io,
-    io::ErrorKind,
-    rc::Rc,
-};
+use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
-use log::{info, warn};
+use log::info;
 use openssl::{
     error::ErrorStack,
-    pkey::{PKeyRef, Private},
-    ssl::{Ssl, SslContext, SslMethod, SslOptions, SslStream, SslVerifyMode},
-    stack::Stack,
-    x509::{
-        store::{X509Store, X509StoreBuilder},
-        X509Ref, X509StoreContext, X509,
-    },
+    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+    x509::{store::X509StoreBuilder, X509},
 };
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
     protocol::MessageResult,
-    put::{Put, PutDescriptor, PutName},
+    put::{Put, PutName},
     put_registry::Factory,
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -31,8 +19,8 @@ use smallvec::SmallVec;
 
 use crate::{
     claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
-        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TlsTranscript,
+        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
     openssl::util::{set_max_protocol_version, static_rsa_cert},

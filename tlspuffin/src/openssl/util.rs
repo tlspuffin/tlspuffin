@@ -4,15 +4,13 @@ use openssl::{
     error::ErrorStack,
     hash::MessageDigest,
     pkey::{PKey, Private},
-    ssl::{SslContextBuilder, SslVersion},
+    ssl::SslContextBuilder,
     x509::{
         extension::{BasicConstraints, KeyUsage, SubjectKeyIdentifier},
         X509NameBuilder, X509,
     },
 };
 use puffin::agent::TLSVersion;
-
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY};
 
 // FIXME: remove or use
 pub fn generate_cert() -> Result<(X509, PKey<Private>), ErrorStack> {
@@ -78,11 +76,13 @@ pub fn set_max_protocol_version(
     match tls_version {
         TLSVersion::V1_3 => {
             #[cfg(feature = "openssl111-binding")]
-            ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_3))?;
+            ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_3))?;
             // do nothing as the maximum available TLS version is 1.3
             Ok(())
         }
-        TLSVersion::V1_2 => ctx_builder.set_max_proto_version(Some(SslVersion::TLS1_2)),
+        TLSVersion::V1_2 => {
+            ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_2))
+        }
     }?;
 
     Ok(())
