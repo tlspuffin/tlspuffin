@@ -231,12 +231,12 @@ pub struct Message {
 }
 
 impl Codec for Message {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.encode(bytes);
+    fn encode(&self, _bytes: &mut Vec<u8>) {
+        panic!("not implemented for generic Message");
     }
 
-    fn read(reader: &mut Reader) -> Option<Self> {
-        Self::read(reader)
+    fn read(_reader: &mut Reader) -> Option<Self> {
+        panic!("not implemented for generic Message")
     }
 }
 

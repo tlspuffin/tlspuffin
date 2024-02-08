@@ -396,13 +396,7 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 use nix::{
-    sys::{
-        signal::Signal,
-        wait::{
-            waitpid, WaitPidFlag,
-            WaitStatus::{Exited, Signaled},
-        },
-    },
+    sys::wait::{waitpid, WaitPidFlag},
     unistd::{fork, ForkResult},
 };
 
@@ -428,11 +422,14 @@ where
     }
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
-    input: P,
-    put_registry: &'static PutRegistry<PB>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &'static PutRegistry<PB>) {
+    let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
+        Ok(t) => t,
+        Err(_) => {
+            error!("Invalid trace file {}", input.as_ref().display());
+            return;
+        }
+    };
 
     info!("Agents: {:?}", &trace.descriptors);
 
@@ -448,8 +445,6 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
             );
         }
     });
-
-    Ok(())
 }
 
 fn binary_attack<PB: ProtocolBehavior>(

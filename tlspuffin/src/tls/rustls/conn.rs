@@ -6,11 +6,6 @@ pub struct ConnectionRandoms {
     pub server: [u8; 32],
 }
 
-/// How many ChangeCipherSpec messages we accept and drop in TLS1.3 handshakes.
-/// The spec says 1, but implementations (namely the boringssl test suite) get
-/// this wrong.  BoringSSL itself accepts up to 32.
-static TLS13_MAX_DROPPED_CCS: u8 = 2u8;
-
 impl ConnectionRandoms {
     pub fn new(client: Random, server: Random) -> Self {
         Self {

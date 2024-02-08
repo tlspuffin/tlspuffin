@@ -238,6 +238,7 @@ where
     EM: UsesState<State = Z::State>,
     Z: Evaluator<E, EM>,
 {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             phantom: PhantomData,

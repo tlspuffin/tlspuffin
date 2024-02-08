@@ -172,6 +172,10 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         Ok(agent)
     }
 
+    pub fn descriptor(&self) -> &PutDescriptor {
+        &self.put_descriptor
+    }
+
     pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.name = new_name;
         self.put.rename_agent(new_name)

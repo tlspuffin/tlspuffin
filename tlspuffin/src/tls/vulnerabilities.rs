@@ -1066,9 +1066,7 @@ pub mod tests {
 
     use test_log::test;
 
-    use crate::tls::{
-        seeds::seed_successful12_with_tickets, trace_helper::TraceHelper, vulnerabilities::*,
-    };
+    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
 
     #[test]
     fn test_term_sizes() {
@@ -1135,7 +1133,7 @@ pub mod tests {
     fn test_seed_cve_2021_3449() {
         use puffin::put::PutOptions;
 
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
     }
@@ -1204,7 +1202,7 @@ pub mod tests {
         use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
 
         for i in 0..50 {
-            seed_successful12_with_tickets.execute_trace();
+            crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
         }
 
         expect_trace_crash(seed_cve_2022_38153.build_trace(), PutOptions::default());

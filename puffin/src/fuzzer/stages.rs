@@ -85,6 +85,7 @@ where
     M: Mutator<I, Z::State>,
     Z: Evaluator<E, EM>,
 {
+    #[allow(dead_code)]
     /// Creates a new default mutational stage
     pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
         Self {
@@ -185,7 +186,8 @@ where
     MT: MutatorsTuple<I, S>,
     S: HasRand,
 {
-    /// Create a new [`StdScheduledMutator`] instance specifying mutations
+    #[allow(dead_code)]
+    /// Create a new [`PuffinScheduledMutator`] instance specifying mutations
     pub fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {
         PuffinScheduledMutator {
             mutations,

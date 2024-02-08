@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, io::Read};
+use std::convert::TryFrom;
 
 use puffin::codec::Reader;
 
