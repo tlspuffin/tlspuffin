@@ -225,6 +225,7 @@ struct CoverageStatistics {
     max: u64,
 }
 
+#[cfg(feature = "introspection")]
 #[derive(Serialize)]
 struct IntrospectStatistics {
     scheduler: f32,
@@ -233,6 +234,7 @@ struct IntrospectStatistics {
     introspect_features: IntrospectFeatures,
 }
 
+#[cfg(feature = "introspection")]
 #[derive(Serialize)]
 struct IntrospectFeatures {
     get_input_from_corpus: f32,
@@ -273,6 +275,7 @@ struct TraceStatistics {
     mean_term_size: Option<u64>,
 }
 
+#[cfg(feature = "introspection")]
 impl IntrospectFeatures {
     pub fn new() -> Self {
         Self {
