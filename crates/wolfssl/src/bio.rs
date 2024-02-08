@@ -2,6 +2,8 @@
 //! functions from OpenSSL to WolfSSL but the internal calling conventions might differ so we may
 //! need to rework this.
 
+#![allow(non_snake_case)]
+
 use std::{
     any::Any,
     io,
@@ -324,7 +326,7 @@ impl BIO_METHOD {
 impl Drop for BIO_METHOD {
     fn drop(&mut self) {
         unsafe {
-            Box::<wolf::WOLFSSL_BIO_METHOD>::from_raw(self.0);
+            drop(Box::<wolf::WOLFSSL_BIO_METHOD>::from_raw(self.0));
         }
     }
 }

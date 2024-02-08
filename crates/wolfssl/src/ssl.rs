@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::{
     cell::{Ref, RefMut},
     cmp,
@@ -18,7 +20,7 @@ use wolfssl_sys as wolf;
 
 use crate::{
     bio,
-    callbacks::{ctx_msg_callback, ssl_msg_callback, ExtraUserDataRegistry},
+    callbacks::{ssl_msg_callback, ExtraUserDataRegistry},
     error::{ErrorCode, ErrorStack, InnerError, SslError},
     util::{cvt, cvt_p},
     x509::X509Ref,
@@ -133,15 +135,13 @@ impl SslContextRef {
     /// [`wolfSSL_CTX_load_verify_buffer`]: https://www.wolfssl.com/documentation/manuals/wolfssl/group__CertsKeys.html#function-wolfssl_ctx_load_verify_buffer
     pub fn load_verify_buffer(&self, cert: &[u8]) -> Result<(), ErrorStack> {
         unsafe {
-            unsafe {
-                cvt(wolf::wolfSSL_CTX_load_verify_buffer(
-                    self.as_ptr(),
-                    cert.as_ptr() as *const u8,
-                    cert.len() as i64,
-                    wolf::WOLFSSL_FILETYPE_PEM,
-                ))
-                .map(|_| ())
-            }
+            cvt(wolf::wolfSSL_CTX_load_verify_buffer(
+                self.as_ptr(),
+                cert.as_ptr() as *const u8,
+                cert.len() as i64,
+                wolf::WOLFSSL_FILETYPE_PEM,
+            ))
+            .map(|_| ())
         }
     }
 
@@ -180,7 +180,7 @@ impl SslContextRef {
         unsafe {
             let data = wolf::wolfSSL_CTX_get_ex_data(self.as_ptr(), index);
             if !data.is_null() {
-                Box::<T>::from_raw(data as *mut T);
+                drop(Box::<T>::from_raw(data as *mut T));
             }
         }
     }
@@ -213,7 +213,7 @@ impl SslContextRef {
             self.set_user_data(callback);
             cvt(wolf::wolfSSL_CTX_set_msg_callback(
                 self.as_ptr(),
-                Some(ctx_msg_callback::<F>),
+                Some(crate::callbacks::ctx_msg_callback::<F>),
             ))
             .map(|_| ())
         }
@@ -372,7 +372,7 @@ impl SslRef {
         unsafe {
             let data = wolf::wolfSSL_get_ex_data(self.as_ptr(), index);
             if !data.is_null() {
-                Box::<T>::from_raw(data as *mut T);
+                drop(Box::<T>::from_raw(data as *mut T));
             }
         }
     }
