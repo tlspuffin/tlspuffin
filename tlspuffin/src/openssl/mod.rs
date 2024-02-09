@@ -7,7 +7,7 @@ use std::{
     rc::Rc,
 };
 
-use log::{info, warn};
+use log::{debug, info, warn};
 use openssl::{
     error::ErrorStack,
     pkey::{PKeyRef, Private},
@@ -29,6 +29,7 @@ use puffin::{
 };
 use smallvec::SmallVec;
 
+use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
     claims::{
         ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
@@ -101,6 +102,16 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             OpenSSL::version()
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            debug!("[Determinism] set and reseed");
+            determinism_set_reseed_openssl();
+        }
+
+        fn determinism_reseed(&self) -> () {
+            debug!("[Determinism] reseed");
+            determinism_reseed_openssl();
         }
     }
 
@@ -316,10 +327,10 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn set_deterministic(&mut self) -> Result<(), Error> {
+    fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            deterministic::set_openssl_deterministic();
+            determinism_reseed_openssl();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]

@@ -28,6 +28,7 @@ use crate::{
 #[derive(Clone)]
 pub struct SshProtocolBehavior {}
 
+#[derive(Debug, PartialEq)]
 impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;

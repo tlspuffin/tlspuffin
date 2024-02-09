@@ -274,9 +274,9 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         unsafe { version().to_string() }
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "WolfSSL does not support determinism".to_string(),
+            "[determinism] WolfSSL does not support reseed".to_string(),
         ))
     }
 

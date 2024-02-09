@@ -181,7 +181,7 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {

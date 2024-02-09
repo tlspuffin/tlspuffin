@@ -12,7 +12,7 @@ use log::{debug, trace};
 
 use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
 
-pub trait Claim: VariableData {
+pub trait Claim: VariableData + Debug {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape;
     fn inner(&self) -> Box<dyn Any>;
@@ -22,7 +22,7 @@ pub trait SecurityViolationPolicy<C: Claim> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
 }
@@ -82,7 +82,7 @@ impl<C: Claim> ClaimList<C> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }

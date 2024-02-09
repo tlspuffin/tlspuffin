@@ -498,6 +498,7 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
@@ -536,6 +537,14 @@ pub mod test_signature {
         }
 
         fn version(&self) -> String {
+            panic!("Not implemented for test stub");
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            panic!("Not implemented for test stub");
+        }
+
+        fn determinism_reseed(&self) -> () {
             panic!("Not implemented for test stub");
         }
     }

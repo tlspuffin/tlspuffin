@@ -1,0 +1,54 @@
+Subject: [PATCH] deterministic timestamp
+---
+Index: crypto/time.c
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/crypto/time.c b/crypto/time.c
+--- a/crypto/time.c	(revision f925bfebbb287321133b9251e72bee869a0f58b4)
++++ b/crypto/time.c	(date 1703166565605)
+@@ -11,6 +11,9 @@
+ #include <openssl/err.h>
+ #include "internal/time.h"
+
++unsigned int tlspuffin_time = 42;
++
++
+ OSSL_TIME ossl_time_now(void)
+ {
+     OSSL_TIME r;
+@@ -32,17 +35,21 @@
+ # endif
+     r.t = ((uint64_t)now.ul) * (OSSL_TIME_SECOND / 10000000);
+ #else   /* defined(_WIN32) */
+-    struct timeval t;
+-
+-    if (gettimeofday(&t, NULL) < 0) {
+-        ERR_raise_data(ERR_LIB_SYS, get_last_sys_error(),
+-                       "calling gettimeofday()");
+-        return ossl_time_zero();
+-    }
+-    if (t.tv_sec <= 0)
+-        r.t = t.tv_usec <= 0 ? 0 : t.tv_usec * OSSL_TIME_US;
+-    else
+-        r.t = ((uint64_t)t.tv_sec * 1000000 + t.tv_usec) * OSSL_TIME_US;
++//    struct timeval t;
++//
++//    if (gettimeofday(&t, NULL) < 0) {
++//        ERR_raise_data(ERR_LIB_SYS, get_last_sys_error(),
++//                       "calling gettimeofday()");
++//        return ossl_time_zero();
++//    }
++//    if (t.tv_sec <= 0)
++//        r.t = t.tv_usec <= 0 ? 0 : t.tv_usec * OSSL_TIME_US;
++//    else
++//        r.t = ((uint64_t)t.tv_sec * 1000000 + t.tv_usec) * OSSL_TIME_US;
+ #endif  /* defined(_WIN32) */
+-    return r;
++    r = ossl_time_zero();
++    r.t = r.t + tlspuffin_time * (1000 * OSSL_TIME_US); // 1 seconds elapsed between every call
++    tlspuffin_time++;
++    return ossl_time_zero();
++//    return r;
+ }

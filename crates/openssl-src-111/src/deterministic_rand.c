@@ -2,6 +2,11 @@
 #include <openssl/rand.h>
 #include <stdlib.h>
 
+unsigned int tlspuffin_seed = 42;
+const unsigned int m = 0xFFFFFFFF;
+const unsigned int a = 22695477;
+const unsigned int c = 1;
+
 #define UNUSED(x) (void)(x)
 
 // Seed the RNG. srand() takes an unsigned int, so we just use the first
@@ -10,10 +15,9 @@ static int stdlib_rand_seed(const void *buf, int num)
 {
     if (num < 1)
     {
-        srand(0);
         return 0;
     }
-    srand(*((unsigned int *) buf));
+    tlspuffin_seed = *((unsigned int *) buf);
     return 1;
 }
 
@@ -23,7 +27,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        buf[index] = rand() % 256;
+        tlspuffin_seed = (a * tlspuffin_seed + c) % m;
+        buf[index] = tlspuffin_seed % 256;
     }
     return 1;
 }
