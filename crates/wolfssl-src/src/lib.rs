@@ -125,6 +125,10 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         config.enable("postauth", None);
     }
 
+    if options.sancov {
+        config.cflag("-fsanitize-coverage=trace-pc-guard");
+    }
+
     if options.gcov_analysis {
         config.cflag("-ftest-coverage").cflag("-fprofile-arcs");
     }
