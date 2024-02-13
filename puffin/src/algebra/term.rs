@@ -563,7 +563,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn name(&self) -> &str {
-        if true || self.is_symbolic() { // we do not display this information for now
+        if self.is_symbolic() { // we do not display this information for now
             match &self.term {
                 Term::Variable(v) => v.typ.name,
                 Term::Application(function, _) => function.name(),
