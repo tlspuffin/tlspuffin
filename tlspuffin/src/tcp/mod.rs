@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use log::error;
+use log::{error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
