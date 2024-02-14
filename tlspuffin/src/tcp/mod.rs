@@ -79,7 +79,6 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     let server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
                     Ok(Box::new(server))
                 } else {
-                    // let process = TLSProcess::new(&prog, &args, cwd);
                     let client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
                     Ok(Box::new(client))
                 }
