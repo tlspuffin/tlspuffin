@@ -403,7 +403,6 @@ use nix::{
 
 use crate::{
     agent::AgentName,
-    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 
