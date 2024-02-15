@@ -563,8 +563,7 @@ pub mod test_signature {
 mod tests {
 
     use super::test_signature::*;
-    use crate::algebra::term::TermType;
-    use crate::algebra::TermEval;
+    use crate::algebra::{evaluate_lazy_test, TermEval};
     use crate::{
         agent::AgentName,
         algebra::{
