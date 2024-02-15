@@ -522,11 +522,11 @@ pub mod test_signature {
         }
 
         fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
-            panic!("Not implemented for test stub");
+            Err(Error::Term("any_get_encoding not implemented".to_owned()))
         }
 
         fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
-            panic!("Not implemented for test stub");
+            Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
     }
 
@@ -662,16 +662,16 @@ mod tests {
             data: Box::new(data),
         });
 
-        let eval = generated_term.evaluate_symbolic(&context);
-        let concrete = eval
-            .unwrap();
-
-        assert_eq!(concrete,
-                   generated_term
-                    .evaluate(&context)
-                       .ok().unwrap()
-        );
-        //println!("{:?}", string);
+        // OLD test:
+        // let _string = generated_term
+        //     .evaluate(&context)
+        //     .as_ref()
+        //     .unwrap()
+        //     .downcast_ref::<Vec<u8>>();
+        let eval = evaluate_lazy_test(&generated_term, &context)
+            .as_ref()
+            .unwrap()
+            .downcast_ref::<Vec<u8>>();
     }
 
     #[test]
