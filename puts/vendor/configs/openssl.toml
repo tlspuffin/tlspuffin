@@ -1,0 +1,52 @@
+[preset]
+default = "openssl312"
+
+[preset.openssl312]
+name = "openssl-3.1.2"
+fetch = "openssl312"
+build = ["base", "parallel"]
+
+[preset.openssl111k]
+name = "openssl-1.1.1k"
+fetch = "openssl111k"
+build = ["base", "parallel"]
+
+[preset.openssl111j]
+name = "openssl-1.1.1j"
+fetch = "openssl111j"
+build = ["base", "parallel"]
+
+[preset.openssl111u]
+name = "openssl-1.1.1u"
+fetch = "openssl111u"
+build = ["base", "parallel"]
+
+[preset.openssl101f]
+name = "openssl-1.0.1f"
+fetch = "openssl101f"
+build = ["base"]
+
+[preset.openssl102u]
+name = "openssl-1.0.2u"
+fetch = "openssl102u"
+build = ["base"]
+
+[fetch]
+openssl312 = { git = "https://github.com/tlspuffin/openssl", ref = "fuzz-OpenSSL_3_1_2" }
+openssl111k = { git = "https://github.com/tlspuffin/openssl", ref = "fuzz-OpenSSL_1_1_1k" }
+openssl111j = { git = "https://github.com/tlspuffin/openssl", ref = "fuzz-OpenSSL_1_1_1j" }
+openssl111u = { git = "https://github.com/tlspuffin/openssl", ref = "fuzz-OpenSSL_1_1_1u" }
+openssl101f = { git = "https://github.com/tlspuffin/openssl", ref = "OpenSSL_1_0_1f" }
+openssl102u = { git = "https://github.com/tlspuffin/openssl", ref = "OpenSSL_1_0_2u" }
+
+[patch]
+
+[build.base]
+cmake = "openssl"
+options = ["asan", "sancov", "gcov", "llvm_cov"]
+cflags_extra = ["-fPIE", "-g"]
+ldflags_extra = []
+cmake_flags = ["-DPARALLEL=OFF"]
+
+[build.parallel]
+cmake_flags = ["-DPARALLEL=ON"]

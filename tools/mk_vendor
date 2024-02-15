@@ -1,0 +1,854 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+NAME="mk_vendor"
+VERSION="0.1"
+
+USAGE="Usage:
+    ${NAME} make <configuration> [vendor-options]
+    ${NAME} locate <configuration> [vendor-options]
+    ${NAME} -h | --help
+    ${NAME} --version
+
+build and interact with vendor libraries
+
+Commands:
+    Get help for commands with ${NAME} COMMAND --help
+
+    make    build the vendor library
+    locate  find a vendor library
+
+Common Options:
+    -h, --help  display help and exit
+    --version   display version and exit
+
+Examples:
+    build the default version of OpenSSL:
+      \$ ${NAME} make openssl
+
+    build OpenSSL 1.1.1u:
+      \$ ${NAME} make openssl:openssl111u
+
+    locate the prefix directory of OpenSSL 3.1.2 with asan
+      \$ ${NAME} locate openssl:openssl312 --options=asan
+"
+
+MAKE_USAGE="Usage:
+    ${NAME} make <configuration>[:<preset>] [vendor-options]
+    ${NAME} make -h | --help
+
+fetch, patch, build and install a vendor library
+
+Vendor Options:
+    -n,--name=STRING       override the configuration name
+    -f,--fetch=STRING      override the fetch method used to retrieve the sources
+    -p,--patch=STRING,...  override the patch sets applied to the sources
+    -b,--build=STRING,...  override the build scripts configuration
+    --options=STRING,...   override the build options
+
+Other Options:
+    -h, --help  display help and exit
+    --dry-run   stop after reading the configuration file
+
+Examples:
+    build the default version of OpenSSL:
+      \$ ${NAME} make openssl
+
+    build OpenSSL 1.1.1u with patched CVE and ASAN:
+      \$ ${NAME} make openssl:openssl111u --patch=all_CVE --options=asan
+
+    build OpenSSL 1.1.1j and give it a different name:
+      \$ ${NAME} make openssl:openssl111j --name=openssl-default
+"
+
+LOCATE_USAGE="Usage:
+    ${NAME} locate <configuration>[:<preset>] [vendor-options]
+    ${NAME} locate -h | --help
+
+Display the path to the install prefix that would be created by passing the same
+vendor configuration to '${NAME} make'.
+
+Vendor Options:
+    -n,--name=STRING       override the configuration name
+    -f,--fetch=STRING      override the fetch method used to retrieve the sources
+    -p,--patch=STRING,...  override the patch sets applied to the sources
+    -b,--build=STRING,...  override the build scripts configuration
+    --options=STRING,...   override the build options
+
+Other Options:
+    -h, --help  display help and exit
+"
+
+
+die() {
+    printf 'error: %s: %s\n' "${NAME}" "$1" >&2
+    exit 1
+}
+
+fatal() {
+    printf 'error: %s internal error: %s\n' "${NAME}" "$1" >&2
+    exit 2
+}
+
+need_cmd() {
+    if ! command -v "$1" > /dev/null 2>&1; then
+        die "required command not found: '$1'"
+    fi
+}
+
+normalize_path() {
+    if command -v readlink > /dev/null 2>&1; then
+        if readlink -f "$1" > /dev/null 2>&1; then
+            readlink -f "$1" 2> /dev/null
+            return
+        fi
+    fi
+
+    if command -v perl > /dev/null 2>&1; then
+        if perl -MCwd -le 'print Cwd::abs_path shift' "$1" > /dev/null 2>&1; then
+            perl -MCwd -le 'print Cwd::abs_path shift' "$1" 2> /dev/null
+            return
+        fi
+    fi
+
+    local dir="${1%/*}"
+    (cd "${dir}" && pwd -P)
+}
+
+read_configuration() {
+    local CONFIGURATION=NOT_SET
+
+    for opt in ${extra_opts[@]+"${extra_opts[@]}"}
+    do
+        IFS=':' read -r kind name long short <<< "${opt}"
+        export "${name}=FALSE"
+    done
+
+    PRESET=default
+    OVERRIDES=()
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            -h|--help)
+                local usage_var
+                usage_var=$(to_upper "${CMD_NAME}")_USAGE
+                echo "${!usage_var}"
+                exit 0
+                ;;
+            -n|--name)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                if [[ -z ${2-} ]]; then
+                    die "${1} value cannot be empty"
+                fi
+
+                shift
+                OVERRIDES+=( "name=${1}" )
+                ;;
+            --name=*)
+                if [[ -z ${1#--name=} ]]; then
+                    die "--name value cannot be empty"
+                fi
+
+                OVERRIDES+=( "name=${1#--name=}" )
+                ;;
+            -f|--fetch)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                if [[ -z ${2} ]]; then
+                    die "${1} value cannot be empty"
+                fi
+
+                shift
+                OVERRIDES+=( "fetch=${1}" )
+                ;;
+            --fetch=*)
+                if [[ -z ${1#--fetch=} ]]; then
+                    die "--fetch value cannot be empty"
+                fi
+
+                OVERRIDES+=( "fetch=${1#--fetch=}" )
+                ;;
+            -p|--patch)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                OVERRIDES+=( "patch=${1}" )
+                ;;
+            --patch=*)
+                OVERRIDES+=( "patch=${1#--patch=}" )
+                ;;
+            -b|--build)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                OVERRIDES+=( "build=${1}" )
+                ;;
+            --build=*)
+                OVERRIDES+=( "build=${1#--build=}" )
+                ;;
+            --options)
+                if [ $# -lt 2 ] || [[ "$2" == -* ]]; then
+                    die "missing mandatory value for option '$1'"
+                fi
+
+                shift
+                OVERRIDES+=( "options=${1}" )
+                ;;
+            --options=*)
+                OVERRIDES+=( "options=${1#--options=}" )
+                ;;
+            -*)
+                local FOUND_EXTRA_OPT=FALSE
+                for opt in ${extra_opts[@]+"${extra_opts[@]}"}
+                do
+                    IFS=':' read -r kind name long short <<< "${opt}"
+                    if [[ -z ${short} ]]; then
+                        short="EMPTY_OPT_SHORT_OPTION"
+                    fi
+
+                    if [[ ${kind} = "switch" ]]; then
+                        case $1 in
+                            "-${short}"|"--${long}")
+                                FOUND_EXTRA_OPT=TRUE
+                                export "${name}"=TRUE
+                                ;;
+                        esac
+                    fi
+                done
+
+                if [[ ${FOUND_EXTRA_OPT} = FALSE ]]; then
+                    die "unknown option $1. Run '${NAME} ${CMD_NAME} --help' for usage."
+                fi
+                ;;
+            *)
+                if [[ ${CONFIGURATION} != NOT_SET ]]; then
+                    die "unexpected positional arg '$1': configuration already set to '${CONFIGURATION}'"
+                fi
+
+                IFS=':' read -r CONFIGURATION PRESET <<<"${1}"
+
+                if [[ -z ${PRESET} ]]; then
+                    PRESET=default
+                fi
+                ;;
+        esac
+
+        shift
+    done
+
+    if [[ ${CONFIGURATION} == NOT_SET ]]; then
+        die "missing mandatory positional argument <configuration> (can be a path or a short name)"
+    fi
+
+    local conf_lookup=(
+        "${CONFIGURATION}"
+        "${MK_VENDOR_CONFIG_DIR}/${CONFIGURATION}"
+        "${MK_VENDOR_CONFIG_DIR}/${CONFIGURATION}.toml"
+    )
+
+    lookup config_file "configuration file" "${conf_lookup[@]}"
+
+    if ! command -v toml > /dev/null 2>&1; then
+        need_cmd cargo
+        printf '%s: installing dependency: toml-cli\n' "${NAME}"
+        cargo install toml-cli --version "0.2.3"
+    fi
+
+    need_cmd toml
+
+    set_overrides "${config_file}"
+
+    VENDOR_NAME=$(toml_get -n "${config_file}" vendor.name)
+    FETCH_NAME=$(toml_get -n "${config_file}" vendor.fetch)
+
+    FETCH_METHOD=git
+    FETCH_URL=$(toml_get -n "${config_file}" "fetch.${FETCH_NAME}.git")
+    FETCH_REF=$(toml_get -n "${config_file}" "fetch.${FETCH_NAME}.ref")
+    IFS=$'\n' read -r -d '' -a patches < <(read_patches "${config_file}" && printf '\0')
+
+    BUILD_ENGINE=cmake
+
+    IFS=$'\n' read -r -d '' -a build_scripts < <(read_build_scripts "${config_file}" && printf '\0')
+
+    if (( ${#build_scripts[@]} > 1 )); then
+        die "got several build scripts:$(printf '\n  %s' "${build_scripts[@]}")"
+    fi
+
+    if (( ${#build_scripts[@]} == 0 )); then
+        die "missing build script key 'cmake'"
+    fi
+
+    IFS=$'\n' read -r -d '' -a build_flags < <(read_build_flags "${config_file}" && printf '\0')
+    IFS=$'\n' read -r -d '' -a build_options < <(read_build_options "${config_file}" && printf '\0')
+
+    build_script=${build_scripts[0]}
+
+    PATCHES=$(IFS=','; printf '%s\n' "${patches[*]+"${patches[*]}"}")
+
+    CMAKE_ROOT="$(dirname "${build_script}")"
+
+    CONFUID=$(config_summary | mk_hash)
+
+    cmake_flags=()
+    cmake_flags+=( "-DFETCH_METHOD='${FETCH_METHOD}'" )
+    cmake_flags+=( "-DFETCH_URL='${FETCH_URL}'" )
+    cmake_flags+=( "-DFETCH_REF='${FETCH_REF}'" )
+    cmake_flags+=( "-DPATCHES='${PATCHES}'" )
+    cmake_flags+=( ${build_flags[@]+"${build_flags[@]}"} )
+    cmake_flags+=( ${build_options[@]+"${build_options[@]}"} )
+
+    OUTDIR=${VENDOR_DIR}/${VENDOR_NAME}
+    BLDDIR=${OUTDIR}/build
+    cmake_flags+=( "-DCMAKE_INSTALL_PREFIX='${OUTDIR}'" )
+    cmake_flags+=( "-B${BLDDIR}" )
+    cmake_flags+=( "${CMAKE_ROOT}" )
+}
+
+display_configuration() {
+    printf 'mk_vendor configuration:'
+
+    printf '\n  vendor:\n'
+    printf '    VENDOR_NAME = %s\n' "${VENDOR_NAME}"
+    printf '    VENDOR_DIR = %s\n' "${VENDOR_DIR}"
+    printf '    VENDOR_UID = %s\n' "${CONFUID}"
+
+    printf '\n  fetch:\n'
+    printf '    FETCH_METHOD = %s\n' "${FETCH_METHOD}"
+    printf '    FETCH_URL = %s\n' "${FETCH_URL}"
+    printf '    FETCH_REF = %s\n' "${FETCH_REF}"
+
+    printf '\n  patch:\n'
+    if (( ${#patches[@]} != 0 )); then
+        printf '    %s\n' "${patches[@]}"
+    else
+        printf '    no patch is applied\n'
+    fi
+
+    printf '\n  build:\n'
+    printf '    BUILD_ENGINE = %s\n'  "${BUILD_ENGINE}"
+    printf '    BUILD_SCRIPT = %s\n' "${build_script}"
+    printf '    BUILD_DIR = %s\n' "${BLDDIR}"
+    if (( ${#build_options[@]} > 0 )); then
+        printf '    BUILD_OPTIONS =\n'
+        printf '      %s\n' "${build_options[@]}"
+    fi
+    if (( ${#build_flags[@]} > 0 )); then
+        printf '    BUILD_FLAGS =\n'
+        printf '      %s\n' "${build_flags[@]}"
+    fi
+
+    printf '\n  install:\n'
+    printf '    INSTALL_DIR = %s\n' "${OUTDIR}"
+}
+
+config_summary() {
+    local PRINT_FILE_PATHS=FALSE
+    while [[ $# -gt 0 ]]
+    do
+        case $1 in
+            -p|--with-paths)
+                PRINT_FILE_PATHS=TRUE
+                ;;
+        esac
+
+        shift
+    done
+
+    printf 'FETCH_METHOD:%s\n' "${FETCH_METHOD}"
+    printf 'FETCH_ARG:URL=%s\n' "${FETCH_URL}"
+    printf 'FETCH_ARG:REF=%s\n' "${FETCH_REF}"
+    if (( ${#patches[@]} != 0 )); then
+        for p in "${patches[@]}"
+        do
+            if [[ ${PRINT_FILE_PATHS} = TRUE ]]; then
+                printf 'PATCH:%s:%s\n' "$(mk_hash -f "${p}")" "${p}"
+            else
+                printf 'PATCH:%s\n' "$(mk_hash -f "${p}")"
+            fi
+        done
+    fi
+    printf 'BUILD_ENGINE:%s\n' "${BUILD_ENGINE}"
+    if [[ ${PRINT_FILE_PATHS} = TRUE ]]; then
+        printf 'BUILD_SCRIPT:%s:%s\n' "$(mk_hash -f "${build_script}")" "${build_script}"
+    else
+        printf 'BUILD_SCRIPT:%s\n' "$(mk_hash -f "${build_script}")"
+    fi
+
+    if (( ${#build_options[@]} > 0 )); then
+        printf 'BUILD_ARG:%s\n' "${build_options[@]}"
+    fi
+
+    if (( ${#build_flags[@]} > 0 )); then
+        printf 'BUILD_ARG:%s\n' "${build_flags[@]}"
+    fi
+}
+
+lookup() {
+    local result=${1}; shift
+    local search=${1}; shift
+    declare -a lookup_table=( "$@" )
+
+    for p in "${lookup_table[@]}"
+    do
+        if [[ -f "${p}" ]]; then
+            local value=${p}
+            break
+        fi
+    done
+
+    if [[ -z ${value+is_set} ]]; then
+        die "${search} not found. Tried:$(printf '\n  - %s' "${lookup_table[@]}")"
+    fi
+
+    export "${result}"="${value}"
+    return 0
+}
+
+set_overrides() {
+    local config=${1-}
+
+    VENDOR_NAME_OVERRIDE=NOT_SET
+    VENDOR_FETCH_OVERRIDE=NOT_SET
+    VENDOR_BUILD_OVERRIDE=NOT_SET
+    VENDOR_PATCH_OVERRIDE=NOT_SET
+    VENDOR_OPTIONS_OVERRIDE=NOT_SET
+
+    if [[ -n "${PRESET}" ]]; then
+        local preset=${PRESET}
+        if [[ ${preset} = 'default' ]]; then
+            preset=$(toml_get "${config}" "preset.default")
+        fi
+
+        if [[ -z $(toml_get "${config}" "preset.${preset}") ]]; then
+            die "requested preset '${preset}' is not in configuration file '${config}'"
+        fi
+
+        VENDOR_NAME_OVERRIDE=$(toml_get -n "${config}" "preset.${preset}.name")
+        VENDOR_FETCH_OVERRIDE=$(toml_get -n "${config}" "preset.${preset}.fetch")
+        VENDOR_BUILD_OVERRIDE=$(toml_get -n -a -d, "${config}" "preset.${preset}.build")
+        VENDOR_PATCH_OVERRIDE=$(toml_get -a -d, "${config}" "preset.${preset}.patch")
+        VENDOR_OPTIONS_OVERRIDE=$(toml_get -a -d, "${config}" "preset.${preset}.options")
+    fi
+
+    for override in ${OVERRIDES[@]+"${OVERRIDES[@]}"}
+    do
+        case ${override} in
+            name=*)
+                VENDOR_NAME_OVERRIDE=${override#name=}
+                ;;
+            fetch=*)
+                local fetch=${override#fetch=}
+                if [[ -z $(toml_get "${config}" "fetch.${fetch}") ]]; then
+                    die "requested fetch '${fetch}' is not in configuration file '${config}'"
+                fi
+
+                VENDOR_FETCH_OVERRIDE=${fetch}
+                ;;
+            patch=*)
+                VENDOR_PATCH_OVERRIDE=${override#patch=}
+                ;;
+            build=*)
+                VENDOR_BUILD_OVERRIDE=${override#build=}
+                ;;
+            options=*)
+                VENDOR_OPTIONS_OVERRIDE=${override#options=}
+                ;;
+        esac
+    done
+}
+
+read_patches() {
+    local config=${1-}
+
+    toml_get -a "${config}" vendor.patch    |
+        check_defined "${config}" "patch"   |
+        map replace "patch.@@"              |
+        map toml_get -a "${config}"         |
+        map find_patch                      |
+        map normalize_path                  |
+        awk '!seen[$0]++'
+}
+
+read_build_scripts() {
+    local config=${1-}
+
+    toml_get -n -a "${config}" vendor.build |
+        check_defined "${config}" "build"   |
+        map replace "build.@@.cmake"        |
+        map toml_get -a "${config}"         |
+        map find_build                      |
+        map normalize_path                  |
+        awk '!seen[$0]++'
+}
+
+read_build_flags() {
+    local config=${1-}
+
+    toml_get -a "${config}" vendor.build   |
+        map replace "build.@@.cmake_flags" |
+        map toml_get -a "${config}"        |
+        remove_duplicated_flags
+
+    toml_get -a "${config}" vendor.build    |
+        map replace "build.@@.cflags_extra" |
+        map toml_get -a -d, "${config}"     |
+        map replace "-DCFLAGS_EXTRA=@@"
+
+    toml_get -a "${config}" vendor.build     |
+        map replace "build.@@.ldflags_extra" |
+        map toml_get -a -d, "${config}"      |
+        map replace "-DLDFLAGS_EXTRA=@@"
+}
+
+read_build_options() {
+    local config=${1-}
+
+    get_all() {
+        toml_get -a "${config}" vendor.build   |
+            map replace "build.@@.options"     |
+            map toml_get -a "${config}"        |
+            awk '!seen[$0]++'
+    }
+
+    IFS=$'\n' read -r -d '' -a build_options < <(toml_get -a "${config_file}" vendor.options && printf '\0')
+
+    while IFS=$'\n' read -r option_name
+    do
+        if [[ -z ${option_name} ]]; then
+            continue
+        fi
+
+        if is_in build_options "${option_name}"; then
+            printf '%s=ON\n' "${option_name}"
+        else
+            printf '%s=OFF\n' "${option_name}"
+        fi
+    done < <(get_all) | to_upper | map replace '-DWITH_@@'
+}
+
+toml_get() {
+    local config=""
+    local search=""
+    local separator=$'\n'
+    local is_array=FALSE
+    local is_non_empty=FALSE
+
+    while [[ $# -gt 2 ]]
+    do
+        case $1 in
+          -a)
+            is_array=TRUE
+            ;;
+          -n)
+            is_non_empty=TRUE
+            ;;
+          -d*)
+            separator=${1#-d}
+            ;;
+          *)
+            ;;
+        esac
+        shift
+    done
+
+    config="${1-}"
+    search="${2-}"
+
+    # check if this search key was overriden
+    local override
+    override=$(to_upper "${search}")_OVERRIDE
+
+    local value
+    if [[ ${!override-NOT_SET} != NOT_SET ]]; then
+        value=${!override}
+    else
+        value="$(toml get -r "${config}" "${search}" || true)"
+
+        # remove surrounding brackets if present
+        if [[ ${is_array} = TRUE ]]; then
+            value=${value#'['}
+            value=${value%']'}
+        fi
+    fi
+
+    if [[ ${is_non_empty} = TRUE ]] && [[ -z ${value} ]]; then
+        die "configuration key '${search}' is not set or empty"
+    fi
+
+    if [[ ${is_array} = FALSE ]] || [[ -z "${value}" ]]; then
+        printf '%s\n' "${value}"
+        return 0
+    fi
+
+    IFS=',' read -r -a array <<< "${value}"
+
+    # remove quotes from each array element
+    IFS=$'\n' read -r -d '' -a array < <((printf '%s\n' "${array[@]}" | unquote) && printf '\0')
+
+    value=$(IFS="${separator}"; printf '%s\n' "${array[*]}")
+
+    printf "%s\n" "${value}"
+    return 0
+}
+
+remove_duplicated_flags() {
+    local seen=()
+    local name
+
+    while IFS=$'\n' read -r flag
+    do
+        case ${flag} in
+            -D*=*)
+                name=${flag#-D}
+                name=${name/%=*/}
+                value=${flag/#-D*=/}
+
+                seen+=( "${name}" )
+                declare "${name}_val"="${value}"
+                declare "${name}_pre"="-D"
+                declare "${name}_sep"="="
+                ;;
+        esac
+    done
+
+    if (( ${#seen[@]} == 0 )); then
+        printf '\n'
+        return 0
+    fi
+
+    while IFS=$'\n' read -r name
+    do
+        local val_var=${name}_val
+        local pre_var=${name}_pre
+        local sep_var=${name}_sep
+
+        printf '%s%s%s%s\n' "${!pre_var}" "${name}" "${!sep_var}" "${!val_var}"
+    done < <(printf '%s\n' "${seen[@]}" | awk '!seen[$0]++')
+}
+
+check_defined() {
+    local config=${1}
+    local section=${2}
+
+    while IFS=$'\n' read -r name
+    do
+        if [[ -z ${name} ]]; then
+            continue
+        fi
+
+        if [[ -z $(toml_get "${config}" "${section}.${name}") ]]; then
+            die "requested ${section} '${name}' is not in configuration file '${config}'"
+        fi
+
+        printf '%s\n' "${name}"
+    done
+}
+
+map() {
+    while IFS=$'\n' read -r arg
+    do
+        "$@" "${arg}"
+    done
+}
+
+unquote() {
+    local value
+
+    while IFS=$'\n' read -r arg
+    do
+        value=${arg}
+        value="${value/#\"/}"
+        value="${value/%\"/}"
+
+        printf '%s\n' "${value}"
+    done
+}
+
+is_in() {
+    local name="${1}[@]"
+    local value=${2}
+
+    printf '%s\0' ${!name+"${!name}"} | grep -F -x -z -- "${value}" &>/dev/null
+}
+
+replace() {
+    local pattern=${1-}
+    local string=${2-}
+
+    if [[ -z ${string} ]]; then
+        return 0
+    fi
+
+    printf '%s\n' "${pattern/@@/${string}}"
+}
+
+to_upper() {
+    if [[ -z ${1-} ]]; then
+        tr '[:lower:].' '[:upper:]_'
+    else
+        printf '%s\n' "${1-}" | tr '[:lower:].' '[:upper:]_'
+    fi
+}
+
+mk_hash() {
+    if [[ -z ${1-} ]]; then
+        shasum -a 256 | head -c 12 && printf '\n'
+    else
+        if [[ ${1} = '-f' ]]; then
+            if [[ -z ${2-} ]] || [[ ! -r "${2-}" ]]; then
+                die "cannot compute mk_hash over missing or unreadable file '${2-}'"
+            fi
+
+            shasum -a 256 "${2-}" | head -c 12 && printf '\n'
+        else
+            printf '%s' "${1-}" | shasum -a 256 | head -c 12 && printf '\n'
+        fi
+    fi
+}
+
+find_patch() {
+    local name=${1-}
+    local patch_lookup=(
+        "${name}"
+        "${MK_VENDOR_PATCH_DIR}/${name}"
+        "${MK_VENDOR_PATCH_DIR}/${name}.patch"
+    )
+
+    lookup patch_file "patch file '${name}'" "${patch_lookup[@]}"
+    printf '%s\n' "${patch_file}"
+}
+
+find_build() {
+    local name=${1-}
+
+    if [[ -z ${name} ]]; then
+        return 0
+    fi
+
+    local build_lookup=(
+        "${name}/CMakeLists.txt"
+        "${MK_VENDOR_SCRIPT_DIR}/${name}/CMakeLists.txt"
+    )
+
+    lookup build_script "build script '${name}'" "${build_lookup[@]}"
+    printf '%s\n' "${build_script}"
+}
+
+
+need_cmd pwd
+need_cmd dirname
+need_cmd cmake
+need_cmd head
+need_cmd shasum
+need_cmd awk
+need_cmd diff
+
+
+SCRIPT_DIR=$(normalize_path "$( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )")
+VENDOR_DIR=$(normalize_path "${SCRIPT_DIR}/../vendor")
+
+MK_VENDOR_HOME=${MK_VENDOR_HOME-$(normalize_path "${SCRIPT_DIR}/../puts/vendor")}
+MK_VENDOR_CONFIG_DIR=${MK_VENDOR_CONFIG_DIR-$(normalize_path "${MK_VENDOR_HOME}/configs")}
+MK_VENDOR_PATCH_DIR=${MK_VENDOR_PATCH_DIR-$(normalize_path "${MK_VENDOR_HOME}/patches")}
+MK_VENDOR_SCRIPT_DIR=${MK_VENDOR_SCRIPT_DIR-$(normalize_path "${MK_VENDOR_HOME}/scripts")}
+
+if [ $# -lt 1 ]; then
+    die "missing command argument. run '${NAME} --help' for usage."
+fi
+
+CMD_NAME=$1
+shift
+
+run_cmd_help() {
+    printf '%s\n' "${USAGE}"
+    exit 0
+}
+
+run_cmd_version() {
+    printf '%s\n' "${VERSION}"
+    exit 0
+}
+
+run_cmd_locate() {
+    read_configuration "$@"
+    printf '%s\n' "${OUTDIR}"
+    exit 0
+}
+
+run_cmd_make() {
+    local extra_opts=( "switch:DRY_RUN:dry-run:" )
+
+    read_configuration "$@"
+
+    display_configuration
+
+    if [[ ${DRY_RUN-FALSE} = TRUE ]]; then
+        exit 0
+    fi
+
+    if [[ -r "${OUTDIR}/mk_vendor.conf" ]]; then
+        IFS=':' read -r _ _ OTHER_CONFUID <<<"$(grep '^META:CONFUID:' "${OUTDIR}/mk_vendor.conf")"
+
+        if [[ "${OTHER_CONFUID}" != "${CONFUID}" ]]; then
+            die "a mk_vendor install already exists in '${OUTDIR}' with the following configuration differences:$(printf '\n%s' "$(diff <(grep -v '^META:' "${OUTDIR}/mk_vendor.conf") <(config_summary --with-paths))")"
+        fi
+    fi
+
+    printf '\nmk_vendor is starting:\n'
+
+    mkdir -p "${OUTDIR}"
+    {
+        printf 'META:MK_VENDOR_VERSION:%s\n' "${VERSION}"
+        printf 'META:CONFUID:%s\n' "${CONFUID}"
+        config_summary --with-paths
+    } > "${OUTDIR}/mk_vendor.conf"
+
+    if ! CC="${CC:-clang}" cmake "${cmake_flags[@]}"; then
+        die "failed configuration step for vendor lib '${VENDOR_NAME}'"
+    fi
+
+    if ! cmake --build "${BLDDIR}" --target vendor; then
+        die "failed build step for vendor lib '${VENDOR_NAME}'"
+    fi
+
+    exit 0
+}
+
+case ${CMD_NAME} in
+    -h|--help)
+        run_cmd_help "$@"
+        ;;
+    --version)
+        run_cmd_version "$@"
+        ;;
+    -*)
+        die "unexpected option: please provide a command first"
+        ;;
+    make)
+        run_cmd_make "$@"
+        ;;
+    locate)
+        run_cmd_locate "$@"
+        ;;
+    *)
+        CMD=run_cmd_${CMD_NAME}
+        if [ "$(type -t "${CMD}")" != 'function' ]; then
+            die "unknown command '${CMD_NAME}'"
+        fi
+
+        "${CMD}" "$@"
+        ;;
+esac
+
+# should never reach this location
+fatal "command should not return"
