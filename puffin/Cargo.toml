@@ -20,7 +20,7 @@ libafl = "0.10.1"
 libafl_targets = "0.10.1"
 
 # Logging
-log = "0.4.17"
+log = { version = "0.4.17" }
 log4rs = "1.2.0"
 
 # Other Dependencies

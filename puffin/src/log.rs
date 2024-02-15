@@ -24,7 +24,7 @@ fn create_config(
         .unwrap()
 }
 
-pub fn create_stdout_config(default_level: LevelFilter) -> Config {
+pub fn create_stderr_config(default_level: LevelFilter) -> Config {
     let stderr = ConsoleAppender::builder()
         .target(log4rs::append::console::Target::Stderr)
         .encoder(Box::new(PatternEncoder::new(
