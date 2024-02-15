@@ -1,8 +1,6 @@
 use boringssl_sys::RAND_reset_for_fuzzing;
-use log::warn;
 
 /// Reset BoringSSL PRNG
-/// BUG : it doesn't seems to work
 pub fn reset_rand() {
     unsafe {
         RAND_reset_for_fuzzing();

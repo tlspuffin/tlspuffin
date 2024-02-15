@@ -214,6 +214,7 @@ boringsslmaster = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
     "deterministic",
+    "claims"
 ]
 
 boringsslv1 = [
@@ -223,8 +224,9 @@ boringsslv1 = [
     "boringssl-binding",
     "tls12-session-resumption",
     "tls13-session-resumption",
-    # "transcript-extraction",
-    # "client-authentication-transcript-extraction",
+    "transcript-extraction",
+    "claims",
+    "client-authentication-transcript-extraction",
     "deterministic",
 ]
 
