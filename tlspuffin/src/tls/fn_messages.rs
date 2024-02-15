@@ -145,9 +145,9 @@ pub fn fn_client_hello(
     client_version: &ProtocolVersion,
     random: &Random,
     session_id: &SessionID,
-    cipher_suites: &Vec<CipherSuite>,
-    compression_methods: &Vec<Compression>,
-    extensions: &Vec<ClientExtension>,
+    cipher_suites: &CipherSuites,
+    compression_methods: &Compressions,
+    extensions: &ClientExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -171,7 +171,7 @@ pub fn fn_server_hello(
     session_id: &SessionID,
     cipher_suite: &CipherSuite,
     compression_method: &Compression,
-    extensions: &Vec<ServerExtension>,
+    extensions: &ServerExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -233,7 +233,7 @@ pub fn fn_hello_retry_request(
     legacy_version: &ProtocolVersion,
     session_id: &SessionID,
     cipher_suite: &CipherSuite,
-    extensions: &Vec<HelloRetryExtension>,
+    extensions: &HelloRetryExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -278,7 +278,7 @@ pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError>
 }
 pub fn fn_certificate13(
     context: &Vec<u8>,
-    entries: &Vec<CertificateEntry>,
+    entries: &CertificateEntries,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      Vec<CertificateEntry> is not possible to create

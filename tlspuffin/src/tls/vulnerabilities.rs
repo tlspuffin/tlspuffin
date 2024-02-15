@@ -18,11 +18,13 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -36,7 +38,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     // ApplicationData 0 is EncryptedExtensions
@@ -57,12 +59,13 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
             (fn_get_context((@certificate_request_message))),
             //fn_empty_certificate_chain
             // Or append eve cert
-            (fn_append_certificate_entry(
+            (fn_certificate_entries_make(
+                (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -171,11 +174,13 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -189,7 +194,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     // ApplicationData 0 is EncryptedExtensions
@@ -208,12 +213,13 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate = term! {
         fn_certificate13(
             (fn_get_context((@certificate_request_message))),
-            (fn_append_certificate_entry(
+            (fn_certificate_entries_make(
+                (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -292,12 +298,14 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 fn_cipher_suite12
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -316,7 +324,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
                 // Add signature cert extension
                 fn_signature_algorithm_cert_extension
             ))
-        )
+        )))
     };
 
     trace.steps.push(Step {
@@ -364,12 +372,14 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 fn_cipher_suite12
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -380,7 +390,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
                 )),
                 fn_signed_certificate_timestamp_extension
             ))
-        )
+        )))
     };
 
     Trace {
@@ -426,10 +436,11 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher
                         ((client, 0)),
                         ((client, 0)),
                         ((client, 0)),
-                        (fn_append_cipher_suite(
+                        (fn_cipher_suites_make(
+                            (fn_append_cipher_suite(
                             (fn_new_cipher_suites()),
                             fn_weak_export_cipher_suite
-                        )),
+                        )))),
                         ((client, 0)),
                         ((client, 0))
                     )
@@ -512,11 +523,13 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -530,7 +543,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let client_finished = term! {
@@ -740,12 +753,14 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                  (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
                 // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
                 fn_cipher_suite13_aes_256_gcm_sha384
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -771,7 +786,7 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -876,11 +891,13 @@ pub fn seed_cve_2022_39173_full(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                   (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -905,7 +922,7 @@ pub fn seed_cve_2022_39173_full(
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -1002,12 +1019,14 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
-                // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
-                fn_cipher_suite13_aes_256_gcm_sha384
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                   (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                  // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
+                  fn_cipher_suite13_aes_256_gcm_sha384
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1033,7 +1052,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     Trace {

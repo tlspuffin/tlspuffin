@@ -202,6 +202,8 @@ impl Codec for u64 {
     }
 }
 
+
+/// encode a Vec whose length is encoded in 1 byte
 pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.push(0);
@@ -212,25 +214,6 @@ pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
 
     let len = bytes.len() - len_offset - 1;
     bytes[len_offset] = len.min(0xff) as u8;
-}
-
-
-// Data that can be considered "coutable" and whose Vec<> are prefixed with the size of the vector (e.g., Certificate)
-pub trait Countable {}
-impl Countable for Vec<u8> {}
-
-impl<T: Codec + Countable> Codec for Vec<T> {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        if self.len() == 0 {
-            // encode_vec_u8(bytes, self) // TODO: investigate if this breaks something for some Countable types. At least we need it for Certificates list
-        } else {
-            encode_vec_u8(bytes, self)
-        }
-    }
-
-    fn read(r: &mut Reader) -> Option<Self> {
-        read_vec_u8(r)
-    }
 }
 
 // We do not put the size of the vector for Vec<u8> as we consider it as plain data
@@ -276,6 +259,8 @@ impl Encode for bool {
         }
     }
 }
+
+/// encode a Vec whose length is encoded in 2 bytes
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0]);
@@ -289,6 +274,7 @@ pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     *out = u16::to_be_bytes(len.min(0xffff) as u16);
 }
 
+/// encode a Vec whose length is encoded in 3 bytes
 pub fn encode_vec_u24<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0, 0]);
@@ -341,4 +327,26 @@ pub fn read_vec_u24_limited<T: Codec>(r: &mut Reader, max_bytes: usize) -> Optio
     }
 
     Some(ret)
+}
+
+// Trait for data whose Vectors are encoded without length prefix
+pub trait VecCodecWoSize {}
+impl VecCodecWoSize for Vec<u8> {}
+
+impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for i in self {
+            i.encode(bytes);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let mut ret: Vec<T> = Vec::new();
+
+        while r.any_left() {
+            ret.push(T::read(r)?);
+        }
+
+        Some(ret)
+    }
 }

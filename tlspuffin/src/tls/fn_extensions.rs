@@ -42,8 +42,20 @@ pub fn fn_client_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_client_extensions_make(
+    extensions: &Vec<ClientExtension>
+) -> Result<ClientExtensions, FnError> {
+    Ok(ClientExtensions(extensions.clone()))
+}
+
 pub fn fn_server_extensions_new() -> Result<Vec<ServerExtension>, FnError> {
     Ok(vec![])
+}
+
+pub fn fn_server_extensions_make(
+    extensions: &Vec<ServerExtension>
+) -> Result<ServerExtensions, FnError> {
+    Ok(ServerExtensions(extensions.clone()))
 }
 
 pub fn fn_server_extensions_append(
@@ -56,6 +68,11 @@ pub fn fn_server_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_hello_retry_extensions_make(
+    extensions: &Vec<HelloRetryExtension>,
+) -> Result<HelloRetryExtensions, FnError> {
+    Ok(HelloRetryExtensions(extensions.clone()))
+}
 pub fn fn_hello_retry_extensions_new() -> Result<Vec<HelloRetryExtension>, FnError> {
     Ok(vec![])
 }

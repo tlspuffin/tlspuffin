@@ -53,6 +53,47 @@ macro_rules! declare_u16_vec (
   }
 );
 
+macro_rules! declare_u16_vec_empty (
+  ($name:ident, $itemtype:ty) => {
+    #[derive(Debug, Clone)]
+    pub struct $name(pub Vec<$itemtype>);
+
+    impl puffin::codec::Codec for $name {
+      fn encode(&self, bytes: &mut Vec<u8>) {
+          if !self.0.is_empty() { // for optional fields such as ClientExtensions
+            puffin::codec::encode_vec_u16(bytes, &self.0);
+          }
+      }
+
+      fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
+        Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?)) // we still try to read even though we might
+          // mis-interpret a ['0'] as being the empty list, which is must hozever must be serialized as [] (empty bittstring).
+          // This is a trade-off we accept to be able to correctly read in most cases (non-empty lists).
+          // Moroever, when reading a struct cintaining $name as a field, we shall first check that there is remaining
+          // bytes to read!
+      }
+    }
+  }
+);
+
+macro_rules! declare_u24_vec_limited (
+  ($name:ident, $itemtype:ty) => {
+    #[derive(Debug, Clone)]
+    pub struct $name(pub Vec<$itemtype>);
+
+    impl puffin::codec::Codec for $name {
+      fn encode(&self, bytes: &mut Vec<u8>) {
+        puffin::codec::encode_vec_u24(bytes, &self.0);
+      }
+
+      fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
+        Some($name(puffin::codec::read_vec_u24_limited::<$itemtype>(r, 0x10000)?))
+      }
+    }
+  }
+);
+
+
 declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
 declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 
@@ -862,14 +903,18 @@ impl ServerExtension {
     }
 }
 
+declare_u16_vec_empty!(ClientExtensions, ClientExtension);
+declare_u16_vec!(CipherSuites, CipherSuite);
+declare_u8_vec!(Compressions, Compression);
+
 #[derive(Debug, Clone)]
 pub struct ClientHelloPayload {
     pub client_version: ProtocolVersion,
     pub random: Random,
     pub session_id: SessionID,
-    pub cipher_suites: Vec<CipherSuite>,
-    pub compression_methods: Vec<Compression>,
-    pub extensions: Vec<ClientExtension>,
+    pub cipher_suites: CipherSuites,
+    pub compression_methods: Compressions,
+    pub extensions: ClientExtensions,
 }
 
 impl Codec for ClientHelloPayload {
@@ -877,12 +922,9 @@ impl Codec for ClientHelloPayload {
         self.client_version.encode(bytes);
         self.random.encode(bytes);
         self.session_id.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.cipher_suites);
-        codec::encode_vec_u8(bytes, &self.compression_methods);
-
-        if !self.extensions.is_empty() {
-            codec::encode_vec_u16(bytes, &self.extensions);
-        }
+        self.cipher_suites.encode(bytes);
+        self.compression_methods.encode(bytes);
+        self.extensions.encode(bytes); // will not write anything if the list is empty!
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
@@ -890,13 +932,13 @@ impl Codec for ClientHelloPayload {
             client_version: ProtocolVersion::read(r)?,
             random: Random::read(r)?,
             session_id: SessionID::read(r)?,
-            cipher_suites: codec::read_vec_u16::<CipherSuite>(r)?,
-            compression_methods: codec::read_vec_u8::<Compression>(r)?,
-            extensions: Vec::new(),
+            cipher_suites: CipherSuites::read(r)?,
+            compression_methods: Compressions::read(r)?,
+            extensions: ClientExtensions(Vec::new()),
         };
 
         if r.any_left() {
-            ret.extensions = codec::read_vec_u16::<ClientExtension>(r)?;
+            ret.extensions = ClientExtensions::read(r)?;
         }
 
         if r.any_left() {
@@ -913,7 +955,7 @@ impl ClientHelloPayload {
     pub fn has_duplicate_extension(&self) -> bool {
         let mut seen = collections::HashSet::new();
 
-        for ext in &self.extensions {
+        for ext in &self.extensions.0 {
             let typ = ext.get_type().get_u16();
 
             if seen.contains(&typ) {
@@ -926,7 +968,7 @@ impl ClientHelloPayload {
     }
 
     pub fn find_extension(&self, ext: ExtensionType) -> Option<&ClientExtension> {
-        self.extensions.iter().find(|x| x.get_type() == ext)
+        self.extensions.0.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_sni_extension(&self) -> Option<&ServerNameRequest> {
@@ -1026,6 +1068,7 @@ impl ClientHelloPayload {
 
     pub fn check_psk_ext_is_last(&self) -> bool {
         self.extensions
+            .0
             .last()
             .map_or(false, |ext| ext.get_type() == ExtensionType::PreSharedKey)
     }
@@ -1045,7 +1088,7 @@ impl ClientHelloPayload {
     }
 
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
-        let last_extension = self.extensions.last_mut();
+        let last_extension = self.extensions.0.last_mut();
         if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
             offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
         }
@@ -1118,12 +1161,14 @@ impl Codec for HelloRetryExtension {
     }
 }
 
+declare_u16_vec!(HelloRetryExtensions,HelloRetryExtension);
+
 #[derive(Debug, Clone)]
 pub struct HelloRetryRequest {
     pub legacy_version: ProtocolVersion,
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
-    pub extensions: Vec<HelloRetryExtension>,
+    pub extensions: HelloRetryExtensions,
 }
 
 impl Codec for HelloRetryRequest {
@@ -1133,14 +1178,17 @@ impl Codec for HelloRetryRequest {
         self.session_id.encode(bytes);
         self.cipher_suite.encode(bytes);
         Compression::Null.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.extensions);
+        // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty =
+        //         // lists of extensions, as for CLientHello ClientExtensions?
+            self.extensions.encode(bytes);
+        // }
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
         let session_id = SessionID::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
         let compression = Compression::read(r)?;
-
+        let extensions = HelloRetryExtensions::read(r)?;
         if compression != Compression::Null {
             return None;
         }
@@ -1149,7 +1197,7 @@ impl Codec for HelloRetryRequest {
             legacy_version: ProtocolVersion::Unknown(0),
             session_id,
             cipher_suite,
-            extensions: codec::read_vec_u16::<HelloRetryExtension>(r)?,
+            extensions,
         })
     }
 }
@@ -1160,7 +1208,7 @@ impl HelloRetryRequest {
     pub fn has_duplicate_extension(&self) -> bool {
         let mut seen = collections::HashSet::new();
 
-        for ext in &self.extensions {
+        for ext in &self.extensions.0 {
             let typ = ext.get_type().get_u16();
 
             if seen.contains(&typ) {
@@ -1173,7 +1221,7 @@ impl HelloRetryRequest {
     }
 
     pub fn has_unknown_extension(&self) -> bool {
-        self.extensions.iter().any(|ext| {
+        self.extensions.0.iter().any(|ext| {
             ext.get_type() != ExtensionType::KeyShare
                 && ext.get_type() != ExtensionType::SupportedVersions
                 && ext.get_type() != ExtensionType::Cookie
@@ -1181,7 +1229,7 @@ impl HelloRetryRequest {
     }
 
     fn find_extension(&self, ext: ExtensionType) -> Option<&HelloRetryExtension> {
-        self.extensions.iter().find(|x| x.get_type() == ext)
+        self.extensions.0.iter().find(|x| x.get_type() == ext)
     }
 
     pub fn get_requested_key_share_group(&self) -> Option<NamedGroup> {
@@ -1209,6 +1257,8 @@ impl HelloRetryRequest {
     }
 }
 
+declare_u16_vec_empty!(ServerExtensions, ServerExtension);
+
 #[derive(Debug, Clone)]
 pub struct ServerHelloPayload {
     pub legacy_version: ProtocolVersion,
@@ -1216,7 +1266,7 @@ pub struct ServerHelloPayload {
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_method: Compression,
-    pub extensions: Vec<ServerExtension>,
+    pub extensions: ServerExtensions,
 }
 
 impl Codec for ServerHelloPayload {
@@ -1227,7 +1277,7 @@ impl Codec for ServerHelloPayload {
         self.session_id.encode(bytes);
         self.cipher_suite.encode(bytes);
         self.compression_method.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.extensions);
+        self.extensions.encode(bytes);
     }
 
     // minus version and random, which have already been read.
@@ -1236,9 +1286,9 @@ impl Codec for ServerHelloPayload {
         let suite = CipherSuite::read(r)?;
         let compression = Compression::read(r)?;
         let extensions = if r.any_left() {
-            codec::read_vec_u16::<ServerExtension>(r)?
+            ServerExtensions::read(r)?
         } else {
-            vec![]
+            ServerExtensions(vec![])
         };
 
         let ret = Self {
@@ -1260,7 +1310,7 @@ impl Codec for ServerHelloPayload {
 
 impl HasServerExtensions for ServerHelloPayload {
     fn get_extensions(&self) -> &[ServerExtension] {
-        &self.extensions
+        &self.extensions.0
     }
 }
 
@@ -1473,22 +1523,23 @@ impl CertificateEntry {
     }
 }
 
+declare_u24_vec_limited!(CertificateEntries,CertificateEntry);
 #[derive(Debug, Clone)]
 pub struct CertificatePayloadTLS13 {
     pub context: PayloadU8,
-    pub entries: Vec<CertificateEntry>,
+    pub entries: CertificateEntries,
 }
 
 impl Codec for CertificatePayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.context.encode(bytes);
-        codec::encode_vec_u24(bytes, &self.entries);
+        self.entries.encode(bytes);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
         Some(Self {
             context: PayloadU8::read(r)?,
-            entries: codec::read_vec_u24_limited::<CertificateEntry>(r, 0x10000)?,
+            entries: CertificateEntries::read(r)?,
         })
     }
 }
@@ -1497,12 +1548,12 @@ impl CertificatePayloadTLS13 {
     pub fn new(entries: Vec<CertificateEntry>) -> Self {
         Self {
             context: PayloadU8::empty(),
-            entries,
+            entries: CertificateEntries(entries),
         }
     }
 
     pub fn any_entry_has_duplicate_extension(&self) -> bool {
-        for entry in &self.entries {
+        for entry in &self.entries.0 {
             if entry.has_duplicate_extension() {
                 return true;
             }
@@ -1512,7 +1563,7 @@ impl CertificatePayloadTLS13 {
     }
 
     pub fn any_entry_has_unknown_extension(&self) -> bool {
-        for entry in &self.entries {
+        for entry in &self.entries.0 {
             if entry.has_unknown_extension() {
                 return true;
             }
@@ -1522,7 +1573,7 @@ impl CertificatePayloadTLS13 {
     }
 
     pub fn any_entry_has_extension(&self) -> bool {
-        for entry in &self.entries {
+        for entry in &self.entries.0 {
             if !entry.exts.0.is_empty() {
                 return true;
             }
@@ -1533,6 +1584,7 @@ impl CertificatePayloadTLS13 {
 
     pub fn get_end_entity_ocsp(&self) -> Vec<u8> {
         self.entries
+            .0
             .first()
             .and_then(CertificateEntry::get_ocsp_response)
             .cloned()
@@ -1541,6 +1593,7 @@ impl CertificatePayloadTLS13 {
 
     pub fn get_end_entity_scts(&self) -> Option<SCTList> {
         self.entries
+            .0
             .first()
             .and_then(CertificateEntry::get_scts)
             .cloned()
@@ -1548,7 +1601,7 @@ impl CertificatePayloadTLS13 {
 
     pub fn convert(&self) -> CertificatePayload {
         let mut ret = Vec::new();
-        for entry in &self.entries {
+        for entry in &self.entries.0 {
             ret.push(entry.cert.clone());
         }
         CertificatePayload(ret)
@@ -2319,7 +2372,7 @@ impl HandshakeMessagePayload {
         let mut ret = self.get_encoding();
 
         let binder_len = match self.payload {
-            HandshakePayload::ClientHello(ref ch) => match ch.extensions.last() {
+            HandshakePayload::ClientHello(ref ch) => match ch.extensions.0.last() {
                 Some(ClientExtension::PresharedKey(ref offer)) => {
                     let mut binders_encoding = Vec::new();
                     offer.binders.encode(&mut binders_encoding);

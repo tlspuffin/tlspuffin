@@ -5,17 +5,14 @@ use puffin::codec;
 use std::any::{Any, type_name, TypeId};
 use std::convert::TryFrom;
 
-use puffin::codec::{Codec, Countable, Reader};
+use puffin::codec::{Codec, VecCodecWoSize, Reader};
 use puffin::error::Error::Term;
 use puffin::protocol::ProtocolMessage;
 
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::{Certificate, PrivateKey};
 use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntry, CertificateExtension, ClientExtension, HelloRetryExtension,
-    NewSessionTicketExtension, PresharedKeyIdentity, ServerExtension,
-};
+use crate::tls::rustls::msgs::handshake::{CertReqExtension, CertificateEntry, CertificateExtension, ClientExtension, HelloRetryExtension, NewSessionTicketExtension, PresharedKeyIdentity, ServerExtension, ClientExtensions, Compressions, CipherSuites, ServerExtensions, HelloRetryExtensions, CertificateEntries};
 use crate::tls::rustls::{
     error::Error,
     msgs::{
@@ -401,18 +398,29 @@ macro_rules! try_downcast {
   };
 }
 
-// For all Countable types, we encode list of items of such type by prefixing with the length
-impl Countable for ClientExtension {}
-impl Countable for ServerExtension {}
-impl Countable for HelloRetryExtension {}
-impl Countable for CertReqExtension {}
-impl Countable for CertificateExtension {}
-impl Countable for NewSessionTicketExtension {}
-impl Countable for Compression {}
-impl Countable for Certificate {}
-impl Countable for CertificateEntry {}
-impl Countable for CipherSuite {}
-impl Countable for PresharedKeyIdentity {}
+// Rationale:
+// 1. Messages of types Vec<Item> will be read and encoded without considering the size of the vector (reading until end of buffer).
+//    We consider such messages as "intermediate values", which are not meant to be directly used in struct fields such as
+//   `extensions` in `ClientHello`. We use `VecCodecWoSize` for that.
+//    In particular, an empty vector yield an empty bitstring and not [0].
+// 2. Field elements of struct messages such as `extensions` in `ClientHello` are wrapped into a constructor, whose `Codec`
+//    implementation consider the size of the vector, encoded into the appropriate number of bytes. This depends on the
+//    field under consideration. For the above example, we shall use `read_vec_u16` and `encode_vec_u16`.
+
+
+// For all Countable types, we encode list of items of such type by prefixing with the length encoded in 2 bytes
+// For each type: whether it produces empty bitstring for empty list ([]), and u8 or u16 length prefix (8/16)
+impl VecCodecWoSize for ClientExtension {} // []/u16
+impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least oen extension it seems)
+impl VecCodecWoSize for HelloRetryExtension {} // ?/u16
+impl VecCodecWoSize for CertReqExtension {} // u16 -s
+impl VecCodecWoSize for CertificateExtension {} // u16 -s
+impl VecCodecWoSize for NewSessionTicketExtension {} //u16 -s
+impl VecCodecWoSize for Compression {} // u8
+impl VecCodecWoSize for Certificate {} // u24, no need?
+impl VecCodecWoSize for CertificateEntry {} // u24
+impl VecCodecWoSize for CipherSuite {} // u16
+impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
@@ -442,10 +450,13 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // MessagePayload,
         // ExtensionType,
         NamedGroup,           // 407
-        Vec<ClientExtension>, //368
+        ClientExtensions, //368
+        Vec<ClientExtension>, //368 // to remove!
         ClientExtension,      // 4067
+        ServerExtensions,
         Vec<ServerExtension>, // TODO
         ServerExtension,
+        HelloRetryExtensions,
         Vec<HelloRetryExtension>,
         HelloRetryExtension,
         Vec<CertReqExtension>,
@@ -455,17 +466,20 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         NewSessionTicketExtension,
         Vec<NewSessionTicketExtension>,
         Random,
-        Vec<Compression>,
+        Compressions,
         Compression,
+        Vec<Compression>,
         SessionID,
         Vec<Certificate>,
         Certificate,
+        CertificateEntries,
         Vec<CertificateEntry>,
         CertificateEntry,
         HandshakeHash,
         PrivateKey,
-        Vec<CipherSuite>,
+        CipherSuites,
         CipherSuite,
+        Vec<CipherSuite>,
         Vec<PresharedKeyIdentity>,
         PresharedKeyIdentity,
         AlertMessagePayload,
@@ -528,9 +542,12 @@ pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn 
             bitstring,
             ty,
             // We list all the types that have the Codec trait and that can be the type of a rustls message
+            ClientExtensions,
             ClientExtension,
+            ServerExtensions,
             Vec<ServerExtension>,
             ServerExtension,
+            HelloRetryExtensions,
             Vec<HelloRetryExtension>,
             HelloRetryExtension,
             Vec<CertReqExtension>,
@@ -545,6 +562,7 @@ pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn 
             SessionID,
             Vec<Certificate>,
             Certificate,
+            CertificateEntries,
             Vec<CertificateEntry>,
             CertificateEntry,
             // HandshakeHash,

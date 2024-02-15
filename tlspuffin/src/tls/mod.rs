@@ -110,8 +110,11 @@ define_signature!(
     // extensions
     fn_client_extensions_new
     fn_client_extensions_append
+    fn_client_extensions_make
     fn_server_extensions_new
+    fn_server_extensions_make
     fn_server_extensions_append
+    fn_hello_retry_extensions_make
     fn_hello_retry_extensions_new
     fn_hello_retry_extensions_append
     fn_cert_req_extensions_new
@@ -185,6 +188,7 @@ define_signature!(
     fn_new_session_id
     fn_empty_session_id
     fn_new_random
+    // once fn_compression_append is added, we should then also add fn_compression_make
     fn_compressions
     fn_compression
     fn_no_key_share
@@ -194,6 +198,7 @@ define_signature!(
     fn_verify_data
     fn_verify_data_server
     fn_sign_transcript
+    fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite
     fn_cipher_suite12
@@ -249,6 +254,7 @@ define_signature!(
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry
+    fn_certificate_entries_make
     fn_get_context
     fn_eve_pkcs1_signature
     fn_rsa_sign_client

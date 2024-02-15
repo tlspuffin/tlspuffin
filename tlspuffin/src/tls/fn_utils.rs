@@ -28,6 +28,7 @@ use crate::tls::{
         tls13::key_schedule::KeyScheduleEarly,
     },
 };
+use crate::tls::rustls::msgs::handshake::CertificateEntries;
 
 // ----
 // seed_client_attacker()
@@ -464,6 +465,12 @@ pub fn fn_append_certificate(
 
 pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
     Ok(vec![])
+}
+
+pub fn fn_certificate_entries_make(
+    entries: &Vec<CertificateEntry>
+) -> Result<CertificateEntries, FnError> {
+    Ok(CertificateEntries(entries.clone()))
 }
 
 pub fn fn_append_certificate_entry(
