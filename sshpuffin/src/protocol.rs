@@ -1,3 +1,4 @@
+use std::any::{Any, TypeId};
 use std::io::Read;
 
 use puffin::{
@@ -11,6 +12,7 @@ use puffin::{
     trace::Trace,
     variable_data::VariableData,
 };
+use puffin::algebra::ConcreteMessage;
 
 use crate::{
     claim::SshClaim,
@@ -48,5 +50,13 @@ impl ProtocolBehavior for SshProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
         vec![] // TODO
+    }
+
+    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+        todo!()
+    }
+
+    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
+        todo!()
     }
 }

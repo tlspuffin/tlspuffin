@@ -521,7 +521,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn any_get_encoding(message: Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+        fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
             panic!("Not implemented for test stub");
         }
 
@@ -662,9 +662,15 @@ mod tests {
             data: Box::new(data),
         });
 
-        let eval = generated_term.evaluate_lazy(&context);
-        let _string = eval.as_ref().unwrap().downcast_ref::<Vec<u8>>().clone();
-        assert_eq!(_string, generated_term.evaluate(&context).as_ref().ok());
+        let eval = generated_term.evaluate_symbolic(&context);
+        let concrete = eval
+            .unwrap();
+
+        assert_eq!(concrete,
+                   generated_term
+                    .evaluate(&context)
+                       .ok().unwrap()
+        );
         //println!("{:?}", string);
     }
 
@@ -747,7 +753,7 @@ mod tests {
         ));
 
         //println!("{}", constructed_term);
-        let _graph = constructed_term.term.dot_subgraph(true, 0, "test");
+        let _graph = constructed_term.dot_subgraph(true, 0, "test");
         //println!("{}", graph);
     }
 }

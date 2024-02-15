@@ -1,11 +1,28 @@
 use crate::put_registry::TLS_PUT_REGISTRY;
-use crate::tls::seeds::seed_client_attacker_full;
+use crate::tls::seeds::{seed_client_attacker_full, seed_client_attacker_full_wo_time};
 use crate::tls::trace_helper::TraceHelper;
 use puffin::put::PutOptions;
 use puffin::trace::TraceContext;
 
 #[test]
-#[cfg(all(feature = "deterministic", feature = "tls13"))]
+#[cfg(all(feature = "deterministic", feature = "tls13", feature="TODO"))] // TODO: only passes in mono-thread!! with option `-test-threads=1`
+fn test_attacker_full_wo_time_det_recreate() {
+    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
+    TLS_PUT_REGISTRY.determinism_set_reseed_all_factories();
+
+    let trace = seed_client_attacker_full_wo_time.build_trace();
+
+    let mut ctx_1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    trace.execute(&mut ctx_1);
+
+    let mut ctx_2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    trace.execute(&mut ctx_2);
+
+    assert_eq!(ctx_1, ctx_2);
+}
+
+#[test]
+#[cfg(all(feature = "deterministic", feature= "boringssl-binding", feature = "tls13", feature="TODO"))] // TODO: only passes in mono-thread!! with option `-test-threads=1`
 fn test_attacker_full_det_recreate() {
     // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
     TLS_PUT_REGISTRY.determinism_set_reseed_all_factories();

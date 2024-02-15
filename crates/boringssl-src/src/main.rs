@@ -23,6 +23,7 @@ fn main() {
         git_ref: GitRef::Branch("master".to_string()),
         out_dir,
         source_dir: PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("boringssl"),
+        git_repo: "".to_string(),
     })
     .unwrap();
 }

@@ -289,15 +289,15 @@ impl<M: Matcher> TermEval<M> {
                     .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
                 if let Some(payload) = &self.payloads {
-                    trace!("[eval_until_opaque] Add a payload for a leaf at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&d));
+                    trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&d));
                     Ok((d, vec![(payload, path, 0, payload.payload_0.bytes().to_vec())])) // no offset for leaf
                 } else {
-                    trace!("[eval_until_opaque] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
+                    trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
                     Ok((d, vec![]))
                 }
             },
             Term::Application(func, args) => {
-                debug!("eval_until_opaque : Application from path={path:?}");  //term = {}", self);
+                debug!("[eval_until_opaque] [App]: Application from path={path:?}");  //term = {}", self);
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
                 let mut all_p = vec![];
                 for (i, ti) in args.iter().enumerate() {
@@ -330,7 +330,7 @@ impl<M: Matcher> TermEval<M> {
                 let mut return_p = vec![]; // processed payloads to return
 
                 // We now update the payload position on the larger term
-                // (if we manage to evaluate the current term)
+                // (if we manage to evaluate the current term, which should always be the case for the initial Message term)
                 if all_p.len() > 0 {
                     if let Ok(eval) = PB::any_get_encoding(&result) {
                         trace!("We update payloads for whole app term whose evaluation is {eval:?}");
@@ -442,12 +442,13 @@ impl<M: Matcher> TermEval<M> {
                         Current term: {}", &self.term)
                         }
                     }
-                    trace!("End Application path={path:?} with eval={:?}", PB::any_get_encoding(&result));
+                    debug!("Pre-End Application path={path:?} with eval={:?}", PB::any_get_encoding(&result));
                     // Processing the potential payload at root position
                     if let Some(payload) = &self.payloads {
                         trace!("[eval_until_opaque] Add a payload for an application at path: {path:?}, payload is: {payload:?} and eval is: {:?}", PB::any_get_encoding(&result));
                         return_p.push((payload, path, 0, payload.payload_0.bytes().to_vec()))  // no offset for the current payload
                     }
+                    debug!("End");
                     Ok((result, return_p))
                 }
             }
@@ -612,12 +613,12 @@ pub fn replace_payloads(to_replace: &mut ConcreteMessage, payloads: Vec<(&Payloa
     // previous payloads replacements). We assume the invariant expressed in the DOC above,
     for (payload, path, pos, eval) in &payloads {
         let pos = *pos;
-        trace!("[replace_payload] --------> treating {:?} and pos {pos} on message of length = {}. Shift = {shift}", payload, to_replace.len());
+        trace!("[replace_payload] --------> treating {:?} at path {path:?} and pos {pos} on message of length = {}. Shift = {shift}", payload, to_replace.len());
         let old_b_len = payload.payload_0.bytes().len();
         let new_b = payload.payload.bytes();
         let start = (pos as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
         let end = start + old_b_len;
-        if end <= to_replace.len() { // TODO: check if it is < or <=
+        if (pos as isize + shift) >= 0 && end <= to_replace.len() { // TODO: check if it is < or <=
             debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end}. to_replace[start..end]={:?}.",
                 to_replace.len(), &to_replace[start..end]);
             // SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
