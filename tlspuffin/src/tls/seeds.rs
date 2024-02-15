@@ -2043,6 +2043,7 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_client_attacker_full: cfg(feature = "tls13"),
         seed_client_attacker_boring: cfg(feature = "tls13"),
         seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
+        seed_client_attacker_full: cfg(feature = "tls13"),
         seed_client_attacker12: cfg(feature = "tls12"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
