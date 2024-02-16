@@ -149,6 +149,7 @@ impl Build {
         configure.arg("./Configure");
 
         configure.arg(&format!("--prefix={}", install_dir.display()));
+        #[cfg(feature = "openssl312")]
         configure.arg(&format!("--libdir={}/lib", install_dir.display()));
 
         configure

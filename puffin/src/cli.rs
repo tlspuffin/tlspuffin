@@ -88,11 +88,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         }
     };
 
-    unsafe {
-        println!("leaking!!!!");
-        malloc(100);
-    }
-
     let matches = create_app().get_matches();
 
     let first_core = "0".to_string();
