@@ -54,6 +54,7 @@ openssl102u = []
 openssl111k = []
 openssl111j = []
 openssl111u = []
+openssl312 = []
 
 libressl333 = [ "libressl-src", "libressl", "libressl-src/vendored-libressl333" ]
 libressl = [ ]

@@ -80,6 +80,11 @@ fn create_app() -> Command {
                     .value_parser(value_parser!(u16).range(1..)))
         ])
 }
+use std::{ffi::c_void, os::raw::c_int};
+extern "C" {
+    fn malloc(size: c_int) -> *mut c_void;
+    fn free(ptr: *mut c_void);
+}
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,

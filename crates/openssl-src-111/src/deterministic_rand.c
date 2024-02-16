@@ -2,18 +2,19 @@
 #include <openssl/rand.h>
 #include <stdlib.h>
 
+static uint64_t seed = 42;
+
 #define UNUSED(x) (void)(x)
 
 // Seed the RNG. srand() takes an unsigned int, so we just use the first
-// sizeof(unsigned int) bytes in the buffer to seed the RNG.
+// sizeof(uint64_t) bytes in the buffer to seed the RNG.
 static int stdlib_rand_seed(const void *buf, int num)
 {
-    if (num < 1)
+    if (num < sizeof(uint64_t))
     {
-        srand(0);
         return 0;
     }
-    srand(*((unsigned int *) buf));
+    seed = *((uint64_t *) buf);
     return 1;
 }
 
@@ -23,7 +24,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        buf[index] = rand() % 256;
+        seed = 6364136223846793005ULL*seed + 1;
+        buf[index] = seed>>33;
     }
     return 1;
 }
