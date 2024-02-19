@@ -331,6 +331,13 @@ impl IntrospectFeatures {
     }
 }
 
+#[cfg(feature = "introspection")]
+impl Default for IntrospectFeatures {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ErrorStatistics {
     pub fn new(total_execs: u64) -> Self {
         Self {

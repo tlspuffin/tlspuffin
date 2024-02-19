@@ -238,10 +238,20 @@ where
     EM: UsesState<State = Z::State>,
     Z: Evaluator<E, EM>,
 {
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             phantom: PhantomData,
         }
+    }
+}
+
+impl<E, EM, Z> Default for StatsStage<E, EM, Z>
+where
+    E: UsesState<State = Z::State>,
+    EM: UsesState<State = Z::State>,
+    Z: Evaluator<E, EM>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

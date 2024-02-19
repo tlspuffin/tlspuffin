@@ -69,21 +69,6 @@ impl Build {
         self
     }
 
-    /*
-    fn cmd_make(&self) -> Command {
-        let host = &self.host.as_ref().expect("HOST dir not set")[..];
-        if host.contains("dragonfly")
-            || host.contains("freebsd")
-            || host.contains("solaris")
-            || host.contains("illumos")
-        {
-            Command::new("gmake")
-        } else {
-            Command::new("make")
-        }
-    }
-    */
-
     pub fn insert_claim_interface(additional_headers: &PathBuf) -> std::io::Result<()> {
         let interface = security_claims::CLAIM_INTERFACE_H;
 
@@ -207,6 +192,12 @@ Error {}:
                 desc, command, status
             );
         }
+    }
+}
+
+impl Default for Build {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
