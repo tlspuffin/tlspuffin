@@ -450,16 +450,6 @@ pub mod test_signature {
         }
     }
 
-    impl Codec for TestMessage {
-        fn encode(&self, _bytes: &mut Vec<u8>) {
-            panic!("Not implemented for test stub");
-        }
-
-        fn read(_: &mut Reader) -> Option<Self> {
-            panic!("Not implemented for test stub");
-        }
-    }
-
     impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");

@@ -230,16 +230,6 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
-impl Codec for Message {
-    fn encode(&self, _bytes: &mut Vec<u8>) {
-        panic!("not implemented for generic Message");
-    }
-
-    fn read(_reader: &mut Reader) -> Option<Self> {
-        panic!("not implemented for generic Message")
-    }
-}
-
 impl Message {
     pub fn is_handshake_type(&self, hstyp: HandshakeType) -> bool {
         // Bit of a layering violation, but OK.
