@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, io, io::Read};
+use std::{collections::VecDeque, io};
 
 use puffin::{codec, codec::Codec, protocol::ProtocolMessageDeframer};
 
-use crate::ssh::message::{OnWireData, RawSshMessage, SshMessage};
+use crate::ssh::message::{OnWireData, RawSshMessage};
 
 const MAX_WIRE_SIZE: usize = 35000;
 

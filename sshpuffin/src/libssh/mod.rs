@@ -1,27 +1,33 @@
+// FIXME stabilize sshpuffin and reactivate the dead_code lint
+//
+//     Currently sshpuffin contains many functions that are unused but will be
+//     necessary for the full implementation. To avoid the many unhelpful
+//     warning messages, we deactivate the dead_code lint globally in this
+//     module.
+//
+//     Once the necessary features and API of sshpuffin are more stable, we
+//     should reactivate the dead_code lint, as it provides valuable insights.
+#![allow(dead_code)]
+
 use std::{
-    ffi::c_int,
     fs,
-    io::{ErrorKind, Read, Write},
+    io::{ErrorKind, Write},
     os::unix::{
         io::{IntoRawFd, RawFd},
-        net::{SocketAddr, UnixListener, UnixStream},
+        net::{UnixListener, UnixStream},
     },
-    thread,
-    time::Duration,
 };
 
-use log::{debug, error, info};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage},
+    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::Factory,
     stream::Stream,
     trace::TraceContext,
 };
-use tokio::io::AsyncWriteExt;
 
 use crate::{
     libssh::ssh::{
@@ -83,7 +89,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
     impl Factory<SshProtocolBehavior> for LibSSLFactory {
         fn create(
             &self,
-            context: &TraceContext<SshProtocolBehavior>,
+            _context: &TraceContext<SshProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
         ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
             // FIXME: Switch to UDS with stabilization in Rust 1.70
@@ -95,7 +101,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
 
             // FIXME: Switch to UDS with stabilization in Rust 1.70
             // let mut fuzz_stream = UnixStream::connect_addr(&addr).unwrap();
-            let mut fuzz_stream = UnixStream::connect(&path).unwrap();
+            let fuzz_stream = UnixStream::connect(&path).unwrap();
 
             // Unlink directly as we have the addresses now
             fs::remove_file(&path).unwrap();
@@ -214,7 +220,7 @@ impl Stream<SshMessage, RawSshMessage> for LibSSL {
                 match SshMessage::try_from(packet) {
                     Ok(message) => Some(message),
                     Err(err) => {
-                        error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
+                        log::error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
                         None
                     }
                 }
@@ -231,7 +237,7 @@ impl Stream<SshMessage, RawSshMessage> for LibSSL {
 }
 
 impl Put<SshProtocolBehavior> for LibSSL {
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         let session = &mut self.session;
         match &self.agent_descriptor.typ {
             AgentType::Server => match &self.state {
@@ -288,7 +294,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         Ok(())
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 
@@ -297,7 +303,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName) {
+    fn register_claimer(&mut self, _agent_name: AgentName) {
         panic!("Not supported")
     }
 
@@ -306,7 +312,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         panic!("Not supported")
     }
 
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 

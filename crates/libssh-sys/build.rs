@@ -86,7 +86,7 @@ fn main() -> std::io::Result<()> {
         .rustified_enum("ssh_bind_options_e")
         .rustified_enum("ssh_requests_e")
         .parse_callbacks(Box::new(ignored_macros))
-        .rustfmt_bindings(true)
+        .formatter(bindgen::Formatter::Rustfmt)
         .generate()
         .expect("Unable to generate bindings");
 

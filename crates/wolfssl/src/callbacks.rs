@@ -78,6 +78,12 @@ impl ExtraUserDataRegistry {
     }
 }
 
+impl Default for ExtraUserDataRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct UserData {
     data: Box<dyn Any>,
 }

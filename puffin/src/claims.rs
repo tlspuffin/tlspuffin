@@ -22,7 +22,7 @@ pub trait SecurityViolationPolicy<C: Claim> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
 }
@@ -73,7 +73,7 @@ impl<C: Claim> From<Vec<C>> for ClaimList<C> {
 }
 
 impl<C: Claim> ClaimList<C> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { claims: vec![] }
     }
 
@@ -82,7 +82,7 @@ impl<C: Claim> ClaimList<C> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct GlobalClaimList<C: Claim> {
     claims: Rc<RefCell<ClaimList<C>>>,
 }

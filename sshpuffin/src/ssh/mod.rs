@@ -1,3 +1,14 @@
+// FIXME stabilize sshpuffin and reactivate the dead_code lint
+//
+//     Currently sshpuffin contains many functions that are unused but will be
+//     necessary for the full implementation. To avoid the many unhelpful
+//     warning messages, we deactivate the dead_code lint globally in this
+//     module.
+//
+//     Once the necessary features and API of sshpuffin are more stable, we
+//     should reactivate the dead_code lint, as it provides valuable insights.
+#![allow(dead_code)]
+
 pub mod deframe;
 mod fn_message;
 pub mod message;
@@ -11,8 +22,6 @@ pub mod fn_impl {
     pub use fn_constants::*;
     pub use fn_message::*;
 }
-
-use std::fmt::Debug;
 
 use fn_impl::*;
 use puffin::define_signature;

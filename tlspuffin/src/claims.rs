@@ -183,7 +183,6 @@ impl Claim for TlsClaim {
     fn inner(&self) -> Box<dyn Any> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
-        type Type = TypeShape;
         match &self.data {
             ClaimData::Message(message) => match message {
                 Message::ClientHello(claim) => claim.boxed_any(),

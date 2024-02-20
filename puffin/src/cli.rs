@@ -80,11 +80,6 @@ fn create_app() -> Command {
                     .value_parser(value_parser!(u16).range(1..)))
         ])
 }
-use std::{ffi::c_void, os::raw::c_int};
-extern "C" {
-    fn malloc(size: c_int) -> *mut c_void;
-    fn free(ptr: *mut c_void);
-}
 
 pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     put_registry: &'static PutRegistry<PB>,
@@ -233,7 +228,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             .to_string();
 
         let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
-        let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
         let mut options = vec![("port", port.as_str()), ("host", &host)];
 
@@ -396,13 +390,7 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 use nix::{
-    sys::{
-        signal::Signal,
-        wait::{
-            waitpid, WaitPidFlag,
-            WaitStatus::{Exited, Signaled},
-        },
-    },
+    sys::wait::{waitpid, WaitPidFlag},
     unistd::{fork, ForkResult},
 };
 
@@ -428,11 +416,14 @@ where
     }
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
-    input: P,
-    put_registry: &'static PutRegistry<PB>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &'static PutRegistry<PB>) {
+    let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
+        Ok(t) => t,
+        Err(_) => {
+            error!("Invalid trace file {}", input.as_ref().display());
+            return;
+        }
+    };
 
     info!("Agents: {:?}", &trace.descriptors);
 
@@ -448,8 +439,6 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
             );
         }
     });
-
-    Ok(())
 }
 
 fn binary_attack<PB: ProtocolBehavior>(
