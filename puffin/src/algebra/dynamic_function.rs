@@ -61,6 +61,7 @@ use itertools::Itertools;
 use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::algebra::{deserialize_signature, error::FnError};
+use crate::codec::Codec;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -187,7 +188,9 @@ macro_rules! dynamic_fn {
     where
         F: (Fn($(&$arg),*)  -> Result<$res, FnError>) + Send + Sync,
         $res: Send + Sync,
-        $($arg: Send + Sync),*
+        $($arg: Send + Sync + Codec),*
+    // The trait `Codec` is required for being able to intepret bitstring as an argument of the right shape
+    // Still struggling with the borrower.
     {
         fn shape() -> DynamicFunctionShape {
             DynamicFunctionShape {
@@ -211,24 +214,49 @@ macro_rules! dynamic_fn {
                        #[allow(unused_assignments)]
                        #[allow(clippy::mixed_read_write_in_expression)]
                        {
-                           if let Some(arg_) = args.get(index)
-                                    .ok_or_else(|| {
-                                        let shape = Self::shape();
-                                        FnError::Unknown(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
-                                    })?
-                                    .as_ref().downcast_ref::<$arg>() {
+                           let arg_i : Result<$arg, FnError>  = {
+                            let arg = args.get(index).ok_or_else(|| {  // access to the index'th argument
+                                let shape = Self::shape();
+                                FnError::Unknown(format!(
+                                    "Missing argument #{} while calling {}.",
+                                    index + 1,
+                                    shape.name
+                                ))
+                            })?;
+
+                           if let Some(arg_type_shape) = arg.as_ref().downcast_ref::<$arg>() {
+                                // case: arg has the right shape
                                index += 1;
-                               arg_
+                               Ok(arg_type_shape)
+                           } else if let Some(arg_bitstring) = arg.as_ref().downcast_ref::<Vec<u8>>() {
+                               // case arg is a bitstring Vec<u8> and can be interpreted as the right shape
+                                if let Some(arg_type_shape) = <$arg>::read_bytes(arg_bitstring) {
+                                    index += 1;
+                                    Ok(&arg_type_shape) // I'd like to give ownership but the current architecture does not allow it and T1 has not the Clone trait...
+                                } else {
+                                    let shape = Self::shape();
+                                    return Err(FnError::Unknown(format!(
+                                               "Passed argument #{} of {} was a bitstring and failed to be decoded as a value of the right shape {}. Hashes of passed types are {}.",
+                                                      index + 1,
+                                        shape.name,
+                                        shape,
+                                        format_args(args)
+                                    )));
+                                }
                            } else {
+                               // case arg is neither of the right shape nor it is a bitstring and
+                               // can be interpreted as the right shape
                                let shape = Self::shape();
                                return Err(FnError::Unknown(format!(
-                                    "Passed argument #{} of {} did not match the shape {}. Hashes of passed types are {}.",
+                                    "Passed argument #{} of {} did neither match the shape {} nor bitstring (Vec<u8>). Hashes of passed types are {}.",
                                     index + 1,
                                     shape.name,
                                     shape,
                                     format_args(args)
                                )));
                            }
+                       };
+                           &arg_i.unwrap()
                        }
                 ),*);
 
