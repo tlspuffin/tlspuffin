@@ -2,32 +2,32 @@
 default = "openssl312"
 
 [preset.openssl312]
-name = "openssl-3.1.2"
+name = "openssl312"
 fetch = "openssl312"
 build = ["base", "parallel"]
 
 [preset.openssl111k]
-name = "openssl-1.1.1k"
+name = "openssl111k"
 fetch = "openssl111k"
 build = ["base", "parallel"]
 
 [preset.openssl111j]
-name = "openssl-1.1.1j"
+name = "openssl111j"
 fetch = "openssl111j"
 build = ["base", "parallel"]
 
 [preset.openssl111u]
-name = "openssl-1.1.1u"
+name = "openssl111u"
 fetch = "openssl111u"
 build = ["base", "parallel"]
 
 [preset.openssl101f]
-name = "openssl-1.0.1f"
+name = "openssl101f"
 fetch = "openssl101f"
 build = ["base"]
 
 [preset.openssl102u]
-name = "openssl-1.0.2u"
+name = "openssl102u"
 fetch = "openssl102u"
 build = ["base"]
 
