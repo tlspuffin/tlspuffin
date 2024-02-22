@@ -1513,7 +1513,6 @@ dependencies = [
 name = "openssl-src"
 version = "111.22.0+1.1.1q"
 dependencies = [
- "bindgen",
  "cc",
  "libressl-src",
  "security-claims",

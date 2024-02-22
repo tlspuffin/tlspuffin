@@ -61,6 +61,5 @@ libressl = []
 
 [dependencies]
 cc = "1.0"
-bindgen = "0.69.1"
 security-claims = { path = "../../tlspuffin-claims" }
 libressl-src = { path = "../libressl-src", optional = true }
