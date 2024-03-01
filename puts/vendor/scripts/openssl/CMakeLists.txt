@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.15)
 
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../cmake")
+
+if(NOT DEFINED ENV{CC})
+    set(ENV{CC} "clang")
+endif()
+set(CC $ENV{CC})
+
 project(openssl LANGUAGES C)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -31,12 +38,7 @@ string(REPLACE "," ";" LDFLAGS_EXTRA "${LDFLAGS_EXTRA}")
 set(CONFIGURE_FEATURES no-dso no-shared no-tests)
 set(CONFIGURE_FLAGS --prefix=<INSTALL_DIR> --openssldir=<INSTALL_DIR> --libdir=lib)
 set(CONFIGURE_EXTRA "")
-
-if(DEFINED ENV{CC})
-    set(CONFIGURE_ENV "CC=$ENV{CC}")
-else()
-    set(CONFIGURE_ENV "CC=clang")
-endif()
+set(CONFIGURE_ENV "CC=${CC}")
 
 if(PARALLEL)
     set(BUILD_FLAGS "-j32")
@@ -130,6 +132,35 @@ if(FETCH_METHOD STREQUAL "git")
         BUILD_COMMAND ${BUILD_COMMAND}
         BUILD_IN_SOURCE TRUE
         INSTALL_COMMAND ${INSTALL_COMMAND})
+
+    # NOTE we patch the vendor build system to use CC instead of `makedepend`
+    #
+    # The OpenSSL build system prior to version 1.0.2 uses `makedepend` when the
+    # C compiler (CC) is not gcc.
+    #
+    # The `makedepend` utility extracts source code dependencies and includes
+    # them automatically in a Makefile. But this utility is often missing on
+    # modern platforms, since the compiler usually has the capability to do the
+    # same dependency extraction. Worse yet, if `makedepend` is found but comes
+    # from a different toolchain it might select headers that are incompatible
+    # with the current C compiler.
+    #
+    # To avoid these problems, if the C compiler supports the `-M` option, we
+    # patch the vendor build system to use it instead.
+    include(CheckCCompilerCanPrintDeps)
+    check_c_compiler_can_print_deps(${CC})
+
+    if(CC_CAN_PRINT_DEPS)
+        externalproject_add_step(
+            vendor
+            makedepend
+            DEPENDEES configure
+            DEPENDERS build
+            WORKING_DIRECTORY <SOURCE_DIR>
+            COMMAND find <SOURCE_DIR> -type f -name Makefile -exec perl -pi.bak -e "s@^MAKEDEPPROG=.*@MAKEDEPPROG= ${CC}@" {} +
+            COMMAND find <SOURCE_DIR> -type f -name domd -exec perl -pi.bak -e "s@\\\\.\\\\*gcc(\\\\$)@\\\\.\\\\*${CC}@" {} +
+            LOG TRUE)
+    endif()
 else()
   list(JOIN SUPPORTED_METHODS ", " SUPPORTED_STR)
   message(FATAL_ERROR "Unsupported FETCH_METHOD '${FETCH_METHOD}' (set to one of: ${SUPPORTED_STR})")
