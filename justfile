@@ -52,3 +52,20 @@ clear-gh-caches:
             | for ID in `jq '.actions_caches[].id'`; \
               do echo "Deleting $ID"; \
                  gh api --method DELETE /repos/tlspuffin/tlspuffin/actions/caches/$ID | echo; done
+
+
+ACT_CONFIG_DIR := justfile_directory() / ".github" / "act"
+ACT_EVENTS_DIR := ACT_CONFIG_DIR / "events"
+
+EVENT_NAME := "push"
+EVENT_FILE := (ACT_EVENTS_DIR / "push-main.json")
+
+set positional-arguments
+act *ARGS="--":
+  act "{{ EVENT_NAME }}"  \
+    -e "{{ EVENT_FILE }}" \
+    --log-prefix-job-id   \
+    -P 'ubuntu-20.04=ghcr.io/catthehacker/ubuntu:rust-20.04'   \
+    -P 'ubuntu-22.04=ghcr.io/catthehacker/ubuntu:rust-22.04'   \
+    -P 'ubuntu-latest=ghcr.io/catthehacker/ubuntu:rust-latest' \
+    "$@"
