@@ -18,10 +18,11 @@ jobs:
       HAS_LABEL_CI_FAST: ${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
       HAS_LABEL_CI_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
     outputs:
-      checks: ${{ steps.set-checks-profile.outputs.checks }}
-      deploy: ${{ steps.set-deploy-profile.outputs.deploy }}
+      checks: ${{ steps.set-checks-profiles.outputs.checks }}
+      deploy: ${{ steps.set-deploy-profiles.outputs.deploy }}
     steps:
-      - id: set-checks-profile
+      - id: set-checks-profiles
+        name: Set CI profiles
         shell: bash
         run: |
           #!/usr/bin/env bash
@@ -43,7 +44,8 @@ jobs:
 
           printf 'checks=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
 
-      - id: set-deploy-profile
+      - id: set-deploy-profiles
+        name: Set CD profiles
         shell: bash
         run: |
           #!/usr/bin/env bash
@@ -57,6 +59,16 @@ jobs:
           json_result="[${json_result:6}]"
 
           printf 'deploy=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: print CI/CD profiles
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          printf 'selected CI profiles: %s\n' '${{ steps.set-checks-profiles.outputs.checks }}'
+          printf 'selected CD profiles: %s\n' '${{ steps.set-deploy-profiles.outputs.deploy }}'
+          printf 'triggering event:\n'
+          cat "${GITHUB_EVENT_PATH}"
 
   run-check:
     needs: [configure]
