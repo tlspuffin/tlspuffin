@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-22.04
     name: Build "${{ inputs.name }}"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Git
         shell: bash
         run: |
@@ -55,12 +55,12 @@ jobs:
         shell: bash
         run: just build ${{ inputs.crate }} x86_64-unknown-linux-gnu "${{ inputs.features }}" "${{ inputs.cargo-flags }} --timings"
       - name: Upload Build Timings
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cargo-timings-${{ inputs.name }}
           path: target/cargo-timings/cargo-timing.html
       - name: Upload Build
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.crate }}-${{ inputs.name }}
           path: target/x86_64-unknown-linux-gnu/release/${{ inputs.crate }}

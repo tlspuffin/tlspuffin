@@ -30,7 +30,7 @@ runs:
         export_env LIBCLANG_PATH "$(llvm-config-"$(clang -dumpversion | cut -d '.' -f1)" --libdir)"
         export_env BINDGEN_EXTRA_CLANG_ARGS "-v"
 
-    - uses: extractions/setup-just@v1
+    - uses: extractions/setup-just@v2
     - name: Install toolchain
       shell: bash
       run: just default-toolchain
