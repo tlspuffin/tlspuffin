@@ -83,4 +83,4 @@ jobs:
       cargo-flags: ${{ matrix.cargo-flags }}
       apt-dependencies: ${{ matrix.apt-dependencies }}
       clean-crates: ${{ matrix.clean-crates }}
-      save-cache: ${{ matrix.save-crates }}
+      save-cache: ${{ matrix.save-cache }}
