@@ -24,9 +24,14 @@ on:
       save-cache:
         required: false
         type: string
+      if:
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   build-linux:
+    if: ${{ inputs.if }}
     runs-on: ubuntu-22.04
     name: Build "${{ inputs.name }}"
     steps:

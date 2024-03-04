@@ -6,134 +6,187 @@ on:
     branches:
       - main
       - trailofbits
+  pull_request:
 
 jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    env:
+      IS_PR: ${{ github.event_name == 'pull_request' }}
+      HAS_LABEL_CI_NONE: ${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
+      HAS_LABEL_CI_LINT: ${{ contains(github.event.pull_request.labels.*.name, 'ci:lint') }}
+      HAS_LABEL_CI_FAST: ${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
+      HAS_LABEL_CI_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+    outputs:
+      checks: ${{ steps.set-checks-profile.outputs.checks }}
+      deploy: ${{ steps.set-deploy-profile.outputs.deploy }}
+    steps:
+      - id: set-checks-profile
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          CI_CHECKS=()
+
+          # set defaults
+          case "${IS_PR}" in
+            true)  CI_CHECKS=( lint base );;
+            false) CI_CHECKS=( lint base extra );;
+          esac
+
+          [[ ${HAS_LABEL_CI_NONE} == true ]] && CI_CHECKS=()
+          [[ ${HAS_LABEL_CI_LINT} == true ]] && CI_CHECKS+=( lint )
+          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS+=( base )
+          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS+=( extra )
+
+          json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
+          json_result="[${json_result:6}]"
+
+          printf 'checks=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-deploy-profile
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          CD_DEPLOYEMENTS=()
+
+          if [[ ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main') }} == true ]]; then
+            CD_DEPLOYEMENTS+=( docs )
+          fi
+
+          json_result=$(printf ', "%s"' "x" "${CD_DEPLOYEMENTS[@]}")
+          json_result="[${json_result:6}]"
+
+          printf 'deploy=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+
   run-check:
+    needs: [configure]
     uses: ./.github/workflows/run-checks.yml
   run-benchmarks:
     uses: ./.github/workflows/run-benchmarks.yml
   build-deploy-docs:
+    needs: [configure]
     uses: ./.github/workflows/build-deploy-docs.yml
     with:
-      deploy: ${{ github.ref == 'refs/heads/main' }}
+      deploy: ${{ contains(fromJson(needs.configure.outputs.deploy), 'docs') }}
   build-linux:
+    needs: [configure]
     strategy:
       fail-fast: false
       matrix:
-        name:
-          - openssl111
-          - openssl111j
-          - openssl101f_asan
-          - openssl102u
-          - libressl
-          - wolfssl430
-          - wolfssl510
-          - wolfssl510-sig
-          - wolfssl510-skip
-          - wolfssl520
-          - wolfssl520_asan
-          - wolfssl530
-          - wolfssl530_asan
-          - wolfssl540
-          - wolfssl540-sdos2
-          - wolfssl530-cdos
-          - wolfssl540_asan
-          - wolfssl540-buf
-          - wolfssl540-heap
-          - wolfssl540_asan-perf
-          - wolfssl540-perf
-          - boringssl202403
-          - boringssl202403_asan
-          - libssh
-          - tlspuffin_no_default_features
-          - sshpuffin_no_default_features
         include:
           - name: openssl111
             crate: tlspuffin
             features: openssl111
             clean-crates: openssl-sys
             save-cache: true # We only save the cache once, else we get too mache cache entries
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl111j
             crate: tlspuffin
             features: openssl111j
             clean-crates: openssl-sys
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: openssl101f_asan
             crate: tlspuffin
             features: openssl101f,asan
             apt-dependencies: xutils-dev
             clean-crates: openssl-sys
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl102u
             crate: tlspuffin
             features: openssl102u
             clean-crates: openssl-sys
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: libressl
             crate: tlspuffin
             features: libressl
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl430
             crate: tlspuffin
             features: wolfssl430
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl510
             crate: tlspuffin
             features: wolfssl510
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl510-sig
             crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl510-skip
             crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl520
             crate: tlspuffin
             features: wolfssl520
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl520_asan
             crate: tlspuffin
             features: wolfssl520,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl530
             crate: tlspuffin
             features: wolfssl530
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl530_asan
             crate: tlspuffin
             features: wolfssl530,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl540
             crate: tlspuffin
             features: wolfssl540
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl540-sdos2
             crate: tlspuffin
             features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl530-cdos
             crate: tlspuffin
             features: wolfssl530,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540_asan
             crate: tlspuffin
             features: wolfssl540,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-buf
             crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-heap
             crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540_asan-perf
             crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-perf
             crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: boringssl202403
             crate: tlspuffin
             features: boringssl202403
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: boringssl202403_asan
             crate: tlspuffin
             features: boringssl202403,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: libssh
             crate: sshpuffin
             features: ""
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: tlspuffin_no_default_features
             crate: tlspuffin
             features: ""
             cargo-flags: "--no-default-features"
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: sshpuffin_no_default_features
             crate: sshpuffin
             features: ""
             cargo-flags: "--no-default-features"
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+
     uses: ./.github/workflows/build-linux.yml
     with:
       name: ${{ matrix.name }}
@@ -143,3 +196,4 @@ jobs:
       apt-dependencies: ${{ matrix.apt-dependencies }}
       clean-crates: ${{ matrix.clean-crates }}
       save-cache: ${{ matrix.save-cache }}
+      if: ${{ matrix.if == 'true' }}
