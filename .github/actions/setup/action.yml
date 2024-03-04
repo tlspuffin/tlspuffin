@@ -39,5 +39,5 @@ runs:
       run: sudo rm -rf /usr/share/dotnet
     - uses: Swatinem/rust-cache@v2
       with:
-        sharedKey: ${{ inputs.key }}
+        shared-key: ${{ inputs.key }}
         save-if: ${{ inputs.save-cache }}
