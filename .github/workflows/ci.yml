@@ -11,12 +11,6 @@ on:
 jobs:
   configure:
     runs-on: ubuntu-22.04
-    env:
-      IS_PR: ${{ github.event_name == 'pull_request' }}
-      HAS_LABEL_CI_NONE: ${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
-      HAS_LABEL_CI_LINT: ${{ contains(github.event.pull_request.labels.*.name, 'ci:lint') }}
-      HAS_LABEL_CI_FAST: ${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
-      HAS_LABEL_CI_FULL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
     outputs:
       checks: ${{ steps.set-checks-profiles.outputs.checks }}
       deploy: ${{ steps.set-deploy-profiles.outputs.deploy }}
@@ -27,9 +21,13 @@ jobs:
         run: |
           #!/usr/bin/env bash
           CI_CHECKS=()
+          HAS_LABEL_CI_NONE=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
+          HAS_LABEL_CI_LINT=${{ contains(github.event.pull_request.labels.*.name, 'ci:lint') }}
+          HAS_LABEL_CI_FAST=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
+          HAS_LABEL_CI_FULL=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
           # set defaults
-          case "${IS_PR}" in
+          case "${{ github.event_name == 'pull_request' }}" in
             true)  CI_CHECKS=( lint base );;
             false) CI_CHECKS=( lint base extra );;
           esac
