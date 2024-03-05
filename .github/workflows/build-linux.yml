@@ -31,9 +31,9 @@ on:
 
 jobs:
   build-linux:
-    if: ${{ inputs.if }}
     runs-on: ubuntu-22.04
     name: Build "${{ inputs.name }}"
+    if: ${{ inputs.if }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Git
