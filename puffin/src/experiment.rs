@@ -20,7 +20,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     title: impl Display,
     description_text: impl Display,
     put_registry: &PutRegistry<PB>,
-    commands: &ArgMatches
+    commands: &ArgMatches,
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\
@@ -36,7 +36,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
         date = Local::now().to_rfc3339(),
         git_ref = GIT_REF,
         git_msg = GIT_MSG,
-        command=commands,
+        command = commands,
         description = description_text
     );
 

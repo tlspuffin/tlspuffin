@@ -1,6 +1,6 @@
 use std::os::raw::c_int;
 
-use log::{warn,debug};
+use log::{debug, warn};
 
 #[cfg(feature = "deterministic")]
 extern "C" {

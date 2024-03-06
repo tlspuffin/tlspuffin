@@ -1,13 +1,13 @@
 use std::any::{Any, TypeId};
 use std::io::Read;
 
+use puffin::algebra::ConcreteMessage;
 use puffin::{
     algebra::{signature::Signature, AnyMatcher},
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,
 };
-use puffin::algebra::ConcreteMessage;
 
 use crate::{
     claim::SshClaim,

@@ -1,6 +1,6 @@
-use std::cmp::max;
 use libafl::bolts::rands::Rand;
 use log::error;
+use std::cmp::max;
 
 use crate::algebra::{TermEval, TermType};
 use crate::protocol::ProtocolBehavior;
@@ -23,7 +23,6 @@ pub struct TermConstraints {
     pub not_inside_list: bool,
     // choose term giving higher probability to deeper term
     pub weighted_depth: bool,
-
 }
 
 /// Default values which represent no constraint
@@ -105,7 +104,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     trace: &'a Trace<M>,
     filter: P,
     constraints: TermConstraints,
-    rand: &mut R
+    rand: &mut R,
 ) -> Option<(&'a TermEval<M>, TracePath)> {
     // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen sub-terms
     // in the overall recipe. See the two vectors: depth_counts and depth_reservoir, indices are depths.
@@ -146,7 +145,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
                 let mut stack: Vec<(&TermEval<M>, TracePath, bool, usize)> =
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
-                                                                      // usize if for depth
+                                                                           // usize if for depth
 
                 // DFS Algo: the version with if_weighted inplements the reservoir sampling algorithm
                 // at each depth, independently
@@ -166,7 +165,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                                     new_path.1.push(path_index);
                                     let is_inside_list_sub =
                                         constraints.not_inside_list && fd.is_list();
-                                    stack.push((subterm, new_path, is_inside_list_sub, depth+1));
+                                    stack.push((subterm, new_path, is_inside_list_sub, depth + 1));
                                 }
                             }
                         }
@@ -179,9 +178,12 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                             || (!term.is_symbolic() && term.all_payloads().len() == 1))
                         && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
                     {
-                        let mut level = if if_weighted { // if weighted, we reason per-depth, otherwise, we reason globally
+                        let mut level = if if_weighted {
+                            // if weighted, we reason per-depth, otherwise, we reason globally
                             depth
-                        } else { 0 };
+                        } else {
+                            0
+                        };
                         depth_counts[level] += 1;
 
                         // consider in sampling
@@ -189,11 +191,11 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                             // fill initial reservoir
                             depth_reservoir[level] = Some((term, path));
                         } else {
-                                // `1/visited` chance of overwriting
-                                // replace elements with gradually decreasing probability
-                                if rand.between(1, depth_counts[level]) == 1 {
-                                    depth_reservoir[level] = Some((term, path));
-                                }
+                            // `1/visited` chance of overwriting
+                            // replace elements with gradually decreasing probability
+                            if rand.between(1, depth_counts[level]) == 1 {
+                                depth_reservoir[level] = Some((term, path));
+                            }
                         }
                     }
                 }
@@ -205,7 +207,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     }
 
     // Picking the actual term by randmly picking a level
-    let mut reservoir  = None;
+    let mut reservoir = None;
     if if_weighted {
         // we need to randmly pick a depth from which we will sample the term
         // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
@@ -225,8 +227,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
             count_weighted += depth_counts[i] as f64 * (1 as f64 + i as f64 * lambda);
             i += 1; // TODO: do it more efficiently by benefiting from the previous pre-processing
         }
-        assert!(i>0);
-        reservoir = depth_reservoir.remove(i-1);
+        assert!(i > 0);
+        reservoir = depth_reservoir.remove(i - 1);
     } else {
         reservoir = depth_reservoir.remove(0);
     }
@@ -383,7 +385,6 @@ pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> boo
     reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
@@ -397,11 +398,16 @@ mod tests {
     use log::debug;
 
     use super::*;
-    use crate::{agent::AgentName, algebra::{
-        dynamic_function::DescribableFunction,
-        test_signature::{TestTrace, TestProtocolBehavior, *},
-        AnyMatcher, Term,
-    }, trace::{Action, Step}, trace};
+    use crate::{
+        agent::AgentName,
+        algebra::{
+            dynamic_function::DescribableFunction,
+            test_signature::{TestProtocolBehavior, TestTrace, *},
+            AnyMatcher, Term,
+        },
+        trace,
+        trace::{Action, Step},
+    };
 
     #[test]
     fn test_find_term() {
@@ -483,7 +489,7 @@ mod tests {
         let term_size = trace.count_functions();
         let constraints = TermConstraints {
             weighted_depth: true,
-            .. TermConstraints::default()
+            ..TermConstraints::default()
         };
         let mut stats: HashSet<TracePath> = HashSet::new();
 

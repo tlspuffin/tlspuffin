@@ -10,11 +10,11 @@ use std::{
 use itertools::Itertools;
 use log::{debug, error, warn};
 
+use crate::algebra::{TermEval, TermType};
 use crate::{
     algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
     trace::{Action, Trace},
 };
-use crate::algebra::{TermEval, TermType};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -155,8 +155,16 @@ impl<M: Matcher> TermEval<M> {
         }
         match &term.term {
             Term::Variable(variable) => {
-                let color = if term.is_symbolic() {COLOR_LEAVES} else {COLOR_LEAVES_PAYLOAD};
-                let shape = if term.is_symbolic() {SHAPE_LEAVES} else {SHAPE_LEAVES_PAYLOAD};
+                let color = if term.is_symbolic() {
+                    COLOR_LEAVES
+                } else {
+                    COLOR_LEAVES_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    SHAPE_LEAVES
+                } else {
+                    SHAPE_LEAVES_PAYLOAD
+                };
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
@@ -171,14 +179,18 @@ impl<M: Matcher> TermEval<M> {
                     } else {
                         COLOR
                     }
-                } else { COLOR_PAYLOAD };
+                } else {
+                    COLOR_PAYLOAD
+                };
                 let shape = if term.is_symbolic() {
                     if func.arity() == 0 {
                         SHAPE_LEAVES
                     } else {
                         SHAPE
                     }
-                } else { SHAPE_PAYLOAD };
+                } else {
+                    SHAPE_PAYLOAD
+                };
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
@@ -186,7 +198,8 @@ impl<M: Matcher> TermEval<M> {
                         if term.is_symbolic() {
                             remove_fn_prefix(&remove_prefix(func.name()))
                         } else {
-                            format!("BS//{}", remove_fn_prefix(&remove_prefix(func.name())))},
+                            format!("BS//{}", remove_fn_prefix(&remove_prefix(func.name())))
+                        },
                         color,
                         shape,
                     ),

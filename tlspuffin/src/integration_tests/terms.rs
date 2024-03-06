@@ -13,8 +13,8 @@ mod tests {
     use puffin::algebra::error::FnError;
     use puffin::algebra::signature::FunctionDefinition;
     use puffin::algebra::{
-        evaluate_lazy_test, ConcreteMessage, Matcher, bitstrings::{replace_payloads, Payloads}, TermEval,
-        TermType,
+        bitstrings::{replace_payloads, Payloads},
+        evaluate_lazy_test, ConcreteMessage, Matcher, TermEval, TermType,
     };
     use puffin::codec::Codec;
     use puffin::error::Error;
@@ -97,7 +97,7 @@ mod tests {
     }
 
     // UNI TESTS for eval_until_opaque and replace_payloads
-//    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
+    //    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
     // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and wimdow refinement of `eval_until_opaque`
     // in detail.
     #[test]
@@ -108,16 +108,16 @@ mod tests {
         ctx.set_deterministic(true);
         trace.execute(&mut ctx);
         let step0_before = vec![
-            22,
-            3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
-            0, 211, 1, 0, 0, 207, 3, 3,  // Client Hello structure
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // path=1: fn_new_random -> Random,
-            32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, // path=2: fn_new_session_id -> SessionID,
+            22, 3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
+            0, 211, 1, 0, 0, 207, 3, 3, // Client Hello structure
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, // path=1: fn_new_random -> Random,
+            32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            3, 3, 3, 3, // path=2: fn_new_session_id -> SessionID,
             0, 2, 19, 1, // path=fn_append_cipher_suite(...)
             1, 0, // path= 4 fn_compressions -> Vec<Compression>,
             // path = 5 until the end
-            0, 132,
-            // path = 5,0,0,0,0  (empty) -> 44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44
+            0, 132, // path = 5,0,0,0,0  (empty) -> 44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44
             0, 10, 0, 4, 0, 2, 0,
             24, // path = 5,0,0,0,1 -> 41, 41, 0, 40, 0, 4, 0, 2, 0, 24, 37, 37
             0, 13, 0, 6, 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229,
@@ -158,7 +158,6 @@ mod tests {
         // ) -> ClientExtensions
         // ) -> Message
 
-
         // This one operates below encryption! (we are able to replace payload under encryption: fn_encrypt_handshake)
         let step_nb = 2;
         let path = vec![6];
@@ -173,7 +172,7 @@ mod tests {
         // This one is tricky since it replaces an empty bitstring with an nonempty one, thus it requires to find it
         // using left or right brother
         let step_nb = 0;
-        let path = vec![5, 0, 0, 0, 0,  0];
+        let path = vec![5, 0, 0, 0, 0, 0];
         let new_vec = vec![44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44];
         let expected_vec = vec![
             22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -220,8 +219,8 @@ mod tests {
         let expected_vec = vec![
             22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1, 1, 0,
-            0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, // replace
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1, 1, 0, 0, 132,
+            0, 10, 0, 4, 0, 2, 0, 24, 0, // replace
         ];
         test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
 
@@ -231,10 +230,9 @@ mod tests {
         let expected_vec = vec![
             22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2,
-            19, 1, 11, // replace
-            1, 0,
-            0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, // from previous replacement
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1,
+            11, // replace
+            1, 0, 0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, // from previous replacement
         ];
         test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
 
@@ -245,8 +243,8 @@ mod tests {
         let expected_vec = vec![
             22, 3, 3, 0, 211, 1, 0, 0, 207, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 32, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2,
-            19, 1, 11, // from previous replacement
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 2, 19, 1,
+            11, // from previous replacement
             // 1, 0,
             33, 33, 33, 33, // replace
             0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, // from previous replacement

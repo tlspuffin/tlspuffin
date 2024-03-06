@@ -1,6 +1,6 @@
 use super::utils::{Choosable, *};
 use libafl::prelude::*;
-use log::{info, debug, warn};
+use log::{debug, info, warn};
 use std::ops::Not;
 use std::thread::panicking;
 
@@ -48,7 +48,8 @@ pub type HavocMutationsTypeDY<S: HasRand + HasMaxSize> = tuple_list_type!(
 );
 
 pub fn havoc_mutations_DY<S: HasRand + HasMaxSize + HasCorpus>() -> HavocMutationsTypeDY<S>
-    where <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec
+where
+    <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
 {
     tuple_list!(
         BitFlipMutatorDY::new(),
@@ -79,7 +80,6 @@ pub fn havoc_mutations_DY<S: HasRand + HasMaxSize + HasCorpus>() -> HavocMutatio
         CrossoverInsertMutatorDY::new(),
         CrossoverReplaceMutatorDY::new(),
         SpliceMutatorDY::new(),
-
     )
 }
 
@@ -191,28 +191,27 @@ expand_mutations!(
     BytesRandInsertMutator,
     BytesSetMutator,
     BytesRandSetMutator,
-    BytesCopyMutator
-    // The next 4 fail because types of mutate seem a bit different, need a different macro for them
-    // TODO-bitlevel
-    // BytesInsertCopyMutator,
-    // BytesSwapMutator,
-    // CrossoverInsertMutator,
-    // CrossoverReplaceMutator
+    BytesCopyMutator // The next 4 fail because types of mutate seem a bit different, need a different macro for them
+                     // TODO-bitlevel
+                     // BytesInsertCopyMutator,
+                     // BytesSwapMutator,
+                     // CrossoverInsertMutator,
+                     // CrossoverReplaceMutator
 );
 
 // We could write another macro for the two following mutations
 // BytesSwapMutatorDY
 pub struct BytesSwapMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     tmp_buf: BytesSwapMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
 impl<S> BytesSwapMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -224,9 +223,9 @@ impl<S> BytesSwapMutatorDY<S>
 }
 
 impl<S, M> Mutator<Trace<M>, S> for BytesSwapMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
-        M: Matcher,
+where
+    S: HasRand + HasMaxSize,
+    M: Matcher,
 {
     fn mutate(
         &mut self,
@@ -241,9 +240,18 @@ impl<S, M> Mutator<Trace<M>, S> for BytesSwapMutatorDY<S>
             TermConstraints::default(),
             rand,
         ) {
-            debug!("Mutate {} on term {}", std::any::type_name::<BytesInsertCopyMutatorDY<S>>(), &to_mutate);
+            debug!(
+                "Mutate {} on term {}",
+                std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
+                &to_mutate
+            );
             if let Some(payloads) = &mut to_mutate.payloads {
-                libafl::mutators::mutations::BytesSwapMutator::mutate(&mut self.tmp_buf,  state,&mut payloads.payload, stage_idx)
+                libafl::mutators::mutations::BytesSwapMutator::mutate(
+                    &mut self.tmp_buf,
+                    state,
+                    &mut payloads.payload,
+                    stage_idx,
+                )
             } else {
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name:: <BytesInsertCopyMutatorDY<S>> ());
             }
@@ -254,26 +262,26 @@ impl<S, M> Mutator<Trace<M>, S> for BytesSwapMutatorDY<S>
 }
 
 impl<S> Named for BytesSwapMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<BytesSwapMutatorDY<S>> ()
+        std::any::type_name::<BytesSwapMutatorDY<S>>()
     }
 }
 
 // BytesInsertCopyMutatorDY
 pub struct BytesInsertCopyMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     tmp_buf: BytesInsertCopyMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
 impl<S> BytesInsertCopyMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -285,9 +293,9 @@ impl<S> BytesInsertCopyMutatorDY<S>
 }
 
 impl<S, M> Mutator<Trace<M>, S> for BytesInsertCopyMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
-        M: Matcher,
+where
+    S: HasRand + HasMaxSize,
+    M: Matcher,
 {
     fn mutate(
         &mut self,
@@ -302,9 +310,18 @@ impl<S, M> Mutator<Trace<M>, S> for BytesInsertCopyMutatorDY<S>
             TermConstraints::default(),
             rand,
         ) {
-            debug!("Mutate {} on term {}", std::any::type_name::<BytesInsertCopyMutatorDY<S>>(), &to_mutate);
+            debug!(
+                "Mutate {} on term {}",
+                std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
+                &to_mutate
+            );
             if let Some(payloads) = &mut to_mutate.payloads {
-                libafl::mutators::mutations::BytesInsertCopyMutator::mutate(&mut self.tmp_buf,  state,&mut payloads.payload, stage_idx)
+                libafl::mutators::mutations::BytesInsertCopyMutator::mutate(
+                    &mut self.tmp_buf,
+                    state,
+                    &mut payloads.payload,
+                    stage_idx,
+                )
             } else {
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name:: <BytesInsertCopyMutatorDY<S>> ());
             }
@@ -315,11 +332,11 @@ impl<S, M> Mutator<Trace<M>, S> for BytesInsertCopyMutatorDY<S>
 }
 
 impl<S> Named for BytesInsertCopyMutatorDY<S>
-    where
-        S: HasRand + HasMaxSize,
+where
+    S: HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<BytesInsertCopyMutatorDY<S>> ()
+        std::any::type_name::<BytesInsertCopyMutatorDY<S>>()
     }
 }
 
@@ -329,18 +346,18 @@ impl<S> Named for BytesInsertCopyMutatorDY<S>
 // We could write another macro for the three following mutations
 // CrossoverInsertMutatorDY
 pub struct CrossoverInsertMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     tmp_buf: CrossoverInsertMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
 impl<S> CrossoverInsertMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -352,13 +369,13 @@ impl<S> CrossoverInsertMutatorDY<S>
 }
 
 impl<S, M> Mutator<Trace<M>, S> for CrossoverInsertMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
-        M: Matcher,
-//        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-        S: libafl::inputs::UsesInput<Input = Trace<M>>,
-        M:Matcher,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
+    M: Matcher,
+    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
+    S: libafl::inputs::UsesInput<Input = Trace<M>>,
+    M: Matcher,
 {
     fn mutate(
         &mut self,
@@ -366,7 +383,7 @@ impl<S, M> Mutator<Trace<M>, S> for CrossoverInsertMutatorDY<S>
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-                // CrossoverInsertMutator::mutate(&mut self.tmp_buf,  state,trace, stage_idx)
+        // CrossoverInsertMutator::mutate(&mut self.tmp_buf,  state,trace, stage_idx)
         // // Either write HasBytesVec for Trace for the CrossOver and splice mutations in bit_mutations.rs
         // // Or inline the real one but choosing the crossover manually and doing the
         // // the same then.
@@ -375,29 +392,28 @@ impl<S, M> Mutator<Trace<M>, S> for CrossoverInsertMutatorDY<S>
 }
 
 impl<S> Named for CrossoverInsertMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<CrossoverInsertMutatorDY<S>> ()
+        std::any::type_name::<CrossoverInsertMutatorDY<S>>()
     }
 }
 
-
 pub struct CrossoverReplaceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     tmp_buf: CrossoverReplaceMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
 impl<S> CrossoverReplaceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -409,13 +425,13 @@ impl<S> CrossoverReplaceMutatorDY<S>
 }
 
 impl<S, M> Mutator<Trace<M>, S> for CrossoverReplaceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
-        M: Matcher,
-//        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-        S: libafl::inputs::UsesInput<Input = Trace<M>>,
-        M:Matcher,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
+    M: Matcher,
+    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
+    S: libafl::inputs::UsesInput<Input = Trace<M>>,
+    M: Matcher,
 {
     fn mutate(
         &mut self,
@@ -432,28 +448,28 @@ impl<S, M> Mutator<Trace<M>, S> for CrossoverReplaceMutatorDY<S>
 }
 
 impl<S> Named for CrossoverReplaceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<CrossoverReplaceMutatorDY<S>> ()
+        std::any::type_name::<CrossoverReplaceMutatorDY<S>>()
     }
 }
 
 pub struct SpliceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     tmp_buf: SpliceMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
 impl<S> SpliceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     #[must_use]
     pub fn new() -> Self {
@@ -465,13 +481,13 @@ impl<S> SpliceMutatorDY<S>
 }
 
 impl<S, M> Mutator<Trace<M>, S> for SpliceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
-        M: Matcher,
-//        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-        S: libafl::inputs::UsesInput<Input = Trace<M>>,
-        M:Matcher,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
+    M: Matcher,
+    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
+    S: libafl::inputs::UsesInput<Input = Trace<M>>,
+    M: Matcher,
 {
     fn mutate(
         &mut self,
@@ -488,11 +504,11 @@ impl<S, M> Mutator<Trace<M>, S> for SpliceMutatorDY<S>
 }
 
 impl<S> Named for SpliceMutatorDY<S>
-    where
-        S: HasCorpus + HasRand + HasMaxSize,
-        S::Input: HasBytesVec,
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    S::Input: HasBytesVec,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<SpliceMutatorDY<S>> ()
+        std::any::type_name::<SpliceMutatorDY<S>>()
     }
 }

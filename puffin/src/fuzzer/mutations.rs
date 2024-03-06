@@ -1,22 +1,25 @@
+use super::utils::{Choosable, *};
+use anyhow::{Context, Result};
 use libafl::prelude::*;
 use log::{debug, error, info, warn};
 use std::ops::Not;
 use std::thread::panicking;
-use super::utils::{Choosable, *};
-use anyhow::{Context, Result};
 
-use crate::algebra::{bitstrings::{Payloads, search_sub_vec}, TermEval, TermType};
+use crate::algebra::{
+    bitstrings::{search_sub_vec, Payloads},
+    TermEval, TermType,
+};
 use crate::codec::Codec;
 use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::harness::default_put_options;
 use crate::protocol::ProtocolBehavior;
+use crate::trace::Action::Input;
 use crate::trace::TraceContext;
 use crate::{
     algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
     fuzzer::term_zoo::TermZoo,
     trace::Trace,
 };
-use crate::trace::Action::Input;
 
 pub fn trace_mutations<S, M: Matcher, PB>(
     min_trace_length: usize,
@@ -591,12 +594,13 @@ where
 }
 
 /// MakeMessage on the term at path `path` in `tr`.
-fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace<M>,
-                                                                  path: &TracePath,
-                                                                  ctx: &mut TraceContext<PB>)
-    -> Result<(),anyhow::Error>
-    where
-    PB: ProtocolBehavior<Matcher=M>,
+fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+    tr: &mut Trace<M>,
+    path: &TracePath,
+    ctx: &mut TraceContext<PB>,
+) -> Result<(), anyhow::Error>
+where
+    PB: ProtocolBehavior<Matcher = M>,
 {
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
@@ -612,16 +616,15 @@ fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher=M>>(tr: &mut Trace
     // because, doing differently would dramatically complexify the computation of replace_payloads.
     // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
     // term in thje first place.
-    t.make_payload(&ctx).with_context(||
-        format!("[make_message_term] failed to evaluate chosen sub-term"))?;
+    t.make_payload(&ctx)
+        .with_context(|| format!("[make_message_term] failed to evaluate chosen sub-term"))?;
     Ok(())
 }
 
-
-impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
-    where
-        S: HasRand,
-        PB: ProtocolBehavior<Matcher=M>,
+impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
+where
+    S: HasRand,
+    PB: ProtocolBehavior<Matcher = M>,
 {
     fn mutate(
         &mut self,
@@ -632,13 +635,13 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
             no_payload_in_subterm: true, // change to true to exclude picking a term with a payload in a sub-term
-                                          // we currently forbid this, could it lead to interesting series of mutations ?
-                                          // not sure. However, it would make term evaluation a lot costlier for sure!
+            // we currently forbid this, could it lead to interesting series of mutations ?
+            // not sure. However, it would make term evaluation a lot costlier for sure!
             not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
             // we set it to true since a MakeMessage inside a list is never going to then be evaluated
             // indeed: the evaluation of a partial list is never going to be found in the evaluation of the
             // full list!
-            weighted_depth: true,  // true means we select a sub-term by giving higher-priority to deeper sub-terms
+            weighted_depth: true, // true means we select a sub-term by giving higher-priority to deeper sub-terms
             ..self.constraints
         };
         // choose a random sub term
@@ -654,7 +657,7 @@ impl<S, M: Matcher, PB: ProtocolBehavior<Matcher=M>> Mutator<Trace<M>, S> for Ma
                 Err(e) => {
                     warn!("mutation::MakeMessage failed due to {e}");
                     Ok(MutationResult::Skipped)
-                },
+                }
             }
         } else {
             warn!("mutation::MakeMessage failed to choose term");
@@ -672,7 +675,6 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
@@ -686,11 +688,16 @@ mod tests {
     use log::debug;
 
     use super::*;
-    use crate::{agent::AgentName, algebra::{
-        dynamic_function::DescribableFunction,
-        test_signature::{TestTrace, TestProtocolBehavior, *},
-        AnyMatcher, Term,
-    }, trace::{Action, Step}, trace};
+    use crate::{
+        agent::AgentName,
+        algebra::{
+            dynamic_function::DescribableFunction,
+            test_signature::{TestProtocolBehavior, TestTrace, *},
+            AnyMatcher, Term,
+        },
+        trace,
+        trace::{Action, Step},
+    };
 
     fn create_state(
     ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>

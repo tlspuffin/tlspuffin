@@ -202,7 +202,6 @@ impl Codec for u64 {
     }
 }
 
-
 /// encode a Vec whose length is encoded in 1 byte
 pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();

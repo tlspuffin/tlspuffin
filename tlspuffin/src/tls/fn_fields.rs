@@ -6,6 +6,7 @@ use puffin::{
     codec::{Codec, Reader},
 };
 
+use crate::tls::rustls::msgs::handshake::{CipherSuites, Compressions};
 use crate::tls::{
     key_exchange::tls12_new_secrets,
     key_schedule::dhe_key_schedule,
@@ -18,7 +19,6 @@ use crate::tls::{
         },
     },
 };
-use crate::tls::rustls::msgs::handshake::{CipherSuites, Compressions};
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
     Ok(ProtocolVersion::TLSv1_3)
@@ -214,9 +214,7 @@ pub fn fn_append_cipher_suite(
     Ok(new)
 }
 
-pub fn fn_cipher_suites_make(
-    suites: &Vec<CipherSuite>
-) -> Result<CipherSuites, FnError> {
+pub fn fn_cipher_suites_make(suites: &Vec<CipherSuite>) -> Result<CipherSuites, FnError> {
     Ok(CipherSuites(suites.clone()))
 }
 

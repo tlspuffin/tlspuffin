@@ -71,21 +71,19 @@ impl ProtocolMessage<OpaqueMessage> for Message {
                             Box::new(ch.cipher_suites.clone()),
                         ];
 
-                        let extensions = ch
-                            .extensions
-                            .0
-                            .iter()
-                            .map(|extension| Box::new(extension.clone()) as Box<dyn VariableData>);
+                        let extensions =
+                            ch.extensions.0.iter().map(|extension| {
+                                Box::new(extension.clone()) as Box<dyn VariableData>
+                            });
                         let compression_methods = ch
                             .compression_methods
                             .0
                             .iter()
                             .map(|compression| Box::new(*compression) as Box<dyn VariableData>);
-                        let cipher_suites = ch
-                            .cipher_suites
-                            .0
-                            .iter()
-                            .map(|cipher_suite| Box::new(*cipher_suite) as Box<dyn VariableData>);
+                        let cipher_suites =
+                            ch.cipher_suites.0.iter().map(|cipher_suite| {
+                                Box::new(*cipher_suite) as Box<dyn VariableData>
+                            });
 
                         vars.into_iter()
                             .chain(extensions) // also add all extensions individually

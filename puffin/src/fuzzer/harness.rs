@@ -28,7 +28,10 @@ pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()
 }
 
 pub fn harness<PB: ProtocolBehavior + 'static>(input: &Trace<PB::Matcher>) -> ExitKind {
-    debug!("Harness is called on trace with #{} steps", input.steps.len());
+    debug!(
+        "Harness is called on trace with #{} steps",
+        input.steps.len()
+    );
     let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
 
     TRACE_LENGTH.update(input.steps.len());

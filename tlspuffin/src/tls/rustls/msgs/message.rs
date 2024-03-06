@@ -2,17 +2,21 @@ use log::{debug, error};
 use puffin::algebra::error::FnError;
 use puffin::algebra::ConcreteMessage;
 use puffin::codec;
-use std::any::{Any, type_name, TypeId};
+use std::any::{type_name, Any, TypeId};
 use std::convert::TryFrom;
 
-use puffin::codec::{Codec, VecCodecWoSize, Reader};
+use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::Term;
 use puffin::protocol::ProtocolMessage;
 
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::{Certificate, PrivateKey};
 use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-use crate::tls::rustls::msgs::handshake::{CertReqExtension, CertificateEntry, CertificateExtension, ClientExtension, HelloRetryExtension, NewSessionTicketExtension, PresharedKeyIdentity, ServerExtension, ClientExtensions, Compressions, CipherSuites, ServerExtensions, HelloRetryExtensions, CertificateEntries};
+use crate::tls::rustls::msgs::handshake::{
+    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
+    ClientExtension, ClientExtensions, Compressions, HelloRetryExtension, HelloRetryExtensions,
+    NewSessionTicketExtension, PresharedKeyIdentity, ServerExtension, ServerExtensions,
+};
 use crate::tls::rustls::{
     error::Error,
     msgs::{
@@ -407,7 +411,6 @@ macro_rules! try_downcast {
 //    implementation consider the size of the vector, encoded into the appropriate number of bytes. This depends on the
 //    field under consideration. For the above example, we shall use `read_vec_u16` and `encode_vec_u16`.
 
-
 // For all Countable types, we encode list of items of such type by prefixing with the length encoded in 2 bytes
 // For each type: whether it produces empty bitstring for empty list ([]), and u8 or u16 length prefix (8/16)
 impl VecCodecWoSize for ClientExtension {} // []/u16
@@ -421,7 +424,6 @@ impl VecCodecWoSize for Certificate {} // u24, no need?
 impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
-
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
@@ -450,7 +452,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // MessagePayload,
         // ExtensionType,
         NamedGroup,           // 407
-        ClientExtensions, //368
+        ClientExtensions,     //368
         Vec<ClientExtension>, //368 // to remove!
         ClientExtension,      // 4067
         ServerExtensions,
@@ -531,7 +533,10 @@ macro_rules! try_read {
   };
 }
 
-pub fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, puffin::error::Error> {
+pub fn try_read_bytes(
+    bitstring: ConcreteMessage,
+    ty: TypeId,
+) -> Result<Box<dyn Any>, puffin::error::Error> {
     if ty == TypeId::of::<Message>() {
         <OpaqueMessage>::read_bytes(& bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type OpaqueMessage (ty was Message though) the bitstring {:?}",

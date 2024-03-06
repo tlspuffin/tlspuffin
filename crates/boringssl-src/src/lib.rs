@@ -1,6 +1,6 @@
 use std::{
-    env, collections::HashSet,
-    fs, io,
+    collections::HashSet,
+    env, fs, io,
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Command,

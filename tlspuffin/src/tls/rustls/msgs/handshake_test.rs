@@ -1024,10 +1024,9 @@ fn can_detect_truncation_of_all_tls12_handshake_payloads() {
 
             let hmp = HandshakeMessagePayload::read_version(
                 &mut Reader::init(&enc),
-                ProtocolVersion::TLSv1_2
+                ProtocolVersion::TLSv1_2,
             );
-            assert!(hmp
-            .is_none());
+            assert!(hmp.is_none());
             assert!(HandshakeMessagePayload::read_bytes(&enc).is_none());
         }
     }

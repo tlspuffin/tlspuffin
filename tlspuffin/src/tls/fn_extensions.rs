@@ -43,7 +43,7 @@ pub fn fn_client_extensions_append(
 }
 
 pub fn fn_client_extensions_make(
-    extensions: &Vec<ClientExtension>
+    extensions: &Vec<ClientExtension>,
 ) -> Result<ClientExtensions, FnError> {
     Ok(ClientExtensions(extensions.clone()))
 }
@@ -53,7 +53,7 @@ pub fn fn_server_extensions_new() -> Result<Vec<ServerExtension>, FnError> {
 }
 
 pub fn fn_server_extensions_make(
-    extensions: &Vec<ServerExtension>
+    extensions: &Vec<ServerExtension>,
 ) -> Result<ServerExtensions, FnError> {
     Ok(ServerExtensions(extensions.clone()))
 }

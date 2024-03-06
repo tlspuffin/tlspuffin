@@ -1,11 +1,17 @@
-use std::thread::panicking;
 use log::{debug, error};
 use puffin::algebra::TermType;
+use puffin::fuzzer::harness::set_default_put_options;
+use puffin::fuzzer::mutations::trace_mutations;
+use puffin::fuzzer::{bit_mutations::*, mutations::MakeMessage};
+use puffin::libafl::prelude::ByteFlipMutator;
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
-    fuzzer::{mutations::{ReplaceReuseMutator, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator},
-             utils::TermConstraints,
+    fuzzer::{
+        mutations::{
+            RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+        },
+        utils::TermConstraints,
     },
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -16,12 +22,11 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
-use puffin::fuzzer::harness::set_default_put_options;
-use puffin::fuzzer::{mutations::MakeMessage,
-                    bit_mutations::*};
-use puffin::fuzzer::mutations::trace_mutations;
-use puffin::libafl::prelude::ByteFlipMutator;
+use std::thread::panicking;
 
+use crate::protocol::TLSProtocolBehavior;
+use crate::tls::seeds::{create_corpus, seed_client_attacker, seed_client_attacker_full};
+use crate::tls::trace_helper::TraceHelper;
 use crate::{
     put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
@@ -35,9 +40,6 @@ use crate::{
         TLS_SIGNATURE,
     },
 };
-use crate::protocol::TLSProtocolBehavior;
-use crate::tls::seeds::{create_corpus, seed_client_attacker, seed_client_attacker_full};
-use crate::tls::trace_helper::TraceHelper;
 
 fn create_state() -> StdState<
     Trace<TlsQueryMatcher>,
@@ -50,14 +52,20 @@ fn create_state() -> StdState<
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
-
-
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_make_message() {
     let mut state = create_state();
-    let mut mutator : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator: MakeMessage<
+        StdState<
+            Trace<TlsQueryMatcher>,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            RomuDuoJrRand,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+        >,
+        TLSProtocolBehavior,
+    > = MakeMessage::new(TermConstraints::default());
 
     let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
     ctx.set_deterministic(true);
@@ -85,14 +93,21 @@ fn test_make_message() {
     }
 }
 
-
 /// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all payloads of strict sub-terms
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_byte_remove_payloads() {
     let mut state = create_state();
-    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator_make: MakeMessage<
+        StdState<
+            Trace<TlsQueryMatcher>,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            RomuDuoJrRand,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+        >,
+        TLSProtocolBehavior,
+    > = MakeMessage::new(TermConstraints::default());
 
     let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
     ctx.set_deterministic(true);
@@ -106,14 +121,20 @@ fn test_byte_remove_payloads() {
             match &first.action {
                 Action::Input(input) => {
                     if let Term::Application(fd, args) = &input.recipe.term {
-                        if args.len() > 5 && input.recipe.is_symbolic() && !args[5].payloads_to_replace().is_empty() {
+                        if args.len() > 5
+                            && input.recipe.is_symbolic()
+                            && !args[5].payloads_to_replace().is_empty()
+                        {
                             error!("Found sub-term: {:?}", args[5]);
-                            error!("MakeMessage created new payloads in a strict sub-term: {:?}", args[5].payloads_to_replace());
+                            error!(
+                                "MakeMessage created new payloads in a strict sub-term: {:?}",
+                                args[5].payloads_to_replace()
+                            );
                             break;
                         }
                     }
-                },
-                Action::Output(_) => {},
+                }
+                Action::Output(_) => {}
             }
         }
     }
@@ -121,36 +142,42 @@ fn test_byte_remove_payloads() {
     loop {
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
-            if let Some(first) = trace.steps.get(0) {
-                match &first.action {
-                    Action::Input(input) => {
-                        if let Term::Application(fd, args) = &input.recipe.term {
-                            if args.len() > 5 &&
-                                !input.recipe.is_symbolic() {
-                                    if args[5].payloads_to_replace().is_empty() &&
-                                        input.recipe.payloads_to_replace().len() == 1
-                                    {
-                                        error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
-                                        break
-                                    } else {
-                                        panic!("Failed to remove payloads in strict sub-terms when adding a payload at top level")
-                                    }
+        if let Some(first) = trace.steps.get(0) {
+            match &first.action {
+                Action::Input(input) => {
+                    if let Term::Application(fd, args) = &input.recipe.term {
+                        if args.len() > 5 && !input.recipe.is_symbolic() {
+                            if args[5].payloads_to_replace().is_empty()
+                                && input.recipe.payloads_to_replace().len() == 1
+                            {
+                                error!("MakeMessage created new payloads in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
+                                break;
+                            } else {
+                                panic!("Failed to remove payloads in strict sub-terms when adding a payload at top level")
                             }
                         }
-                    },
-                    Action::Output(_) => {},
+                    }
                 }
+                Action::Output(_) => {}
             }
+        }
     }
 }
-
 
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_byte() {
     let mut state = create_state();
-    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator_make: MakeMessage<
+        StdState<
+            Trace<TlsQueryMatcher>,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            RomuDuoJrRand,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+        >,
+        TLSProtocolBehavior,
+    > = MakeMessage::new(TermConstraints::default());
     let mut mutator_byte = ByteFlipMutatorDY::new();
 
     let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
@@ -174,9 +201,9 @@ fn test_byte() {
             if !payloads.is_empty() {
                 error!("MakeMessage created new payloads: {:?}", payloads);
                 break;
-                }
             }
         }
+    }
 
     loop {
         mutator_byte.mutate(&mut state, &mut trace, 0).unwrap();
@@ -187,13 +214,18 @@ fn test_byte() {
                     let mut found = false;
                     for payload in input.recipe.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            error!("ByteFlipMutatorDY created different payloads: {:?}", payload);
+                            error!(
+                                "ByteFlipMutatorDY created different payloads: {:?}",
+                                payload
+                            );
                             found = true;
                         }
                     }
-                    if found {break;}
-                },
-                Action::Output(_) => {},
+                    if found {
+                        break;
+                    }
+                }
+                Action::Output(_) => {}
             }
         }
     }
@@ -204,7 +236,15 @@ fn test_byte() {
 #[test_log::test]
 fn test_byte_interesting() {
     let mut state = create_state();
-    let mut mutator_make : MakeMessage<StdState<Trace<TlsQueryMatcher>, InMemoryCorpus<Trace<TlsQueryMatcher>>, RomuDuoJrRand, InMemoryCorpus<Trace<TlsQueryMatcher>>>, TLSProtocolBehavior> = MakeMessage::new(TermConstraints::default());
+    let mut mutator_make: MakeMessage<
+        StdState<
+            Trace<TlsQueryMatcher>,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            RomuDuoJrRand,
+            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+        >,
+        TLSProtocolBehavior,
+    > = MakeMessage::new(TermConstraints::default());
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new();
 
     let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
@@ -233,16 +273,21 @@ fn test_byte_interesting() {
     }
 
     loop {
-        mutator_byte_interesting.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_byte_interesting
+            .mutate(&mut state, &mut trace, 0)
+            .unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => {
                     let mut found = false;
-                    let t =  &input.recipe;
+                    let t = &input.recipe;
                     for payload in t.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            debug!("ByteInterestingMutatorDY created different payloads: {:?}", payload);
+                            debug!(
+                                "ByteInterestingMutatorDY created different payloads: {:?}",
+                                payload
+                            );
                             found = true;
                         }
                     }
@@ -251,8 +296,8 @@ fn test_byte_interesting() {
                     if found && e1 != e2 {
                         break;
                     }
-                },
-                Action::Output(_) => {},
+                }
+                Action::Output(_) => {}
             }
         }
     }

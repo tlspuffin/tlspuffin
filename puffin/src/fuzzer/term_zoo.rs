@@ -25,7 +25,12 @@ impl<M: Matcher> TermZoo<M> {
         Self::generate_many(signature, rand, 1, None)
     }
 
-    pub fn generate_many<R: Rand>(signature: &Signature, rand: &mut R, how_many: usize, filter: Option<&FunctionDefinition>) -> Self {
+    pub fn generate_many<R: Rand>(
+        signature: &Signature,
+        rand: &mut R,
+        how_many: usize,
+        filter: Option<&FunctionDefinition>,
+    ) -> Self {
         let mut acc = vec![];
         if let Some(def) = filter {
             let mut counter = MAX_TRIES as usize * how_many;

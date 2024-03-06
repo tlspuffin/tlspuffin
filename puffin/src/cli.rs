@@ -269,9 +269,13 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                put_registry,
+                &matches,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -292,9 +296,13 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                 i += 1;
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                put_registry,
+                &matches,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -441,10 +449,10 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
             let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
             if let Err(err) = trace.execute(&mut ctx) {
                 error!(
-                "Failed to execute trace {}: {:?}",
-                input.as_ref().display(),
-                err
-            );
+                    "Failed to execute trace {}: {:?}",
+                    input.as_ref().display(),
+                    err
+                );
             }
         });
     } else {

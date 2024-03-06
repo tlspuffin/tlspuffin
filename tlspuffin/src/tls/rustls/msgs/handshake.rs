@@ -93,7 +93,6 @@ macro_rules! declare_u24_vec_limited (
   }
 );
 
-
 declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
 declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 
@@ -1161,7 +1160,7 @@ impl Codec for HelloRetryExtension {
     }
 }
 
-declare_u16_vec!(HelloRetryExtensions,HelloRetryExtension);
+declare_u16_vec!(HelloRetryExtensions, HelloRetryExtension);
 
 #[derive(Debug, Clone)]
 pub struct HelloRetryRequest {
@@ -1180,7 +1179,7 @@ impl Codec for HelloRetryRequest {
         Compression::Null.encode(bytes);
         // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty =
         //         // lists of extensions, as for CLientHello ClientExtensions?
-            self.extensions.encode(bytes);
+        self.extensions.encode(bytes);
         // }
     }
 
@@ -1523,7 +1522,7 @@ impl CertificateEntry {
     }
 }
 
-declare_u24_vec_limited!(CertificateEntries,CertificateEntry);
+declare_u24_vec_limited!(CertificateEntries, CertificateEntry);
 #[derive(Debug, Clone)]
 pub struct CertificatePayloadTLS13 {
     pub context: PayloadU8,

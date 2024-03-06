@@ -1423,10 +1423,8 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
 
 pub fn seed_client_attacker_full_wo_time(server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut tr = _seed_client_attacker_full(server).0;
-    tr
-        .steps
-        .pop(); // remove last server's output containing timing information in session tickets
-    return(tr)
+    tr.steps.pop(); // remove last server's output containing timing information in session tickets
+    return (tr);
 }
 
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
@@ -2058,7 +2056,11 @@ pub mod tests {
 
     use log::debug;
     use puffin::algebra::error::FnError;
-    use puffin::algebra::{bitstrings::{Payloads, replace_payloads}, TermType, term::evaluate_lazy_test};
+    use puffin::algebra::{
+        bitstrings::{replace_payloads, Payloads},
+        term::evaluate_lazy_test,
+        TermType,
+    };
     use puffin::codec::Codec;
     use puffin::trace::TraceContext;
     use puffin::{agent::AgentName, trace::Action};
@@ -2390,6 +2392,7 @@ pub mod tests {
         use puffin::codec::Reader;
         use test_log::test;
 
+        use crate::tls::rustls::msgs::handshake::{CipherSuites, ClientExtensions, Compressions};
         use crate::tls::rustls::msgs::{
             base::Payload,
             enums::{ContentType, HandshakeType, ProtocolVersion},
@@ -2398,7 +2401,6 @@ pub mod tests {
             },
             message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
         };
-        use crate::tls::rustls::msgs::handshake::{CipherSuites, ClientExtensions, Compressions};
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {
             Message::try_from(opaque_message.into_plain_message()).unwrap()

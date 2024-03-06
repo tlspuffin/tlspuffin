@@ -1,11 +1,11 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
+use anyhow::Context;
+use std::any::TypeId;
 use std::cmp::{max, min};
-use std::fmt::{Debug, Display, format};
+use std::fmt::{format, Debug, Display};
 use std::hash::Hash;
 use std::{any::Any, fmt, fmt::Formatter};
-use std::any::TypeId;
-use anyhow::Context;
 
 use itertools::Itertools;
 use libafl::inputs::{BytesInput, HasBytesVec};
@@ -14,12 +14,18 @@ use serde::de::Unexpected::Bytes;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::{algebra::{dynamic_function::TypeShape, error::FnError, Matcher}, define_signature, error::Error, protocol::ProtocolBehavior, trace::TraceContext};
-use crate::algebra::bitstrings::{EvalTree, Payloads, replace_payloads};
+use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::fuzzer::start;
-use crate::fuzzer::utils::{find_term_by_term_path_mut, find_term_by_term_path, TermPath};
+use crate::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath};
 use crate::trace::Trace;
 use crate::variable_data::VariableData;
+use crate::{
+    algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
+    define_signature,
+    error::Error,
+    protocol::ProtocolBehavior,
+    trace::TraceContext,
+};
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &'static str = "BITSTRING_";
@@ -65,8 +71,8 @@ pub trait TermType<M>: Display + Debug + Clone {
         context: &TraceContext<PB>,
         with_payloads: bool,
     ) -> Result<ConcreteMessage, Error>
-        where
-            PB: ProtocolBehavior<Matcher = M>;
+    where
+        PB: ProtocolBehavior<Matcher = M>;
 
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
@@ -74,8 +80,9 @@ pub trait TermType<M>: Display + Debug + Clone {
         context: &TraceContext<PB>,
     ) -> Result<ConcreteMessage, Error>
     where
-        PB: ProtocolBehavior<Matcher = M> {
-     self.evaluate_config(context, true)
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.evaluate_config(context, true)
     }
 
     /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
@@ -131,7 +138,6 @@ where
     ) -> Vec<((usize, &T), &T)>;
 }
 
-
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
 /// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
@@ -155,7 +161,6 @@ pub(crate) fn remove_prefix(str: &str) -> String {
 pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }
-
 
 /// `TermEval`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
@@ -184,7 +189,7 @@ impl<M: Matcher> TermEval<M> {
     pub fn is_list(&self) -> bool {
         match &self.term {
             Term::Variable(_) => false,
-            Term::Application(fd, _) => { fd.is_list() },
+            Term::Application(fd, _) => fd.is_list(),
         }
     }
 
@@ -192,7 +197,7 @@ impl<M: Matcher> TermEval<M> {
     pub fn is_opaque(&self) -> bool {
         match &self.term {
             Term::Variable(_) => false,
-            Term::Application(fd, _) => { fd.is_opaque() },
+            Term::Application(fd, _) => fd.is_opaque(),
         }
     }
 
@@ -208,7 +213,8 @@ impl<M: Matcher> TermEval<M> {
                 if is_subterm {
                     self.payloads = None;
                 }
-                if !is_opaque { // if opaque, we keep payloads in strict sub-terms
+                if !is_opaque {
+                    // if opaque, we keep payloads in strict sub-terms
                     for t in args {
                         t.erase_payloads_subterms(true);
                     }
@@ -229,9 +235,10 @@ impl<M: Matcher> TermEval<M> {
     }
 
     /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under opaque
-    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) ->
-    Result<(), Error>
-        where PB: ProtocolBehavior<Matcher=M> {
+    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
         let eval = self.evaluate_symbolic(&ctx)?;
         self.add_payload(eval.into());
         Ok(())
@@ -269,8 +276,6 @@ impl<M: Matcher> TermEval<M> {
         acc
     }
 
-
-
     /// Return whether there is at least one payload, except those under opaque terms.
     pub fn has_payload_to_replace(&self) -> bool {
         has_payload_to_replace_rec(self, true)
@@ -282,9 +287,12 @@ impl<M: Matcher> TermEval<M> {
     }
 }
 
-pub fn has_payload_to_replace_rec<'a, M: Matcher>(term: &'a TermEval<M>, include_root: bool) -> bool {
+pub fn has_payload_to_replace_rec<'a, M: Matcher>(
+    term: &'a TermEval<M>,
+    include_root: bool,
+) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
-        return true
+        return true;
     } else {
         match &term.term {
             Term::Variable(_) => {}
@@ -292,49 +300,49 @@ pub fn has_payload_to_replace_rec<'a, M: Matcher>(term: &'a TermEval<M>, include
                 if !term.is_opaque() {
                     for t in args {
                         if has_payload_to_replace_rec(t, true) {
-                            return true
+                            return true;
                         }
                     }
                 }
             }
         }
     }
-    return false
+    return false;
 }
 
-        impl<M: Matcher> Display for TermEval<M> {
-            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                write!(f, "{}", self.display_at_depth(0))
-            }
+impl<M: Matcher> Display for TermEval<M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display_at_depth(0))
+    }
+}
+impl<M: Matcher> From<Term<M>> for TermEval<M> {
+    fn from(term: Term<M>) -> Self {
+        TermEval {
+            term,
+            payloads: None,
         }
-        impl<M: Matcher> From<Term<M>> for TermEval<M> {
-            fn from(term: Term<M>) -> Self {
-                TermEval {
-                    term,
-                    payloads: None,
-                }
-            }
-        }
+    }
+}
 
-        impl<M: Matcher> From<TermEval<M>> for Term<M> {
-            fn from(term: TermEval<M>) -> Self {
-                term.term
-            }
-        }
+impl<M: Matcher> From<TermEval<M>> for Term<M> {
+    fn from(term: TermEval<M>) -> Self {
+        term.term
+    }
+}
 
-        fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring: bool) -> String {
-            let tabs = "\t".repeat(depth);
-            match term {
-                Term::Variable(ref v) => format!("{}{}", tabs, v),
-                Term::Application(ref func, ref args) => {
-                    let op_str = remove_prefix(func.name());
-                    let return_type = remove_prefix(func.shape().return_type.name);
-                    let is_bitstring = if is_bitstring { "BS//" } else { "" };
-                    if args.is_empty() {
-                        format!("{}{}{} -> {}", tabs, is_bitstring, op_str, return_type)
-                    } else {
-                        let args_str = args
-                            .iter()
+fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring: bool) -> String {
+    let tabs = "\t".repeat(depth);
+    match term {
+        Term::Variable(ref v) => format!("{}{}", tabs, v),
+        Term::Application(ref func, ref args) => {
+            let op_str = remove_prefix(func.name());
+            let return_type = remove_prefix(func.shape().return_type.name);
+            let is_bitstring = if is_bitstring { "BS//" } else { "" };
+            if args.is_empty() {
+                format!("{}{}{} -> {}", tabs, is_bitstring, op_str, return_type)
+            } else {
+                let args_str = args
+                    .iter()
                     .map(|arg| display_term_at_depth(&arg.term, depth + 1, !arg.is_symbolic()))
                     .join(",\n");
                 format!(
@@ -359,7 +367,6 @@ fn append_eval<'a, M: Matcher>(term_eval: &'a TermEval<M>, v: &mut Vec<&'a TermE
     v.push(term_eval);
 }
 
-
 impl<M: Matcher> TermType<M> for TermEval<M> {
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate_config<PB: ProtocolBehavior>(
@@ -367,32 +374,37 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         context: &TraceContext<PB>,
         with_payloads: bool,
     ) -> Result<ConcreteMessage, Error>
-        where
-            PB: ProtocolBehavior<Matcher = M>,
+    where
+        PB: ProtocolBehavior<Matcher = M>,
     {
         debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
         let mut eval_tree = EvalTree::init();
         let path = TermPath::new();
-        let (m, all_payloads) = self.eval_until_opaque(&mut eval_tree, path, context, with_payloads, false, false)?;
+        let (m, all_payloads) =
+            self.eval_until_opaque(&mut eval_tree, path, context, with_payloads, false, false)?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
-                debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
+            debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
-                return(Ok(replace_payloads(self, &mut eval_tree, all_payloads, context)?))
+            return (Ok(replace_payloads(
+                self,
+                &mut eval_tree,
+                all_payloads,
+                context,
+            )?));
         } else {
             if let Ok(eval) = PB::any_get_encoding(&m) {
                 trace!("        / We successfully evaluated the root term into: {eval:?}");
-                return Ok(eval)
+                return Ok(eval);
             } else {
-                    return (Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
+                return (Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
                         .map_err(|e| {
                             error!("[evaluate_config] Err: {}", e);
                             e
-                        }))
+                        }));
             }
         }
     }
-
 
     fn resistant_id(&self) -> u32 {
         match &self.term {
@@ -437,7 +449,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 
     fn name(&self) -> &str {
-        if self.is_symbolic() { // we do not display this information for now
+        if self.is_symbolic() {
+            // we do not display this information for now
             match &self.term {
                 Term::Variable(v) => v.typ.name,
                 Term::Application(function, _) => function.name(),
@@ -457,8 +470,6 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         *self = other;
     }
 
-
-
     fn display_at_depth(&self, depth: usize) -> String {
         display_term_at_depth(&self.term, depth, !self.is_symbolic())
     }
@@ -474,7 +485,6 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
     }
 }
-
 
 /// Having the same mutator for &'a mut Term is not possible in Rust:
 /// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
@@ -535,16 +545,14 @@ impl<M: Matcher> Subterms<M, TermEval<M>> for Vec<TermEval<M>> {
     }
 }
 
-
-
 // FOR TESTING ONLY
-pub fn evaluate_lazy_test<PB,M>(
-    term: & TermEval<M>,
+pub fn evaluate_lazy_test<PB, M>(
+    term: &TermEval<M>,
     context: &TraceContext<PB>,
 ) -> Result<Box<dyn Any>, Error>
-    where
-        M: Matcher,
-        PB: ProtocolBehavior<Matcher = M>,
+where
+    M: Matcher,
+    PB: ProtocolBehavior<Matcher = M>,
 {
     match &term.term {
         Term::Variable(variable) => context

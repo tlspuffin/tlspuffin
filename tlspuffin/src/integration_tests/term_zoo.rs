@@ -1,28 +1,29 @@
+/// Test the function symbols that can be generated, evaluated, encoded
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
     use log::{debug, error, warn};
     use std::any::Any;
     use std::cmp::max;
     use std::collections::HashSet;
     use std::fmt::Debug;
-    use itertools::Itertools;
 
+    use puffin::agent::AgentName;
     use puffin::algebra::error::FnError;
-    use puffin::algebra::{ConcreteMessage, evaluate_lazy_test, Matcher, TermEval, TermType};
+    use puffin::algebra::signature::FunctionDefinition;
+    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, Matcher, TermEval, TermType};
     use puffin::codec::Encode;
     use puffin::error::Error;
+    use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
+    use puffin::libafl::prelude::Rand;
     use puffin::protocol::ProtocolBehavior;
+    use puffin::trace::Action::Input;
     use puffin::trace::{InputAction, Step, Trace, TraceContext};
     use puffin::{
         algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo,
         libafl::bolts::rands::StdRand,
     };
-    use puffin::agent::AgentName;
-    use puffin::algebra::signature::FunctionDefinition;
-    use puffin::fuzzer::utils::{Choosable, choose, find_term_by_term_path_mut, TermConstraints};
-    use puffin::libafl::prelude::Rand;
-    use puffin::trace::Action::Input;
 
     use crate::protocol::TLSProtocolBehavior;
     use crate::tls::{
@@ -100,7 +101,7 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
-        // debug!("Diff: {:?}\n", &difference);
+        debug!("Diff: {:?}\n", &difference);
         // debug!("Successfully built: {:?}\n", &successfully_built_functions);
         debug!(
             "Successfully built: #{:?}",
@@ -116,7 +117,7 @@ mod tests {
     #[test_log::test]
     fn test_term_lazy_eval() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200, None);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         // debug!("zoo size: {}", zoo.terms().len());
         let subgraphs = zoo
             .terms()
@@ -157,6 +158,12 @@ mod tests {
             fn_ecdsa_sign_client.name(),
             fn_decrypt_handshake.name(),
             fn_decrypt_application.name(),
+            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
+            fn_find_server_certificate_verify.name(),
+            fn_decrypt_multiple_handshake_messages.name(),
+            fn_find_encrypted_extensions.name(),
+            fn_find_server_certificate.name(),
+            fn_find_server_finished.name(),
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -165,6 +172,7 @@ mod tests {
         successfully_built_functions.extend(ignored_functions);
 
         let difference = all_functions.difference(&successfully_built_functions);
+        debug!("Successfully built: {:?}", &successfully_built_functions);
         debug!("Diff: {:?}\n", &difference);
         debug!(
             "Successfully built: #{:?}",
@@ -181,7 +189,7 @@ mod tests {
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_() {
         let mut rand = StdRand::with_seed(101);
-        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 200, None);
+        let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
@@ -196,8 +204,8 @@ mod tests {
                 continue;
             }
             if true
-                // || term.name().to_string()
-                //     == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
+                || term.name().to_string()
+                    == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
             {
                 match term.evaluate(&ctx) {
                     Ok(eval) => {
@@ -275,6 +283,12 @@ mod tests {
             fn_ecdsa_sign_client.name(),
             fn_decrypt_handshake.name(),
             fn_decrypt_application.name(), // All other terms can also be encoded (no additional exception for full eval :) !)
+            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
+            fn_find_server_certificate_verify.name(),
+            fn_decrypt_multiple_handshake_messages.name(),
+            fn_find_encrypted_extensions.name(),
+            fn_find_server_certificate.name(),
+            fn_find_server_finished.name(),
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -295,28 +309,49 @@ mod tests {
         assert_eq!(count_any_encode_fail, 0);
     }
 
-
-    fn add_payloads_randomly<M:Matcher, R:Rand, PB:ProtocolBehavior<Matcher=M>>(t: &mut TermEval<M>, rand: &mut R, ctx: &TraceContext<PB>) {
+    fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
+        t: &mut TermEval<M>,
+        rand: &mut R,
+        ctx: &TraceContext<PB>,
+    ) {
         let trace = Trace {
             descriptors: vec![],
-            steps: vec![Step { agent: AgentName::new(), action: Input(InputAction {recipe: t.clone()}) } ],
+            steps: vec![Step {
+                agent: AgentName::new(),
+                action: Input(InputAction { recipe: t.clone() }),
+            }],
             prior_traces: vec![],
         };
         let all_subterms: Vec<&TermEval<M>> = t.into_iter().collect_vec();
         let nb_subterms = all_subterms.len() as i32;
         let mut i = 0;
-        let nb = (1..max(4,nb_subterms/3)).collect::<Vec<i32>>().choose(rand).unwrap().to_owned();
-        error!("Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...", max(2,nb_subterms/5));
+        let nb = (1..max(4, nb_subterms / 3))
+            .collect::<Vec<i32>>()
+            .choose(rand)
+            .unwrap()
+            .to_owned();
+        error!(
+            "Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...",
+            max(2, nb_subterms / 5)
+        );
         let mut tries = 0;
         // let nb = 1;
         while i < nb {
             tries += 1;
-            if tries > nb*100 {
+            if tries > nb * 100 {
                 error!("Failed to add the payloads after {} attempts", tries);
                 break;
             }
-            if let Some((st_, (step, mut path))) = choose(&trace,
-                                                          TermConstraints {not_inside_list: true, no_payload_in_subterm: true, weighted_depth: true, ..TermConstraints::default()}, rand) {
+            if let Some((st_, (step, mut path))) = choose(
+                &trace,
+                TermConstraints {
+                    not_inside_list: true,
+                    no_payload_in_subterm: true,
+                    weighted_depth: true,
+                    ..TermConstraints::default()
+                },
+                rand,
+            ) {
                 let st = find_term_by_term_path_mut(t, &mut path).unwrap();
                 if let Ok(()) = st.make_payload(&ctx) {
                     i += 1;
@@ -335,14 +370,12 @@ mod tests {
         }
     }
 
-
     #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_payloads() {
         let mut rand = StdRand::with_seed(101);
-        let all_functions_shape = TLS_SIGNATURE
-            .functions.to_owned();
+        let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
@@ -353,7 +386,8 @@ mod tests {
         let mut successfully_built_functions = vec![];
 
         for f in all_functions_shape {
-            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
+            let zoo =
+                TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
             let terms = zoo.terms();
             number_terms = number_terms + terms.len();
 
@@ -362,17 +396,17 @@ mod tests {
                     // for speeding up things
                     continue; // should never happen
                 }
-// ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
-// "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
-// "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
-// "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
-// "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
-// "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
-                    
+                // ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
+                // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
+                // "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
+                // "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
+                // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
+                // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
+
                 // FILTRAGE
-                if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
-                    continue;
-                }
+                // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
+                //     continue;
+                // }
                 let mut term_with_payloads = term.clone();
 
                 add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
@@ -395,7 +429,10 @@ mod tests {
                             Ok(_) => {
                                 error!("Eval FAILED!");
                                 count_payload_fail += 1;
-                                error!("[Payload] Failed evaluation due to PAYLOADS. Term:\n{}", term_with_payloads);
+                                error!(
+                                    "[Payload] Failed evaluation due to PAYLOADS. Term:\n{}",
+                                    term_with_payloads
+                                );
                             }
                             Err(_) => {
                                 let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
@@ -441,6 +478,36 @@ mod tests {
                 }
             }
         }
+        //["tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application",
+        // "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add",
+        // "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket",
+        // "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
+        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
+        // OPAQUE
+        // self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decode_ecdh_pubkey"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client"
+        //
+        //     // Get functions: opaque as they do not yield a bitstring containing all the bitstrings of their arguments
+        //     // (however needed for computing shifts in `replace_payloads`) TODO: improve this in the future
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
+        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
 
         let mut successfully_built_functions_names = successfully_built_functions
             .iter()
@@ -458,10 +525,16 @@ mod tests {
             fn_ecdsa_sign_client.name(),
             fn_decrypt_handshake.name(),
             fn_decrypt_application.name(), // All other terms can also be encoded (no additional exception for full eval :) !)
+            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
+            fn_find_server_certificate_verify.name(),
+            fn_decrypt_multiple_handshake_messages.name(),
+            fn_find_encrypted_extensions.name(),
+            fn_find_server_certificate.name(),
+            fn_find_server_finished.name(),
         ]
-            .iter()
-            .map(|fn_name| fn_name.to_string())
-            .collect::<HashSet<String>>();
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>();
 
         successfully_built_functions_names.extend(ignored_functions);
 
