@@ -147,7 +147,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
-        let is_batch: bool = matches.get_one::<usize>("index").is_some();
         let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
 
         let mut paths = inputs
@@ -229,7 +228,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             .to_string();
 
         let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
-        let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
         let mut options = vec![("port", port.as_str()), ("host", &host)];
 
@@ -261,9 +259,9 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
         return ExitCode::SUCCESS;
     } else {
-        let experiment_path = if let Some(matches_exp) = matches.subcommand_matches("experiment") {
-            let title: &String = matches_exp.get_one("title").unwrap();
-            let description: &String = matches_exp.get_one("description").unwrap();
+        let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
+            let title: &String = matches.get_one("title").unwrap();
+            let description: &String = matches.get_one("description").unwrap();
             let experiments_root = PathBuf::new().join("experiments");
             let experiment_path = experiments_root.join(format_title(Some(title), None));
             if experiment_path.as_path().exists() {
@@ -271,7 +269,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
+                write_experiment_markdown(&experiment_path, title, description, put_registry)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
@@ -294,7 +292,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
+                write_experiment_markdown(&experiment_path, title, description, put_registry)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
@@ -393,13 +391,7 @@ fn seed<PB: ProtocolBehavior>(
 
 use crate::algebra::TermType;
 use nix::{
-    sys::{
-        signal::Signal,
-        wait::{
-            waitpid, WaitPidFlag,
-            WaitStatus::{Exited, Signaled},
-        },
-    },
+    sys::wait::{waitpid, WaitPidFlag},
     unistd::{fork, ForkResult},
 };
 
@@ -430,7 +422,13 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     put_registry: &'static PutRegistry<PB>,
     is_batch: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let trace = Trace::<PB::Matcher>::from_file(input.as_ref())?;
+    let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
+        Ok(t) => t,
+        Err(_) => {
+            error!("Invalid trace file {}", input.as_ref().display());
+            return;
+        }
+    };
 
     info!("Agents: {:?}", &trace.descriptors);
 

@@ -3,24 +3,16 @@ use std::io::Read;
 
 use puffin::{
     algebra::{signature::Signature, AnyMatcher},
-    error::Error,
-    protocol::{
-        MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer,
-    },
+    protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,
-    variable_data::VariableData,
 };
 use puffin::algebra::ConcreteMessage;
 
 use crate::{
     claim::SshClaim,
     ssh::{
-        deframe::SshMessageDeframer,
-        message::{
-            KexEcdhInitMessage, KexEcdhReplyMessage, KexInitMessage, RawSshMessage, SshMessage,
-        },
+        message::{RawSshMessage, SshMessage},
         SSH_SIGNATURE,
     },
     violation::SshSecurityViolationPolicy,

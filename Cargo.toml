@@ -17,7 +17,19 @@ members = [
     "crates/boring"
 ]
 
-exclude = [ "crates/openssl-src-111" ]
+exclude = ["crates/openssl-src-111"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Maximilian Ammann <max@maxammann.org>", "Lucca Hirschi <lucca.hirschi@inria.fr>", "Michael Mera <dev@michaelmera.com>"]
+repository = "https://github.com/tlspuffin/tlspuffin"
+homepage = "https://github.com/tlspuffin/tlspuffin"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["security",  "fuzzing", "testing"]
+categories = ["development-tools::testing", "network-programming", "simulation"]
+description = "A Dolev-Yao-model-guided fuzzer for TLS"
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }

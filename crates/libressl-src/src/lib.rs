@@ -69,21 +69,6 @@ impl Build {
         self
     }
 
-    /*
-    fn cmd_make(&self) -> Command {
-        let host = &self.host.as_ref().expect("HOST dir not set")[..];
-        if host.contains("dragonfly")
-            || host.contains("freebsd")
-            || host.contains("solaris")
-            || host.contains("illumos")
-        {
-            Command::new("gmake")
-        } else {
-            Command::new("make")
-        }
-    }
-    */
-
     pub fn insert_claim_interface(additional_headers: &PathBuf) -> std::io::Result<()> {
         let interface = security_claims::CLAIM_INTERFACE_H;
 
@@ -210,72 +195,11 @@ Error {}:
     }
 }
 
-fn cp_r(src: &Path, dst: &Path) {
-    for f in fs::read_dir(src).unwrap() {
-        let f = f.unwrap();
-        let path = f.path();
-        let name = path.file_name().unwrap();
-
-        // Skip git metadata as it's been known to cause issues and shouldn't be required
-        if name.to_str() == Some(".git") {
-            continue;
-        }
-
-        let dst = dst.join(name);
-        if f.file_type().unwrap().is_dir() {
-            fs::create_dir_all(&dst).unwrap();
-            cp_r(&path, &dst);
-        } else {
-            let _ = fs::remove_file(&dst);
-            fs::copy(&path, &dst).unwrap();
-        }
+impl Default for Build {
+    fn default() -> Self {
+        Self::new()
     }
 }
-
-/*
-fn apply_patches(target: &str, inner: &Path) {
-    if !target.contains("musl") {
-        return;
-    }
-
-    // Undo part of https://github.com/openssl/openssl/commit/c352bd07ed2ff872876534c950a6968d75ef121e on MUSL
-    // since it doesn't have asm/unistd.h
-    let mut buf = String::new();
-    let path = inner.join("crypto/rand/rand_unix.c");
-    File::open(&path).unwrap().read_to_string(&mut buf).unwrap();
-
-    let buf = buf
-        .replace("asm/unistd.h", "sys/syscall.h")
-        .replace("__NR_getrandom", "SYS_getrandom");
-
-    File::create(&path)
-        .unwrap()
-        .write_all(buf.as_bytes())
-        .unwrap();
-}
-*/
-
-/*
-fn sanitize_sh(path: &Path) -> String {
-    if !cfg!(windows) {
-        return path.to_str().unwrap().to_string();
-    }
-    let path = path.to_str().unwrap().replace("\\", "/");
-    return change_drive(&path).unwrap_or(path);
-
-    fn change_drive(s: &str) -> Option<String> {
-        let mut ch = s.chars();
-        let drive = ch.next().unwrap_or('C');
-        if ch.next() != Some(':') {
-            return None;
-        }
-        if ch.next() != Some('/') {
-            return None;
-        }
-        Some(format!("/{}/{}", drive, &s[drive.len_utf8() + 2..]))
-    }
-}
-*/
 
 impl Artifacts {
     pub fn include_dir(&self) -> &Path {

@@ -431,7 +431,6 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
             }
             println!("attempts 5: {}", attempts);
-            attempts = 0;
 
             let mut context = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
             let _ = trace.execute(&mut context);

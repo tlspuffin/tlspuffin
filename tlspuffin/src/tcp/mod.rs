@@ -1,7 +1,7 @@
 use std::{
     ffi::OsStr,
     io,
-    io::{ErrorKind, Read, Write},
+    io::{ErrorKind, Write},
     net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     path::Path,
     process::{Child, Command, Stdio},
@@ -478,13 +478,15 @@ impl TLSProcess {
     }
 
     pub fn shutdown(&mut self) -> Option<String> {
-        if let Some(mut child) = self.child.take() {
+        self.output = if let Some(mut child) = self.child.take() {
             child.kill().expect("failed to stop process");
 
             Some(collect_output(child))
         } else {
             None
-        }
+        };
+
+        self.output.clone()
     }
 }
 
@@ -540,12 +542,14 @@ pub mod tcp_puts {
 
     const OPENSSL_PROG: &str = "openssl";
 
-    /// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.
     pub struct ParametersGuard {
         port: u16,
         prog: String,
         args: String,
         cwd: Option<String>,
+
+        #[allow(dead_code)]
+        /// In case `temp_dir` is set this acts as a guard. Dropping it makes it invalid.
         temp_dir: Option<TempDir>,
     }
 

@@ -28,10 +28,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{
-    fmt::Debug,
-    hash::{Hash, Hasher},
-};
+use std::{fmt::Debug, hash::Hash};
 
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -451,16 +448,6 @@ pub mod test_signature {
 
     impl Debug for TestMessage {
         fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-            panic!("Not implemented for test stub");
-        }
-    }
-
-    impl Codec for TestMessage {
-        fn encode(&self, _bytes: &mut Vec<u8>) {
-            panic!("Not implemented for test stub");
-        }
-
-        fn read(_: &mut Reader) -> Option<Self> {
             panic!("Not implemented for test stub");
         }
     }

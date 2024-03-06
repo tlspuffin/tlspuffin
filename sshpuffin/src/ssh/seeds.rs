@@ -169,7 +169,7 @@ mod tests {
     use puffin::{agent::AgentName, put::PutOptions};
     use test_log::test;
 
-    use crate::{libssh::ssh::set_log_level, ssh, ssh::seeds::seed_successful, SSH_PUT_REGISTRY};
+    use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, SSH_PUT_REGISTRY};
 
     #[test]
     fn test_seed_successful() {

@@ -37,7 +37,7 @@ use crate::{
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
-    put_registry::{Factory, PutRegistry},
+    put_registry::PutRegistry,
     variable_data::VariableData,
 };
 

@@ -15,7 +15,7 @@ use crate::{
             handshake::{CertificateEntry, CertificateExtensions, HandshakePayload},
             message::{Message, MessagePayload},
         },
-        sign::{EcdsaSigningKey, RsaSigner, Signer, SigningKey},
+        sign::{EcdsaSigningKey, RsaSigner, SigningKey},
         verify::{
             construct_tls13_client_verify_message_raw, construct_tls13_server_verify_message_raw,
         },
