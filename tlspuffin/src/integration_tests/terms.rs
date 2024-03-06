@@ -13,7 +13,7 @@ mod tests {
     use puffin::algebra::error::FnError;
     use puffin::algebra::signature::FunctionDefinition;
     use puffin::algebra::{
-        evaluate_lazy_test, replace_payloads, ConcreteMessage, Matcher, Payloads, TermEval,
+        evaluate_lazy_test, ConcreteMessage, Matcher, bitstrings::{replace_payloads, Payloads}, TermEval,
         TermType,
     };
     use puffin::codec::Codec;
@@ -65,7 +65,7 @@ mod tests {
         new_sub_vec: Vec<u8>,  // this will replace the payload at step_nb/path
         expected_vec: Vec<u8>, // expected bitstring for the whole recipe at step_nb
     ) {
-        debug!("\n=========================\nReplacing step {step_nb} with path {path:?} and new vec: {new_sub_vec:?}.");
+        println!("\n=========================\nReplacing step {step_nb} with path {path:?} and new vec: {new_sub_vec:?}.");
         if let Input(input) = &mut trace.steps[step_nb].action {
             let mut term = &mut input.recipe;
             let e_before = term.evaluate(&ctx).expect("OUPS1");
@@ -97,7 +97,7 @@ mod tests {
     }
 
     // UNI TESTS for eval_until_opaque and replace_payloads
-    // #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
+//    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
     // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and wimdow refinement of `eval_until_opaque`
     // in detail.
     #[test]

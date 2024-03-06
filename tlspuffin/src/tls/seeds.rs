@@ -2058,7 +2058,7 @@ pub mod tests {
 
     use log::debug;
     use puffin::algebra::error::FnError;
-    use puffin::algebra::{Payloads, replace_payloads, TermType, term::evaluate_lazy_test};
+    use puffin::algebra::{bitstrings::{Payloads, replace_payloads}, TermType, term::evaluate_lazy_test};
     use puffin::codec::Codec;
     use puffin::trace::TraceContext;
     use puffin::{agent::AgentName, trace::Action};

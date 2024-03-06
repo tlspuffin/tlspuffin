@@ -145,7 +145,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                 }
 
                 let mut stack: Vec<(&TermEval<M>, TracePath, bool, usize)> =
-                    vec![(term, (step_index, Vec::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
+                    vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
                                                                       // usize if for depth
 
                 // DFS Algo: the version with if_weighted inplements the reservoir sampling algorithm
@@ -235,19 +235,18 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
 pub fn find_term_by_term_path_mut<'a, M: Matcher>(
     term: &'a mut TermEval<M>,
-    term_path: &mut TermPath,
+    term_path: &[usize],
 ) -> Option<&'a mut TermEval<M>> {
     if term_path.is_empty() {
         return Some(term);
     }
-
-    let subterm_index = term_path.remove(0);
+    let subterm_index = term_path[0];
 
     match &mut term.term {
         Term::Variable(_) => None,
         Term::Application(_, subterms) => {
             if let Some(subterm) = subterms.get_mut(subterm_index) {
-                find_term_by_term_path_mut(subterm, term_path)
+                find_term_by_term_path_mut(subterm, &term_path[1..])
             } else {
                 None
             }
@@ -257,19 +256,19 @@ pub fn find_term_by_term_path_mut<'a, M: Matcher>(
 
 pub fn find_term_by_term_path<'a, M: Matcher>(
     term: &'a TermEval<M>,
-    term_path: &mut TermPath,
+    term_path: &[usize],
 ) -> Option<&'a TermEval<M>> {
     if term_path.is_empty() {
         return Some(term);
     }
 
-    let subterm_index = term_path.remove(0);
+    let subterm_index = term_path[0];
 
     match &term.term {
         Term::Variable(_) => None,
         Term::Application(_, subterms) => {
             if let Some(subterm) = subterms.get(subterm_index) {
-                find_term_by_term_path(subterm, term_path)
+                find_term_by_term_path(subterm, &term_path[1..])
             } else {
                 None
             }

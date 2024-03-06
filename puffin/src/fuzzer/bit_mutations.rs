@@ -4,7 +4,7 @@ use log::{info, debug, warn};
 use std::ops::Not;
 use std::thread::panicking;
 
-use crate::algebra::{Payloads, TermEval, TermType};
+use crate::algebra::{TermEval, TermType};
 use crate::codec::Codec;
 use crate::fuzzer::harness::default_put_options;
 use crate::fuzzer::utils::choose_term_filtered_mut;

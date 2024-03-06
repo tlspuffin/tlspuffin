@@ -5,7 +5,7 @@ use std::thread::panicking;
 use super::utils::{Choosable, *};
 use anyhow::{Context, Result};
 
-use crate::algebra::{Payloads, search_sub_vec, TermEval, TermType};
+use crate::algebra::{bitstrings::{Payloads, search_sub_vec}, TermEval, TermType};
 use crate::codec::Codec;
 use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::harness::default_put_options;

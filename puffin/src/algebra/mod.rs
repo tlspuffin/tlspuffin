@@ -49,6 +49,7 @@ pub mod error;
 pub mod macros;
 pub mod signature;
 pub mod term;
+pub mod bitstrings;
 
 static DESERIALIZATION_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
 
