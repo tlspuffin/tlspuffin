@@ -103,6 +103,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     let monitor = matches.get_flag("monitor");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
+    let is_batch: bool = matches.get_one::<usize>("index").is_some();
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -269,7 +270,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
+                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
@@ -292,7 +293,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             }
 
             if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
+                write_experiment_markdown(&experiment_path, title, description, put_registry, &matches)
             {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
@@ -426,7 +427,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
         Ok(t) => t,
         Err(_) => {
             error!("Invalid trace file {}", input.as_ref().display());
-            return;
+            return Ok(());
         }
     };
 
