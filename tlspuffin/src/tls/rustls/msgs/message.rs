@@ -267,16 +267,6 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
-impl Codec for Message {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        self.encode(bytes);
-    }
-
-    fn read(reader: &mut Reader) -> Option<Self> {
-        Self::read(reader)
-    }
-}
-
 impl Message {
     pub fn is_handshake_type(&self, hstyp: HandshakeType) -> bool {
         // Bit of a layering violation, but OK.

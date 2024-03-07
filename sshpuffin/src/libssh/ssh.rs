@@ -45,7 +45,7 @@ impl SshSession {
                 return Err("Failed to initialize session".to_string());
             }
 
-            let mut session = Self::from_ptr(ptr);
+            let session = Self::from_ptr(ptr);
             Ok(session)
         }
     }
@@ -201,7 +201,7 @@ impl SshBind {
                 return Err("Failed to initialize bind".to_string());
             }
 
-            let mut session = Self::from_ptr(ptr);
+            let session = Self::from_ptr(ptr);
             Ok(session)
         }
     }
@@ -496,7 +496,7 @@ mod tests {
         fs,
         os::unix::{
             io::IntoRawFd,
-            net::{SocketAddr, UnixListener, UnixStream},
+            net::{UnixListener, UnixStream},
         },
     };
 
@@ -556,7 +556,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
 
         // FIXME: Switch to UDS with stabilization in Rust 1.70
         //let mut client_stream = UnixStream::connect_addr(&addr).unwrap();
-        let mut client_stream = UnixStream::connect(path).unwrap();
+        let client_stream = UnixStream::connect(path).unwrap();
         // Unlink directly as we have the addresses now
         fs::remove_file(&path).unwrap();
 

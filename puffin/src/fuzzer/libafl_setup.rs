@@ -6,7 +6,6 @@ use libafl::{
     monitors::tui::{ui::TuiUI, TuiMonitor},
     prelude::*,
 };
-use log::{error, info, trace, LevelFilter};
 use log4rs::Handle;
 
 use super::harness;
@@ -265,12 +264,12 @@ where
                             &initial_corpus_dir, err
                         )
                     });
-                info!("Imported {} inputs from disk.", state.corpus().count());
+                log::info!("Imported {} inputs from disk.", state.corpus().count());
             } else {
-                info!("Initial seed corpus not found. Using embedded seeds.");
+                log::info!("Initial seed corpus not found. Using embedded seeds.");
 
                 for (seed, name) in self.initial_inputs.unwrap() {
-                    info!("Using seed {}", name);
+                    log::info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
                         .expect("Failed to add input");
@@ -428,9 +427,9 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         ..
     } = &config;
 
-    info!("Running on cores: {}", &core_definition);
+    log::info!("Running on cores: {}", &core_definition);
 
-    info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
+    log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
@@ -495,7 +494,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         // TODO: Allow configuring the following warn level
         log_handle
             .clone()
-            .set_config(create_file_config(LevelFilter::Warn, log_file));
+            .set_config(create_file_config(log::LevelFilter::Warn, log_file));
 
         builder.run_client()
     };
@@ -504,7 +503,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         let (state, restarting_mgr) = setup_restarting_mgr_std(
             StatsMonitor::new(
                 |s| {
-                    info!("{}", s);
+                    log::info!("{}", s);
                 },
                 monitor_file.clone(),
             )
@@ -549,7 +548,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 .monitor(
                     StatsMonitor::new(
                         |s| {
-                            info!("{}", s);
+                            log::info!("{}", s);
                         },
                         monitor_file.clone(),
                     )

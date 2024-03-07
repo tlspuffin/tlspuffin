@@ -178,3 +178,9 @@ impl RecordLayer {
         self.message_encrypter.encrypt(plain, seq).unwrap()
     }
 }
+
+impl Default for RecordLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}

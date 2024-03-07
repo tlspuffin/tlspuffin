@@ -4,7 +4,7 @@
 //!
 //! And specific implementations of PUT for the different PUTs.
 use std::{
-    fmt::{Debug, Display, Formatter, Write},
+    fmt::{Debug, Display, Formatter},
     hash::Hash,
 };
 

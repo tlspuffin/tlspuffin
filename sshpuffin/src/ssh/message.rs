@@ -1,12 +1,8 @@
-use std::io::Read;
-
-use futures::AsyncWriteExt;
 use log::debug;
 use puffin::{
     codec::{Codec, Reader},
     error::Error,
-    libafl::mutators::str_decode,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage, ProtocolMessageDeframer},
+    protocol::{OpaqueProtocolMessage, ProtocolMessage},
     variable_data::VariableData,
 };
 
@@ -277,7 +273,7 @@ impl ProtocolMessage<RawSshMessage> for SshMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
 
-        let mut random_padding = Vec::from([0; 7]); // todo: calc proper padding
+        let random_padding = Vec::from([0; 7]); // todo: calc proper padding
 
         RawSshMessage::Packet(BinaryPacket {
             payload,
@@ -348,7 +344,7 @@ impl OpaqueProtocolMessage for RawSshMessage {
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(match &self {
             RawSshMessage::Banner(banner) => vec![Box::new(self.clone()), Box::new(banner.clone())],
-            RawSshMessage::Packet(packet) => vec![Box::new(self.clone())],
+            RawSshMessage::Packet(_) => vec![Box::new(self.clone())],
             RawSshMessage::OnWire(onwire) => vec![Box::new(self.clone()), Box::new(onwire.clone())],
         })
     }

@@ -1,8 +1,15 @@
 [package]
 name = "tlspuffin"
-version = "0.1.0"
-authors = ["Maximilian Ammann <max@maxammann.org>"]
-edition = "2021"
+description = "TLS protocol implementation for fuzzing with tlspuffin"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = ["sancov_libafl", "introspection"]
@@ -49,6 +56,20 @@ openssl111u = [
     "openssl-src",
     "openssl-src/openssl111u",
     # Unused, 111 is default: "openssl-src/openssl111",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "deterministic",
+    "claims",
+    "openssl111-binding",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+]
+openssl312 = [
+    "openssl-src",
+    "openssl-src/openssl312",
     "openssl-src/no-rand",
     "tls12",
     "tls13",
@@ -240,7 +261,7 @@ introspection = ["puffin/introspection"]
 
 puffin = { path = "../puffin" }
 
-log = "0.4.17"
+log = { version = "0.4.17" }
 itertools = "0.10.3"
 smallvec = "1.8.1"
 libc = { version = "0.2.126" }

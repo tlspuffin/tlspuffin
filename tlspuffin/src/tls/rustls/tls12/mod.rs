@@ -15,7 +15,7 @@ use crate::tls::rustls::{
 
 mod cipher;
 pub use cipher::{AesGcm, ChaCha20Poly1305, Tls12AeadAlgorithm};
-use puffin::codec::{Codec, Reader};
+use puffin::codec::Codec;
 
 use crate::tls::rustls::{conn::Side, error::Error};
 
@@ -401,21 +401,23 @@ fn join_randoms(first: &[u8; 32], second: &[u8; 32]) -> [u8; 64] {
 
 type MessageCipherPair = (Box<dyn MessageDecrypter>, Box<dyn MessageEncrypter>);
 
-fn decode_ecdh_params_<T: Codec>(kx_params: &[u8]) -> Option<T> {
-    let mut rd = Reader::init(kx_params);
-    let ecdh_params = T::read(&mut rd)?;
-    match rd.any_left() {
-        false => Some(ecdh_params),
-        true => None,
-    }
-}
-
 pub const DOWNGRADE_SENTINEL: [u8; 8] = [0x44, 0x4f, 0x57, 0x4e, 0x47, 0x52, 0x44, 0x01];
 
 #[cfg(test)]
 mod tests {
+    use puffin::codec::Reader;
+
     use super::*;
     use crate::tls::rustls::msgs::handshake::{ClientECDHParams, ServerECDHParams};
+
+    fn decode_ecdh_params_<T: Codec>(kx_params: &[u8]) -> Option<T> {
+        let mut rd = Reader::init(kx_params);
+        let ecdh_params = T::read(&mut rd)?;
+        match rd.any_left() {
+            false => Some(ecdh_params),
+            true => None,
+        }
+    }
 
     #[test]
     fn server_ecdhe_remaining_bytes() {

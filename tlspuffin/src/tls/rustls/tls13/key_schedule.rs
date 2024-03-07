@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /// Key schedule maintenance for TLS1.3
 use ring::{
     aead,

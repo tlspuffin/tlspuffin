@@ -12,6 +12,7 @@ use puffin::{put::PutOptions, trace::Trace};
 
 use crate::{put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher};
 
+#[allow(dead_code)]
 pub fn expect_trace_crash(trace: Trace<TlsQueryMatcher>, default_put_options: PutOptions) {
     expect_crash(move || {
         // Ignore Rust errors

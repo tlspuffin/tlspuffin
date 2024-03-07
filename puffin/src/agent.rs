@@ -27,17 +27,23 @@ pub enum AgentType {
 }
 
 impl AgentName {
-    pub fn next(&self) -> AgentName {
-        AgentName(self.0 + 1)
-    }
-
-    pub fn new() -> AgentName {
+    pub const fn new() -> Self {
         const FIRST: AgentName = AgentName(0u8);
         FIRST
     }
 
-    pub fn first() -> AgentName {
+    pub const fn next(&self) -> Self {
+        AgentName(self.0 + 1)
+    }
+
+    pub const fn first() -> Self {
         AgentName::new()
+    }
+}
+
+impl Default for AgentName {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -189,6 +195,10 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         };
 
         Ok(agent)
+    }
+
+    pub fn descriptor(&self) -> &PutDescriptor {
+        &self.put_descriptor
     }
 
     pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {

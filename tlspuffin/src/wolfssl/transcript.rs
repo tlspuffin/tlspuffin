@@ -1,17 +1,7 @@
 use foreign_types::ForeignTypeRef;
-use puffin::{
-    agent::{AgentName, AgentType, TLSVersion},
-    claims::ClaimList,
-};
 use wolfssl_sys as wolf;
 
-use crate::{
-    claims::{
-        ClaimData, ClaimDataTranscript, TlsClaim, TlsTranscript, TranscriptCertificate,
-        TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
-    },
-    wolfssl::SslRef,
-};
+use crate::{claims::TlsTranscript, wolfssl::SslRef};
 
 pub fn extract_current_transcript(ssl: &SslRef) -> Option<TlsTranscript> {
     unsafe {

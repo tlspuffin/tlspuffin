@@ -1,7 +1,15 @@
 [package]
 name = "puffin"
-version = "0.1.0"
-edition = "2021"
+description = "Generic APIs for protocol fuzzing with tlspuffin"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
@@ -20,7 +28,7 @@ libafl = "0.10.1"
 libafl_targets = "0.10.1"
 
 # Logging
-log = "0.4.17"
+log = { version = "0.4.17" }
 log4rs = "1.2.0"
 
 # Other Dependencies

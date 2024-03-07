@@ -19,6 +19,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     "fuzz-OpenSSL_1_1_1j"
 } else if cfg!(feature = "openssl111u") {
     "fuzz-OpenSSL_1_1_1u"
+} else if cfg!(feature = "openssl312") {
+    "fuzz-OpenSSL_3_1_2"
 } else {
     "master"
 };
@@ -28,7 +30,8 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     feature = "openssl102u",
     feature = "openssl111k",
     feature = "openssl111j",
-    feature = "openssl111u"
+    feature = "openssl111u",
+    feature = "openssl312"
 )))]
 compile_error!("You need to choose an OpenSSL version!");
 
@@ -120,7 +123,6 @@ impl Build {
 
     pub fn build(&mut self) -> Artifacts {
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
-        let host = &self.host.as_ref().expect("HOST dir not set")[..];
         let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
         let build_dir = out_dir.join("build");
         let install_dir = out_dir.join("install");
@@ -146,6 +148,8 @@ impl Build {
         configure.arg("./Configure");
 
         configure.arg(&format!("--prefix={}", install_dir.display()));
+        #[cfg(feature = "openssl312")]
+        configure.arg(&format!("--libdir={}/lib", install_dir.display()));
 
         configure
             // No shared objects, we just want static libraries
@@ -183,10 +187,11 @@ impl Build {
             // TODO configure.arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION");
         }
 
-        let mut cc = "clang".to_owned();
+        let cc = "clang".to_owned();
         let mut cflags = "".to_owned();
 
         configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
+        cflags.push_str(" -g ");
 
         if cfg!(feature = "sancov") {
             cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
@@ -288,8 +293,16 @@ impl Artifacts {
         &self.lib_dir
     }
 
+    pub fn bin_dir(&self) -> &Path {
+        &self.bin_dir
+    }
+
     pub fn libs(&self) -> &[String] {
         &self.libs
+    }
+
+    pub fn target(&mut self) -> String {
+        self.target.clone()
     }
 
     pub fn print_cargo_metadata(&self) {

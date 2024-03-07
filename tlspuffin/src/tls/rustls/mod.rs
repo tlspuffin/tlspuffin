@@ -59,14 +59,6 @@ pub mod verify;
 pub mod versions;
 pub mod x509;
 
-#[macro_use]
-mod log {
-    macro_rules! trace    ( ($($tt:tt)*) => {{}} );
-    macro_rules! debug    ( ($($tt:tt)*) => {{}} );
-    macro_rules! warn     ( ($($tt:tt)*) => {{}} );
-    macro_rules! error    ( ($($tt:tt)*) => {{}} );
-}
-
 /// Items for use in a client.
 pub mod client {
     pub mod client_conn;

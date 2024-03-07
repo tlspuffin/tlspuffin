@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
-#![allow(clippy)]
+#![allow(clippy::all)]
 
 use std::{ffi::c_void, fmt, fmt::Formatter};
 

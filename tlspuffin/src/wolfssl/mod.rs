@@ -1,18 +1,7 @@
 #![allow(non_snake_case)]
 
-use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::RefCell,
-    ffi::{CStr, CString},
-    io::{ErrorKind, Read, Write},
-    mem::MaybeUninit,
-    ops::Deref,
-    os::raw::{c_uchar, c_void},
-    rc::Rc,
-};
+use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
 
-use foreign_types::{ForeignType, ForeignTypeRef};
-use log::warn;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
@@ -25,10 +14,8 @@ use puffin::{
 };
 use smallvec::SmallVec;
 use wolfssl::{
-    bio::{MemBio, MemBioSlice},
     error::{ErrorStack, SslError},
     ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
-    util::{cvt, cvt_n, cvt_p},
     version::version,
     x509::X509,
 };
@@ -36,14 +23,13 @@ use wolfssl::{
 use crate::{
     claims::{
         ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim,
-        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptServerFinished, TranscriptServerHello,
+        TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
+        TranscriptServerHello,
     },
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::WOLFSSL520_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls,
     tls::rustls::msgs::{
         deframer::MessageDeframer,
         enums::HandshakeType,
@@ -145,6 +131,7 @@ impl Drop for WolfSSL {
 impl WolfSSL {
     fn new(config: TlsPutConfig) -> Result<Self, Error> {
         let agent_descriptor = &config.descriptor;
+        #[allow(unused_mut)]
         let mut ctx = match agent_descriptor.typ {
             AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
@@ -154,6 +141,7 @@ impl WolfSSL {
         ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
             .map_err(|err| WolfSSLErrorStack::from(err))?;
 
+        #[allow(unused_mut)]
         let mut stream = Self::new_stream(&ctx, &config)?;
 
         #[cfg(feature = "wolfssl430")]
@@ -162,6 +150,7 @@ impl WolfSSL {
             .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
             .map_err(|err| WolfSSLErrorStack::from(err))?;
 
+        #[allow(unused_mut)]
         let mut wolfssl = WolfSSL {
             ctx,
             stream,
@@ -206,7 +195,7 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         result
     }
 
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         if self.config.use_clear {
             self.stream.clear();
         } else {
@@ -306,9 +295,7 @@ impl WolfSSL {
 
             #[cfg(not(feature = "wolfssl430"))]
             {
-                let rsa = wolfssl::rsa::Rsa::private_key_from_pem(
-                    crate::static_certs::BOB_PRIVATE_KEY.0.as_bytes(),
-                )?;
+                let rsa = wolfssl::rsa::Rsa::private_key_from_pem(BOB_PRIVATE_KEY.0.as_bytes())?;
                 let pkey = wolfssl::pkey::PKey::from_rsa(rsa)?;
                 ctx.set_private_key(pkey.as_ref())?;
             }
@@ -445,7 +432,7 @@ impl WolfSSL {
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;
 
-        move |context: &mut SslRef, content_type: i32, first_byte: u8, outbound: bool| unsafe {
+        move |context: &mut SslRef, content_type: i32, first_byte: u8, outbound: bool| {
             let typ = if content_type == 22 {
                 HandshakeType::from(first_byte)
             } else {
