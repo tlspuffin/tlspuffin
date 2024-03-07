@@ -25,9 +25,6 @@ on:
         required: false
         type: string
 
-env:
-  RUST_LOG: info
-
 jobs:
   build-linux:
     runs-on: ubuntu-22.04
