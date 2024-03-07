@@ -25,12 +25,9 @@ on:
         required: false
         type: string
 
-env:
-  RUST_LOG: info
-
 jobs:
   build-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Build "${{ inputs.name }}"
     steps:
       - uses: actions/checkout@v3
