@@ -15,9 +15,9 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
     }
 }
 
-const REF: &str = if cfg!(feature = "vendored-libssh0104") {
+const REF: &str = if cfg!(feature = "libssh0104") {
     "libssh-0.10.4"
-} else if cfg!(feature = "vendored-libsshmaster") {
+} else if cfg!(feature = "libsshmaster") {
     "master"
 } else {
     panic!("Unknown version of libssh requested!")

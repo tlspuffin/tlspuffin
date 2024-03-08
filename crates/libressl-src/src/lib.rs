@@ -8,9 +8,9 @@ use std::{
     process::Command,
 };
 
-const REF: &str = if cfg!(feature = "vendored-libressl333") {
+const REF: &str = if cfg!(feature = "libressl333") {
     "fuzz-v3.3.3"
-} else if cfg!(feature = "vendored-libresslmaster") {
+} else if cfg!(feature = "libresslmaster") {
     "master"
 } else {
     panic!("Unknown version of LibreSSL requested!")

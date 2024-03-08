@@ -57,7 +57,7 @@ openssl111j = []
 openssl111u = []
 openssl312 = []
 
-libressl333 = ["libressl-src", "libressl", "libressl-src/vendored-libressl333"]
+libressl333 = ["libressl-src", "libressl", "libressl-src/libressl333"]
 libressl = []
 
 [workspace]
