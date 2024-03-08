@@ -6,7 +6,7 @@ authors = []
 links = "wolfssl"
 
 [build-dependencies]
-wolfssl-src = "0.1.0"
+wolfssl-src = { path = "../wolfssl-src" }
 
 [features]
 

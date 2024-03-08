@@ -17,5 +17,5 @@ gcov_analysis = [] # TODO
 llvm_cov_analysis = [] # TODO
 
 [dependencies]
-security-claims = "0.1.0"
+security-claims = { path = "../../tlspuffin-claims" }
 autotools = "0.2"
