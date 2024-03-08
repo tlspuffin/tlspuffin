@@ -10,9 +10,9 @@
 </div>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square" 
+  <img src="https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square"
       alt="Stability" />
-  <a href="https://github.com/tlspuffin/tlspuffin/actions/workflows/rust.yml">    
+  <a href="https://github.com/tlspuffin/tlspuffin/actions/workflows/rust.yml">
     <img src="https://github.com/tlspuffin/tlspuffin/actions/workflows/on_main_push.yml/badge.svg"
         alt="Build status" />
   </a>
@@ -44,20 +44,20 @@ _Disclaimer: The term "symbolic-model-guided" should not be confused with symbol
 ## Description
 
 Fuzzing implementations of cryptographic protocols is challenging.
-In contrast to traditional fuzzing of file formats, cryptographic protocols require a 
+In contrast to traditional fuzzing of file formats, cryptographic protocols require a
 specific flow of cryptographic and mutually dependent messages to reach deep protocol states.
-The specification of the TLS protocol describes sound flows of messages and cryptographic 
+The specification of the TLS protocol describes sound flows of messages and cryptographic
 operations.
 
-Although the specification has been formally verified multiple times with significant 
-results, a gap has emerged from the fact that implementations of the same protocol have 
+Although the specification has been formally verified multiple times with significant
+results, a gap has emerged from the fact that implementations of the same protocol have
 not undergone the same logical analysis.
-Because the development of cryptographic protocols is error-prone, multiple security 
-vulnerabilities have already been discovered in implementations in TLS which are not 
+Because the development of cryptographic protocols is error-prone, multiple security
+vulnerabilities have already been discovered in implementations in TLS which are not
 present in its specification.
 
-Inspired by symbolic protocol verification, we present a reference implementation of a 
-fuzzer named tlspuffin which employs a concrete semantic to execute TLS 1.2 and 1.3 symbolic traces. 
+Inspired by symbolic protocol verification, we present a reference implementation of a
+fuzzer named tlspuffin which employs a concrete semantic to execute TLS 1.2 and 1.3 symbolic traces.
 In fact attacks which mix \TLS versions are in scope of this implementation.
 This method allows us to utilize a genetic fuzzing algorithm to fuzz protocol flows,
 which is described by the following three stages.
@@ -67,14 +67,14 @@ which is described by the following three stages.
 * A security violation oracle supervises executions for the absence of vulnerabilities.
 
 
-The novel approach allows rediscovering known vulnerabilities, which are out-of-scope for 
-classical bit-level fuzzers. This proves that it is capable of reaching critical protocol 
+The novel approach allows rediscovering known vulnerabilities, which are out-of-scope for
+classical bit-level fuzzers. This proves that it is capable of reaching critical protocol
 states.
-In contrast to the promising methodology no new vulnerabilities were found by tlspuffin. 
-This can can be explained by the fact that the implementation effort of TLS protocol 
-primitives and extensions is high and not all features of the specification have been 
+In contrast to the promising methodology no new vulnerabilities were found by tlspuffin.
+This can can be explained by the fact that the implementation effort of TLS protocol
+primitives and extensions is high and not all features of the specification have been
 implemented.
-Nonetheless, the innovating approach is promising in terms of quickly reaching high edge 
+Nonetheless, the innovating approach is promising in terms of quickly reaching high edge
 coverage, expressiveness of executable protocol traces and stable and extensible implementation.
 
 
@@ -83,11 +83,11 @@ coverage, expressiveness of executable protocol traces and stable and extensible
 * Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
 * Fuzzer which is inspired by the [Dolev-Yao symbolic model](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
 * Domain specific mutators for Protocol Fuzzing!
-* Supported Libraries Under Test: 
+* Supported Libraries Under Test:
   * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
   * LibreSSL 3.3.3
   * wolfSSL 5.1.0 - 5.4.0
-* Reproducible for each LUT. We use Git submodules to link to forks this are in the  [tlspuffin organisation](https://github.com/tlspuffin)
+* Reproducible for each LUT. We use sources from forks this are in the [tlspuffin organisation](https://github.com/tlspuffin)
 * 70% Test Coverage
 * Writtin in Rust!
 
@@ -115,7 +115,6 @@ Build the project:
 
 ```bash
 git clone https://github.com/tlspuffin/tlspuffin.git
-git submodule update --init --recursive
 cargo build
 ```
 
@@ -190,7 +189,7 @@ ASAN_OPTIONS=abort_on_error=1 \
     cargo run --bin tlspuffin --features asan -- --cores 0-3
 ```
 
-It is important to enable `abort_on_error`, 
+It is important to enable `abort_on_error`,
 else the fuzzer workers fail to restart on crashes.
 
 #### Compiling with ASAN using rustc
@@ -278,4 +277,3 @@ Note that tlspuffin also contains code/modification from external projects. See 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
-

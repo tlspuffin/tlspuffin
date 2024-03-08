@@ -34,8 +34,6 @@ jobs:
     name: Build "${{ inputs.name }}"
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: 'recursive'
       - name: Setup Git
         shell: bash
         run: |
