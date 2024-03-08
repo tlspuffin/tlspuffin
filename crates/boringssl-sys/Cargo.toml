@@ -10,7 +10,7 @@ bindgen = "0.69.1"
 
 [features]
 vendored-master = []
-arbitrary-v1 = []
+boring-2023-11-18 = []
 
 sancov = []
 asan = []

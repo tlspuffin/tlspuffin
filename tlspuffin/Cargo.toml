@@ -200,8 +200,8 @@ boringsslmaster = [
     "claims"
 ]
 
-boringsslv1 = [
-    "boringssl-sys/arbitrary-v1",
+boringssl202311 = [
+    "boringssl-sys/boring-2023-11-18",
     "tls12",
     "tls13",
     "boringssl-binding",

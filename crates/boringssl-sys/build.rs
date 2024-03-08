@@ -3,7 +3,7 @@ use std::{env, path::PathBuf};
 use boringssl_src::{build, BoringSSLOptions, GitRef};
 
 fn main() {
-    let git_ref: GitRef = if cfg!(feature = "arbitrary-v1") {
+    let git_ref: GitRef = if cfg!(feature = "boring-2023-11-18") {
         GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
     } else if cfg!(feature = "vendored-master") {
         GitRef::Branch(String::from("master"))
