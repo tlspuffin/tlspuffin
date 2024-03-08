@@ -1,5 +1,8 @@
 use std::process::Command;
 
+#[cfg(all(feature = "openssl-binding", feature = "wolfssl-binding"))]
+compile_error!("Selecting multiple vendored PUT is currently not supported: openssl/libressl and wolfssl feature flags are mutually exclusive.");
+
 fn main() {
     if cfg!(feature = "asan") {
         // NOTE adding compiler-rt to rpath for libasan is not straightforward

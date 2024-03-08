@@ -1,8 +1,5 @@
 #![allow(unused_doc_comments)]
 
-#[cfg(all(feature = "openssl-binding", feature = "wolfssl-binding"))]
-compile_error!("`Only one binding at the same time is currently supported.");
-
 pub mod agent;
 pub mod algebra;
 pub mod claims;
