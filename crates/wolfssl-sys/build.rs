@@ -1,3 +1,50 @@
+#[cfg(not(any(
+    feature = "vendored-wolfssl540",
+    feature = "vendored-wolfssl530",
+    feature = "vendored-wolfssl520",
+    feature = "vendored-wolfssl510",
+    feature = "vendored-wolfssl430",
+    feature = "vendored-master",
+)))]
+compile_error!(concat!(
+    "You need to select one feature in [",
+    "'vendored-wolfssl430', ",
+    "'vendored-wolfssl510', ",
+    "'vendored-wolfssl520', ",
+    "'vendored-wolfssl530', ",
+    "'vendored-wolfssl540', ",
+    "'vendored-master'",
+    "]"
+));
+
+#[cfg(any(
+    all(feature = "vendored-wolfssl430", feature = "vendored-wolfssl510"),
+    all(feature = "vendored-wolfssl430", feature = "vendored-wolfssl520"),
+    all(feature = "vendored-wolfssl430", feature = "vendored-wolfssl530"),
+    all(feature = "vendored-wolfssl430", feature = "vendored-wolfssl540"),
+    all(feature = "vendored-wolfssl430", feature = "vendored-master"),
+    all(feature = "vendored-wolfssl510", feature = "vendored-wolfssl520"),
+    all(feature = "vendored-wolfssl510", feature = "vendored-wolfssl530"),
+    all(feature = "vendored-wolfssl510", feature = "vendored-wolfssl540"),
+    all(feature = "vendored-wolfssl510", feature = "vendored-master"),
+    all(feature = "vendored-wolfssl520", feature = "vendored-wolfssl530"),
+    all(feature = "vendored-wolfssl520", feature = "vendored-wolfssl540"),
+    all(feature = "vendored-wolfssl520", feature = "vendored-master"),
+    all(feature = "vendored-wolfssl530", feature = "vendored-wolfssl540"),
+    all(feature = "vendored-wolfssl530", feature = "vendored-master"),
+    all(feature = "vendored-wolfssl540", feature = "vendored-master"),
+))]
+compile_error!(concat!(
+    "Incompatible features requested. Only one of [",
+    "'vendored-wolfssl430', ",
+    "'vendored-wolfssl510', ",
+    "'vendored-wolfssl520', ",
+    "'vendored-wolfssl530', ",
+    "'vendored-wolfssl540', ",
+    "'vendored-master'",
+    "] can be enabled at the same time."
+));
+
 use std::{env, path::PathBuf};
 
 use wolfssl_src::{build, WolfSSLOptions};
@@ -15,7 +62,7 @@ const REF: &str = if cfg!(feature = "vendored-wolfssl540") {
 } else if cfg!(feature = "vendored-master") {
     "master"
 } else {
-    "master"
+    panic!("Unknown version of WolfSSL requested!")
 };
 
 fn main() {

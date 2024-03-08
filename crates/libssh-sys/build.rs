@@ -17,8 +17,10 @@ impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
 
 const REF: &str = if cfg!(feature = "vendored-libssh0104") {
     "libssh-0.10.4"
-} else {
+} else if cfg!(feature = "vendored-libsshmaster") {
     "master"
+} else {
+    panic!("Unknown version of libssh requested!")
 };
 
 fn clone(dest: &str) -> std::io::Result<()> {
