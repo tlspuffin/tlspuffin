@@ -1,36 +1,8 @@
-use std::{borrow::Borrow, cell::RefCell, fmt::Pointer, io::ErrorKind, rc::Rc};
-
-use foreign_types::ForeignTypeRef;
-use log::{debug, trace};
-
-use boring::{
-    error::ErrorStack,
-    ex_data::Index,
-    ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
-    x509::{store::X509StoreBuilder, X509},
-};
-use log::info;
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    error::Error,
-    protocol::MessageResult,
-    put::{Put, PutName},
-    put_registry::Factory,
-    stream::{MemoryStream, Stream},
-    trace::TraceContext,
-};
-use serde::Serialize;
-use smallvec::SmallVec;
-
-use boringssl_sys::ssl_st;
-use core::ffi::c_void;
-
 use crate::{
     boringssl::util::{set_max_protocol_version, static_rsa_cert},
     claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TlsTranscript,
-        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+        ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
+        TranscriptServerFinished, TranscriptServerHello,
     },
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -41,6 +13,27 @@ use crate::{
         message::{Message, OpaqueMessage},
     },
 };
+use boring::{
+    error::ErrorStack,
+    ex_data::Index,
+    ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
+    x509::{store::X509StoreBuilder, X509},
+};
+use boringssl_sys::ssl_st;
+use core::ffi::c_void;
+use foreign_types::ForeignTypeRef;
+use log::info;
+use log::{debug, trace};
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType},
+    error::Error,
+    protocol::MessageResult,
+    put::{Put, PutName},
+    put_registry::Factory,
+    stream::{MemoryStream, Stream},
+    trace::TraceContext,
+};
+use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
 #[cfg(feature = "deterministic")]
 mod deterministic;
@@ -140,7 +133,7 @@ impl Stream<Message, OpaqueMessage> for BoringSSL {
 }
 
 impl Put<TLSProtocolBehavior> for BoringSSL {
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);

@@ -1,6 +1,5 @@
 use boring::ssl::SslRef;
 use boringssl_sys as boringssl;
-use core::ffi::{c_char, CStr};
 use foreign_types::ForeignTypeRef;
 
 use crate::claims::TlsTranscript;
