@@ -33,6 +33,7 @@ runs:
       run: |
         git config --global user.email "tlspuffin@tlspuffin"
         git config --global user.name "tlspuffin"
+        git config --global advice.detachedHead false
     - uses: extractions/setup-just@v2
     - name: install Rust toolchain
       shell: bash
