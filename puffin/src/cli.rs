@@ -167,7 +167,12 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             })
             .collect::<Vec<_>>();
 
-        paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
+        paths.sort_by_key(|path| {
+            fs::metadata(path)
+                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
+                .modified()
+                .unwrap()
+        });
 
         let lookup_paths = if index < paths.len() {
             if index + n < paths.len() {
@@ -197,7 +202,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             println!(
                 "{}",
                 fs::metadata(&lookup_paths[0])
-                    .unwrap()
+                    .unwrap_or_else(|_| panic!("missing trace file {}", lookup_paths[0].display()))
                     .modified()
                     .unwrap()
                     .duration_since(std::time::UNIX_EPOCH)
