@@ -61,7 +61,7 @@ fn create_app() -> Command {
                 .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
-                .about("Executes a trace stored in a file. The exit code describes if more files are available for execution.")
+                .about("Executes a trace stored in a file.")
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
@@ -170,24 +170,28 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
         paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
 
-        let mut end_reached = false;
-
         let lookup_paths = if index < paths.len() {
             if index + n < paths.len() {
                 &paths[index..index + n]
             } else {
-                end_reached = true;
                 &paths[index..]
             }
         } else {
-            end_reached = true;
             // empty
             &paths[0..0]
         };
 
+        info!("execute: found {} inputs", paths.len());
+        info!(
+            "execute: running on subset [{}..{}] ({} inputs)",
+            index,
+            index + n,
+            lookup_paths.len()
+        );
+
         for path in lookup_paths {
             info!("Executing: {}", path.display());
-            execute(&path, put_registry);
+            execute(path, put_registry);
         }
 
         if !lookup_paths.is_empty() {
@@ -203,11 +207,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             )
         }
 
-        if end_reached {
-            return ExitCode::FAILURE;
-        } else {
-            return ExitCode::SUCCESS;
-        }
+        return ExitCode::SUCCESS;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
