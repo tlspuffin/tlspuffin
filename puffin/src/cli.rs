@@ -52,7 +52,7 @@ fn create_app() -> Command {
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                          .arg(arg!(-d --description <d> "Descritpion of the experiment"))
             ,
-            Command::new("seed").about("Generates seeds to ./corpus"),
+            Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -390,7 +390,7 @@ fn seed<PB: ProtocolBehavior>(
     for (trace, name) in PB::create_corpus() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
 
-        info!("Generated seed traces into the directory ./corpus")
+        info!("Generated seed traces into the directory ./seeds")
     }
     Ok(())
 }
