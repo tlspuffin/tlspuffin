@@ -147,7 +147,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
-        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -173,6 +172,8 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                 .modified()
                 .unwrap()
         });
+
+        let n: usize = *matches.get_one("number").unwrap_or(&paths.len());
 
         let lookup_paths = if index < paths.len() {
             if index + n < paths.len() {
