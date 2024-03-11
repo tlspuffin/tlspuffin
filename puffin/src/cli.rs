@@ -389,9 +389,9 @@ fn seed<PB: ProtocolBehavior>(
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
-
-        info!("Generated seed traces into the directory ./seeds")
     }
+
+    info!("Generated seed traces into the directory ./seeds");
     Ok(())
 }
 
