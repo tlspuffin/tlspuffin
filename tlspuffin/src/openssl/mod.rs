@@ -1,9 +1,8 @@
 use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
-use log::info;
 use openssl::{
     error::ErrorStack,
-    ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
+    ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode},
     x509::{store::X509StoreBuilder, X509},
 };
 use puffin::{
@@ -57,11 +56,6 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 .map(|value| value.parse().unwrap_or(false))
                 .unwrap_or(false);
 
-            // FIXME: Add non-clear method like in wolfssl
-            if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
-            }
-
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
                 claims: context.claims().clone(),
@@ -91,6 +85,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
 pub struct OpenSSL {
     stream: SslStream<MemoryStream<MessageDeframer>>,
+    ctx: SslContext,
     config: TlsPutConfig,
 }
 
@@ -135,7 +130,23 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        bindings::clear(self.stream.ssl()); // FIXME: Add non-clear method like in wolfssl
+        if self.config.use_clear {
+            bindings::clear(self.stream.ssl());
+        } else {
+            self.stream = Self::new_stream(&self.ctx, &self.config).map_err(|err| {
+                Error::Put(format!("OpenSSL error during stream creation: {}", err))
+            })?;
+
+            // FIXME don't force-register a new claimer on reset
+            //
+            //    Because OpenSSL vendor libraries crash when no claimer is
+            //    registered (#253), we are forced to register a new one on
+            //    reset. This should be removed once this bug is fixed.
+            //
+            //    See the WolfSSL module for comparison.
+            #[cfg(feature = "claims")]
+            self.register_claimer(self.config.descriptor.name);
+        }
 
         Ok(())
     }
@@ -229,18 +240,23 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
 impl OpenSSL {
     fn new(config: TlsPutConfig) -> Result<OpenSSL, ErrorStack> {
         let agent_descriptor = &config.descriptor;
-        let ssl = match agent_descriptor.typ {
-            AgentType::Server => Self::create_server(agent_descriptor)?,
-            AgentType::Client => Self::create_client(agent_descriptor)?,
+        #[allow(unused_mut)]
+        let mut ctx = match agent_descriptor.typ {
+            AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
+            AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
 
-        let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
+        let stream = Self::new_stream(&ctx, &config)?;
 
         #[cfg(feature = "claims")]
         let agent_name = agent_descriptor.name;
 
         #[allow(unused_mut)]
-        let mut openssl = OpenSSL { config, stream };
+        let mut openssl = OpenSSL {
+            config,
+            ctx,
+            stream,
+        };
 
         #[cfg(feature = "claims")]
         openssl.register_claimer(agent_name);
@@ -248,7 +264,22 @@ impl OpenSSL {
         Ok(openssl)
     }
 
-    fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
+    fn new_stream(
+        ctx: &SslContextRef,
+        config: &TlsPutConfig,
+    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, ErrorStack> {
+        let ssl = match config.descriptor.typ {
+            AgentType::Server => Self::create_server(ctx)?,
+            AgentType::Client => Self::create_client(ctx)?,
+        };
+
+        Ok(SslStream::new(
+            ssl,
+            MemoryStream::new(MessageDeframer::new()),
+        )?)
+    }
+
+    fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
         let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
@@ -287,13 +318,17 @@ impl OpenSSL {
         // Allow EXPORT in server
         ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
-        let mut ssl = Ssl::new(&ctx_builder.build())?;
-        ssl.set_accept_state();
+        Ok(ctx_builder.build())
+    }
 
+    fn create_server(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
+        let mut ssl = Ssl::new(&ctx)?;
+
+        ssl.set_accept_state();
         Ok(ssl)
     }
 
-    fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
+    fn create_client_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
@@ -328,7 +363,11 @@ impl OpenSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        let mut ssl = Ssl::new(&ctx_builder.build())?;
+        Ok(ctx_builder.build())
+    }
+
+    pub fn create_client(ctx: &SslContextRef) -> Result<Ssl, ErrorStack> {
+        let mut ssl: Ssl = Ssl::new(&ctx)?;
         ssl.set_connect_state();
 
         Ok(ssl)
