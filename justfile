@@ -19,6 +19,21 @@ nightly-toolchain:
 install-clippy:
   rustup component add clippy
 
+# run clippy on all workspace members
+check-workspace: install-clippy
+  cargo clippy
+
+# run clippy on a vendored crate (e.g. libressl-src)
+check-crate NAME FEATURES: install-clippy
+  #!/usr/bin/env bash
+  cleanup() {
+    find {{ justfile_directory() / "crates" }} -name Cargo.lock -exec rm -f '{}' +
+  }
+  trap cleanup EXIT
+
+  export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"{{ justfile_directory() / "target" }}"}
+  cp Cargo.lock crates/{{ NAME }} && cd crates/{{ NAME }} && cargo clippy --features={{ FEATURES }}
+
 check PROJECT ARCH FEATURES CARGO_FLAGS="": install-clippy
   cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 

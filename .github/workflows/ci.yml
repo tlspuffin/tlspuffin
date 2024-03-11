@@ -14,28 +14,28 @@ jobs:
     outputs:
       checks: ${{ steps.set-checks-profiles.outputs.checks }}
       deploy: ${{ steps.set-deploy-profiles.outputs.deploy }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - id: set-checks-profiles
         name: Set CI profiles
-        shell: bash
         run: |
           #!/usr/bin/env bash
           CI_CHECKS=()
           HAS_LABEL_CI_NONE=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
-          HAS_LABEL_CI_LINT=${{ contains(github.event.pull_request.labels.*.name, 'ci:lint') }}
           HAS_LABEL_CI_FAST=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
           HAS_LABEL_CI_FULL=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
 
           # set defaults
           case "${{ github.event_name == 'pull_request' }}" in
-            true)  CI_CHECKS=( lint base );;
-            false) CI_CHECKS=( lint base extra );;
+            true)  CI_CHECKS=( check smoke docs );;
+            false) CI_CHECKS=( check smoke docs base extra );;
           esac
 
           [[ ${HAS_LABEL_CI_NONE} == true ]] && CI_CHECKS=()
-          [[ ${HAS_LABEL_CI_LINT} == true ]] && CI_CHECKS+=( lint )
-          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS+=( base )
-          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS+=( extra )
+          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS+=( check smoke docs )
+          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS+=( check smoke docs base extra )
 
           json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
           json_result="[${json_result:6}]"
@@ -44,7 +44,6 @@ jobs:
 
       - id: set-deploy-profiles
         name: Set CD profiles
-        shell: bash
         run: |
           #!/usr/bin/env bash
           CD_DEPLOYEMENTS=()
@@ -60,7 +59,6 @@ jobs:
 
       - id: print-configuration
         name: print CI/CD profiles
-        shell: bash
         run: |
           #!/usr/bin/env bash
           printf 'selected CI profiles: %s\n' '${{ steps.set-checks-profiles.outputs.checks }}'
@@ -68,18 +66,28 @@ jobs:
           printf 'triggering event:\n'
           cat "${GITHUB_EVENT_PATH}"
 
-  run-check:
+  check:
     needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'check') }}
     uses: ./.github/workflows/run-checks.yml
+
+  smoke-test:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'smoke') }}
+    uses: ./.github/workflows/run-smoke-test.yml
+
+  docs:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'docs') }}
+    uses: ./.github/workflows/build-docs.yml
+
   run-benchmarks:
+    needs: [configure, smoke-test]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
     uses: ./.github/workflows/run-benchmarks.yml
-  build-deploy-docs:
-    needs: [configure]
-    uses: ./.github/workflows/build-deploy-docs.yml
-    with:
-      deploy: ${{ contains(fromJson(needs.configure.outputs.deploy), 'docs') }}
+
   build-linux:
-    needs: [configure]
+    needs: [configure, smoke-test]
     strategy:
       fail-fast: false
       matrix:
@@ -199,3 +207,8 @@ jobs:
       clean-crates: ${{ matrix.clean-crates }}
       save-cache: ${{ matrix.save-cache }}
       if: ${{ matrix.if == 'true' }}
+
+  deploy-docs:
+    needs: [configure, docs]
+    if: ${{ contains(fromJson(needs.configure.outputs.deploy), 'docs') }}
+    uses: ./.github/workflows/deploy-docs.yml

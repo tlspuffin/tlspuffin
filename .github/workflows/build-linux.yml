@@ -36,11 +36,6 @@ jobs:
     if: ${{ inputs.if }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Git
-        shell: bash
-        run: |
-          git config --global user.email "tlspuffin@tlspuffin"
-          git config --global user.name "tlspuffin"
       - name: Setup
         uses: ./.github/actions/setup
         with:
