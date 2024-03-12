@@ -429,30 +429,34 @@ impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
-    try_downcast!(
+    message // We first try to downcast to Message, then OpaqueMessage
+        .downcast_ref::<Message>()
+        .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
+        .or_else(||
+            message
+                .downcast_ref::<OpaqueMessage>()
+                .map(|b| codec::Encode::get_encoding(b))
+                .or_else(||
+                    try_downcast!(
         message,
         // We list all the types that have the Encode trait and that can be the type of a rustls message
         // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
         // require each of the encode type below. Can be used to remove non-required ones and possibly
         // to refine the order of them (heuristics to speed up the encoding).
-        u64, // 3603 fail
-        // u8, // OK
-        // Vec<u64>, // OK
-        Vec<u8>,         // 2385 Fail
-        bool,            // 400 Fail
-        Vec<Vec<u8>>,    // Fail 332
-        Option<Vec<u8>>, // Fail 542
-        // Option<Vec<Vec<u8>>>, // OK
-        // Result<Option<Vec<u8>>, FnError>, // OK
-        // Result<Vec<u8>, FnError>, // OK
-        // Result<bool, FnError>, // OK
-        // Result<Vec<u8>, FnError>,
-        // Result<Vec<Vec<u8>>, FnError>,
-        //
-        // Message, // 4185 Fail  TODOOO
-        // Result<Message, FnError>,
-        // MessagePayload,
-        // ExtensionType,
+        Vec<Certificate>,
+        Certificate,
+        CertificateEntries,
+        Vec<CertificateEntry>,
+        CertificateEntry,
+        HandshakeHash,
+        PrivateKey,
+        CipherSuites,
+        CipherSuite,
+        Vec<CipherSuite>,
+        Vec<PresharedKeyIdentity>,
+        PresharedKeyIdentity,
+        AlertMessagePayload,
+        SignatureScheme, // 800
         NamedGroup,           // 407
         ClientExtensions,     //368
         Vec<ClientExtension>, //368 // to remove!
@@ -469,35 +473,38 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         CertificateExtension,
         NewSessionTicketExtension,
         Vec<NewSessionTicketExtension>,
-        Random,
         Compressions,
         Compression,
         Vec<Compression>,
         SessionID,
-        Vec<Certificate>,
-        Certificate,
-        CertificateEntries,
-        Vec<CertificateEntry>,
-        CertificateEntry,
-        HandshakeHash,
-        PrivateKey,
-        CipherSuites,
-        CipherSuite,
-        Vec<CipherSuite>,
-        Vec<PresharedKeyIdentity>,
-        PresharedKeyIdentity,
-        AlertMessagePayload,
-        SignatureScheme, // 800
-        OpaqueMessage,   // 337
-        ProtocolVersion  // 400
-    )
-    .ok_or(
-        Term(format!(
-            "[any_get_encoding] Failed to downcast and then any_encode::get_encoding message {:?}",
-            &message
-        ))
-        .into(),
-    )
+        Random,
+        u64, // 3603 fail
+        // u8, // OK
+        // Vec<u64>, // OK
+        ProtocolVersion,  // 400
+        Vec<u8>,         // 2385 Fail
+        Vec<Vec<u8>>,    // Fail 332
+        Option<Vec<u8>>, // Fail 542
+        bool             // 400 Fail
+        // Option<Vec<Vec<u8>>>, // OK
+        // Result<Option<Vec<u8>>, FnError>, // OK
+        // Result<Vec<u8>, FnError>, // OK
+        // Result<bool, FnError>, // OK
+        // Result<Vec<u8>, FnError>,
+        // Result<Vec<Vec<u8>>, FnError>,
+        //
+        // Message, // 4185 Fail  TODOOO
+        // Result<Message, FnError>,
+        // MessagePayload,
+        // ExtensionType,
+    )))
+        .ok_or(
+            Term(format!(
+                "[any_get_encoding] Failed to downcast to any of the type listed in rustls/msgs/messages.rs and then any_encode::get_encoding message {:?}",
+                &message
+            ))
+                .into(),
+        )
 }
 
 #[macro_export]
