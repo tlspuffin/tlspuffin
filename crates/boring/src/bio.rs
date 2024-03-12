@@ -1,11 +1,6 @@
-use crate::ffi;
-use crate::ffi::BIO_new_mem_buf;
-use std::marker::PhantomData;
-use std::ptr;
-use std::slice;
+use std::{marker::PhantomData, ptr, slice};
 
-use crate::cvt_p;
-use crate::error::ErrorStack;
+use crate::{cvt_p, error::ErrorStack, ffi, ffi::BIO_new_mem_buf};
 
 pub struct MemBioSlice<'a>(*mut ffi::BIO, PhantomData<&'a [u8]>);
 

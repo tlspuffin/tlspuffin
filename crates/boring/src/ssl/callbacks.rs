@@ -1,22 +1,20 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 
+use std::{ffi::CStr, ptr, slice, str, sync::Arc};
+
+use foreign_types::{ForeignType, ForeignTypeRef};
+use libc::{c_char, c_int, c_uchar, c_uint, c_void};
+
 use super::{
     AlpnError, ClientHello, GetSessionPendingError, PrivateKeyMethod, PrivateKeyMethodError,
     SelectCertError, SniError, Ssl, SslAlert, SslContext, SslContextRef, SslRef, SslSession,
     SslSessionRef, SslSignatureAlgorithm, SESSION_CTX_INDEX,
 };
-use crate::error::ErrorStack;
-use crate::ffi;
-use crate::x509::{X509StoreContext, X509StoreContextRef};
-use foreign_types::ForeignType;
-use foreign_types::ForeignTypeRef;
-use libc::c_char;
-use libc::{c_int, c_uchar, c_uint, c_void};
-use std::ffi::CStr;
-use std::ptr;
-use std::slice;
-use std::str;
-use std::sync::Arc;
+use crate::{
+    error::ErrorStack,
+    ffi,
+    x509::{X509StoreContext, X509StoreContextRef},
+};
 
 pub extern "C" fn raw_verify<F>(preverify_ok: c_int, x509_ctx: *mut ffi::X509_STORE_CTX) -> c_int
 where

@@ -29,8 +29,9 @@
 //! assert!(!eq(&a, &b));
 //! assert!(!eq(&a, &c));
 //! ```
-use crate::ffi;
 use libc::size_t;
+
+use crate::ffi;
 
 /// Returns `true` iff `a` and `b` contain the same bytes.
 ///

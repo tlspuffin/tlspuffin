@@ -99,12 +99,11 @@ extern crate libc;
 #[cfg(test)]
 extern crate hex;
 
-#[doc(inline)]
-pub use crate::ffi::init;
-
 use libc::{c_int, size_t};
 
 use crate::error::ErrorStack;
+#[doc(inline)]
+pub use crate::ffi::init;
 
 #[macro_use]
 mod macros;

@@ -23,17 +23,18 @@
 //! let mut buf = vec![0; rsa.size() as usize];
 //! let encrypted_len = rsa.public_encrypt(data, &mut buf, Padding::PKCS1).unwrap();
 //! ```
-use crate::ffi;
+use std::{fmt, mem, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
-use std::fmt;
-use std::mem;
-use std::ptr;
 
-use crate::bn::{BigNum, BigNumRef};
-use crate::error::ErrorStack;
-use crate::pkey::{HasPrivate, HasPublic, Private, Public};
-use crate::{cvt, cvt_n, cvt_p};
+use crate::{
+    bn::{BigNum, BigNumRef},
+    cvt, cvt_n, cvt_p,
+    error::ErrorStack,
+    ffi,
+    pkey::{HasPrivate, HasPublic, Private, Public},
+};
 
 pub const EVP_PKEY_OP_SIGN: c_int = 1 << 3;
 pub const EVP_PKEY_OP_VERIFY: c_int = 1 << 4;
@@ -698,9 +699,8 @@ use crate::ffi::{
 
 #[cfg(test)]
 mod test {
-    use crate::symm::Cipher;
-
     use super::*;
+    use crate::symm::Cipher;
 
     #[test]
     fn test_from_password() {

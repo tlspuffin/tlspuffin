@@ -10,11 +10,9 @@
 //! let mut buf = [0; 256];
 //! rand_bytes(&mut buf).unwrap();
 //! ```
-use crate::ffi;
 use libc::c_int;
 
-use crate::cvt;
-use crate::error::ErrorStack;
+use crate::{cvt, error::ErrorStack, ffi};
 
 /// Fill buffer with cryptographically strong pseudo-random bytes.
 ///

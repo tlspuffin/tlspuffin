@@ -37,10 +37,11 @@
 //! assert_eq!(&orig_key[..], &key_to_wrap[..]);
 //! ```
 //!
-use crate::ffi;
+use std::{mem::MaybeUninit, ptr};
+
 use libc::{c_int, c_uint, size_t};
-use std::mem::MaybeUninit;
-use std::ptr;
+
+use crate::ffi;
 
 /// Provides Error handling for parsing keys.
 #[derive(Debug)]

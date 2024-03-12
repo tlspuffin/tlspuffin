@@ -43,9 +43,11 @@
 //!     println!("Hash = {}", hex::encode(hash));
 //! }
 //! ```
-use crate::ffi;
-use libc::c_void;
 use std::mem::MaybeUninit;
+
+use libc::c_void;
+
+use crate::ffi;
 
 /// Computes the SHA1 hash of some data.
 ///

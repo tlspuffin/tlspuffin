@@ -1,15 +1,18 @@
-use crate::ffi;
-use std::convert::TryInto;
-use std::fmt;
-use std::io;
-use std::io::prelude::*;
-use std::ops::{Deref, DerefMut};
-use std::ptr;
+use std::{
+    convert::TryInto,
+    fmt, io,
+    io::prelude::*,
+    ops::{Deref, DerefMut},
+    ptr,
+};
 
-use crate::error::ErrorStack;
-use crate::ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new};
-use crate::nid::Nid;
-use crate::{cvt, cvt_p};
+use crate::{
+    cvt, cvt_p,
+    error::ErrorStack,
+    ffi,
+    ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new},
+    nid::Nid,
+};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct MessageDigest(*const ffi::EVP_MD);
@@ -335,8 +338,9 @@ pub fn hash_xof(t: MessageDigest, data: &[u8], buf: &mut [u8]) -> Result<(), Err
 
 #[cfg(test)]
 mod tests {
-    use hex::{self, FromHex};
     use std::io::prelude::*;
+
+    use hex::{self, FromHex};
 
     use super::*;
 

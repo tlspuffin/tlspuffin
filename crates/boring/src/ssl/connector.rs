@@ -1,16 +1,19 @@
-use std::io::{Read, Write};
-use std::ops::{Deref, DerefMut};
-
-use crate::dh::Dh;
-use crate::error::ErrorStack;
-use crate::ssl::{
-    HandshakeError, Ssl, SslContext, SslContextBuilder, SslContextRef, SslMethod, SslMode,
-    SslOptions, SslRef, SslStream, SslVerifyMode,
+use std::{
+    io::{Read, Write},
+    net::IpAddr,
+    ops::{Deref, DerefMut},
 };
-use crate::version;
-use std::net::IpAddr;
 
 use super::MidHandshakeSslStream;
+use crate::{
+    dh::Dh,
+    error::ErrorStack,
+    ssl::{
+        HandshakeError, Ssl, SslContext, SslContextBuilder, SslContextRef, SslMethod, SslMode,
+        SslOptions, SslRef, SslStream, SslVerifyMode,
+    },
+    version,
+};
 
 const FFDHE_2048: &str = "
 -----BEGIN DH PARAMETERS-----

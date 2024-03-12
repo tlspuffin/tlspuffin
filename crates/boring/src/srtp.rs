@@ -1,9 +1,9 @@
-use crate::ffi;
-use crate::stack::Stackable;
+use std::{ffi::CStr, str};
+
 use foreign_types::ForeignTypeRef;
 use libc::c_ulong;
-use std::ffi::CStr;
-use std::str;
+
+use crate::{ffi, stack::Stackable};
 
 /// fake free method, since SRTP_PROTECTION_PROFILE is static
 unsafe fn free(_profile: *mut ffi::SRTP_PROTECTION_PROFILE) {}

@@ -1,12 +1,8 @@
-use crate::ffi;
-use libc::c_int;
-use std::error;
-use std::error::Error as StdError;
-use std::fmt;
-use std::io;
+use std::{error, error::Error as StdError, fmt, io};
 
-use crate::error::ErrorStack;
-use crate::ssl::MidHandshakeSslStream;
+use libc::c_int;
+
+use crate::{error::ErrorStack, ffi, ssl::MidHandshakeSslStream};
 
 /// An error code returned from SSL functions.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]

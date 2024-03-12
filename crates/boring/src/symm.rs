@@ -52,14 +52,11 @@
 //! println!("Decrypted: '{}'", output_string);
 //! ```
 
-use crate::ffi;
-use libc::{c_int, c_uint};
-use std::cmp;
-use std::ptr;
+use std::{cmp, ptr};
 
-use crate::error::ErrorStack;
-use crate::nid::Nid;
-use crate::{cvt, cvt_p};
+use libc::{c_int, c_uint};
+
+use crate::{cvt, cvt_p, error::ErrorStack, ffi, nid::Nid};
 
 #[derive(Copy, Clone)]
 pub enum Mode {
@@ -688,8 +685,9 @@ use crate::ffi::{EVP_CIPHER_block_size, EVP_CIPHER_iv_length, EVP_CIPHER_key_len
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use hex::{self, FromHex};
+
+    use super::*;
 
     #[test]
     fn test_stream_cipher_output() {

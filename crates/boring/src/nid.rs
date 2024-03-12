@@ -1,12 +1,9 @@
 //! A collection of numerical identifiers for OpenSSL objects.
-use crate::ffi;
+use std::{ffi::CStr, str};
+
 use libc::{c_char, c_int};
 
-use std::ffi::CStr;
-use std::str;
-
-use crate::cvt_p;
-use crate::error::ErrorStack;
+use crate::{cvt_p, error::ErrorStack, ffi};
 
 /// The digest and public-key algorithms associated with a signature.
 pub struct SignatureAlgorithms {

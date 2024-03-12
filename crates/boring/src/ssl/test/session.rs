@@ -1,11 +1,14 @@
-use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::{
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        OnceLock,
+    },
+};
 
-use crate::ssl::test::server::Server;
 use crate::ssl::{
-    ErrorCode, GetSessionPendingError, HandshakeError, Ssl, SslContext, SslContextBuilder,
-    SslMethod, SslOptions, SslSession, SslSessionCacheMode, SslVersion,
+    test::server::Server, ErrorCode, GetSessionPendingError, HandshakeError, Ssl, SslContext,
+    SslContextBuilder, SslMethod, SslOptions, SslSession, SslSessionCacheMode, SslVersion,
 };
 
 #[test]
