@@ -3,6 +3,9 @@ name: Deploy documentation
 on:
   workflow_call:
 
+permissions:
+  contents: write
+
 jobs:
   deploy-docs:
     name: deploy docs

@@ -8,6 +8,10 @@ on:
       - trailofbits
   pull_request:
 
+permissions:
+  pull-requests: read # needed for label-based CI/CD configuration
+  contents: write     # needed for deployment jobs
+
 jobs:
   configure:
     runs-on: ubuntu-22.04
@@ -94,7 +98,7 @@ jobs:
         include:
           - name: openssl111
             features: openssl111
-            save-cache: true # We only save the cache once, else we get too mache cache entries
+            save-cache: "true" # We only save the cache once, else we get too mache cache entries
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl111j
             features: openssl111j

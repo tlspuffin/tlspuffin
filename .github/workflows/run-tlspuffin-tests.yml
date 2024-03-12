@@ -20,6 +20,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 jobs:
   tlspuffin-tests:
     name: Build "${{ inputs.name }}"
