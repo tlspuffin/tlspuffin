@@ -7,11 +7,10 @@ use puffin::{
     algebra::{signature::Signature, AnyMatcher, ConcreteMessage},
     codec,
     error::{Error, Error::Term},
-    protocol::ProtocolBehavior,
+    protocol::{ProtocolBehavior, ProtocolMessage},
     put_registry::PutRegistry,
     trace::Trace,
 };
-use puffin::protocol::ProtocolMessage;
 
 use crate::{
     claim::SshClaim,
