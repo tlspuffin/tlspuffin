@@ -86,133 +86,89 @@ jobs:
     if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
     uses: ./.github/workflows/run-benchmarks.yml
 
-  build-linux:
+  test-tlspuffin:
     needs: [configure, smoke-test]
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: openssl111
-            crate: tlspuffin
             features: openssl111
-            clean-crates: openssl-sys
             save-cache: true # We only save the cache once, else we get too mache cache entries
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl111j
-            crate: tlspuffin
             features: openssl111j
-            clean-crates: openssl-sys
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: openssl101f_asan
-            crate: tlspuffin
             features: openssl101f,asan
             apt-dependencies: xutils-dev
-            clean-crates: openssl-sys
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl102u
-            crate: tlspuffin
             features: openssl102u
-            clean-crates: openssl-sys
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: libressl
-            crate: tlspuffin
             features: libressl
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl430
-            crate: tlspuffin
             features: wolfssl430
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl510
-            crate: tlspuffin
             features: wolfssl510
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl510-sig
-            crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl510-skip
-            crate: tlspuffin
             features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl520
-            crate: tlspuffin
             features: wolfssl520
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl520_asan
-            crate: tlspuffin
             features: wolfssl520,asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl530
-            crate: tlspuffin
             features: wolfssl530
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl530_asan
-            crate: tlspuffin
             features: wolfssl530,asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl540
-            crate: tlspuffin
             features: wolfssl540
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl540-sdos2
-            crate: tlspuffin
             features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl530-cdos
-            crate: tlspuffin
             features: wolfssl530,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540_asan
-            crate: tlspuffin
             features: wolfssl540,asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-buf
-            crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-heap
-            crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540_asan-perf
-            crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-perf
-            crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: boringssl202403
-            crate: tlspuffin
             features: boringssl202403
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: boringssl202403_asan
-            crate: tlspuffin
             features: boringssl202403,asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: libssh
-            crate: sshpuffin
-            features: ""
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: tlspuffin_no_default_features
-            crate: tlspuffin
-            features: ""
-            cargo-flags: "--no-default-features"
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: sshpuffin_no_default_features
-            crate: sshpuffin
-            features: ""
-            cargo-flags: "--no-default-features"
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
 
-    uses: ./.github/workflows/build-linux.yml
+    uses: ./.github/workflows/run-tlspuffin-tests.yml
     with:
       name: ${{ matrix.name }}
-      crate: ${{ matrix.crate }}
       features: ${{ matrix.features }}
-      cargo-flags: ${{ matrix.cargo-flags }}
       apt-dependencies: ${{ matrix.apt-dependencies }}
-      clean-crates: ${{ matrix.clean-crates }}
       save-cache: ${{ matrix.save-cache }}
       if: ${{ matrix.if == 'true' }}
 
