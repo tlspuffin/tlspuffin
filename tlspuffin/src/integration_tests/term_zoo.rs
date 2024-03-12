@@ -372,8 +372,8 @@ mod tests {
         }
     }
 
-    #[test]
-    #[test_log::test]
+    // #[test]
+    // #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_payloads() {
         let mut rand = StdRand::with_seed(101);

@@ -103,7 +103,6 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
     let monitor = matches.get_flag("monitor");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let is_batch: bool = matches.get_one::<usize>("index").is_some();
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -149,6 +148,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
         let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+        let is_batch: bool = matches.get_one::<usize>("number").is_some();
 
         let mut paths = inputs
             .flat_map(|input| {
