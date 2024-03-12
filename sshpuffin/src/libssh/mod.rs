@@ -17,6 +17,7 @@ use std::{
         net::{UnixListener, UnixStream},
     },
 };
+use log::debug;
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
