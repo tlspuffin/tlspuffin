@@ -1,30 +1,36 @@
 //! This module provides[`Term`]sas well as iterators over them.
 
-use anyhow::Context;
-use std::any::TypeId;
-use std::cmp::{max, min};
-use std::fmt::{format, Debug, Display};
-use std::hash::Hash;
-use std::{any::Any, fmt, fmt::Formatter};
+use std::{
+    any::{Any, TypeId},
+    cmp::{max, min},
+    fmt,
+    fmt::{format, Debug, Display, Formatter},
+    hash::Hash,
+};
 
+use anyhow::Context;
 use itertools::Itertools;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use log::{debug, error, trace, warn};
-use serde::de::Unexpected::Bytes;
-use serde::{Deserialize, Serialize};
+use serde::{de::Unexpected::Bytes, Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
-use crate::fuzzer::start;
-use crate::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath};
-use crate::trace::Trace;
-use crate::variable_data::VariableData;
 use crate::{
-    algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
+    algebra::{
+        bitstrings::{replace_payloads, EvalTree, Payloads},
+        dynamic_function::TypeShape,
+        error::FnError,
+        Matcher,
+    },
     define_signature,
     error::Error,
+    fuzzer::{
+        start,
+        utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath},
+    },
     protocol::ProtocolBehavior,
-    trace::TraceContext,
+    trace::{Trace, TraceContext},
+    variable_data::VariableData,
 };
 
 const SIZE_LEAF: usize = 1;
@@ -210,9 +216,6 @@ impl<M: Matcher> TermEval<M> {
         match &mut self.term {
             Term::Variable(_) => {}
             Term::Application(fd, args) => {
-                if is_subterm {
-                    self.payloads = None;
-                }
                 if !is_opaque {
                     // if opaque, we keep payloads in strict sub-terms
                     for t in args {

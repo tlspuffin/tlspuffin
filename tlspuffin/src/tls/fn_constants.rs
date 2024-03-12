@@ -1,9 +1,7 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use puffin::algebra::error::FnError;
-use puffin::codec;
-use puffin::codec::Encode;
+use puffin::{algebra::error::FnError, codec, codec::Encode};
 
 // TODO-bitlevel: bools: easier to DY-mutate them! (just one flip is possible)
 // TODO: make sure there is no use of this that put the bool in a message, in that case

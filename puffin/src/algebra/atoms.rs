@@ -1,13 +1,13 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
 //!
-use log::error;
 use std::{
     fmt,
     fmt::Formatter,
     hash::{Hash, Hasher},
 };
 
+use log::error;
 use rand::random;
 use serde::{Deserialize, Serialize};
 

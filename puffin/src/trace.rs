@@ -14,7 +14,6 @@
 //!
 
 use core::fmt;
-use libafl::inputs::HasBytesVec;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -23,17 +22,20 @@ use std::{
     marker::PhantomData,
 };
 
+use libafl::inputs::HasBytesVec;
 use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
-use crate::algebra::{TermEval, TermType};
-use crate::codec::Codec;
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    algebra::{
+        dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term, TermEval,
+        TermType,
+    },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
+    codec::Codec,
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},

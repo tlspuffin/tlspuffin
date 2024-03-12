@@ -1,19 +1,15 @@
-use super::utils::{Choosable, *};
+use std::{ops::Not, thread::panicking};
+
 use libafl::prelude::*;
 use log::{debug, info, warn};
-use std::ops::Not;
-use std::thread::panicking;
 
-use crate::algebra::{TermEval, TermType};
-use crate::codec::Codec;
-use crate::fuzzer::harness::default_put_options;
-use crate::fuzzer::utils::choose_term_filtered_mut;
-use crate::protocol::ProtocolBehavior;
-use crate::trace::TraceContext;
+use super::utils::{Choosable, *};
 use crate::{
-    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
-    fuzzer::term_zoo::TermZoo,
-    trace::Trace,
+    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term, TermEval, TermType},
+    codec::Codec,
+    fuzzer::{harness::default_put_options, term_zoo::TermZoo, utils::choose_term_filtered_mut},
+    protocol::ProtocolBehavior,
+    trace::{Trace, TraceContext},
 };
 
 pub type HavocMutationsTypeDY<S: HasRand + HasMaxSize> = tuple_list_type!(

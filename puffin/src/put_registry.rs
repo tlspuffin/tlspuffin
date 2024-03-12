@@ -1,3 +1,7 @@
+use std::fmt::{Debug, Formatter};
+
+use log::debug;
+
 use crate::{
     agent::AgentDescriptor,
     error::Error,
@@ -5,8 +9,6 @@ use crate::{
     put::{Put, PutName},
     trace::TraceContext,
 };
-use log::debug;
-use std::fmt::{Debug, Formatter};
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 

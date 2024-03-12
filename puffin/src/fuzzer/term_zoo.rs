@@ -3,12 +3,11 @@
 
 use libafl::bolts::rands::Rand;
 
-use crate::algebra::TermEval;
 use crate::{
     algebra::{
         atoms::Function,
         signature::{FunctionDefinition, Signature},
-        Matcher, Term,
+        Matcher, Term, TermEval,
     },
     fuzzer::utils::Choosable,
 };

@@ -398,7 +398,6 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use crate::algebra::TermType;
 use nix::{
     sys::wait::{waitpid, WaitPidFlag},
     unistd::{fork, ForkResult},
@@ -406,6 +405,7 @@ use nix::{
 
 use crate::{
     agent::AgentName,
+    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 

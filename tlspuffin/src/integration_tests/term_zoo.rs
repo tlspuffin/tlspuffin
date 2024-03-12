@@ -2,53 +2,55 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
+    use std::{any::Any, cmp::max, collections::HashSet, fmt::Debug};
+
     use itertools::Itertools;
     use log::{debug, error, warn};
-    use std::any::Any;
-    use std::cmp::max;
-    use std::collections::HashSet;
-    use std::fmt::Debug;
-
-    use puffin::agent::AgentName;
-    use puffin::algebra::error::FnError;
-    use puffin::algebra::signature::FunctionDefinition;
-    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, Matcher, TermEval, TermType};
-    use puffin::codec::Encode;
-    use puffin::error::Error;
-    use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
-    use puffin::libafl::prelude::Rand;
-    use puffin::protocol::ProtocolBehavior;
-    use puffin::trace::Action::Input;
-    use puffin::trace::{InputAction, Step, Trace, TraceContext};
     use puffin::{
-        algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo,
-        libafl::bolts::rands::StdRand,
+        agent::AgentName,
+        algebra::{
+            dynamic_function::DescribableFunction, error::FnError, evaluate_lazy_test,
+            signature::FunctionDefinition, ConcreteMessage, Matcher, TermEval, TermType,
+        },
+        codec,
+        codec::Encode,
+        error::Error,
+        fuzzer::{
+            term_zoo::TermZoo,
+            utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints},
+        },
+        libafl::{bolts::rands::StdRand, prelude::Rand},
+        protocol::ProtocolBehavior,
+        trace::{Action::Input, InputAction, Step, Trace, TraceContext},
     };
 
-    use crate::protocol::TLSProtocolBehavior;
-    use crate::tls::{
-        fn_impl::*,
-        rustls::msgs::{
-            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-            handshake::{Random, ServerExtension, SessionID},
-        },
-        trace_helper::TraceHelper,
-    };
     use crate::{
+        protocol::TLSProtocolBehavior,
+        put_registry::TLS_PUT_REGISTRY,
         query::TlsQueryMatcher,
-        tls::{fn_impl::*, TLS_SIGNATURE},
+        tls::{
+            fn_impl::*,
+            rustls::{
+                hash_hs::HandshakeHash,
+                key::{Certificate, PrivateKey},
+                msgs::{
+                    alert::AlertMessagePayload,
+                    enums::{
+                        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup,
+                        ProtocolVersion, SignatureScheme,
+                    },
+                    handshake::{
+                        CertificateEntry, ClientExtension, HasServerExtensions, Random,
+                        ServerExtension, SessionID,
+                    },
+                    message::{Message, MessagePayload, OpaqueMessage},
+                },
+            },
+            trace_helper::TraceHelper,
+            TLS_SIGNATURE,
+        },
         try_downcast,
     };
-
-    use crate::put_registry::TLS_PUT_REGISTRY;
-    use crate::tls::rustls::hash_hs::HandshakeHash;
-    use crate::tls::rustls::key::{Certificate, PrivateKey};
-    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-    use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-    use crate::tls::rustls::msgs::handshake::{
-        CertificateEntry, ClientExtension, HasServerExtensions,
-    };
-    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
     #[test]
     #[test_log::test]

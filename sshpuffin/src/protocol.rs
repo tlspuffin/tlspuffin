@@ -1,9 +1,10 @@
-use std::any::{Any, TypeId};
-use std::io::Read;
+use std::{
+    any::{Any, TypeId},
+    io::Read,
+};
 
-use puffin::algebra::ConcreteMessage;
 use puffin::{
-    algebra::{signature::Signature, AnyMatcher},
+    algebra::{signature::Signature, AnyMatcher, ConcreteMessage},
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,

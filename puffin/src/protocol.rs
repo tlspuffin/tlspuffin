@@ -1,12 +1,12 @@
-use std::any::{Any, TypeId};
-use std::fmt::Debug;
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+};
 
-use crate::algebra::ConcreteMessage;
-use crate::codec::{Codec, Reader};
 use crate::{
-    algebra::{signature::Signature, Matcher},
+    algebra::{signature::Signature, ConcreteMessage, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::Encode,
+    codec::{Codec, Encode, Reader},
     error::Error,
     put_registry::PutRegistry,
     trace::Trace,

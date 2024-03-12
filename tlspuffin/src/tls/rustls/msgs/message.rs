@@ -1,38 +1,40 @@
+use std::{
+    any::{type_name, Any, TypeId},
+    convert::TryFrom,
+};
+
 use log::{debug, error};
-use puffin::algebra::error::FnError;
-use puffin::algebra::ConcreteMessage;
-use puffin::codec;
-use std::any::{type_name, Any, TypeId};
-use std::convert::TryFrom;
-
-use puffin::codec::{Codec, Reader, VecCodecWoSize};
-use puffin::error::Error::Term;
-use puffin::protocol::ProtocolMessage;
-
-use crate::tls::rustls::hash_hs::HandshakeHash;
-use crate::tls::rustls::key::{Certificate, PrivateKey};
-use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
-    ClientExtension, ClientExtensions, Compressions, HelloRetryExtension, HelloRetryExtensions,
-    NewSessionTicketExtension, PresharedKeyIdentity, ServerExtension, ServerExtensions,
+use puffin::{
+    algebra::{error::FnError, ConcreteMessage},
+    codec,
+    codec::{Codec, Reader, VecCodecWoSize},
+    error::Error::Term,
+    protocol::ProtocolMessage,
 };
-use crate::tls::rustls::{
-    error::Error,
-    msgs::{
-        alert::AlertMessagePayload,
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
-        handshake::HandshakeMessagePayload,
-        heartbeat::HeartbeatPayload,
-    },
-};
+
 use crate::tls::{
     fn_impl::*,
-    rustls::msgs::{
-        enums::{CipherSuite, Compression},
-        handshake::{Random, SessionID},
+    rustls::{
+        error::Error,
+        hash_hs::HandshakeHash,
+        key::{Certificate, PrivateKey},
+        msgs::{
+            alert::AlertMessagePayload,
+            base::Payload,
+            ccs::ChangeCipherSpecPayload,
+            enums::{
+                AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ExtensionType,
+                HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
+            },
+            handshake::{
+                CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
+                CipherSuites, ClientExtension, ClientExtensions, Compressions,
+                HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
+                NewSessionTicketExtension, PresharedKeyIdentity, Random, ServerExtension,
+                ServerExtensions, SessionID,
+            },
+            heartbeat::HeartbeatPayload,
+        },
     },
 };
 

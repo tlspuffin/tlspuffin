@@ -1,8 +1,12 @@
-use crate::put_registry::TLS_PUT_REGISTRY;
-use crate::tls::seeds::{seed_client_attacker_full, seed_client_attacker_full_wo_time};
-use crate::tls::trace_helper::TraceHelper;
-use puffin::put::PutOptions;
-use puffin::trace::TraceContext;
+use puffin::{put::PutOptions, trace::TraceContext};
+
+use crate::{
+    put_registry::TLS_PUT_REGISTRY,
+    tls::{
+        seeds::{seed_client_attacker_full, seed_client_attacker_full_wo_time},
+        trace_helper::TraceHelper,
+    },
+};
 
 #[test]
 #[cfg(all(feature = "deterministic", feature = "tls13", feature = "TODO"))] // TODO: only passes in mono-thread!! with option `-test-threads=1`

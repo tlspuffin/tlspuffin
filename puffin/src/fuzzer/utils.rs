@@ -1,13 +1,12 @@
-use libafl::bolts::rands::Rand;
-use log::error;
 use std::cmp::max;
 
-use crate::algebra::{TermEval, TermType};
-use crate::protocol::ProtocolBehavior;
-use crate::trace::InputAction;
+use libafl::bolts::rands::Rand;
+use log::error;
+
 use crate::{
-    algebra::{Matcher, Term},
-    trace::{Action, Step, Trace},
+    algebra::{Matcher, Term, TermEval, TermType},
+    protocol::ProtocolBehavior,
+    trace::{Action, InputAction, Step, Trace},
 };
 
 #[derive(Copy, Clone, Debug)]

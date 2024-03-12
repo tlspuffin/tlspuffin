@@ -3,8 +3,8 @@ use log::{debug, info, trace, warn};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 
-use crate::algebra::TermType;
 use crate::{
+    algebra::TermType,
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,

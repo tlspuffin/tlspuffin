@@ -120,10 +120,12 @@ pub mod test_signature {
         io::Read,
     };
 
-    use crate::algebra::{ConcreteMessage, TermEval};
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
+        algebra::{
+            dynamic_function::TypeShape, error::FnError, AnyMatcher, ConcreteMessage, Term,
+            TermEval,
+        },
         claims::{Claim, SecurityViolationPolicy},
         codec::{Codec, Reader},
         define_signature,
@@ -551,11 +553,11 @@ pub mod test_signature {
 mod tests {
 
     use super::test_signature::*;
-    use crate::algebra::{evaluate_lazy_test, TermEval};
     use crate::{
         agent::AgentName,
         algebra::{
-            atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
+            atoms::Variable, dynamic_function::TypeShape, evaluate_lazy_test, signature::Signature,
+            AnyMatcher, Term, TermEval,
         },
         put::PutOptions,
         put_registry::{Factory, PutRegistry},

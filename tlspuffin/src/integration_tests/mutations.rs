@@ -1,15 +1,15 @@
+use std::thread::panicking;
+
 use log::{debug, error};
-use puffin::algebra::TermType;
-use puffin::fuzzer::harness::set_default_put_options;
-use puffin::fuzzer::mutations::trace_mutations;
-use puffin::fuzzer::{bit_mutations::*, mutations::MakeMessage};
-use puffin::libafl::prelude::ByteFlipMutator;
 use puffin::{
     agent::AgentName,
-    algebra::{dynamic_function::DescribableFunction, Term},
+    algebra::{dynamic_function::DescribableFunction, Term, TermType},
     fuzzer::{
+        bit_mutations::*,
+        harness::set_default_put_options,
         mutations::{
-            RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+            trace_mutations, MakeMessage, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
+            ReplaceReuseMutator,
         },
         utils::TermConstraints,
     },
@@ -17,17 +17,15 @@ use puffin::{
         bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
+        prelude::ByteFlipMutator,
         state::StdState,
     },
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
-use std::thread::panicking;
 
-use crate::protocol::TLSProtocolBehavior;
-use crate::tls::seeds::{create_corpus, seed_client_attacker, seed_client_attacker_full};
-use crate::tls::trace_helper::TraceHelper;
 use crate::{
+    protocol::TLSProtocolBehavior,
     put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     test_utils::expect_crash,
@@ -36,7 +34,10 @@ use crate::{
             fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
-        seeds::_seed_client_attacker12,
+        seeds::{
+            _seed_client_attacker12, create_corpus, seed_client_attacker, seed_client_attacker_full,
+        },
+        trace_helper::TraceHelper,
         TLS_SIGNATURE,
     },
 };

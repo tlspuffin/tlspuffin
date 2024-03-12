@@ -10,9 +10,8 @@ use std::{
 use itertools::Itertools;
 use log::{debug, error, warn};
 
-use crate::algebra::{TermEval, TermType};
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
+    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term, TermEval, TermType},
     trace::{Action, Trace},
 };
 

@@ -1,15 +1,14 @@
 use std::{cell::RefCell, fmt::Pointer, io::ErrorKind, rc::Rc};
 
-use foreign_types::ForeignTypeRef;
-use log::debug;
-
 use boring::{
     error::ErrorStack,
     ex_data::Index,
     ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
     x509::{store::X509StoreBuilder, X509},
 };
-use log::info;
+use boringssl_sys::ssl_st;
+use foreign_types::ForeignTypeRef;
+use log::{debug, info};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     error::Error,
@@ -20,8 +19,6 @@ use puffin::{
     trace::TraceContext,
 };
 use smallvec::SmallVec;
-
-use boringssl_sys::ssl_st;
 
 use crate::{
     boringssl::util::{set_max_protocol_version, static_rsa_cert},
@@ -46,6 +43,7 @@ mod transcript;
 mod util;
 
 use std::ops::Deref;
+
 use transcript::extract_current_transcript;
 
 pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {

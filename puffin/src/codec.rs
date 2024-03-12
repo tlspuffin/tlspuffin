@@ -1,5 +1,6 @@
-use crate::algebra::error::FnError;
 use std::{convert::TryInto, fmt::Debug};
+
+use crate::algebra::error::FnError;
 
 /// Read from a byte slice.
 pub struct Reader<'a> {

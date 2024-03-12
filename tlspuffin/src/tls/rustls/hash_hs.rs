@@ -1,8 +1,9 @@
-use std::fmt::{Debug, Formatter};
-use std::mem;
+use std::{
+    fmt::{Debug, Formatter},
+    mem,
+};
 
-use puffin::codec;
-use puffin::codec::Codec;
+use puffin::{codec, codec::Codec};
 use ring::digest;
 
 use crate::tls::rustls::msgs::{

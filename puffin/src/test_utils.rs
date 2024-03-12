@@ -1,6 +1,5 @@
-use crate::algebra::{TermEval, TermType};
 use crate::{
-    algebra::{Matcher, Term},
+    algebra::{Matcher, Term, TermEval, TermType},
     graphviz::write_graphviz,
     trace::{Action, Trace},
 };

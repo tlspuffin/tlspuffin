@@ -1,24 +1,21 @@
-use super::utils::{Choosable, *};
+use std::{ops::Not, thread::panicking};
+
 use anyhow::{Context, Result};
 use libafl::prelude::*;
 use log::{debug, error, info, warn};
-use std::ops::Not;
-use std::thread::panicking;
 
-use crate::algebra::{
-    bitstrings::{search_sub_vec, Payloads},
-    TermEval, TermType,
-};
-use crate::codec::Codec;
-use crate::fuzzer::bit_mutations::*;
-use crate::fuzzer::harness::default_put_options;
-use crate::protocol::ProtocolBehavior;
-use crate::trace::Action::Input;
-use crate::trace::TraceContext;
+use super::utils::{Choosable, *};
 use crate::{
-    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
-    fuzzer::term_zoo::TermZoo,
-    trace::Trace,
+    algebra::{
+        atoms::Function,
+        bitstrings::{search_sub_vec, Payloads},
+        signature::Signature,
+        Matcher, Subterms, Term, TermEval, TermType,
+    },
+    codec::Codec,
+    fuzzer::{bit_mutations::*, harness::default_put_options, term_zoo::TermZoo},
+    protocol::ProtocolBehavior,
+    trace::{Action::Input, Trace, TraceContext},
 };
 
 pub fn trace_mutations<S, M: Matcher, PB>(

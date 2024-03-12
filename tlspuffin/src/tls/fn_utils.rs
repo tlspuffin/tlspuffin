@@ -8,7 +8,6 @@ use puffin::{
     codec::{Codec, Reader},
 };
 
-use crate::tls::rustls::msgs::handshake::CertificateEntries;
 use crate::tls::{
     key_exchange::{tls12_key_exchange, tls12_new_secrets},
     key_schedule::*,
@@ -20,7 +19,7 @@ use crate::tls::{
             base::PayloadU8,
             enums::{HandshakeType, NamedGroup},
             handshake::{
-                CertificateEntry, CertificateExtension, CertificateExtensions,
+                CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
                 HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
             },
             message::{Message, MessagePayload, OpaqueMessage, PlainMessage},

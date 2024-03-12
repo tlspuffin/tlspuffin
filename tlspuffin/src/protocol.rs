@@ -1,15 +1,14 @@
-use puffin::algebra::ConcreteMessage;
+use std::any::{Any, TypeId};
+
 use puffin::{
-    algebra::{signature::Signature, Matcher},
+    algebra::{signature::Signature, ConcreteMessage, Matcher},
     error::Error,
     protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer},
     put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,
 };
-use std::any::{Any, TypeId};
 
-use crate::tls::rustls::msgs::message::{any_get_encoding, try_read_bytes};
 use crate::{
     claims::TlsClaim,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
@@ -21,7 +20,9 @@ use crate::{
             msgs::{
                 deframer::MessageDeframer,
                 handshake::{HandshakePayload, ServerKeyExchangePayload},
-                message::{Message, MessagePayload, OpaqueMessage},
+                message::{
+                    any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage,
+                },
             },
         },
         seeds::create_corpus,

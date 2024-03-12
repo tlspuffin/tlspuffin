@@ -6,7 +6,6 @@ use puffin::{
     codec::{Codec, Reader},
 };
 
-use crate::tls::rustls::msgs::handshake::{CipherSuites, Compressions};
 use crate::tls::{
     key_exchange::tls12_new_secrets,
     key_schedule::dhe_key_schedule,
@@ -15,7 +14,10 @@ use crate::tls::{
         key_log::NoKeyLog,
         msgs::{
             enums::{CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion},
-            handshake::{ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID},
+            handshake::{
+                CipherSuites, ClientExtension, Compressions, HasServerExtensions, Random,
+                ServerExtension, SessionID,
+            },
         },
     },
 };

@@ -1,16 +1,21 @@
-use crate::algebra::bitstrings::TreeOrEval::Eval;
-use crate::algebra::{ConcreteMessage, Matcher, Term, TermEval, TermType};
-use crate::error::Error;
-use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
-use crate::protocol::ProtocolBehavior;
-use crate::trace::{Trace, TraceContext};
+use std::{
+    any::{Any, TypeId},
+    cmp::{max, min},
+    fmt::format,
+};
+
 use anyhow::Context;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
-use std::any::{Any, TypeId};
-use std::cmp::{max, min};
-use std::fmt::format;
+
+use crate::{
+    algebra::{bitstrings::TreeOrEval::Eval, ConcreteMessage, Matcher, Term, TermEval, TermType},
+    error::Error,
+    fuzzer::utils::{find_term_by_term_path, TermPath},
+    protocol::ProtocolBehavior,
+    trace::{Trace, TraceContext},
+};
 
 const THRESHOLD_SUM: usize = 40;
 const THRESHOLD_RATIO: usize = 4;

@@ -2,60 +2,64 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
+    use std::{any::Any, cmp::max, collections::HashSet, fmt::Debug};
+
     use itertools::Itertools;
     use log::{debug, error, warn};
-    use std::any::Any;
-    use std::cmp::max;
-    use std::collections::HashSet;
-    use std::fmt::Debug;
-
-    use puffin::agent::AgentName;
-    use puffin::algebra::error::FnError;
-    use puffin::algebra::signature::FunctionDefinition;
-    use puffin::algebra::{
-        bitstrings::{replace_payloads, Payloads},
-        evaluate_lazy_test, ConcreteMessage, Matcher, TermEval, TermType,
-    };
-    use puffin::codec::Codec;
-    use puffin::error::Error;
-    use puffin::fuzzer::utils::{
-        choose, find_term_by_term_path, find_term_by_term_path_mut, Choosable, TermConstraints,
-    };
-    use puffin::libafl::prelude::Rand;
-    use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
-    use puffin::put::PutOptions;
-    use puffin::trace::Action::Input;
-    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
     use puffin::{
-        algebra::dynamic_function::DescribableFunction, codec, fuzzer::term_zoo::TermZoo,
-        libafl::bolts::rands::StdRand,
+        agent::AgentName,
+        algebra::{
+            bitstrings::{replace_payloads, Payloads},
+            dynamic_function::DescribableFunction,
+            error::FnError,
+            evaluate_lazy_test,
+            signature::FunctionDefinition,
+            ConcreteMessage, Matcher, TermEval, TermType,
+        },
+        codec,
+        codec::Codec,
+        error::Error,
+        fuzzer::{
+            term_zoo::TermZoo,
+            utils::{
+                choose, find_term_by_term_path, find_term_by_term_path_mut, Choosable,
+                TermConstraints,
+            },
+        },
+        libafl::{bolts::rands::StdRand, prelude::Rand},
+        protocol::{ProtocolBehavior, ProtocolMessage},
+        put::PutOptions,
+        trace::{Action, Action::Input, InputAction, OutputAction, Step, Trace, TraceContext},
     };
 
-    use crate::protocol::TLSProtocolBehavior;
-    use crate::tls::{
-        fn_impl::*,
-        rustls::msgs::{
-            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-            handshake::{Random, ServerExtension, SessionID},
-        },
-        trace_helper::TraceHelper,
-    };
     use crate::{
+        protocol::TLSProtocolBehavior,
+        put_registry::TLS_PUT_REGISTRY,
         query::TlsQueryMatcher,
-        tls::{fn_impl::*, TLS_SIGNATURE},
+        tls::{
+            fn_impl::*,
+            rustls::{
+                hash_hs::HandshakeHash,
+                key::{Certificate, PrivateKey},
+                msgs::{
+                    alert::AlertMessagePayload,
+                    enums::{
+                        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup,
+                        ProtocolVersion, SignatureScheme,
+                    },
+                    handshake::{
+                        CertificateEntry, ClientExtension, HasServerExtensions, Random,
+                        ServerExtension, SessionID,
+                    },
+                    message::{Message, MessagePayload, OpaqueMessage},
+                },
+            },
+            seeds::{create_corpus, seed_client_attacker_boring},
+            trace_helper::TraceHelper,
+            TLS_SIGNATURE,
+        },
         try_downcast,
     };
-
-    use crate::put_registry::TLS_PUT_REGISTRY;
-    use crate::tls::rustls::hash_hs::HandshakeHash;
-    use crate::tls::rustls::key::{Certificate, PrivateKey};
-    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-    use crate::tls::rustls::msgs::enums::{ExtensionType, NamedGroup, SignatureScheme};
-    use crate::tls::rustls::msgs::handshake::{
-        CertificateEntry, ClientExtension, HasServerExtensions,
-    };
-    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-    use crate::tls::seeds::{create_corpus, seed_client_attacker_boring};
 
     fn test_one_replace(
         trace: &mut Trace<TlsQueryMatcher>,

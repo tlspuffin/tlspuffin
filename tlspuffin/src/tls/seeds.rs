@@ -2,14 +2,14 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use puffin::algebra::TermEval;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::Term,
+    algebra::{Term, TermEval},
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
+use super::rustls::msgs::handshake::{EncryptedExtensions, ServerExtensions};
 use crate::{
     query::TlsQueryMatcher,
     tls::{
@@ -21,8 +21,6 @@ use crate::{
         trace_helper::TraceHelper,
     },
 };
-
-use super::rustls::msgs::handshake::{EncryptedExtensions, ServerExtensions};
 
 pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
@@ -2055,26 +2053,29 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 pub mod tests {
 
     use log::debug;
-    use puffin::algebra::error::FnError;
-    use puffin::algebra::{
-        bitstrings::{replace_payloads, Payloads},
-        term::evaluate_lazy_test,
-        TermType,
+    use puffin::{
+        agent::AgentName,
+        algebra::{
+            bitstrings::{replace_payloads, Payloads},
+            error::FnError,
+            term::evaluate_lazy_test,
+            TermType,
+        },
+        codec::Codec,
+        fuzzer::harness::default_put_options,
+        libafl::inputs::HasBytesVec,
+        protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+        put::PutOptions,
+        trace::{Action, Action::Input, TraceContext},
     };
-    use puffin::codec::Codec;
-    use puffin::trace::TraceContext;
-    use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 
     use super::*;
-    use crate::protocol::TLSProtocolBehavior;
-    use crate::tls::rustls::msgs::message::OpaqueMessage;
-    use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
-    use puffin::fuzzer::harness::default_put_options;
-    use puffin::libafl::inputs::HasBytesVec;
-    use puffin::protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage};
-    use puffin::put::PutOptions;
-    use puffin::trace::Action::Input;
+    use crate::{
+        protocol::TLSProtocolBehavior,
+        put_registry::TLS_PUT_REGISTRY,
+        tls::{rustls::msgs::message::OpaqueMessage, trace_helper::TraceHelper},
+    };
 
     #[test]
     fn test_version() {
@@ -2392,12 +2393,12 @@ pub mod tests {
         use puffin::codec::Reader;
         use test_log::test;
 
-        use crate::tls::rustls::msgs::handshake::{CipherSuites, ClientExtensions, Compressions};
         use crate::tls::rustls::msgs::{
             base::Payload,
             enums::{ContentType, HandshakeType, ProtocolVersion},
             handshake::{
-                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+                CipherSuites, ClientExtensions, ClientHelloPayload, Compressions,
+                HandshakeMessagePayload, HandshakePayload, Random, SessionID,
             },
             message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
         };
