@@ -14,6 +14,22 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: setup CI env
+      shell: bash
+      run: |
+        #!/usr/bin/env bash
+        export_env() {
+          local var=${1}
+          local val=${2:-${!1}}
+
+          printf '%s=%s\n' "${var}" "${val}" >> "${GITHUB_ENV}"
+        }
+
+        export_env RUST_LOG "info"
+        export_env CLANG_PATH "$(clang -print-prog-name=clang)"
+        export_env LIBCLANG_PATH "$(llvm-config-"$(clang -dumpversion | cut -d '.' -f1)" --libdir)"
+        export_env BINDGEN_EXTRA_CLANG_ARGS "-v"
+
     - uses: extractions/setup-just@v1
     - name: Install toolchain
       shell: bash

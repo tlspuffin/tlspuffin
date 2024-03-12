@@ -8,10 +8,12 @@ use std::{
     process::Command,
 };
 
-const REF: &str = if cfg!(feature = "vendored-libressl333") {
+const REF: &str = if cfg!(feature = "libressl333") {
     "fuzz-v3.3.3"
-} else {
+} else if cfg!(feature = "libresslmaster") {
     "master"
+} else {
+    panic!("Unknown version of LibreSSL requested!")
 };
 
 fn clone(dest: &PathBuf) -> std::io::Result<()> {

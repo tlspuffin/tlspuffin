@@ -58,7 +58,6 @@ fn patch_wolfssl<P: AsRef<Path>>(
 }
 
 fn clone_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> std::io::Result<()> {
-    //return Ok(());
     std::fs::remove_dir_all(dest)?;
     let status = Command::new("git")
         .arg("clone")

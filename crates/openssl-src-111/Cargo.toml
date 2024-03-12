@@ -48,24 +48,19 @@ asan = ["libressl-src?/asan"]
 # Export coverage during runtime
 gcov_analysis = ["libressl-src?/gcov_analysis"]
 llvm_cov_analysis = ["libressl-src?/llvm_cov_analysis"]
-# Use openssl101f submodule
+
 openssl101f = []
-# Use openssl102u submodule
 openssl102u = []
 openssl111k = []
 openssl111j = []
 openssl111u = []
 openssl312 = []
 
-libressl333 = ["libressl-src", "libressl", "libressl-src/vendored-libressl333"]
+libressl333 = ["libressl-src", "libressl", "libressl-src/libressl333"]
 libressl = []
-
-[workspace]
-members = ['testcrate']
-exclude = ['target']
 
 [dependencies]
 cc = "1.0"
 bindgen = "0.69.1"
-security-claims = "0.1.0"
-libressl-src = { version = "111.0.0", optional = true }
+security-claims = { path = "../../tlspuffin-claims" }
+libressl-src = { path = "../libressl-src", optional = true }

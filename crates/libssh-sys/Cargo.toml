@@ -5,8 +5,8 @@ edition = "2021"
 build = "build.rs"
 
 [features]
-
-vendored-libssh0104 = []
+libssh0104 = []
+libsshmaster = []
 
 [dependencies]
 
