@@ -3,8 +3,8 @@ extern crate cc;
 
 use std::io::ErrorKind;
 use std::{
-    env, fs,
-    fs::{canonicalize, File},
+    env,
+    fs::{self, canonicalize, File},
     io,
     io::Write,
     path::{Path, PathBuf},
@@ -46,21 +46,6 @@ fn clone_repo(dest: &str) -> std::io::Result<()> {
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
-}
-
-fn patch_openssl<P: AsRef<Path>>(out_dir: P, patch: &str) -> std::io::Result<()> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let status = Command::new("git")
-        .current_dir(out_dir)
-        .arg("am")
-        .arg(root.join("patches").join(patch).to_str().unwrap())
-        .status()?;
-
-    if !status.success() {
-        return Err(io::Error::from(ErrorKind::Other));
-    }
-
-    Ok(())
 }
 
 pub struct Build {
@@ -105,10 +90,10 @@ impl Build {
         Command::new("make")
     }
 
-    pub fn build_deterministic_rand(install_dir: &PathBuf) {
+    pub fn build_deterministic_rand(install_dir: &Path) {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let file = root.join("src").join("deterministic_rand.c");
-        let buf = canonicalize(&file).unwrap();
+        let buf = canonicalize(file).unwrap();
         let deterministic_rand = buf.to_str().unwrap();
 
         println!("cargo:rerun-if-changed={}", deterministic_rand);
@@ -119,7 +104,7 @@ impl Build {
             .compile("deterministic_rand");
     }
 
-    pub fn insert_claim_interface(additional_headers: &PathBuf) -> std::io::Result<()> {
+    pub fn insert_claim_interface(additional_headers: &Path) -> std::io::Result<()> {
         let interface = security_claims::CLAIM_INTERFACE_H;
 
         let path = additional_headers.join("claim-interface.h");
@@ -149,7 +134,7 @@ impl Build {
         let inner_dir = build_dir.join("src");
         fs::create_dir_all(&inner_dir).unwrap();
 
-        clone_repo(&inner_dir.to_str().unwrap()).unwrap();
+        clone_repo(inner_dir.to_str().unwrap()).unwrap();
 
         let perl_program =
             env::var("OPENSSL_SRC_PERL").unwrap_or(env::var("PERL").unwrap_or("perl".to_string()));
@@ -164,6 +149,7 @@ impl Build {
             // No shared objects, we just want static libraries
             .arg("no-dso")
             .arg("no-shared");
+
         // No need to build tests, we won't run them anyway
         // TODO .arg("no-unit-test")
         // Nothing related to zlib please
@@ -172,17 +158,23 @@ impl Build {
         // TODO .arg("no-zlib-dynamic")
 
         // TODO: does only work when combinded with rand.patch?
-        //configure.arg("--with-rand-seed=none");
+        // configure.arg("--with-rand-seed=none");
 
-        if cfg!(feature = "weak-crypto") {
-            // TODO configure.arg("enable-md2").arg("enable-rc5").arg("enable-weak-ssl-ciphers");
-        } else {
-            // TODO configure.arg("no-md2").arg("no-rc5").arg("no-weak-ssl-ciphers");
-        }
+        // if cfg!(feature = "weak-crypto") {
+        //     configure
+        //         .arg("enable-md2")
+        //         .arg("enable-rc5")
+        //         .arg("enable-weak-ssl-ciphers");
+        // } else {
+        //     configure
+        //         .arg("no-md2")
+        //         .arg("no-rc5")
+        //         .arg("no-weak-ssl-ciphers");
+        // }
 
-        if cfg!(not(feature = "seed")) {
-            // TODO configure.arg("no-seed");
-        }
+        // if cfg!(not(feature = "seed")) {
+        //     configure.arg("no-seed");
+        // }
 
         let os = match target {
             "aarch64-apple-darwin" => "darwin64-arm64-cc",
@@ -192,9 +184,9 @@ impl Build {
         };
         configure.arg(os);
 
-        if cfg!(feature = "no-rand") {
-            // TODO configure.arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION");
-        }
+        // if cfg!(feature = "no-rand") {
+        //     configure.arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION");
+        // }
 
         let cc = "clang".to_owned();
         let mut cflags = "".to_owned();
@@ -258,8 +250,6 @@ impl Build {
 
         self.run_command(install, "installing OpenSSL");
 
-        let libs = vec!["ssl".to_string(), "crypto".to_string()];
-
         if cfg!(feature = "no-rand") {
             Self::build_deterministic_rand(&install_dir);
         }
@@ -268,7 +258,7 @@ impl Build {
             lib_dir: install_dir.join("lib"),
             bin_dir: install_dir.join("bin"),
             include_dir: install_dir.join("include"),
-            libs: libs,
+            libs: vec!["ssl".to_string(), "crypto".to_string()],
             target: target.to_string(),
         }
     }
@@ -290,6 +280,12 @@ Error {}:
                 desc, command, status
             );
         }
+    }
+}
+
+impl Default for Build {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
