@@ -21,6 +21,7 @@ use std::{
 use log::debug;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    algebra::ConcreteMessage,
     codec::Codec,
     error::Error,
     protocol::MessageResult,
@@ -194,11 +195,8 @@ pub struct LibSSL {
 impl LibSSL {}
 
 impl Stream<SshMessage, RawSshMessage> for LibSSL {
-    fn add_to_inbound(&mut self, result: &RawSshMessage) {
-        let mut buffer = Vec::new();
-        Codec::encode(result, &mut buffer);
-
-        self.fuzz_stream.write_all(&mut buffer).unwrap();
+    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
+        self.fuzz_stream.write_all(&mut message).unwrap();
     }
 
     fn take_message_from_outbound(

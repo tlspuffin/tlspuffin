@@ -11,6 +11,7 @@ use puffin::{
     put_registry::PutRegistry,
     trace::Trace,
 };
+use puffin::protocol::ProtocolMessage;
 
 use crate::{
     claim::SshClaim,
@@ -49,15 +50,15 @@ impl ProtocolBehavior for SshProtocolBehavior {
 
     fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
         match message
-            .downcast_ref::<RawSshMessage>()
-            .map(|b| codec::Encode::get_encoding(b))
+            .downcast_ref::<SshMessage>()
+            .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
         {
             Some(cm) => Ok(cm),
             None => message
-                .downcast_ref::<SshMessage>()
+                .downcast_ref::<RawSshMessage>()
                 .map(|b| codec::Encode::get_encoding(b))
                 .ok_or(Term(
-                    "[any_get_encoding] Unable to encode SshMessage".to_string(),
+                    "[any_get_encoding] Unable to encode (Raw)SshMessage".to_string(),
                 )),
         }
     }

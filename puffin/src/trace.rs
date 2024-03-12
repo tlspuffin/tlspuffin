@@ -31,8 +31,8 @@ use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{
-        dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term, TermEval,
-        TermType,
+        dynamic_function::TypeShape, error::FnError, remove_prefix, ConcreteMessage, Matcher, Term,
+        TermEval, TermType,
     },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     codec::Codec,
@@ -244,7 +244,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
+        message: ConcreteMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put_mut().add_to_inbound(message))
@@ -643,18 +643,9 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
-        if let Some(msg) = PB::OpaqueProtocolMessage::read_bytes(&evaluated) {
-            // TODO-bitlevel: rework the architecture so that we don't need to read-bytes
-            msg.debug("Input message");
-            ctx.add_to_inbound(step.agent, &msg)?;
-        } else {
-            return Err(FnError::Unknown(String::from(
-                "Recipe, once evaluated and decoded, is not a `OpaqueProtocolMessage`!",
-            ))
-            .into());
-        }
-
+        let message = self.recipe.evaluate(ctx)?;
+        debug!("Will add to inbound a new message");
+        ctx.add_to_inbound(step.agent, message)?;
         ctx.next_state(step.agent)
     }
 }

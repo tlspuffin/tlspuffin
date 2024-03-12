@@ -293,7 +293,7 @@ mod tests {
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, &msg).expect("");
+                                    ctx.add_to_inbound(step.agent, msg.encode()).expect("");
                                 } else {
                                     panic!("Should not happen")
                                 }
@@ -307,7 +307,7 @@ mod tests {
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, &msg).expect("");
+                                    ctx.add_to_inbound(step.agent, msg.encode()).expect("");
                                 } else {
                                     panic!("Should not happen")
                                 }

@@ -6,7 +6,7 @@ use foreign_types::{ForeignType, ForeignTypeRef};
 use log::{error, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
+    algebra::{dynamic_function::TypeShape, ConcreteMessage},
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
@@ -114,11 +114,10 @@ pub struct WolfSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for WolfSSL {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
+    fn add_to_inbound(&mut self, message: ConcreteMessage) {
         let raw_stream = self.stream.get_mut();
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
-            raw_stream,
-            opaque_message,
+            raw_stream, message,
         )
     }
 
