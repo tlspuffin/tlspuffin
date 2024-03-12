@@ -623,6 +623,21 @@ impl<M: Matcher> TermEval<M> {
                     .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
                 if with_payloads && self.payloads.is_some() {
+                    if let Ok(eval) = PB::any_get_encoding(&d) {
+                        trace!("        / We successfully evaluated the term into: {eval:?}");
+                        eval_tree.encode = Some(eval);
+                    } else {
+                        if path.is_empty() {
+                            return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
+                                .map_err(|e| {
+                                    error!("[eval_until_opaque] Err: {}", e);
+                                    e
+                                }));
+                        } else {
+                            // we might not need this eval later, we will try to replace payloads without using it // TODO: make sure we resist this!
+                            warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
+                        }
+                    }
                     trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(&d).ok());
                     Ok((
                         d,
@@ -703,7 +718,7 @@ impl<M: Matcher> TermEval<M> {
                         eval_tree.encode = Some(eval);
                     } else {
                         if path.is_empty() {
-                            return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a term at root position, which has payloads to replace. Current term: {}", &self.term)))
+                            return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode an app term at root position, which has payloads to replace. Current term: {}", &self.term)))
                                 .map_err(|e| {
                                     error!("[eval_until_opaque] Err: {}", e);
                                     e

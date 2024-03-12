@@ -6,7 +6,7 @@ use std::{
 use puffin::{
     algebra::{signature::Signature, AnyMatcher, ConcreteMessage},
     codec,
-    error::{Error::Fn},
+    error::{Error, Error::Term},
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,
@@ -48,10 +48,18 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
-        message
-            .downcast_ref::<SshMessage>()
+        match message
+            .downcast_ref::<RawSshMessage>()
             .map(|b| codec::Encode::get_encoding(b))
-            .ok_or(Fn("[any_get_encoding] Unable to encode SshMessage"))
+        {
+            Some(cm) => Ok(cm),
+            None => message
+                .downcast_ref::<SshMessage>()
+                .map(|b| codec::Encode::get_encoding(b))
+                .ok_or(Term(
+                    "[any_get_encoding] Unable to encode SshMessage".to_string(),
+                )),
+        }
     }
 
     fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
