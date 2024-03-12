@@ -631,13 +631,11 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
-            no_payload_in_subterm: true, // change to true to exclude picking a term with a payload in a sub-term
+            no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
             // we currently forbid this, could it lead to interesting series of mutations ?
             // not sure. However, it would make term evaluation a lot costlier for sure!
             not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
-            // we set it to true since a MakeMessage inside a list is never going to then be evaluated
-            // indeed: the evaluation of a partial list is never going to be found in the evaluation of the
-            // full list!
+            // we set it to true since it would otherwise be redundant with picking each of the item as mutated term
             weighted_depth: true, // true means we select a sub-term by giving higher-priority to deeper sub-terms
             ..self.constraints
         };
