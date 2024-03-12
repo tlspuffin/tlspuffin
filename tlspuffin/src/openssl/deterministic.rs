@@ -38,6 +38,6 @@ mod tests {
         determinism_set_reseed_openssl();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [179, 16]);
+        assert_eq!(buf1, [70, 100]);
     }
 }

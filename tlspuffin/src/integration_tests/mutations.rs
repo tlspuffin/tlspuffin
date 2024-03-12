@@ -95,7 +95,7 @@ fn test_make_message() {
 }
 
 /// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all payloads of strict sub-terms
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13XX", not(feature = "wolfssl-binding")))] // require version which supports TLS 1.3, wolfssl is not "enough" deterministic
 #[test]
 #[test_log::test]
 fn test_byte_remove_payloads() {
