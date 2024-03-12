@@ -5,6 +5,7 @@ use std::{
 
 use puffin::{
     algebra::{signature::Signature, AnyMatcher, ConcreteMessage},
+    error::Error,
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,

@@ -16,11 +16,10 @@ use puffin::{
     trace::TraceContext,
 };
 
+#[cfg(feature = "deterministic")]
+use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
-    openssl::{
-        deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl},
-        util::{set_max_protocol_version, static_rsa_cert},
-    },
+    openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
