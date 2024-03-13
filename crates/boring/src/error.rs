@@ -15,14 +15,9 @@
 //!     Err(e) => println!("Parsing Error: {:?}", e),
 //! }
 //! ```
+use std::{borrow::Cow, error, ffi::CStr, fmt, io, ptr, str};
+
 use libc::{c_char, c_uint};
-use std::borrow::Cow;
-use std::error;
-use std::ffi::CStr;
-use std::fmt;
-use std::io;
-use std::ptr;
-use std::str;
 
 use crate::ffi;
 

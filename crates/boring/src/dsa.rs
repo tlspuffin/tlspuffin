@@ -5,17 +5,18 @@
 //! using the private key that can be validated with the public key but not be generated
 //! without the private key.
 
-use crate::ffi;
+use std::{fmt, mem, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_uint;
-use std::fmt;
-use std::mem;
-use std::ptr;
 
-use crate::bn::{BigNum, BigNumRef};
-use crate::error::ErrorStack;
-use crate::pkey::{HasParams, HasPrivate, HasPublic, Private, Public};
-use crate::{cvt, cvt_p};
+use crate::{
+    bn::{BigNum, BigNumRef},
+    cvt, cvt_p,
+    error::ErrorStack,
+    ffi,
+    pkey::{HasParams, HasPrivate, HasPublic, Private, Public},
+};
 
 generic_foreign_type_and_impl_send_sync! {
     type CType = ffi::DSA;

@@ -1,13 +1,9 @@
-use crate::ffi;
+use std::{convert::AsRef, ffi::CStr, fmt, ops::Deref, str};
+
 use foreign_types::ForeignTypeRef;
 use libc::{c_char, c_void};
-use std::convert::AsRef;
-use std::ffi::CStr;
-use std::fmt;
-use std::ops::Deref;
-use std::str;
 
-use crate::stack::Stackable;
+use crate::{ffi, stack::Stackable};
 
 foreign_type_and_impl_send_sync! {
     type CType = c_char;

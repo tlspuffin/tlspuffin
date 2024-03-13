@@ -22,19 +22,21 @@
 //! ```
 //!
 //! [`BIGNUM`]: https://wiki.openssl.org/index.php/Manual:Bn_internal(3)
-use crate::ffi;
+use std::{
+    cmp::Ordering,
+    ffi::CString,
+    fmt,
+    ops::{Add, Deref, Div, Mul, Neg, Rem, Shl, Shr, Sub},
+    ptr,
+};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, size_t};
-use std::cmp::Ordering;
-use std::ffi::CString;
-use std::ops::{Add, Deref, Div, Mul, Neg, Rem, Shl, Shr, Sub};
-use std::{fmt, ptr};
 
-use crate::asn1::Asn1Integer;
-use crate::error::ErrorStack;
-use crate::ffi::BN_is_negative;
-use crate::string::OpensslString;
-use crate::{cvt, cvt_n, cvt_p};
+use crate::{
+    asn1::Asn1Integer, cvt, cvt_n, cvt_p, error::ErrorStack, ffi, ffi::BN_is_negative,
+    string::OpensslString,
+};
 
 /// Options for the most significant bits of a randomly generated `BigNum`.
 pub struct MsbOption(c_int);

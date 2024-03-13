@@ -9,6 +9,7 @@ use puffin::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
+use super::rustls::msgs::handshake::EncryptedExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{
@@ -20,8 +21,6 @@ use crate::{
         trace_helper::TraceHelper,
     },
 };
-
-use super::rustls::msgs::handshake::EncryptedExtensions;
 
 pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {

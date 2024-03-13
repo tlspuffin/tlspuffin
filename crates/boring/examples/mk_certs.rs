@@ -3,17 +3,21 @@
 
 extern crate boring;
 
-use boring::asn1::Asn1Time;
-use boring::bn::{BigNum, MsbOption};
-use boring::error::ErrorStack;
-use boring::hash::MessageDigest;
-use boring::pkey::{PKey, PKeyRef, Private};
-use boring::rsa::Rsa;
-use boring::x509::extension::{
-    AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectAlternativeName,
-    SubjectKeyIdentifier,
+use boring::{
+    asn1::Asn1Time,
+    bn::{BigNum, MsbOption},
+    error::ErrorStack,
+    hash::MessageDigest,
+    pkey::{PKey, PKeyRef, Private},
+    rsa::Rsa,
+    x509::{
+        extension::{
+            AuthorityKeyIdentifier, BasicConstraints, KeyUsage, SubjectAlternativeName,
+            SubjectKeyIdentifier,
+        },
+        X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509,
+    },
 };
-use boring::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509};
 
 /// Make a CA certificate and private key
 fn mk_ca_cert() -> Result<(X509, PKey<Private>), ErrorStack> {

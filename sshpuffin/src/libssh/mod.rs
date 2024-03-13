@@ -19,7 +19,6 @@ use std::{
 };
 
 use log::debug;
-
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,

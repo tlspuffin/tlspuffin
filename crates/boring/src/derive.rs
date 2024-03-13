@@ -1,12 +1,14 @@
 //! Shared secret derivation.
-use crate::ffi;
-use foreign_types::ForeignTypeRef;
-use std::marker::PhantomData;
-use std::ptr;
+use std::{marker::PhantomData, ptr};
 
-use crate::error::ErrorStack;
-use crate::pkey::{HasPrivate, HasPublic, PKeyRef};
-use crate::{cvt, cvt_p};
+use foreign_types::ForeignTypeRef;
+
+use crate::{
+    cvt, cvt_p,
+    error::ErrorStack,
+    ffi,
+    pkey::{HasPrivate, HasPublic, PKeyRef},
+};
 
 /// A type used to derive a shared secret between two keys.
 pub struct Deriver<'a>(*mut ffi::EVP_PKEY_CTX, PhantomData<&'a ()>);
@@ -104,10 +106,11 @@ impl<'a> Deriver<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    use crate::ec::{EcGroup, EcKey};
-    use crate::nid::Nid;
-    use crate::pkey::PKey;
+    use crate::{
+        ec::{EcGroup, EcKey},
+        nid::Nid,
+        pkey::PKey,
+    };
 
     #[test]
     fn derive_without_peer() {

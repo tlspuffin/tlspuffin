@@ -1,16 +1,18 @@
 //! Low level Elliptic Curve Digital Signature Algorithm (ECDSA) functions.
 
-use crate::ffi;
+use std::{mem, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, size_t};
-use std::mem;
-use std::ptr;
 
-use crate::bn::{BigNum, BigNumRef};
-use crate::ec::EcKeyRef;
-use crate::error::ErrorStack;
-use crate::pkey::{HasPrivate, HasPublic};
-use crate::{cvt_n, cvt_p};
+use crate::{
+    bn::{BigNum, BigNumRef},
+    cvt_n, cvt_p,
+    ec::EcKeyRef,
+    error::ErrorStack,
+    ffi,
+    pkey::{HasPrivate, HasPublic},
+};
 
 foreign_type_and_impl_send_sync! {
     type CType = ffi::ECDSA_SIG;

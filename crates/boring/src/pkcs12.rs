@@ -1,17 +1,19 @@
 //! PKCS #12 archives.
 
-use crate::ffi;
+use std::{ffi::CString, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
-use std::ffi::CString;
-use std::ptr;
 
-use crate::error::ErrorStack;
-use crate::nid::Nid;
-use crate::pkey::{HasPrivate, PKey, PKeyRef, Private};
-use crate::stack::Stack;
-use crate::x509::{X509Ref, X509};
-use crate::{cvt_0i, cvt_p};
+use crate::{
+    cvt_0i, cvt_p,
+    error::ErrorStack,
+    ffi,
+    nid::Nid,
+    pkey::{HasPrivate, PKey, PKeyRef, Private},
+    stack::Stack,
+    x509::{X509Ref, X509},
+};
 
 pub const PKCS12_DEFAULT_ITER: c_int = 2048;
 
@@ -202,17 +204,17 @@ impl Pkcs12Builder {
 
 #[cfg(test)]
 mod test {
-    use crate::hash::MessageDigest;
     use hex;
 
-    use crate::asn1::Asn1Time;
-    use crate::nid::Nid;
-    use crate::pkey::PKey;
-    use crate::rsa::Rsa;
-    use crate::x509::extension::KeyUsage;
-    use crate::x509::{X509Name, X509};
-
     use super::*;
+    use crate::{
+        asn1::Asn1Time,
+        hash::MessageDigest,
+        nid::Nid,
+        pkey::PKey,
+        rsa::Rsa,
+        x509::{extension::KeyUsage, X509Name, X509},
+    };
 
     #[test]
     fn parse() {

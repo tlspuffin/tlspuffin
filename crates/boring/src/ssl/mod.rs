@@ -57,50 +57,52 @@
 //!     }
 //! }
 //! ```
-use crate::ffi;
+use std::{
+    any::TypeId,
+    cmp,
+    collections::HashMap,
+    convert::TryInto,
+    ffi::{CStr, CString},
+    fmt, io,
+    io::prelude::*,
+    marker::PhantomData,
+    mem::{self, ManuallyDrop},
+    ops::{Deref, DerefMut},
+    panic::resume_unwind,
+    path::Path,
+    ptr::{self, NonNull},
+    slice, str,
+    sync::{Arc, Mutex},
+};
+
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void};
 use once_cell::sync::Lazy;
-use std::any::TypeId;
-use std::cmp;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::ffi::{CStr, CString};
-use std::fmt;
-use std::io;
-use std::io::prelude::*;
-use std::marker::PhantomData;
-use std::mem::{self, ManuallyDrop};
-use std::ops::{Deref, DerefMut};
-use std::panic::resume_unwind;
-use std::path::Path;
-use std::ptr::{self, NonNull};
-use std::slice;
-use std::str;
-use std::sync::{Arc, Mutex};
 
-use crate::dh::DhRef;
-use crate::ec::EcKeyRef;
-use crate::error::ErrorStack;
-use crate::ex_data::Index;
-use crate::nid::Nid;
-use crate::pkey::{HasPrivate, PKeyRef, Params, Private};
-use crate::srtp::{SrtpProtectionProfile, SrtpProtectionProfileRef};
-use crate::ssl::bio::BioMethod;
-use crate::ssl::callbacks::*;
-use crate::ssl::error::InnerError;
-use crate::stack::{Stack, StackRef};
-use crate::x509::store::{X509Store, X509StoreBuilderRef, X509StoreRef};
-use crate::x509::verify::X509VerifyParamRef;
-use crate::x509::{
-    X509Name, X509Ref, X509StoreContextRef, X509VerifyError, X509VerifyResult, X509,
+pub use crate::ssl::{
+    connector::{
+        ConnectConfiguration, SslAcceptor, SslAcceptorBuilder, SslConnector, SslConnectorBuilder,
+    },
+    error::{Error, ErrorCode, HandshakeError},
 };
-use crate::{cvt, cvt_0i, cvt_n, cvt_p, init};
-
-pub use crate::ssl::connector::{
-    ConnectConfiguration, SslAcceptor, SslAcceptorBuilder, SslConnector, SslConnectorBuilder,
+use crate::{
+    cvt, cvt_0i, cvt_n, cvt_p,
+    dh::DhRef,
+    ec::EcKeyRef,
+    error::ErrorStack,
+    ex_data::Index,
+    ffi, init,
+    nid::Nid,
+    pkey::{HasPrivate, PKeyRef, Params, Private},
+    srtp::{SrtpProtectionProfile, SrtpProtectionProfileRef},
+    ssl::{bio::BioMethod, callbacks::*, error::InnerError},
+    stack::{Stack, StackRef},
+    x509::{
+        store::{X509Store, X509StoreBuilderRef, X509StoreRef},
+        verify::X509VerifyParamRef,
+        X509Name, X509Ref, X509StoreContextRef, X509VerifyError, X509VerifyResult, X509,
+    },
 };
-pub use crate::ssl::error::{Error, ErrorCode, HandshakeError};
 
 mod bio;
 mod callbacks;
@@ -3941,11 +3943,12 @@ impl PrivateKeyMethodError {
     pub const RETRY: Self = Self(ffi::ssl_private_key_result_t::ssl_private_key_retry);
 }
 
-use crate::ffi::{SSL_CTX_up_ref, SSL_SESSION_get_master_key, SSL_SESSION_up_ref, SSL_is_server};
-
-use crate::ffi::{DTLS_method, TLS_client_method, TLS_method, TLS_server_method};
-
 use std::sync::Once;
+
+use crate::ffi::{
+    DTLS_method, SSL_CTX_up_ref, SSL_SESSION_get_master_key, SSL_SESSION_up_ref, SSL_is_server,
+    TLS_client_method, TLS_method, TLS_server_method,
+};
 
 unsafe fn get_new_idx(f: ffi::CRYPTO_EX_free) -> c_int {
     // hack around https://rt.openssl.org/Ticket/Display.html?id=3710&user=guest&pass=guest

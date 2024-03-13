@@ -40,22 +40,22 @@
 //! println!("{:?}", str::from_utf8(pub_key.as_slice()).unwrap());
 //! ```
 
-use crate::ffi;
+use std::{ffi::CString, fmt, mem, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, c_long};
-use std::ffi::CString;
-use std::fmt;
-use std::mem;
-use std::ptr;
 
-use crate::bio::MemBioSlice;
-use crate::dh::Dh;
-use crate::dsa::Dsa;
-use crate::ec::EcKey;
-use crate::error::ErrorStack;
-use crate::rsa::Rsa;
-use crate::util::{invoke_passwd_cb, CallbackState};
-use crate::{cvt, cvt_p};
+use crate::{
+    bio::MemBioSlice,
+    cvt, cvt_p,
+    dh::Dh,
+    dsa::Dsa,
+    ec::EcKey,
+    error::ErrorStack,
+    ffi,
+    rsa::Rsa,
+    util::{invoke_passwd_cb, CallbackState},
+};
 
 /// A tag type indicating that a key only has parameters.
 pub enum Params {}
@@ -505,12 +505,8 @@ use crate::ffi::EVP_PKEY_up_ref;
 
 #[cfg(test)]
 mod tests {
-    use crate::ec::EcKey;
-    use crate::nid::Nid;
-    use crate::rsa::Rsa;
-    use crate::symm::Cipher;
-
     use super::*;
+    use crate::{ec::EcKey, nid::Nid, rsa::Rsa, symm::Cipher};
 
     #[test]
     fn test_to_password() {

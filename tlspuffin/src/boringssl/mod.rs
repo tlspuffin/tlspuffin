@@ -1,3 +1,25 @@
+use core::ffi::c_void;
+use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+
+use boring::{
+    error::ErrorStack,
+    ex_data::Index,
+    ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
+    x509::{store::X509StoreBuilder, X509},
+};
+use boringssl_sys::ssl_st;
+use foreign_types::ForeignTypeRef;
+use log::{debug, info, trace};
+use puffin::{
+    agent::{AgentDescriptor, AgentName, AgentType},
+    error::Error,
+    protocol::MessageResult,
+    put::{Put, PutName},
+    put_registry::Factory,
+    stream::{MemoryStream, Stream},
+    trace::TraceContext,
+};
+
 use crate::{
     boringssl::util::{set_max_protocol_version, static_rsa_cert},
     claims::{
@@ -13,27 +35,6 @@ use crate::{
         message::{Message, OpaqueMessage},
     },
 };
-use boring::{
-    error::ErrorStack,
-    ex_data::Index,
-    ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
-    x509::{store::X509StoreBuilder, X509},
-};
-use boringssl_sys::ssl_st;
-use core::ffi::c_void;
-use foreign_types::ForeignTypeRef;
-use log::info;
-use log::{debug, trace};
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
-    error::Error,
-    protocol::MessageResult,
-    put::{Put, PutName},
-    put_registry::Factory,
-    stream::{MemoryStream, Stream},
-    trace::TraceContext,
-};
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
 #[cfg(feature = "deterministic")]
 mod deterministic;
@@ -41,6 +42,7 @@ mod transcript;
 mod util;
 
 use std::ops::Deref;
+
 use transcript::extract_current_transcript;
 
 pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {

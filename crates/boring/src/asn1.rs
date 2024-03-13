@@ -24,23 +24,21 @@
 //! use boring::asn1::Asn1Time;
 //! let tomorrow = Asn1Time::days_from_now(1);
 //! ```
-use crate::ffi;
+use std::{cmp::Ordering, ffi::CString, fmt, ptr, slice, str};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_char, c_int, c_long, time_t};
-use std::cmp::Ordering;
-use std::ffi::CString;
-use std::fmt;
-use std::ptr;
-use std::slice;
-use std::str;
 
-use crate::bio::MemBio;
-use crate::bn::{BigNum, BigNumRef};
-use crate::error::ErrorStack;
-use crate::nid::Nid;
-use crate::stack::Stackable;
-use crate::string::OpensslString;
-use crate::{cvt, cvt_p};
+use crate::{
+    bio::MemBio,
+    bn::{BigNum, BigNumRef},
+    cvt, cvt_p,
+    error::ErrorStack,
+    ffi,
+    nid::Nid,
+    stack::Stackable,
+    string::OpensslString,
+};
 
 foreign_type_and_impl_send_sync! {
     type CType = ffi::ASN1_GENERALIZEDTIME;
@@ -614,9 +612,7 @@ use crate::ffi::ASN1_STRING_get0_data;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::bn::BigNum;
-    use crate::nid::Nid;
+    use crate::{bn::BigNum, nid::Nid};
 
     /// Tests conversion between BigNum and Asn1Integer.
     #[test]

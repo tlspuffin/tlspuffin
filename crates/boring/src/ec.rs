@@ -15,17 +15,19 @@
 //! [`EcGroup`]: struct.EcGroup.html
 //! [`Nid`]: ../nid/struct.Nid.html
 //! [Eliptic Curve Cryptography]: https://wiki.openssl.org/index.php/Elliptic_Curve_Cryptography
-use crate::ffi;
+use std::{fmt, ptr};
+
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
-use std::fmt;
-use std::ptr;
 
-use crate::bn::{BigNumContextRef, BigNumRef};
-use crate::error::ErrorStack;
-use crate::nid::Nid;
-use crate::pkey::{HasParams, HasPrivate, HasPublic, Params, Private, Public};
-use crate::{cvt, cvt_n, cvt_p, init};
+use crate::{
+    bn::{BigNumContextRef, BigNumRef},
+    cvt, cvt_n, cvt_p,
+    error::ErrorStack,
+    ffi, init,
+    nid::Nid,
+    pkey::{HasParams, HasPrivate, HasPublic, Params, Private, Public},
+};
 
 /// Compressed or Uncompressed conversion
 ///
@@ -864,8 +866,10 @@ mod test {
     use hex::FromHex;
 
     use super::*;
-    use crate::bn::{BigNum, BigNumContext};
-    use crate::nid::Nid;
+    use crate::{
+        bn::{BigNum, BigNumContext},
+        nid::Nid,
+    };
 
     #[test]
     fn key_new_by_curve_name() {

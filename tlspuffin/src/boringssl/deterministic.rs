@@ -9,13 +9,21 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use crate::boringssl::deterministic::reset_rand;
-    use crate::put_registry::TLS_PUT_REGISTRY;
-    use crate::tls::seeds::{create_corpus, seed_client_attacker_full_boring};
-    use crate::tls::trace_helper::TraceHelper;
-    use puffin::put::PutOptions;
-    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
     use std::fmt::format;
+
+    use puffin::{
+        put::PutOptions,
+        trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
+    };
+
+    use crate::{
+        boringssl::deterministic::reset_rand,
+        put_registry::TLS_PUT_REGISTRY,
+        tls::{
+            seeds::{create_corpus, seed_client_attacker_full_boring},
+            trace_helper::TraceHelper,
+        },
+    };
 
     // BUG: This test only works in a single threaded cargo test execution
     #[ignore]

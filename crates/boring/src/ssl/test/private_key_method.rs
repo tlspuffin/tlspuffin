@@ -1,18 +1,27 @@
+use std::{
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+    },
+};
+
 use once_cell::sync::OnceCell;
 
-use super::server::{Builder, Server};
-use super::KEY;
-use crate::hash::MessageDigest;
-use crate::pkey::PKey;
-use crate::rsa::Padding;
-use crate::sign::{RsaPssSaltlen, Signer};
-use crate::ssl::{
-    ErrorCode, HandshakeError, PrivateKeyMethod, PrivateKeyMethodError, SslRef,
-    SslSignatureAlgorithm,
+use super::{
+    server::{Builder, Server},
+    KEY,
 };
-use std::io::Write;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use crate::{
+    hash::MessageDigest,
+    pkey::PKey,
+    rsa::Padding,
+    sign::{RsaPssSaltlen, Signer},
+    ssl::{
+        ErrorCode, HandshakeError, PrivateKeyMethod, PrivateKeyMethodError, SslRef,
+        SslSignatureAlgorithm,
+    },
+};
 
 #[allow(clippy::type_complexity)]
 pub(super) struct Method {

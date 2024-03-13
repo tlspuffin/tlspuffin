@@ -1,5 +1,6 @@
-use libc::c_int;
 use std::marker::PhantomData;
+
+use libc::c_int;
 
 /// A slot in a type's "extra data" structure.
 ///

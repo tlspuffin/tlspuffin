@@ -1,18 +1,22 @@
 use hex::{self, FromHex};
 
-use crate::asn1::Asn1Time;
-use crate::bn::{BigNum, MsbOption};
-use crate::hash::MessageDigest;
-use crate::nid::Nid;
-use crate::pkey::{PKey, Private};
-use crate::rsa::Rsa;
-use crate::stack::Stack;
-use crate::x509::extension::{
-    AuthorityKeyIdentifier, BasicConstraints, ExtendedKeyUsage, KeyUsage, SubjectAlternativeName,
-    SubjectKeyIdentifier,
+use crate::{
+    asn1::Asn1Time,
+    bn::{BigNum, MsbOption},
+    hash::MessageDigest,
+    nid::Nid,
+    pkey::{PKey, Private},
+    rsa::Rsa,
+    stack::Stack,
+    x509::{
+        extension::{
+            AuthorityKeyIdentifier, BasicConstraints, ExtendedKeyUsage, KeyUsage,
+            SubjectAlternativeName, SubjectKeyIdentifier,
+        },
+        store::X509StoreBuilder,
+        X509Extension, X509Name, X509Req, X509StoreContext, X509,
+    },
 };
-use crate::x509::store::X509StoreBuilder;
-use crate::x509::{X509Extension, X509Name, X509Req, X509StoreContext, X509};
 
 fn pkey() -> PKey<Private> {
     let rsa = Rsa::generate(2048).unwrap();

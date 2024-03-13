@@ -1,10 +1,8 @@
 //! Interface for processing OpenSSL configuration files.
-use crate::ffi;
 use foreign_types::ForeignType;
 use libc::c_void;
 
-use crate::cvt_p;
-use crate::error::ErrorStack;
+use crate::{cvt_p, error::ErrorStack, ffi};
 
 pub struct ConfMethod(*mut c_void);
 
