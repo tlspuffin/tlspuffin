@@ -32,6 +32,7 @@ fn main() {
     println!("cargo:rustc-link-search={}/lib", out_dir.display());
     println!("cargo:rustc-link-lib=static=crypto");
     println!("cargo:rustc-link-lib=static=ssl");
+    println!("cargo:rustc-link-lib=stdc++");
 
     let include_path = out_dir.join("include");
 
