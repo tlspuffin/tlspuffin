@@ -176,7 +176,7 @@ fn test_byte_remove_payloads() {
     assert_ne!(i, MAX); // success condition
 }
 
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_byte() {
@@ -243,7 +243,7 @@ fn test_byte() {
     }
 }
 
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_byte_interesting() {

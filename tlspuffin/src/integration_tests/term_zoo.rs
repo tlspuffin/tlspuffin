@@ -372,6 +372,7 @@ mod tests {
         }
     }
 
+    #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
     // #[test]
     // #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated

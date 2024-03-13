@@ -105,7 +105,7 @@ mod tests {
     // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and wimdow refinement of `eval_until_opaque`
     // in detail.
     #[test]
-    #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))]
+    #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
         let mut trace = seed_client_attacker_boring.build_trace();
