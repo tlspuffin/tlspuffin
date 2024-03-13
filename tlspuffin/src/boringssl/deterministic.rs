@@ -17,6 +17,8 @@ mod tests {
     use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
     use std::fmt::format;
 
+    // BUG: This test only works in a single threaded cargo test execution
+    #[ignore]
     #[test]
     fn test_boringssl_no_randomness_full() {
         let trace = seed_client_attacker_full_boring.build_trace();

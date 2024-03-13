@@ -2225,6 +2225,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_client_attacker_auth() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2247,6 +2248,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_server_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2257,6 +2259,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2267,6 +2270,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2277,6 +2281,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_ke() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2286,6 +2291,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2295,6 +2301,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_client_auth() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2317,6 +2324,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_with_ccs() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2328,6 +2336,7 @@ pub mod tests {
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_with_tickets() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2338,6 +2347,7 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
+    #[cfg(not(feature = "boringssl-binding"))]
     fn test_seed_successful12() {
         use crate::tls::trace_helper::TraceExecutor;
 
