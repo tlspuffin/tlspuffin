@@ -23,6 +23,7 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
+use puffin::libafl::bolts::HasLen;
 
 use crate::{
     protocol::TLSProtocolBehavior,
@@ -176,10 +177,10 @@ fn test_byte_remove_payloads() {
     assert_ne!(i, MAX); // success condition
 }
 
-#[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
-fn test_byte() {
+fn test_byte_simple() {
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -196,8 +197,11 @@ fn test_byte() {
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
+    let mut i = 0;
+    let MAX = 1000;
 
-    loop {
+    while i < MAX {
+        i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
         let all_payloads = if let Some(first) = trace.steps.get(0) {
@@ -210,14 +214,18 @@ fn test_byte() {
         };
 
         if let Some(payloads) = all_payloads {
-            if !payloads.is_empty() {
-                error!("MakeMessage created new payloads: {:?}", payloads);
+            if !payloads.is_empty() && !payloads[0].payload_0.is_empty() {
+                debug!("MakeMessage created new payloads at step {i}: {:?}", payloads);
                 break;
             }
         }
     }
 
-    loop {
+    assert_ne!(i, MAX);
+    i = 0;
+    while i < MAX {
+        println!("START");
+        i += 1;
         mutator_byte.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
@@ -226,8 +234,8 @@ fn test_byte() {
                     let mut found = false;
                     for payload in input.recipe.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            error!(
-                                "ByteFlipMutatorDY created different payloads: {:?}",
+                            debug!(
+                                "ByteFlipMutatorDY created different payloads at step {i}: {:?}",
                                 payload
                             );
                             found = true;
@@ -241,6 +249,7 @@ fn test_byte() {
             }
         }
     }
+    assert_ne!(i, MAX);
 }
 
 #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
