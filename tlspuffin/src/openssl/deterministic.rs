@@ -34,8 +34,9 @@ pub fn determinism_reseed_openssl() {
 
 #[cfg(test)]
 mod tests {
-    use crate::openssl::deterministic::{determinism_set_reseed_openssl, get_seed};
     use openssl::rand::rand_bytes;
+
+    use crate::openssl::deterministic::{determinism_set_reseed_openssl, get_seed};
 
     #[test]
     #[cfg(feature = "openssl111-binding")]
