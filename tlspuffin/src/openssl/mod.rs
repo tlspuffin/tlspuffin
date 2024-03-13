@@ -223,7 +223,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            determinism_reseed_openssl();
+            deterministic::determinism_reseed_openssl();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]
