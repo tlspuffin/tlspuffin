@@ -1,3 +1,4 @@
+use core::mem::size_of;
 use std::thread::{panicking, park_timeout_ms};
 
 use log::{debug, error};
@@ -14,7 +15,10 @@ use puffin::{
         utils::TermConstraints,
     },
     libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
+        bolts::{
+            rands::{RomuDuoJrRand, StdRand},
+            HasLen,
+        },
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
         prelude::ByteFlipMutator,
@@ -23,7 +27,6 @@ use puffin::{
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
-use puffin::libafl::bolts::HasLen;
 
 use crate::{
     protocol::TLSProtocolBehavior,
@@ -215,7 +218,10 @@ fn test_byte_simple() {
 
         if let Some(payloads) = all_payloads {
             if !payloads.is_empty() && !payloads[0].payload_0.is_empty() {
-                debug!("MakeMessage created new payloads at step {i}: {:?}", payloads);
+                debug!(
+                    "MakeMessage created new non-empty payloads at step {i}: {:?}",
+                    payloads
+                );
                 break;
             }
         }
@@ -223,6 +229,7 @@ fn test_byte_simple() {
 
     assert_ne!(i, MAX);
     i = 0;
+
     while i < MAX {
         println!("START");
         i += 1;
@@ -252,7 +259,7 @@ fn test_byte_simple() {
     assert_ne!(i, MAX);
 }
 
-#[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
 #[test]
 #[test_log::test]
 fn test_byte_interesting() {
@@ -272,8 +279,11 @@ fn test_byte_interesting() {
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
+    let mut i = 0;
+    let MAX = 1000;
 
-    loop {
+    while i < MAX {
+        i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
         let all_payloads = if let Some(first) = trace.steps.get(0) {
@@ -286,14 +296,30 @@ fn test_byte_interesting() {
         };
 
         if let Some(payloads) = all_payloads {
-            if !payloads.is_empty() {
-                debug!("MakeMessage created new payloads: {:?}", payloads);
+            let mut found = false;
+            for payload in payloads {
+                if payload.payload_0.len() >= size_of::<u8>() {
+                    // condition for ByteInterestingMutatorDY to work
+                    debug!(
+                        "MakeMessage created sufficiently large (>= {}) payloads at step {i}: {:?}",
+                        size_of::<u8>(),
+                        payload
+                    );
+                    found = true;
+                    break;
+                }
+            }
+            if found {
                 break;
             }
         }
     }
 
-    loop {
+    assert_ne!(i, MAX);
+    i = 0;
+
+    while i < MAX {
+        i += 1;
         mutator_byte_interesting
             .mutate(&mut state, &mut trace, 0)
             .unwrap();
@@ -306,22 +332,29 @@ fn test_byte_interesting() {
                     for payload in t.all_payloads() {
                         if payload.payload_0 != payload.payload {
                             debug!(
-                                "ByteInterestingMutatorDY created different payloads: {:?}",
+                                "ByteInterestingMutatorDY created different payloads at step {i}: {:?}",
                                 payload
                             );
                             found = true;
                         }
                     }
-                    let e1 = t.evaluate(&ctx).unwrap();
-                    let e2 = t.clone().evaluate_symbolic(&ctx).unwrap();
-                    if found && e1 != e2 {
-                        break;
+                    if found {
+                        debug!("We found different payload. Now evaluating....",);
+                        let e1 = t.evaluate(&ctx).unwrap();
+                        let e2 = t.evaluate_symbolic(&ctx).unwrap();
+                        if e1 != e2 {
+                            debug!("Evaluation differed, good...");
+                            break;
+                        } else {
+                            debug!("Should never happen!");
+                        }
                     }
                 }
                 Action::Output(_) => {}
             }
         }
     }
+    assert_ne!(i, MAX);
 }
 
 #[test]
