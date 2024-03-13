@@ -16,9 +16,16 @@ use puffin::{
     trace::TraceContext,
 };
 
-use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
-    openssl::util::{set_max_protocol_version, static_rsa_cert},
+    claims::{
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
+    openssl::{
+        deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl},
+        util::{set_max_protocol_version, static_rsa_cert},
+    },
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
