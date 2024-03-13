@@ -1,0 +1,25 @@
+[package]
+name = "tlspuffin-harness-sys"
+description = "Harness code for interfacing a PUT with tlspuffin"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+tls = []
+
+[dependencies]
+libc = { version = "0.2.126" }
+puffin = { path = "../../puffin" }
+log = "0.4.17"
+
+[build-dependencies]
+cmake = "0.1"
+cc = "1.0"
+bindgen = "0.69.1"
