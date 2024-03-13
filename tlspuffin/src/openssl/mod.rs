@@ -22,10 +22,7 @@ use crate::{
         TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
-    openssl::{
-        deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl},
-        util::{set_max_protocol_version, static_rsa_cert},
-    },
+    openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
@@ -95,12 +92,14 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn determinism_set_reseed(&self) -> () {
             debug!("[Determinism] set and reseed");
-            determinism_set_reseed_openssl();
+            #[cfg(feature = "deterministic")]
+            deterministic::determinism_set_reseed_openssl();
         }
 
         fn determinism_reseed(&self) -> () {
             debug!("[Determinism] reseed");
-            determinism_reseed_openssl();
+            #[cfg(feature = "deterministic")]
+            deterministic::determinism_reseed_openssl();
         }
     }
 
