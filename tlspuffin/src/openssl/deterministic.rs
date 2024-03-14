@@ -1,6 +1,6 @@
 use std::os::raw::c_int;
 
-use log::warn;
+use log::{trace, warn};
 
 #[cfg(feature = "deterministic")]
 extern "C" {
@@ -14,7 +14,7 @@ pub fn get_seed() -> u32 {
 }
 #[cfg(feature = "deterministic")]
 pub fn determinism_set_reseed_openssl() {
-    println!("Making OpenSSL fully deterministic: reset rand and reseed to a constant...");
+    trace!("Making OpenSSL fully deterministic: reset rand and reseed to a constant...");
     unsafe {
         make_openssl_deterministic();
     }
@@ -23,7 +23,7 @@ pub fn determinism_set_reseed_openssl() {
 
 #[cfg(feature = "deterministic")]
 pub fn determinism_reseed_openssl() {
-    println!(" - Reseed RAND for OpenSSL");
+    trace!(" - Reseed RAND for OpenSSL");
     unsafe {
         let mut seed: [u8; 4] = 42u32.to_le().to_ne_bytes();
         let buf = seed.as_mut_ptr();
@@ -40,12 +40,17 @@ mod tests {
 
     #[test]
     #[cfg(feature = "openssl111-binding")]
+    #[test]
+    #[cfg(feature = "openssl111-binding")]
     fn test_openssl_no_randomness_simple() {
         assert_eq!(get_seed(), 42);
         determinism_set_reseed_openssl();
         assert_eq!(get_seed(), 42);
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [183, 96]);
+        assert_eq!(buf1, [179, 16]);
+        assert_ne!(get_seed(), 42);
+        determinism_set_reseed_openssl();
+        assert_eq!(get_seed(), 42);
     }
 }
