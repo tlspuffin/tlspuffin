@@ -21,16 +21,30 @@ foreach(vendor_path IN LISTS VENDORS)
     set_property(TARGET put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
     target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID})
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
+    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${vendor_path}/include")
+
+    add_custom_command(
+        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${vendor_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
+        COMMENT "relocation for put-${PROTOCOL}-${HARNESS}-${PUT_ID}" VERBATIM)
+
+    add_custom_target(relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID} ALL DEPENDS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
+
+    add_library(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT IMPORTED)
+    set_property(TARGET relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY IMPORTED_OBJECTS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
+    add_dependencies(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
 
     list(APPEND PUTS "${PUT_ID}")
-    list(APPEND PUT_LIBS "put-${PROTOCOL}-${HARNESS}-${PUT_ID}")
+    list(APPEND PUT_LIBS relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
 endforeach()
 
-add_library(puts-bundle STATIC)
+set(BUNDLE_OBJECTS "")
 foreach(PUT_LIB IN LISTS PUT_LIBS)
-    target_sources(puts-bundle PUBLIC "$<TARGET_OBJECTS:${PUT_LIB}>")
+    list(APPEND BUNDLE_OBJECTS "$<TARGET_OBJECTS:${PUT_LIB}>")
     install(FILES "$<TARGET_OBJECTS:${PUT_LIB}>" DESTINATION ".")
 endforeach()
+
+add_library(puts-bundle STATIC ${BUNDLE_OBJECTS})
+set_target_properties(puts-bundle PROPERTIES LINKER_LANGUAGE C)
 
 # create Rust init file
 set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/init.rs)
