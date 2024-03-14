@@ -57,7 +57,10 @@ pub fn main() {
 
     let vendor_names = env::var("WITH_PUT")
         .map(|wp| wp.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
-        .unwrap_or_else(|_| all_vendors(&vendor_dir));
+        .unwrap_or_else(|_| {
+            println!("cargo:rerun-if-changed={}", &vendor_dir.to_str().unwrap());
+            all_vendors(&vendor_dir)
+        });
 
     build_puts(&vendor_dir, vendor_names)
 }
@@ -75,6 +78,10 @@ pub fn build_puts(vendor_dir: &Path, vendor_names: Vec<String>) {
         .iter()
         .map(|vendor| vendor_dir.join(vendor).to_str().unwrap().to_string())
         .collect();
+
+    for vendor in vendors.iter() {
+        println!("cargo:rerun-if-changed={}", vendor);
+    }
 
     cmake::Config::new(src_dir)
         .profile("Debug")

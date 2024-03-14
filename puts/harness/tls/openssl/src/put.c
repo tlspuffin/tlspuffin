@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <tlspuffin/put.h>
+#include <openssl/ssl.h>
 
 #define xstr(s) str(s)
 #define str(s) #s
@@ -28,6 +29,6 @@ static const C_PUT_TYPE OPENSSL_PUT = {
 #define AT_INIT PUT_ID
 
 void AT_INIT() {
-    printf("init for PUT tls/openssl/%s\n", xstr(PUT_ID));
+    printf("init for PUT tls/openssl/%s (0x%09lX: %s)\n", xstr(PUT_ID), OpenSSL_version_num(), OPENSSL_VERSION_TEXT);
     TLSPUFFIN.register_put(&OPENSSL_PUT);
 }
