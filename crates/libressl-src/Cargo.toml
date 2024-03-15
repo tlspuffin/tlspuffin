@@ -11,11 +11,13 @@ exclude = ['libressl/*']
 [features]
 default = [ ]
 sancov = []
-vendored-libressl333 = []
 asan = [] # TODO
 gcov_analysis = [] # TODO
 llvm_cov_analysis = [] # TODO
 
+libressl333 = []
+libresslmaster = []
+
 [dependencies]
-security-claims = "0.1.0"
+security-claims = { path = "../../tlspuffin-claims" }
 autotools = "0.2"

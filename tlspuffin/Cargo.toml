@@ -110,7 +110,7 @@ libressl = [
 ]
 
 wolfssl430 = [
-    "wolfssl-sys/vendored-wolfssl430",
+    "wolfssl-sys/wolfssl430",
     "wolfssl/wolfssl430",
     "tls12",
     "tls13",
@@ -121,7 +121,7 @@ wolfssl430 = [
 ]
 
 wolfssl510 = [
-    "wolfssl-sys/vendored-wolfssl510",
+    "wolfssl-sys/wolfssl510",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -133,7 +133,7 @@ wolfssl510 = [
 ]
 
 wolfssl520 = [
-    "wolfssl-sys/vendored-wolfssl520",
+    "wolfssl-sys/wolfssl520",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -145,7 +145,7 @@ wolfssl520 = [
 ]
 
 wolfssl530 = [
-    "wolfssl-sys/vendored-wolfssl530",
+    "wolfssl-sys/wolfssl530",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -157,7 +157,7 @@ wolfssl530 = [
 ]
 
 wolfssl540 = [
-    "wolfssl-sys/vendored-wolfssl540",
+    "wolfssl-sys/wolfssl540",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -175,7 +175,7 @@ fix-CVE-2022-42905 = ["wolfssl-sys?/fix-CVE-2022-42905"]
 wolfssl-disable-postauth = ["wolfssl-sys?/wolfssl-disable-postauth"]
 
 wolfsslmaster = [
-    "wolfssl-sys/vendored-master",
+    "wolfssl-sys/master",
     "tls12",
     "tls13",
     "wolfssl-binding",
@@ -273,17 +273,11 @@ ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
 
-
-
 # OpenSSL
 
 # Up to verison 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
 openssl-sys = { version = "*", features = ["vendored"], optional = true }
-
-# For openssl 305
-#openssl = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
-#openssl-sys = { git = "https://github.com/tlspuffin/rust-openssl.git", branch = "fuzz-305", features = ["vendored"], optional = true }
 
 foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { version = "0.1.0", optional = false }

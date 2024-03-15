@@ -16,19 +16,11 @@ const REF: &str = if cfg!(feature = "openssl101f") {
     "fuzz-OpenSSL_1_1_1u"
 } else if cfg!(feature = "openssl312") {
     "fuzz-OpenSSL_3_1_2"
-} else {
+} else if cfg!(feature = "master") {
     "master"
+} else {
+    panic!("Unknown version of OpenSSL requested!")
 };
-
-#[cfg(not(any(
-    feature = "openssl101f",
-    feature = "openssl102u",
-    feature = "openssl111k",
-    feature = "openssl111j",
-    feature = "openssl111u",
-    feature = "openssl312"
-)))]
-compile_error!("You need to choose an OpenSSL version!");
 
 fn clone_repo(dest: &str) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
