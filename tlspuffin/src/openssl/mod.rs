@@ -11,7 +11,7 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, LibraryId},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
@@ -72,6 +72,27 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             OPENSSL111_PUT
+        }
+
+        fn library(&self) -> LibraryId {
+            if cfg!(feature = "openssl101f") {
+                "openssl101f"
+            } else if cfg!(feature = "openssl102u") {
+                "openssl102u"
+            } else if cfg!(feature = "openssl111k") {
+                "openssl111k"
+            } else if cfg!(feature = "openssl111j") {
+                "openssl111j"
+            } else if cfg!(feature = "openssl111u") {
+                "openssl111u"
+            } else if cfg!(feature = "openssl312") {
+                "openssl312"
+            } else if cfg!(feature = "libressl333") {
+                "libressl333"
+            } else {
+                "unknown"
+            }
+            .to_string()
         }
 
         fn version(&self) -> String {

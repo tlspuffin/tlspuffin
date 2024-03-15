@@ -1,6 +1,6 @@
 use puffin::{
     put::PutName,
-    put_registry::{Factory, PutRegistry},
+    put_registry::{PutId, PutRegistry},
 };
 
 use crate::protocol::TLSProtocolBehavior;
@@ -11,6 +11,18 @@ pub const BORINGSSL_PUT: PutName = PutName(['B', 'O', 'R', 'I', 'N', 'G', 'S', '
 pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
 
 pub fn tls_default_registry() -> PutRegistry<TLSProtocolBehavior> {
+    let default: PutId = {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "openssl-binding")] {
+                crate::openssl::new_openssl_factory().id()
+            } else if #[cfg(feature = "wolfssl-binding")] {
+                crate::wolfssl::new_wolfssl_factory().id()
+            } else {
+                crate::tcp::new_tcp_factory().id()
+            }
+        }
+    };
+
     PutRegistry::new(
         &[
             crate::tcp::new_tcp_factory,
@@ -21,20 +33,6 @@ pub fn tls_default_registry() -> PutRegistry<TLSProtocolBehavior> {
             #[cfg(feature = "boringssl-binding")]
             crate::boringssl::new_boringssl_factory,
         ],
-        DEFAULT_PUT_FACTORY,
+        default,
     )
 }
-
-pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "openssl-binding")] {
-            crate::openssl::new_openssl_factory
-        } else if #[cfg(feature = "wolfssl-binding")] {
-            crate::wolfssl::new_wolfssl_factory
-        } else if #[cfg(feature = "boringssl-binding")] {
-            crate::boringssl::new_boringssl_factory
-        } else {
-             crate::tcp::new_tcp_factory
-        }
-    }
-};

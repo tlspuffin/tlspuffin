@@ -301,7 +301,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     fn default_put_descriptor(&self) -> PutDescriptor {
-        let factory = self.put_registry.default_factory();
+        let factory = self.put_registry.default();
         PutDescriptor {
             name: factory.name(),
             options: self.default_put_options.clone(),

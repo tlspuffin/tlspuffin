@@ -7,7 +7,7 @@ mod term_zoo;
 
 #[test]
 fn version_test() {
-    let version = tls_default_registry().default_factory().version();
+    let version = tls_default_registry().default().version();
     println!("{}", version);
     #[cfg(feature = "openssl101f")]
     assert!(version.contains("1.0.1f"));

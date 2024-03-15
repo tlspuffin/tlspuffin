@@ -10,7 +10,7 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, LibraryId},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
@@ -75,6 +75,25 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             WOLFSSL520_PUT
+        }
+
+        fn library(&self) -> LibraryId {
+            if cfg!(feature = "vendored-wolfssl540") {
+                "wolfssl540"
+            } else if cfg!(feature = "vendored-wolfssl530") {
+                "wolfssl530"
+            } else if cfg!(feature = "vendored-wolfssl520") {
+                "wolfssl520"
+            } else if cfg!(feature = "vendored-wolfssl510") {
+                "wolfssl510"
+            } else if cfg!(feature = "vendored-wolfssl430") {
+                "wolfssl430"
+            } else if cfg!(feature = "vendored-master") {
+                "wolfsslmaster"
+            } else {
+                "unknown"
+            }
+            .to_string()
         }
 
         fn version(&self) -> String {

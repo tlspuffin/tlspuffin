@@ -25,7 +25,7 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, LibraryId},
     stream::Stream,
     trace::TraceContext,
 };
@@ -153,6 +153,10 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             LIBSSH_PUT
+        }
+
+        fn library(&self) -> LibraryId {
+            "libssh0104".to_string()
         }
 
         fn version(&self) -> String {

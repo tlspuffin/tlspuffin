@@ -179,7 +179,8 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
         let factory = context
             .put_registry()
-            .find_factory(put_descriptor.name)
+            .search(|id| id.harness == put_descriptor.name)
+            .next()
             .ok_or_else(|| {
                 Error::Agent(format!(
                     "unable to find PUT {} factory in binary",

@@ -130,7 +130,7 @@ pub mod test_signature {
             OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
         put::{Put, PutName},
-        put_registry::Factory,
+        put_registry::{Factory, LibraryId},
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
@@ -516,7 +516,11 @@ pub mod test_signature {
         }
 
         fn name(&self) -> PutName {
-            panic!("Not implemented for test stub");
+            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        }
+
+        fn library(&self) -> LibraryId {
+            "unknown".to_string()
         }
 
         fn version(&self) -> String {
@@ -621,13 +625,9 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let mut context = TraceContext::new(
-            &PutRegistry::<TestProtocolBehavior> {
-                factories: &[dummy_factory],
-                default: dummy_factory,
-            },
-            PutOptions::default(),
-        );
+        let put_registry =
+            PutRegistry::<TestProtocolBehavior>::new(&[dummy_factory], dummy_factory().id());
+        let mut context = TraceContext::new(&put_registry, PutOptions::default());
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),
             matcher: None,
