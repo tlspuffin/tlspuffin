@@ -11,11 +11,21 @@ pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
-    pub factories: Vec<fn() -> Box<dyn Factory<PB>>>,
-    pub default: fn() -> Box<dyn Factory<PB>>,
+    factories: Vec<fn() -> Box<dyn Factory<PB>>>,
+    default: fn() -> Box<dyn Factory<PB>>,
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
+    pub fn new(
+        factories: &[fn() -> Box<dyn Factory<PB>>],
+        default: fn() -> Box<dyn Factory<PB>>,
+    ) -> Self {
+        Self {
+            factories: factories.to_vec(),
+            default,
+        }
+    }
+
     pub fn version_strings(&self) -> Vec<String> {
         let mut put_versions = Vec::new();
         for func in &self.factories {
@@ -42,10 +52,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
 
 impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     fn clone(&self) -> Self {
-        Self {
-            factories: self.factories.clone(),
-            default: self.default.clone(),
-        }
+        Self::new(&self.factories, self.default)
     }
 }
 

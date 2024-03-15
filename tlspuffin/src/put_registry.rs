@@ -10,16 +10,16 @@ pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', 
 pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
 
 pub fn tls_default_registry() -> PutRegistry<TLSProtocolBehavior> {
-    PutRegistry {
-        factories: vec![
+    PutRegistry::new(
+        &[
             crate::tcp::new_tcp_factory,
             #[cfg(feature = "openssl-binding")]
             crate::openssl::new_openssl_factory,
             #[cfg(feature = "wolfssl-binding")]
             crate::wolfssl::new_wolfssl_factory,
         ],
-        default: DEFAULT_PUT_FACTORY,
-    }
+        DEFAULT_PUT_FACTORY,
+    )
 }
 
 pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
