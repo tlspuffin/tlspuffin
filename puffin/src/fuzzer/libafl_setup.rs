@@ -16,6 +16,7 @@ use crate::{
     },
     log::create_file_config,
     protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::Trace,
 };
 
@@ -404,6 +405,7 @@ where
 
 /// Starts the fuzzing loop
 pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+    put_registry: &PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error> {
@@ -435,7 +437,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
-        let harness_fn = &mut harness::harness::<PB>;
+        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder

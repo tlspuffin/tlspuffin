@@ -5,7 +5,6 @@ use crate::{
     claims::{Claim, SecurityViolationPolicy},
     codec::Codec,
     error::Error,
-    put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -57,11 +56,6 @@ pub trait ProtocolBehavior: 'static {
 
     /// Get the signature which is used in the protocol
     fn signature() -> &'static Signature;
-
-    /// Gets the registry for concrete programs-under-test.
-    fn registry() -> &'static PutRegistry<Self>
-    where
-        Self: Sized;
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
