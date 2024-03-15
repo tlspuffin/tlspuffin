@@ -642,6 +642,22 @@ impl<M: Matcher> TermEval<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
+        if let (true, Some(payload)) = (with_payloads, &self.payloads) {
+            debug!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
+            if let Ok(di) =
+                PB::try_read_bytes(payload.payload_0.clone().into(), (*type_term).into())
+            {
+                let p_c = vec![PayloadContext {
+                    of_term: self,
+                    payloads: &payload,
+                    path,
+                }];
+                eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
+                return Ok((di, p_c));
+            }
+            debug!("[eval_until_opaque] Attempt failed, fall back to normal evaluation...");
+        }
+
         match &self.term {
             Term::Variable(variable) => {
                 let d = ctx
@@ -649,35 +665,41 @@ impl<M: Matcher> TermEval<M> {
                     .map(|data| data.boxed_any())
                     .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
-                if with_payloads && self.payloads.is_some() {
-                    if let Ok(eval) = PB::any_get_encoding(&d) {
-                        trace!("        / We successfully evaluated the term into: {eval:?}");
-                        eval_tree.encode = Some(eval);
+                if path.is_empty() || (with_payloads && self.payloads.is_some()) {
+                    if let Some(payload) = &self.payloads {
+                        trace!("        / We retrieve evaluation for eval_tree from payload.");
+                        eval_tree.encode = Some(payload.payload_0.clone().into());
                     } else {
-                        if path.is_empty() {
-                            return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
-                                .map_err(|e| {
-                                    error!("[eval_until_opaque] Err: {}", e);
-                                    e
-                                }));
+                        if let Ok(eval) = PB::any_get_encoding(&d) {
+                            trace!("        / No payload so we evaluated into: {eval:?}");
+                            eval_tree.encode = Some(eval);
                         } else {
-                            // we might not need this eval later, we will try to replace payloads without using it // TODO: make sure we resist this!
-                            warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
+                            if path.is_empty() {
+                                return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
+                                    .map_err(|e| {
+                                        error!("[eval_until_opaque] Err: {}", e);
+                                        e
+                                    }));
+                            } else {
+                                // we might not need this eval later, we will try to replace payloads without using it // TODO: make sure we resist this!
+                                warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
+                            }
                         }
                     }
-                    trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(&d).ok());
-                    Ok((
-                        d,
-                        vec![PayloadContext {
-                            of_term: &self,
-                            payloads: self.payloads.as_ref().unwrap(),
-                            path,
-                        }],
-                    ))
-                } else {
-                    trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
-                    Ok((d, vec![]))
+                    if with_payloads && self.payloads.is_some() {
+                        trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(&d).ok());
+                        return Ok((
+                            d,
+                            vec![PayloadContext {
+                                of_term: &self,
+                                payloads: self.payloads.as_ref().unwrap(),
+                                path,
+                            }],
+                        ));
+                    }
                 }
+                trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
+                Ok((d, vec![]))
             }
             Term::Application(func, args) => {
                 debug!("[eval_until_opaque] [App]: Application from path={path:?}");
