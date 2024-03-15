@@ -178,10 +178,11 @@ pub struct TermEval<M: Matcher> {
 }
 
 impl<M: Matcher> TermEval<M> {
+    /// Height of term, considering non-symbolic terms as atoms
     pub fn height(&self) -> usize {
         match &self.term {
             Term::Application(_, subterms) => {
-                if subterms.is_empty() {
+                if subterms.is_empty() || !self.is_symbolic() {
                     return 1;
                 } else {
                     return 1 + subterms.iter().map(|t| t.height()).max().unwrap();
@@ -207,7 +208,7 @@ impl<M: Matcher> TermEval<M> {
         }
     }
 
-    /// Erase all payloads in a term, except those under opaque function symbol
+    /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
         if is_subterm {
             self.payloads = None;
@@ -216,11 +217,9 @@ impl<M: Matcher> TermEval<M> {
         match &mut self.term {
             Term::Variable(_) => {}
             Term::Application(fd, args) => {
-                if !is_opaque {
-                    // if opaque, we keep payloads in strict sub-terms
-                    for t in args {
-                        t.erase_payloads_subterms(true);
-                    }
+                // Not true anymore: if opaque, we keep payloads in strict sub-terms
+                for t in args {
+                    t.erase_payloads_subterms(true);
                 }
             }
         }
@@ -416,6 +415,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         }
     }
 
+    /// size of a term, considering non-symbolic terms as atoms
     fn size(&self) -> usize {
         if self.is_leaf() {
             SIZE_LEAF
@@ -423,7 +423,11 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
             match &self.term {
                 Term::Variable(_) => SIZE_LEAF,
                 Term::Application(_, ref subterms) => {
-                    subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
+                    if !self.is_symbolic() {
+                        SIZE_LEAF
+                    } else {
+                        subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
+                    }
                 }
             }
         }

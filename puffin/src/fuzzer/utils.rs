@@ -144,7 +144,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
                 let mut stack: Vec<(&TermEval<M>, TracePath, bool, usize)> =
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
-                                                                           // usize if for depth
+                                                                           // usize is for depth
 
                 // DFS Algo: the version with if_weighted inplements the reservoir sampling algorithm
                 // at each depth, independently
@@ -173,8 +173,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                     // sample
                     if filter(term)
                         && (!constraints.no_payload_in_subterm // TODO: currently not used!
-                            || (term.is_symbolic() && term.all_payloads().is_empty()) // TODO: consider whether we want to use payloads_to_replace instead?
-                            || (!term.is_symbolic() && term.all_payloads().len() == 1))
+                            || (term.is_symbolic() && term.payloads_to_replace().is_empty())
+                            || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))
                         && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
                     {
                         let mut level = if if_weighted {
@@ -205,14 +205,14 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
         }
     }
 
-    // Picking the actual term by randmly picking a level
+    // Picking the actual term by randomly picking a level
     let mut reservoir = None;
     if if_weighted {
-        // we need to randmly pick a depth from which we will sample the term
+        // we need to randomly pick a depth from which we will sample the term
         // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
-        // to the number of elements in that depts (hence an exponetial bonus for deeper terms should
+        // to the number of elements in that depths (hence an exponential bonus for deeper terms should
         // the overall term be roughly balanced
-        let lambda = 0.5;
+        let lambda = 0.5 as f64;
         let mut count_weighted = 0 as f64;
         for i in 0..max_depth {
             count_weighted += depth_counts[i] as f64 * (1 as f64 + (i as f64 * lambda));

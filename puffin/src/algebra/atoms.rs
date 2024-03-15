@@ -115,6 +115,7 @@ impl Function {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
         self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
