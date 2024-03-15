@@ -632,11 +632,12 @@ where
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
             no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
-            // we currently forbid this, could it lead to interesting series of mutations ?
-            // not sure. However, it would make term evaluation a lot costlier for sure!
+            // Currently sets to false, we would need to measure efficiency improvement before setting to true TODO
             not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
             // we set it to true since it would otherwise be redundant with picking each of the item as mutated term
-            weighted_depth: true, // true means we select a sub-term by giving higher-priority to deeper sub-terms
+            weighted_depth: false, // true means we select a sub-term by giving higher-priority to deeper sub-terms
+            // TODO: set two lasts to false now as they allow to find more case. TODO: fix reservori sampling and set
+            // this to true (as well as in integration_test/term_zoo.rs)
             ..self.constraints
         };
         // choose a random sub term

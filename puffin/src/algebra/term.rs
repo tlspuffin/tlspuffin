@@ -382,8 +382,15 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
         let mut eval_tree = EvalTree::init();
         let path = TermPath::new();
-        let (m, all_payloads) =
-            self.eval_until_opaque(&mut eval_tree, path, context, with_payloads, false, false)?;
+        let (m, all_payloads) = self.eval_until_opaque(
+            &mut eval_tree,
+            path,
+            context,
+            with_payloads,
+            false,
+            false,
+            self.get_type_shape(),
+        )?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
             debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",

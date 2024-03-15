@@ -10,7 +10,10 @@ use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    algebra::{bitstrings::TreeOrEval::Eval, ConcreteMessage, Matcher, Term, TermEval, TermType},
+    algebra::{
+        bitstrings::TreeOrEval::Eval, dynamic_function::TypeShape, ConcreteMessage, Matcher, Term,
+        TermEval, TermType,
+    },
     error::Error,
     fuzzer::utils::{find_term_by_term_path, TermPath},
     protocol::ProtocolBehavior,
@@ -155,8 +158,15 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             // we must evaluate sibling_term, replacing payloads until opaque ONLY!
             let mut et = EvalTree::init();
             let p = vec![];
-            let (sibling_eval_box, _) =
-                sibling_term.eval_until_opaque(&mut et, p, ctx, true, false, false)?;
+            let (sibling_eval_box, _) = sibling_term.eval_until_opaque(
+                &mut et,
+                p,
+                ctx,
+                true,
+                false,
+                false,
+                whole_term.get_type_shape(),
+            )?;
             Ok(Eval(PB::any_get_encoding(&sibling_eval_box)?))
         }
     }
@@ -243,23 +253,23 @@ pub fn refine_window_heuristic(
     st: &StatusSearch,
 ) -> usize {
     if path_to_search.is_empty() {
-        // only possible window candidate is the root
+        trace!("[refine_window_heuristic] only possible window candidate is the root");
         return 0;
     }
     if to_search.is_empty() {
-        // will be handled with a specific routine anyway
+        trace!("[refine_window_heuristic] will be handled with a specific routine anyway");
         return max(0, path_to_search.len() - 1);
     }
     if window_len == 0 {
-        // window is too narrow, we decrease the depth (= increases window)
+        trace!("[refine_window_heuristic] window is too narrow, we decrease the depth (= increases window)");
         return max(0, current_depth - 1);
     }
     if !st.found_window {
-        // window might be too large or juste at a sub-term for which encoding is not meaningful, go narrower
-        return min(path_to_search.len(), current_depth + 1);
+        trace!("[refine_window_heuristic] window might be too large or juste at a sub-term for which encoding is not meaningful, go narrower");
+        return min(path_to_search.len() - 1, current_depth + 1);
     }
     if !st.unique_window {
-        // window is too narrow, we decreases the depth
+        trace!("[refine_window_heuristic] window is too narrow, we decreases the depth");
         return max(0, current_depth - 1);
     }
     if to_search.len() > 2
@@ -267,10 +277,10 @@ pub fn refine_window_heuristic(
         || window_len / to_search.len() <= THRESHOLD_RATIO
     {
         if !st.unique_match {
-            // the below failed, so we go to the first child
-            return min(path_to_search.len(), current_depth + 1);
+            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {path_to_search:?}", min(path_to_search.len(), current_depth + 1));
+            return min(path_to_search.len() - 1, current_depth + 1);
         } else {
-            // we keep as it is --> search in the whole window
+            trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
             return current_depth;
         }
     } else if to_search.len() > 1
@@ -278,11 +288,18 @@ pub fn refine_window_heuristic(
         || window_len / to_search.len() <= THRESHOLD_RATIO * 2
     {
         if !st.unique_match {
-            // the below failed, so we go halfway
-            return (path_to_search.len() - current_depth) / 2;
-        } else {
+            trace!("[refine_window_heuristic] the below failed, so we go halfway");
             return min(
-                path_to_search.len(),
+                path_to_search.len() - 1,
+                max(
+                    current_depth + 1,
+                    (path_to_search.len() - current_depth) / 2,
+                ),
+            );
+        } else {
+            trace!("[refine_window_heuristic] we go a quarter");
+            return min(
+                path_to_search.len() - 1,
                 max(
                     current_depth + 1,
                     (path_to_search.len() - current_depth) / 4,
@@ -290,9 +307,9 @@ pub fn refine_window_heuristic(
             );
         }
     } else {
-        // not empty but very unlikely we found uniquely except in window path[0..len-1]
+        trace!("[refine_window_heuristic] not empty but very unlikely we found uniquely except in window path[0..len-1]");
         if !st.unique_match {
-            return path_to_search.len();
+            return path_to_search.len() - 1;
         } else {
             return max(0, path_to_search.len() - 1);
         }
@@ -328,6 +345,7 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         eval_tree,
         whole_term,
         ctx,
+        0,
     )
 }
 
@@ -351,12 +369,14 @@ pub fn find_unique_match_rec<'a, M, PB>(
     eval_tree: &'a EvalTree,
     whole_term: &TermEval<M>,
     ctx: &TraceContext<PB>,
+    cur_attempts: usize,
 ) -> Result<usize, Error>
 where
     M: Matcher,
     PB: ProtocolBehavior<Matcher = M>,
 {
     debug!("[find_unique_match_rec] Start with path_to_search {path_to_search:?},\n - to_search: {to_search:?}\n - window:: {window:?}\n - path_window:{path_window:?}");
+    trace!(" - whole_term: {whole_term}");
     let mut try_new_depth_path_window =
         refine_window_heuristic(0, &to_search, window.len(), path_to_search, &st);
     let mut try_new_path_window = &path_to_search[0..try_new_depth_path_window];
@@ -364,23 +384,23 @@ where
         st.found_window = false;
     }
     let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest nodes)
-    let mut attempts = 0;
+    let mut attempts = cur_attempts;
     let eval_root = &eval_tree.encode.as_ref().unwrap()[..];
 
     while !(st.found_window && st.unique_match && st.found_match && st.unique_window) {
-        if attempts > 30 {
+        if attempts > 40 {
             let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts.\n - to_search:{:?}\n - window:{:?}\n - path_to_search:{:?},\n path_window:{:?}\n - eval_tree:{:?}", to_search, window, path_to_search, path_window, eval_tree);
             error!("{}", ft);
             return Err(Error::Term(ft));
         }
         // initially found_match is false (not searched and found to_search yet)
-        debug!("[find_unique_match_rec] ATTEMPT #{attempts} with StatutSearch: {st:?}, fallback_empty:{fallback_empty}\n - path_window:{path_window:?}, try_new_depth_path_window:{try_new_depth_path_window}, to_search.len():{}, window.len():{}", to_search.len(), window.len());
+        debug!("[find_unique_match_rec] ATTEMPT #{attempts} with StatutSearch: {st:?}, fallback_empty:{fallback_empty}\n - path_window:{path_window:?}, try_new_path_window:{try_new_path_window:?}, to_search.len():{}, window.len():{}", to_search.len(), window.len());
         trace!("  - to_search: {to_search:?}\n  - window: {window:?}");
         attempts += 1;
         if attempts > 3 {
             warn!("[find_unique_match] HIGH NUMBER OF ATTEMPTS!");
         }
-        if attempts > 10 {
+        if attempts > 15 {
             fallback_empty = true;
         }
 
@@ -410,6 +430,7 @@ where
                 eval_tree,
                 whole_term,
                 ctx,
+                attempts,
             )?;
 
             return if relative_on_left {
@@ -443,10 +464,11 @@ where
                         };
                         window = new_window_eval;
                         path_window = try_new_path_window;
+                        debug!("Found window and is unique. New window with path_window:{path_window:?}");
                         continue;
                     } else {
                         // window found twice, it is too small, we reduce the try_new_path_depth
-                        debug!("[find_unique_match] not unique match");
+                        debug!("[find_unique_match] not unique window match");
                         st.found_window = true;
                     }
                 } // else: not found, we leave st unmodified
@@ -454,6 +476,7 @@ where
                   //     // window not found, it might be too large, we increase try_new_path_depth
                   //     debug!("[find_unique_match] window not found");
                 try_new_depth_path_window = refine_window_heuristic(
+                    // window found twice
                     try_new_depth_path_window,
                     &to_search,
                     window.len(),
@@ -462,6 +485,7 @@ where
                 );
                 try_new_path_window = &path_to_search[0..try_new_depth_path_window];
                 st.found_window = false;
+                debug!("Found window but not unique. New window with try_new_path_window:{try_new_path_window:?}, path_window was {path_window:?}");
                 continue;
             } else {
                 // Was not able to encode this sub-message
@@ -494,6 +518,7 @@ where
                     );
                     try_new_path_window = &path_to_search[0..try_new_depth_path_window];
                     st.found_window = false;
+                    debug!("Found match but not unique. New window with try_new_path_window:{try_new_path_window:?}");
                     continue;
                 }
             } else {
@@ -563,10 +588,11 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         // TODO: SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
         if !(to_modify[start..end] == *old_bitstring) {
             let ft = format!(
-                "[replace_payload] Payloads returned by eval_until_opaque were inconsistent!\n
-                 to_replace[start..end].to_vec() = !to_modify[{start}..{end}].to_vec() = {:?}\n\
-                 payload.payload_0.bytes() = {:?}\n\
-                 to_modify={to_modify:?}",
+                "[replace_payload] Payloads returned by eval_until_opaque were inconsistent!\n\
+                   - term: {term}\n\
+                   - to_replace[start..end].to_vec() = !to_modify[{start}..{end}].to_vec() = {:?}\n\
+                   - payload.payload_0.bytes() = {:?}\n\
+                   - to_modify={to_modify:?}",
                 to_modify[start..end].to_vec(),
                 old_bitstring
             );
@@ -610,6 +636,7 @@ impl<M: Matcher> TermEval<M> {
         with_payloads: bool,
         is_in_list: bool,
         sibling_has_payloads: bool,
+        type_term: &TypeShape,
     ) -> Result<(Box<dyn Any>, Vec<PayloadContext<M>>), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
@@ -667,10 +694,15 @@ impl<M: Matcher> TermEval<M> {
                         let typei = func.shape().argument_types[i];
                         let di = PB::try_read_bytes(bi, typei.into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .with_context(||
-                                format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}:\n {}",
+                                format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
                                         typei, TypeId::from(typei), &self))
                             .map_err(|e| {
-                                error!("[eval_until_opaque] Err: {}", e);
+                                if !ti.is_symbolic() {
+                                    warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
+
+                                } else {
+                                    warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
+                                }
                                 e
                             })?;
                         dynamic_args.push(di); // no need to add payloads to all_p as they were consumed (opaque function symbol)
@@ -689,6 +721,7 @@ impl<M: Matcher> TermEval<M> {
                             with_payloads,
                             self.is_list(),
                             self_has_payloads_wo_root,
+                            &func.shape().argument_types[i],
                         )?;
                         dynamic_args.push(di); // add the evaluation (Boc<dyn Any>) to the list of arguments
                         if with_payloads {

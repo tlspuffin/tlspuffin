@@ -10,7 +10,7 @@ mod tests {
         agent::AgentName,
         algebra::{
             dynamic_function::DescribableFunction, error::FnError, evaluate_lazy_test,
-            signature::FunctionDefinition, ConcreteMessage, Matcher, TermEval, TermType,
+            signature::FunctionDefinition, ConcreteMessage, Matcher, Term, TermEval, TermType,
         },
         codec,
         codec::Encode,
@@ -311,11 +311,11 @@ mod tests {
         assert_eq!(count_any_encode_fail, 0);
     }
 
-    fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
+    fn add_one_payload_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
         t: &mut TermEval<M>,
         rand: &mut R,
         ctx: &TraceContext<PB>,
-    ) {
+    ) -> Result<(), Error> {
         let trace = Trace {
             descriptors: vec![],
             steps: vec![Step {
@@ -324,6 +324,68 @@ mod tests {
             }],
             prior_traces: vec![],
         };
+        if let Some((st_, (step, mut path))) = choose(
+            &trace,
+            TermConstraints {
+                // as for Make_message.mutate
+                no_payload_in_subterm: false,
+                not_inside_list: false, // should be true, TODO: fix this
+                weighted_depth: false,  // should be true, TODO: fix this
+                ..TermConstraints::default()
+            },
+            rand,
+            // Tests by varying TermConstraints (diff=2 corresponds to fn_derive_psk.name(), fn_get_ticket.name())
+            // Before   not_inside_list: true,  no_payload_in_subterm: true,     weighted_depth: true,
+            // : number_shapes: 201, number_terms: 78800, eval_count: 182, count_payload_fail: 53, count_lazy_fail: 3668, count_any_encode_fail: 0
+            // DIF=5
+
+            // Default (all false): number_shapes: 201, number_terms: 78800, eval_count: 185, count_payload_fail: 22, count_lazy_fail: 3839, count_any_encode_fail: 0
+            // Dif=2
+            //
+            // MAke_message: true, false, true
+            //  number_shapes: 201, number_terms: 78800, eval_count: 181, count_payload_fail: 34, count_lazy_fail: 3957, count_any_encode_fail: 0
+            // Diff = 6
+
+            // MAke_message + inside: false, false, true
+            // number_shapes: 201, number_terms: 78800, eval_count: 183, count_payload_fail: 23, count_lazy_fail: 3260, count_any_encode_fail: 0
+            // Diff = 4
+
+            // weighted_Depth = false
+            // number_shapes: 201, number_terms: 78800, eval_count: 184, count_payload_fail: 31, count_lazy_fail: 4018, count_any_encode_fail: 0
+            // Diff = 3
+        ) {
+            let st = find_term_by_term_path_mut(t, &mut path).unwrap();
+            if let Ok(()) = st.make_payload(&ctx) {
+                debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
+                if let Some(payloads) = &mut st.payloads {
+                    let mut a: Vec<u8> = payloads.payload.clone().into();
+                    a.push(2); // TODO: make something random here! (I suggest mutate with bit-level mutations)
+                    a.push(2);
+                    a.push(2);
+                    a[0] = 2;
+                    payloads.payload = a.into();
+                    debug!("Added a payload at path {path:?}.");
+                    Ok(())
+                } else {
+                    panic!("Should never happen")
+                }
+            } else {
+                Err(Error::Term(
+                    "[add_one_payload_randomly] Unable to make_message".to_string(),
+                ))
+            }
+        } else {
+            Err(Error::Term(
+                "[add_one_payload_randomly] Unable to choose a suitable sub-term".to_string(),
+            ))
+        }
+    }
+
+    fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
+        t: &mut TermEval<M>,
+        rand: &mut R,
+        ctx: &TraceContext<PB>,
+    ) {
         let all_subterms: Vec<&TermEval<M>> = t.into_iter().collect_vec();
         let nb_subterms = all_subterms.len() as i32;
         let mut i = 0;
@@ -332,7 +394,7 @@ mod tests {
             .choose(rand)
             .unwrap()
             .to_owned();
-        error!(
+        debug!(
             "Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...",
             max(2, nb_subterms / 5)
         );
@@ -344,28 +406,30 @@ mod tests {
                 error!("Failed to add the payloads after {} attempts", tries);
                 break;
             }
-            if let Some((st_, (step, mut path))) = choose(
-                &trace,
-                TermConstraints {
-                    not_inside_list: true,
-                    no_payload_in_subterm: true,
-                    weighted_depth: true,
-                    ..TermConstraints::default()
-                },
-                rand,
-            ) {
-                let st = find_term_by_term_path_mut(t, &mut path).unwrap();
-                if let Ok(()) = st.make_payload(&ctx) {
-                    i += 1;
-                    error!("Added payload for subterm at path {path:?}, evaluated={:?}, sub_term: {st_}", st.payloads.as_ref().unwrap().payload_0);
-                    if let Some(payloads) = &mut st.payloads {
-                        let mut a: Vec<u8> = payloads.payload.clone().into();
-                        a.push(2);
-                        a.push(2);
-                        a.push(2);
-                        a[0] = 2;
-                        payloads.payload = a.into();
-                        debug!("Added a payload at path {path:?}.");
+            if let Ok(()) = add_one_payload_randomly(t, rand, ctx) {
+                i += 1;
+            }
+        }
+    }
+
+    /// Sanity check for the next test
+    pub fn test_pay<M: Matcher>(term: &TermEval<M>) {
+        rec_inside(term, false, term);
+        pub fn rec_inside<M: Matcher>(
+            term: &TermEval<M>,
+            already_found: bool,
+            whole_term: &TermEval<M>,
+        ) {
+            let already_found = already_found || !term.is_symbolic();
+            match &term.term {
+                Term::Variable(_) => {}
+                Term::Application(_, sub) => {
+                    for ti in sub {
+                        if already_found && !ti.is_symbolic() {
+                            panic!("Eheh, found one! Sub: {ti},\n whole_term: {whole_term}")
+                        } else {
+                            rec_inside(ti, already_found, whole_term)
+                        }
                     }
                 }
             }
@@ -373,8 +437,9 @@ mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
-    // #[test]
-    // #[test_log::test]
+    #[test]
+    #[test_log::test]
+    // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval_payloads() {
         let mut rand = StdRand::with_seed(101);
@@ -389,24 +454,21 @@ mod tests {
         let mut successfully_built_functions = vec![];
 
         for f in all_functions_shape {
-            let zoo =
-                TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, Some(&f));
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(
+                &TLS_SIGNATURE,
+                &mut rand,
+                1000,
+                Some(&f),
+            );
             let terms = zoo.terms();
             number_terms = number_terms + terms.len();
 
             for term in terms.iter() {
                 if successfully_built_functions.contains(&term.name().to_string()) {
                     // for speeding up things
-                    continue; // should never happen
+                    continue;
                 }
-                // ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
-                // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
-                // "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
-                // "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
-                // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
-                // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
-
-                // FILTRAGE
+                // FILTER
                 // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
                 //     continue;
                 // }
@@ -414,23 +476,26 @@ mod tests {
 
                 add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
 
-                if term_with_payloads.payloads_to_replace().len() == 0 {
-                    warn!("Failed to add paylaods, skipping...");
+                if term_with_payloads.all_payloads().len() == 0 {
+                    warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
                     continue;
                 }
 
-                error!("Term with paylaods: {term_with_payloads}");
+                debug!("Term with payloads: {term_with_payloads}");
+
+                // Sanity check:
+                test_pay(&term_with_payloads);
 
                 match &term_with_payloads.evaluate(&ctx) {
                     Ok(eval) => {
-                        error!("Eval success!");
+                        debug!("Eval success!");
                         successfully_built_functions.push(term.name().to_string().to_owned());
                         eval_count += 1;
                     }
                     Err(e) => {
                         match &term_with_payloads.clone().evaluate_symbolic(&ctx) {
                             Ok(_) => {
-                                error!("Eval FAILED!");
+                                error!("Eval FAILED with payloads but succeeded without payloads!");
                                 count_payload_fail += 1;
                                 error!(
                                     "[Payload] Failed evaluation due to PAYLOADS. Term:\n{}",
@@ -440,23 +505,23 @@ mod tests {
                             Err(_) => {
                                 let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                 if t1.is_err() {
-                                    debug!("LAZY failed!");
+                                    warn!("LAZY failed!");
                                     count_lazy_fail += 1;
                                 } else {
                                     count_any_encode_fail += 1;
                                     match e.clone() { // for debugging encoding failure only
                                         Error::Fn(FnError::Unknown(ee)) =>
-                                            debug!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                                            error!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
                                         Error::Fn(FnError::Crypto(ee)) =>
-                                            debug!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
+                                            error!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
                                         Error::Fn(FnError::Malformed(ee)) =>
-                                            debug!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                                            error!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
                                         Error::Term(ee) => {
-                                            debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
+                                            error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
                                         },
                                         _ => {
                                             // _ => {
-                                            debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term_with_payloads, e);
+                                            error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term_with_payloads, e);
                                             let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                             if t1.is_ok() {
                                                 debug!("Evaluate_lazy success. ");
@@ -466,10 +531,10 @@ mod tests {
                                                         // let bitstring = Encode::get_encoding(downcast);
                                                         // print!("Encoding succeeded:: {bitstring:?}. ");
                                                     },
-                                                    _ => { warn!("Downcast FAILED. ") },
+                                                    _ => { error!("Downcast FAILED. ") },
                                                 }
                                             } else {
-                                                warn!("Evaluate_lazy FAILED. ");
+                                                error!("Evaluate_lazy FAILED. ");
                                             }
                                         }
                                         _ => {},
@@ -481,37 +546,20 @@ mod tests {
                 }
             }
         }
-        //["tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application",
-        // "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add",
-        // "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket",
-        // "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
-        // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"]
-        // OPAQUE
-        // self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decode_ecdh_pubkey"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client"
-        //
-        //     // Get functions: opaque as they do not yield a bitstring containing all the bitstrings of their arguments
-        //     // (however needed for computing shifts in `replace_payloads`) TODO: improve this in the future
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
-        //     || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
 
+        // TODO:
+        // Understand warning and errors, try also without limiting to once a function
+        // Issues to address:
+        //       A. cycling between:
+        //          1.window_depth +1 when !st.unique_match
+        //          2. window depth -1 when !st.unique_window
+        //       B. Related and example of A:
+        //           always fails when BS// is in a term t such that just before or after is a similar t with same encoding
+        //           there won't be a suitable window then!
+        //       C.  Read_bytes fail because of MakeMessage but even without adding a != payload for: HandshakeHash, Vec<ClientExtension>, Vec<ServerExtension>
+        //           Could add a test that encode and read many different types, as in this test
+        //       E. Other failures when running this with DEBUG level=warn
+        // TODO: run fuzzing campaign, measure failure rates, measure efficiency (execs/s)
         let mut successfully_built_functions_names = successfully_built_functions
             .iter()
             .map(|s| s.to_owned())
@@ -534,6 +582,9 @@ mod tests {
             fn_find_encrypted_extensions.name(),
             fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
+            // // Unable to add a payload and evaluate correctly, TODO: investigate why
+            // fn_derive_psk.name(),
+            // fn_get_ticket.name(),
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
