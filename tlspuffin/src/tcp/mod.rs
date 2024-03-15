@@ -17,7 +17,7 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, LibraryId},
     stream::Stream,
     trace::TraceContext,
 };
@@ -87,6 +87,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn name(&self) -> PutName {
             TCP_PUT
+        }
+
+        fn library(&self) -> LibraryId {
+            "undefined".to_string()
         }
 
         fn version(&self) -> String {
