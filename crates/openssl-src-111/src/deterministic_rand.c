@@ -27,8 +27,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        tlspuffin_seed = (a * tlspuffin_seed + c) % m;
-        buf[index] = tlspuffin_seed % 256;
+        tlspuffin_seed = 6364136223846793005ULL*tlspuffin_seed + 1;
+        buf[index] = tlspuffin_seed>>33;
     }
     return 1;
 }
