@@ -130,7 +130,7 @@ pub mod test_signature {
             OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
         put::{Put, PutName},
-        put_registry::{Factory, PutRegistry},
+        put_registry::Factory,
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
@@ -499,10 +499,6 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn registry() -> &'static PutRegistry<Self> {
-            panic!("Not implemented for test stub");
-        }
-
         fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
@@ -527,11 +523,11 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             panic!("Not implemented for test stub");
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             panic!("Not implemented for test stub");
         }
     }

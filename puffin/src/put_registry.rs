@@ -15,12 +15,12 @@ pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 #[derive(PartialEq)]
-pub struct PutRegistry<PB: 'static> {
-    pub factories: &'static [fn() -> Box<dyn Factory<PB>>],
+pub struct PutRegistry<PB> {
+    pub factories: Vec<fn() -> Box<dyn Factory<PB>>>,
     pub default: fn() -> Box<dyn Factory<PB>>,
 }
 
-impl<PB: ProtocolBehavior + 'static> Debug for PutRegistry<PB> {
+impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PutRegistry (default only)")
             .field("default", &(self.default)().name())
@@ -31,7 +31,7 @@ impl<PB: ProtocolBehavior + 'static> Debug for PutRegistry<PB> {
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
     pub fn version_strings(&self) -> Vec<String> {
         let mut put_versions = Vec::new();
-        for func in self.factories {
+        for func in &self.factories {
             let factory = func();
 
             let name = factory.name();
@@ -53,17 +53,26 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 
     /// To be called at the beginning of all fuzzing campaigns!
-    pub fn determinism_set_reseed_all_factories(&self) -> () {
+    pub fn determinism_set_reseed_all_factories(&self) {
         debug!("== Set and reseed all ({}):", self.factories.len());
-        for func in self.factories {
+        for func in self.factories.iter() {
             func().determinism_set_reseed();
         }
     }
 
-    pub fn determinism_reseed_all_factories(&self) -> () {
+    pub fn determinism_reseed_all_factories(&self) {
         debug!("== Reseed all ({}):", self.factories.len());
-        for func in self.factories {
+        for func in self.factories.iter() {
             func().determinism_reseed();
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
+    fn clone(&self) -> Self {
+        Self {
+            factories: self.factories.clone(),
+            default: self.default,
         }
     }
 }
@@ -78,7 +87,6 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn name(&self) -> PutName;
     fn version(&self) -> String;
 
-    fn determinism_set_reseed(&self) -> ();
-
-    fn determinism_reseed(&self) -> ();
+    fn determinism_set_reseed(&self);
+    fn determinism_reseed(&self);
 }

@@ -1,4 +1,4 @@
-use crate::put_registry::TLS_PUT_REGISTRY;
+use crate::put_registry::tls_default_registry;
 
 #[cfg(feature = "deterministic")]
 mod determinism;
@@ -7,7 +7,7 @@ mod term_zoo;
 
 #[test]
 fn version_test() {
-    let version = TLS_PUT_REGISTRY.default_factory().version();
+    let version = tls_default_registry().default_factory().version();
     println!("{}", version);
     #[cfg(feature = "openssl101f")]
     assert!(version.contains("1.0.1f"));

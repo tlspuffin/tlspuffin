@@ -8,7 +8,7 @@ use puffin::{
 };
 
 use crate::{
-    protocol::TLSProtocolBehavior, put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher,
+    protocol::TLSProtocolBehavior, put_registry::tls_default_registry, query::TlsQueryMatcher,
 };
 
 pub trait TraceHelper<A>: TraceExecutor<A> {
@@ -25,7 +25,7 @@ pub trait TraceExecutor<A> {
 impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
         self.build_trace()
-            .execute_deterministic(&TLS_PUT_REGISTRY, PutOptions::default())
+            .execute_deterministic(&tls_default_registry(), PutOptions::default())
             .unwrap()
     }
 

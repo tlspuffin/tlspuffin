@@ -1299,7 +1299,7 @@ pub mod tests {
         use test_log::test;
 
         use crate::{
-            put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+            put_registry::{tls_default_registry, TCP_PUT},
             tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
             tls::{trace_helper::TraceHelper, vulnerabilities::*},
         };
@@ -1323,13 +1323,14 @@ pub mod tests {
                 options: client_guard.build_options(),
             };
 
+            let put_registry = tls_default_registry();
             let trace = seed_cve_2022_38153.build_trace();
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
             let mut context = trace
                 .execute_with_non_default_puts(
-                    &TLS_PUT_REGISTRY,
+                    &put_registry,
                     &[(client_name, client), (server_name, server)],
                 )
                 .unwrap();
@@ -1350,12 +1351,13 @@ pub mod tests {
                 options: guard.build_options(),
             };
 
+            let put_registry = tls_default_registry();
             let trace = seed_cve_2022_39173_full.build_trace();
             let initial_server = trace.prior_traces[0].descriptors[0].name;
             let server = trace.descriptors[0].name;
             let mut context = trace
                 .execute_with_non_default_puts(
-                    &TLS_PUT_REGISTRY,
+                    &put_registry,
                     &[(initial_server, put.clone()), (server, put)],
                 )
                 .unwrap();

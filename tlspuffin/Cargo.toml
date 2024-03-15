@@ -14,6 +14,8 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
+cputs = ["tls-harness"]
+
 openssl-default = [
     "tls12",
     "tls13",
@@ -241,7 +243,7 @@ llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_an
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "openssl-sys", "foreign-types-openssl", "tls-harness"]
+openssl-binding = ["openssl", "openssl-sys", "foreign-types-openssl"]
 # Openssl 1.0.1 bindings
 openssl101-binding = ["openssl-binding"]
 # Openssl 1.0.2 bindings

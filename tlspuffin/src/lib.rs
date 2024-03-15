@@ -16,7 +16,6 @@
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use tlspuffin::tls::rustls::msgs::enums::{ProtocolVersion, CipherSuite, Compression, HandshakeType};
-//! use tlspuffin::put_registry::TLS_PUT_REGISTRY;
 //! use tlspuffin::query::TlsQueryMatcher;
 //!
 //!

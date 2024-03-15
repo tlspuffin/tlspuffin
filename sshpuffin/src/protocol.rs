@@ -1,7 +1,6 @@
 use puffin::{
     algebra::{signature::Signature, AnyMatcher},
     protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
     trace::Trace,
 };
 
@@ -12,7 +11,6 @@ use crate::{
         SSH_SIGNATURE,
     },
     violation::SshSecurityViolationPolicy,
-    SSH_PUT_REGISTRY,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -27,13 +25,6 @@ impl ProtocolBehavior for SshProtocolBehavior {
 
     fn signature() -> &'static Signature {
         &SSH_SIGNATURE
-    }
-
-    fn registry() -> &'static PutRegistry<Self>
-    where
-        Self: Sized,
-    {
-        &SSH_PUT_REGISTRY
     }
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {

@@ -18,7 +18,7 @@ mod tests {
 
     use crate::{
         boringssl::deterministic::reset_rand,
-        put_registry::TLS_PUT_REGISTRY,
+        put_registry::tls_default_registry,
         tls::{
             seeds::{create_corpus, seed_client_attacker_full_boring},
             trace_helper::TraceHelper,
@@ -29,11 +29,13 @@ mod tests {
     #[ignore]
     #[test]
     fn test_boringssl_no_randomness_full() {
+        let put_registry = tls_default_registry();
+
         let trace = seed_client_attacker_full_boring.build_trace();
-        let mut ctx1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        let mut ctx1 = TraceContext::new(&put_registry, PutOptions::default());
         ctx1.set_deterministic(true);
         let _ = trace.execute(&mut ctx1);
-        let mut ctx2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        let mut ctx2 = TraceContext::new(&put_registry, PutOptions::default());
         ctx2.set_deterministic(true);
         let _ = trace.execute(&mut ctx2);
 

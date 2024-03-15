@@ -10,18 +10,20 @@ pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', 
 pub const BORINGSSL_PUT: PutName = PutName(['B', 'O', 'R', 'I', 'N', 'G', 'S', 'S', 'L', '_']);
 pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
 
-pub const TLS_PUT_REGISTRY: PutRegistry<TLSProtocolBehavior> = PutRegistry {
-    factories: &[
-        crate::tcp::new_tcp_factory,
-        #[cfg(feature = "openssl-binding")]
-        crate::openssl::new_openssl_factory,
-        #[cfg(feature = "wolfssl-binding")]
-        crate::wolfssl::new_wolfssl_factory,
-        #[cfg(feature = "boringssl-binding")]
-        crate::boringssl::new_boringssl_factory,
-    ],
-    default: DEFAULT_PUT_FACTORY,
-};
+pub fn tls_default_registry() -> PutRegistry<TLSProtocolBehavior> {
+    PutRegistry {
+        factories: vec![
+            crate::tcp::new_tcp_factory,
+            #[cfg(feature = "openssl-binding")]
+            crate::openssl::new_openssl_factory,
+            #[cfg(feature = "wolfssl-binding")]
+            crate::wolfssl::new_wolfssl_factory,
+            #[cfg(feature = "boringssl-binding")]
+            crate::boringssl::new_boringssl_factory,
+        ],
+        default: DEFAULT_PUT_FACTORY,
+    }
+}
 
 pub const DEFAULT_PUT_FACTORY: fn() -> Box<dyn Factory<TLSProtocolBehavior>> = {
     cfg_if::cfg_if! {

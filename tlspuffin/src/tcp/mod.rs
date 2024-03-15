@@ -729,7 +729,7 @@ mod tests {
     use test_log::test;
 
     use crate::{
-        put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+        put_registry::{tls_default_registry, TCP_PUT},
         tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
@@ -749,12 +749,13 @@ mod tests {
             options: guard.build_options(),
         };
 
+        let put_registry = tls_default_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(initial_server, put.clone()), (server, put)],
             )
             .unwrap();
@@ -775,10 +776,11 @@ mod tests {
             options: guard.build_options(),
         };
 
+        let put_registry = tls_default_registry();
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
         let mut context = trace
-            .execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)])
+            .execute_with_non_default_puts(&put_registry, &[(server, put)])
             .unwrap();
 
         let server = AgentName::first();
@@ -806,13 +808,14 @@ mod tests {
             options: client_guard.build_options(),
         };
 
+        let put_registry = tls_default_registry();
         let trace = seed_successful12_with_tickets.build_trace();
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(client_name, client), (server_name, server)],
             )
             .unwrap();
@@ -847,13 +850,14 @@ mod tests {
             options: client_guard.build_options(),
         };
 
+        let put_registry = tls_default_registry();
         let trace = seed_successful12_with_tickets.build_trace();
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(client_name, client), (server_name, server)],
             )
             .unwrap();
