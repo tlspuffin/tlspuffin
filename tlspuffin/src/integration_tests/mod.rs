@@ -1,11 +1,11 @@
-use crate::put_registry::tls_default_registry;
+use crate::put_registry::tls_registry;
 
 mod mutations;
 mod term_zoo;
 
 #[test]
 fn version_test() {
-    let version = tls_default_registry().default().version();
+    let version = tls_registry().default().version();
     println!("{}", version);
     #[cfg(feature = "openssl101f")]
     assert!(version.contains("1.0.1f"));

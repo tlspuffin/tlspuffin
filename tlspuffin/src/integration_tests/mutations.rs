@@ -17,7 +17,7 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::tls_default_registry,
+    put_registry::tls_registry,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::{
@@ -219,7 +219,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let put_registry = tls_default_registry();
+                let put_registry = tls_registry();
                 let mut context = TraceContext::new(&put_registry, PutOptions::default());
                 let _ = trace.execute(&mut context);
                 println!("try");

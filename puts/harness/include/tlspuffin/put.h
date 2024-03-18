@@ -58,13 +58,25 @@ typedef struct
     const size_t store_length;
 } AGENT_DESCRIPTOR;
 
+typedef struct C_HARNESS_TYPE
+{
+    const char *name;            // openssl
+    const char *version;         // tlspuffin v0.1.0 (commit f80370)
+} C_HARNESS_TYPE;
+
+typedef struct C_LIBRARY_TYPE
+{
+    const char *vendor_name;     // openssl
+    const char *vendor_version;  // OpenSSL 1.1.1j 16 Feb 2021
+
+    const char *config_name;     // openssl111j
+    const char *config_hash;     // da39e788eca8dabb
+} C_LIBRARY_TYPE;
+
 typedef struct C_PUT_TYPE
 {
-    /*
-     * Write the PUT version into the provided buffer. The result written is
-     * assumed to be a valid C null-terminated string.
-     */
-    const char *(*const version)();
+    C_HARNESS_TYPE harness;
+    C_LIBRARY_TYPE library;
 
     /*
      * Creates a new agent following the specification in the <descriptor>.
@@ -113,8 +125,6 @@ typedef struct C_PUT_TYPE
 
 typedef struct
 {
-    void (*const register_put)(const C_PUT_TYPE *put);
-
     void (*const error)(const char *message);
     void (*const warn)(const char *message);
     void (*const info)(const char *message);
@@ -139,8 +149,6 @@ typedef struct
  *     _log(TLSPUFFIN.error, "an error happened at line %d", 42);
  */
 void _log(void (*logger)(const char *), const char *format, ...);
-
-extern const C_PUT_TYPE CPUT;
 
 extern const C_TLSPUFFIN TLSPUFFIN;
 
