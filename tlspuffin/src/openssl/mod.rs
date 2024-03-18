@@ -98,6 +98,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn version(&self) -> String {
             OpenSSL::version()
         }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(OpenSSLFactory)
+        }
     }
 
     Box::new(OpenSSLFactory)

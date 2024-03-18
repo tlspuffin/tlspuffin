@@ -97,6 +97,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn version(&self) -> String {
             WolfSSL::version()
         }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(WolfSSLFactory)
+        }
     }
 
     Box::new(WolfSSLFactory)

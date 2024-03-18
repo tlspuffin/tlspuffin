@@ -38,12 +38,12 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     };
 
     PutRegistry::new(
-        &[
-            crate::tcp::new_tcp_factory,
+        vec![
+            crate::tcp::new_tcp_factory(),
             #[cfg(feature = "openssl-binding")]
-            crate::openssl::new_openssl_factory,
+            crate::openssl::new_openssl_factory(),
             #[cfg(feature = "wolfssl-binding")]
-            crate::wolfssl::new_wolfssl_factory,
+            crate::wolfssl::new_wolfssl_factory(),
         ],
         default,
     )

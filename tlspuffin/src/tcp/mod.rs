@@ -96,6 +96,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn version(&self) -> String {
             TcpClientPut::version()
         }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(TCPFactory)
+        }
     }
 
     Box::new(TCPFactory)

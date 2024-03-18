@@ -28,14 +28,14 @@ impl fmt::Display for PutId {
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
-    factories: Vec<fn() -> Box<dyn Factory<PB>>>,
+    factories: Vec<Box<dyn Factory<PB>>>,
     default_put: PutId,
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new(factories: &[fn() -> Box<dyn Factory<PB>>], default: PutId) -> Self {
+    pub fn new(factories: Vec<Box<dyn Factory<PB>>>, default: PutId) -> Self {
         let result = Self {
-            factories: factories.to_vec(),
+            factories: factories,
             default_put: default,
         };
 
@@ -48,9 +48,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
 
     pub fn version_strings(&self) -> Vec<String> {
         let mut put_versions = Vec::new();
-        for func in &self.factories {
-            let factory = func();
-
+        for factory in &self.factories {
             let name = factory.name();
             let version = factory.version();
             put_versions.push(format!("{}: {}", name, version));
@@ -58,31 +56,37 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         put_versions
     }
 
-    pub fn default(&self) -> Box<dyn Factory<PB>> {
+    pub fn default(&self) -> &dyn Factory<PB> {
         self.find_id(&self.default_put).unwrap()
     }
 
-    pub fn find_id(&self, id: &PutId) -> Option<Box<dyn Factory<PB>>> {
+    pub fn find_id(&self, id: &PutId) -> Option<&dyn Factory<PB>> {
         self.factories
             .iter()
-            .map(|f| f())
+            .map(|f| f.to_owned().as_ref())
             .find(|factory| factory.id() == id.clone())
     }
 
-    pub fn search<'a, P>(&'a self, predicate: P) -> impl Iterator<Item = Box<dyn Factory<PB>>> + 'a
+    pub fn search<'a, P>(&'a self, predicate: P) -> impl Iterator<Item = &dyn Factory<PB>> + 'a
     where
         P: Fn(&PutId) -> bool + 'a,
     {
         self.factories
             .iter()
-            .map(|f| f())
+            .map(|f| f.as_ref())
             .filter(move |factory| predicate(&factory.id()))
     }
 }
 
 impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     fn clone(&self) -> Self {
-        Self::new(&self.factories, self.default_put.clone())
+        Self::new(
+            self.factories
+                .iter()
+                .map(|f| f.clone_factory())
+                .collect::<Vec<_>>(),
+            self.default_put.clone(),
+        )
     }
 }
 
@@ -106,4 +110,6 @@ pub trait Factory<PB: ProtocolBehavior> {
             library: self.library(),
         }
     }
+
+    fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 }
