@@ -45,7 +45,7 @@ use crate::{
 
 pub mod ssh;
 
-const OPENSSH_RSA_PRIVATE_KEY: &'static str = "-----BEGIN OPENSSH PRIVATE KEY-----
+const OPENSSH_RSA_PRIVATE_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
 NhAAAAAwEAAQAAAYEAt64tFPuOmhkrMjTdXgD6MrLhV0BBX0gC6yp+fAaFA+Mbz+28OZ0j
 UhDV7QFL2C1b0Yz9ykb4jTzhJT5Cxi05fPZCrE+3BChvBobXF+h5kgNRLBk2EmVVSzVO1D
@@ -163,15 +163,19 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             LibSSL::version()
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
                 self.name()
             );
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
+            Box::new(LibSSLFactory)
         }
     }
 

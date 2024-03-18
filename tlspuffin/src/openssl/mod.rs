@@ -17,11 +17,6 @@ use puffin::{
 };
 
 use crate::{
-    claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
-        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
-    },
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -112,6 +107,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
             deterministic::rng_reseed();
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(OpenSSLFactory)
         }
     }
 

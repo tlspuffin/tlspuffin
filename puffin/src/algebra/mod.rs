@@ -534,6 +534,10 @@ pub mod test_signature {
         fn determinism_reseed(&self) {
             panic!("Not implemented for test stub");
         }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory)
+        }
     }
 }
 
@@ -626,7 +630,7 @@ mod tests {
         }
 
         let put_registry =
-            PutRegistry::<TestProtocolBehavior>::new(&[dummy_factory], dummy_factory().id());
+            PutRegistry::<TestProtocolBehavior>::new(vec![dummy_factory()], dummy_factory().id());
         let mut context = TraceContext::new(&put_registry, PutOptions::default());
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),

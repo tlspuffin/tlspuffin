@@ -48,11 +48,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
-                        Error::Agent(format!(
-                            "{} // {:?}",
-                            "Unable to find args".to_string(),
-                            put_descriptor
-                        ))
+                        Error::Agent(format!("{} // {:?}", "Unable to find args", put_descriptor))
                     })?
                     .to_owned();
                 let prog = options
@@ -97,15 +93,19 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             TcpClientPut::version()
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
                 self.name()
             );
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(TCPFactory)
         }
     }
 

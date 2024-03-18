@@ -15,7 +15,7 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, LibraryId},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
 };
@@ -86,6 +86,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             BORINGSSL_PUT
         }
 
+        fn library(&self) -> LibraryId {
+            BoringSSL::version()
+        }
+
         fn determinism_set_reseed(&self) -> () {
             debug!("[Determinism] BoringSSL set (already done at compile time) and reseed RAND");
             deterministic::reset_rand();
@@ -94,6 +98,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn determinism_reseed(&self) -> () {
             debug!("[Determinism] reseed BoringSSL");
             deterministic::reset_rand();
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(BoringSSLFactory)
         }
 
         fn version(&self) -> String {

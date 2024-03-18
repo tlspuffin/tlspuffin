@@ -9,16 +9,11 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use std::fmt::format;
-
-    use puffin::{
-        put::PutOptions,
-        trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext},
-    };
+    use puffin::{put::PutOptions, trace::TraceContext};
 
     use crate::{
         boringssl::deterministic::reset_rand,
-        put_registry::tls_default_registry,
+        put_registry::tls_registry,
         tls::{
             seeds::{create_corpus, seed_client_attacker_full_boring},
             trace_helper::TraceHelper,
@@ -29,7 +24,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_boringssl_no_randomness_full() {
-        let put_registry = tls_default_registry();
+        let put_registry = tls_registry();
 
         let trace = seed_client_attacker_full_boring.build_trace();
         let mut ctx1 = TraceContext::new(&put_registry, PutOptions::default());

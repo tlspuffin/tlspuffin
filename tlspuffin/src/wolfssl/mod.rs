@@ -107,6 +107,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn determinism_reseed(&self) -> () {
             error!("[determinism_reseed] Not yet implemented.")
         }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(WolfSSLFactory)
+        }
     }
 
     Box::new(WolfSSLFactory)

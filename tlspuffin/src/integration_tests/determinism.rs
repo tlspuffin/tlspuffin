@@ -1,10 +1,3 @@
-use puffin::{put::PutOptions, trace::TraceContext};
-
-use crate::{
-    put_registry::tls_default_registry,
-    tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
-};
-
 #[test]
 #[cfg(all(
     feature = "deterministic",
@@ -14,9 +7,11 @@ use crate::{
 ))] // TODO: only passes in mono-thread!! with option `-test-threads=1`
 fn test_attacker_full_det_recreate() {
     // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
+    use crate::tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper};
+    use puffin::put_registry::tls_registry;
+    use puffin::{put::PutOptions, trace::TraceContext};
 
-    use puffin::put_registry;
-    let put_registry = tls_default_registry();
+    let put_registry = tls_registry();
 
     put_registry.determinism_set_reseed_all_factories();
 

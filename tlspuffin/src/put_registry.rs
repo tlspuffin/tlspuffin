@@ -32,6 +32,8 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
                 crate::openssl::new_openssl_factory().id()
             } else if #[cfg(feature = "wolfssl-binding")] {
                 crate::wolfssl::new_wolfssl_factory().id()
+            } else if #[cfg(feature = "boringssl-binding")] {
+                crate::boringssl::new_boringssl_factory().id()
             } else {
                 crate::tcp::new_tcp_factory().id()
             }
@@ -39,14 +41,14 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     };
 
     PutRegistry::new(
-        &[
-            crate::tcp::new_tcp_factory,
+        vec![
+            crate::tcp::new_tcp_factory(),
             #[cfg(feature = "openssl-binding")]
-            crate::openssl::new_openssl_factory,
+            crate::openssl::new_openssl_factory(),
             #[cfg(feature = "wolfssl-binding")]
-            crate::wolfssl::new_wolfssl_factory,
+            crate::wolfssl::new_wolfssl_factory(),
             #[cfg(feature = "boringssl-binding")]
-            crate::boringssl::new_boringssl_factory,
+            crate::boringssl::new_boringssl_factory(),
         ],
         default,
     )

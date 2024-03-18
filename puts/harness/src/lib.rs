@@ -56,9 +56,7 @@ pub unsafe fn to_string(ptr: *const c_char) -> String {
     CStr::from_ptr(ptr).to_string_lossy().as_ref().to_owned()
 }
 
-use crate::bindings::{
-    RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK,
-};
+use crate::bindings::{RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK};
 
 unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) -> *mut c_void {
     let reason = to_string(description);
@@ -67,10 +65,6 @@ unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) 
         RESULT_CODE_RESULT_OK => Ok(reason),
         RESULT_CODE_RESULT_IO_WOULD_BLOCK => Err(CError {
             kind: CErrorKind::IOWouldBlock,
-            reason,
-        }),
-        RESULT_CODE_RESULT_ERROR_FATAL => Err(CError {
-            kind: CErrorKind::Fatal,
             reason,
         }),
         _ => Err(CError {
