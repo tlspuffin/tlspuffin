@@ -2186,12 +2186,12 @@ pub mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::put_registry::tls_default_registry;
+    use crate::put_registry::tls_registry;
     use crate::tls::trace_helper::TraceHelper;
 
     #[test]
     fn test_version() {
-        tls_default_registry().version_strings();
+        tls_registry().version_strings();
     }
 
     #[test]

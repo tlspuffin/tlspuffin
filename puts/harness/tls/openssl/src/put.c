@@ -2,17 +2,31 @@
 #error "missing preprocessor definition PUT_ID"
 #endif
 
+#include <openssl/ssl.h>
 #include <stdio.h>
 #include <tlspuffin/put.h>
-#include <openssl/ssl.h>
 
 #define xstr(s) str(s)
 #define str(s) #s
 
 static const C_PUT_TYPE OPENSSL_PUT = {
+    .harness =
+        {
+            .name = "openssl",
+            .version = "",
+        },
+
+    .library =
+        {
+            .vendor_name = "",
+            .vendor_version = "",
+
+            .config_name = "",
+            .config_hash = "",
+        },
+
     .create = NULL,
     .destroy = NULL,
-    .version = NULL,
 
     .progress = NULL,
     .reset = NULL,
@@ -26,9 +40,7 @@ static const C_PUT_TYPE OPENSSL_PUT = {
     .take_outbound = NULL,
 };
 
-#define AT_INIT PUT_ID
-
-void AT_INIT() {
-    printf("init for PUT tls/openssl/%s (0x%09lX: %s)\n", xstr(PUT_ID), OpenSSL_version_num(), OPENSSL_VERSION_TEXT);
-    TLSPUFFIN.register_put(&OPENSSL_PUT);
+void REGISTER(void (*const register_put)(const C_PUT_TYPE *))
+{
+    register_put(&OPENSSL_PUT);
 }

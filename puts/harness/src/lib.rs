@@ -8,11 +8,11 @@ mod bindings {
     include!(env!("RUST_BINDINGS_FILE"));
 }
 
+pub use bindings::*;
+
 mod init {
     include!(env!("RUST_PUTS_INIT_FILE"));
 }
-
-pub use bindings::*;
 pub use init::*;
 
 use puffin::error::Error;
@@ -20,7 +20,7 @@ use std::io;
 
 use libc::{c_char, c_void};
 
-pub static mut PUTS: Vec<&C_PUT_TYPE> = vec![];
+pub type FnRegister = extern "C" fn(put: *const C_PUT_TYPE) -> ();
 
 macro_rules! define_extern_c_log {
     ( $level:ident, $name:ident ) => {
@@ -38,7 +38,6 @@ define_extern_c_log!(Trace, c_log_trace);
 
 #[no_mangle]
 pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
-    register_put: Some(register_put),
     error: Some(c_log_error),
     warn: Some(c_log_warn),
     info: Some(c_log_info),
@@ -60,14 +59,6 @@ pub unsafe fn to_string(ptr: *const c_char) -> String {
 use crate::bindings::{
     RESULT_CODE_RESULT_ERROR_FATAL, RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK,
 };
-
-unsafe extern "C" fn register_put(put: *const C_PUT_TYPE) {
-    if put.is_null() {
-        return;
-    }
-
-    PUTS.push(&*put)
-}
 
 unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) -> *mut c_void {
     let reason = to_string(description);

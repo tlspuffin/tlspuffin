@@ -12,14 +12,15 @@ foreach(vendor_path IN LISTS VENDORS)
     set(PROTOCOL "tls")
     set(HARNESS "openssl")
 
+    # FIXME retrieve mk_vendor config uid if available
     string(SHA256 VENDOR_HASH "${PROTOCOL}/${HARNESS}/${vendor_path}")
     string(SUBSTRING ${VENDOR_HASH} 0 16 VENDOR_HASH)
 
-    set(PUT_ID "${HARNESS}_${VENDOR_HASH}")
+    set(PUT_ID "${VENDOR_HASH}")
 
     add_library(put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT ${PROTOCOL}/${HARNESS}/src/put.c)
     set_property(TARGET put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
-    target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID})
+    target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${HARNESS}_${PUT_ID})
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${vendor_path}/include")
 
@@ -33,7 +34,7 @@ foreach(vendor_path IN LISTS VENDORS)
     set_property(TARGET relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY IMPORTED_OBJECTS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
     add_dependencies(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
 
-    list(APPEND PUTS "${PUT_ID}")
+    list(APPEND PUTS "${HARNESS}_${PUT_ID}")
     list(APPEND PUT_LIBS relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
 endforeach()
 
@@ -51,11 +52,11 @@ set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/init.rs)
 set(RUST_INIT_DECL "")
 set(RUST_INIT_CALL "")
 foreach(put_id IN LISTS PUTS)
-    string(APPEND RUST_INIT_DECL "    fn ${put_id}();\n")
-    string(APPEND RUST_INIT_CALL "        ${put_id}();\n")
+    string(APPEND RUST_INIT_DECL "    fn register_${put_id}(callback: FnRegister);\n")
+    string(APPEND RUST_INIT_CALL "        register_${put_id}(callback);\n")
 endforeach()
 
-file(WRITE ${RUST_INIT_FILE} "extern {\n${RUST_INIT_DECL}}\n\npub fn init() {\n    unsafe {\n${RUST_INIT_CALL}    }\n}\n")
+file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\nextern {\n${RUST_INIT_DECL}}\n\npub fn register(callback: FnRegister) {\n    unsafe {\n${RUST_INIT_CALL}    }\n}\n")
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")
 install(FILES $<TARGET_FILE:puts-bundle> DESTINATION ".")

@@ -7,8 +7,8 @@ mod violation;
 
 use std::process::ExitCode;
 
-use crate::put_registry::ssh_default_registry;
+use crate::put_registry::ssh_registry;
 
 pub fn main() -> ExitCode {
-    puffin::cli::main(ssh_default_registry())
+    puffin::cli::main(ssh_registry())
 }
