@@ -52,21 +52,14 @@ generate_coverage () {
     cov_data=$(gcovr --gcov-executable "llvm-cov gcov" "${excludes[@]}" --json-summary-pretty)
     echo "$cov_data" | jq "[\"\",.branch_covered,.branch_percent,.branch_total,.function_covered,.function_percent,.function_total,.line_covered,.line_percent,.line_total] | @csv" -r >> $cov_file
 
-    nb_inputs=$(RUST_LOG=info "${build_dir}/target/x86_64-unknown-linux-gnu/debug/tlspuffin" execute --index 0 -n 0 "$corpus" 2>&1 | sed -n 's@^.*found \([[:digit:]]*\) inputs.*$@\1@p')
-    if [[ -z "${nb_inputs}" ]]; then
-        printf 'error: %s\n' 'tlspuffin did not log the total number of inputs to execute (older version?)'
-        exit 1
-    fi
-
     count=0
-    while (( count < nb_inputs ))
-    do
+    while true; do
         echo "Executing testcases"
         time=$($build_dir/target/x86_64-unknown-linux-gnu/debug/tlspuffin execute --index "$count" -n "$batch" "$corpus")
         
         exit_status=$?
 
-        if [ $exit_status -ne 0 ]; then
+        if [ $exit_status -ne 0 ] && [ $exit_status -ne 1 ]; then
             echo "Unexpected exit code. Do you have crashing inputs in the corpus?"
         fi
 
@@ -74,8 +67,12 @@ generate_coverage () {
         cov_data=$(gcovr --gcov-executable "llvm-cov gcov" "${excludes[@]}" --json-summary-pretty)
         echo "$cov_data" | jq "[$time,.branch_covered,.branch_percent,.branch_total,.function_covered,.function_percent,.function_total,.line_covered,.line_percent,.line_total] | @csv" -r >> $cov_file
 
-        count=$(( count + batch ))
+        count=$(expr $count + $batch)
+        if [ $exit_status -eq 1 ]; then
+            break
+        fi
     done
+
 
     gcovr --gcov-executable "llvm-cov gcov" "${excludes[@]}" --html-details --html-self-contained -o "$html_dir/index.html"
     sleep 1
