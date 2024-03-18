@@ -61,11 +61,14 @@ fn create_app() -> Command {
                 .arg(arg!(--multiple "Whether we want to output multiple views, additionally to the combined view"))
                 .arg(arg!(--tree "Whether want to use tree mode in the combined view")),
             Command::new("execute")
-                .about("Executes a trace stored in a file.")
+                .about("Executes a trace stored in a file. The exit code describes if more files are available for execution.")
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
+            Command::new("execute-traces")
+                .about("Executes traces stored in files.")
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..)),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -158,7 +161,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                         .expect("failed to read directory")
                         .map(|entry| entry.expect("failed to read path in directory").path())
                         .filter(|path| {
-                            !path.file_name().unwrap().to_str().unwrap().starts_with(".")
+                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
                         })
                         .collect()
                 } else {
@@ -176,13 +179,17 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
         let n: usize = *matches.get_one("number").unwrap_or(&paths.len());
 
+        let mut end_reached = false;
+
         let lookup_paths = if index < paths.len() {
             if index + n < paths.len() {
                 &paths[index..index + n]
             } else {
+                end_reached = true;
                 &paths[index..]
             }
         } else {
+            end_reached = true;
             // empty
             &paths[0..0]
         };
@@ -211,6 +218,46 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                     .unwrap()
                     .as_millis()
             )
+        }
+
+        if end_reached {
+            return ExitCode::FAILURE;
+        } else {
+            return ExitCode::SUCCESS;
+        }
+    } else if let Some(matches) = matches.subcommand_matches("execute-traces") {
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+
+        let mut paths = inputs
+            .flat_map(|input| {
+                let input = PathBuf::from(input);
+
+                if input.is_dir() {
+                    fs::read_dir(input)
+                        .expect("failed to read directory")
+                        .map(|entry| entry.expect("failed to read path in directory").path())
+                        .filter(|path| {
+                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
+                        })
+                        .collect()
+                } else {
+                    vec![input]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        paths.sort_by_key(|path| {
+            fs::metadata(path)
+                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
+                .modified()
+                .unwrap()
+        });
+
+        info!("execute: found {} inputs", paths.len());
+
+        for path in paths {
+            info!("Executing: {}", path.display());
+            execute(path, put_registry);
         }
 
         return ExitCode::SUCCESS;
