@@ -24,9 +24,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::{Factory, LibraryId},
+    put_registry::{Factory, PutKind},
     stream::Stream,
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -150,16 +151,25 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             }))
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             LIBSSH_PUT
         }
 
-        fn library(&self) -> LibraryId {
-            "libssh0104".to_string()
-        }
-
-        fn version(&self) -> String {
-            LibSSL::version()
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![
+                (
+                    "harness".to_string(),
+                    format!("{} ({})", LIBSSH_PUT.to_string(), VERSION_STR),
+                ),
+                (
+                    "library".to_string(),
+                    format!("libssh ({} / {})", "libssh0104", LibSSL::version()),
+                ),
+            ]
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {

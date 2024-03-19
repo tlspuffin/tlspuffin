@@ -1,4 +1,4 @@
-use std::fmt;
+use std::collections::HashMap;
 
 use crate::{
     agent::AgentDescriptor,
@@ -8,73 +8,51 @@ use crate::{
     trace::TraceContext,
 };
 
-pub type LibraryId = String;
-pub type HarnessId = PutName;
-
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
-
-#[derive(PartialEq, Eq, Clone)]
-pub struct PutId {
-    pub harness: HarnessId,
-    pub library: LibraryId,
-}
-
-impl fmt::Display for PutId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(harness={}, library={})", self.harness, self.library)
-    }
-}
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
-    factories: Vec<Box<dyn Factory<PB>>>,
-    default_put: PutId,
+    factories: HashMap<String, Box<dyn Factory<PB>>>,
+    default_put: String,
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new(factories: Vec<Box<dyn Factory<PB>>>, default: PutId) -> Self {
+    pub fn new<SI, I, S>(puts: I, default: S) -> Self
+    where
+        SI: Into<String>,
+        I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
+        S: Into<String>,
+    {
         let result = Self {
-            factories: factories,
-            default_put: default,
+            factories: puts
+                .into_iter()
+                .map(|(id, f)| (Into::<String>::into(id), f))
+                .collect(),
+            default_put: default.into(),
         };
 
-        result
-            .find_id(&result.default_put)
-            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &result.default_put));
+        // check that the default PUT is actually in the registry
+        let _ = result.find_by_id(&result.default_put);
 
         result
-    }
-
-    pub fn version_strings(&self) -> Vec<String> {
-        let mut put_versions = Vec::new();
-        for factory in &self.factories {
-            let name = factory.name();
-            let version = factory.version();
-            put_versions.push(format!("{}: {}", name, version));
-        }
-        put_versions
     }
 
     pub fn default(&self) -> &dyn Factory<PB> {
-        self.find_id(&self.default_put).unwrap()
+        self.find_by_id(&self.default_put)
+            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
     }
 
-    pub fn find_id(&self, id: &PutId) -> Option<&dyn Factory<PB>> {
+    pub fn puts(&self) -> impl Iterator<Item = (&str, &dyn Factory<PB>)> {
         self.factories
             .iter()
+            .map(|(n, f)| (n.as_str(), f.to_owned().as_ref()))
+    }
+
+    pub fn find_by_id<S: AsRef<str>>(&self, id: S) -> Option<&dyn Factory<PB>> {
+        self.factories
+            .get(id.as_ref())
             .map(|f| f.to_owned().as_ref())
-            .find(|factory| factory.id() == id.clone())
-    }
-
-    pub fn search<'a, P>(&'a self, predicate: P) -> impl Iterator<Item = &dyn Factory<PB>> + 'a
-    where
-        P: Fn(&PutId) -> bool + 'a,
-    {
-        self.factories
-            .iter()
-            .map(|f| f.as_ref())
-            .filter(move |factory| predicate(&factory.id()))
     }
 }
 
@@ -83,11 +61,16 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
         Self::new(
             self.factories
                 .iter()
-                .map(|f| f.clone_factory())
-                .collect::<Vec<_>>(),
+                .map(|(n, f)| (n.clone(), f.clone_factory())),
             self.default_put.clone(),
         )
     }
+}
+
+#[derive(Debug)]
+pub enum PutKind {
+    CPUT,
+    Rust,
 }
 
 /// Factory for instantiating programs-under-test.
@@ -98,18 +81,9 @@ pub trait Factory<PB: ProtocolBehavior> {
         agent_descriptor: &AgentDescriptor,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
+    fn kind(&self) -> PutKind;
     fn name(&self) -> PutName;
-
-    fn library(&self) -> LibraryId;
-
-    fn version(&self) -> String;
-
-    fn id(&self) -> PutId {
-        PutId {
-            harness: self.name(),
-            library: self.library(),
-        }
-    }
+    fn versions(&self) -> Vec<(String, String)>;
 
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 }

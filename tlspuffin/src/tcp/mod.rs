@@ -17,9 +17,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, LibraryId},
+    put_registry::{Factory, PutKind},
     stream::Stream,
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -85,20 +86,23 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             TCP_PUT
         }
 
-        fn library(&self) -> LibraryId {
-            "undefined".to_string()
-        }
-
-        fn version(&self) -> String {
-            TcpClientPut::version()
-        }
-
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(TCPFactory)
+        }
+
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![(
+                "harness".to_string(),
+                format!("{} ({})", TCP_PUT.to_string(), VERSION_STR),
+            )]
         }
     }
 

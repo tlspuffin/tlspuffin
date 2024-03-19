@@ -1,5 +1,7 @@
-use std::env;
-use std::path::{Path, PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 pub fn main() {
     println!("cargo:rerun-if-env-changed=VENDOR_DIR");

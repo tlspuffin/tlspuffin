@@ -13,12 +13,11 @@ pub use bindings::*;
 mod init {
     include!(env!("RUST_PUTS_INIT_FILE"));
 }
-pub use init::*;
-
-use puffin::error::Error;
 use std::io;
 
+pub use init::*;
 use libc::{c_char, c_void};
+use puffin::error::Error;
 
 pub type FnRegister = extern "C" fn(put: *const C_PUT_TYPE) -> ();
 

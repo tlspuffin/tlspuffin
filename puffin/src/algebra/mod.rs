@@ -130,10 +130,11 @@ pub mod test_signature {
             OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
         put::{Put, PutName},
-        put_registry::{Factory, LibraryId},
+        put_registry::{Factory, PutKind},
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
         variable_data::VariableData,
+        VERSION_STR,
     };
 
     pub struct HmacKey;
@@ -514,16 +515,23 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
         }
 
-        fn library(&self) -> LibraryId {
-            "unknown".to_string()
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![(
+                "harness".to_string(),
+                format!("{} ({})", self.name(), VERSION_STR),
+            )]
         }
 
-        fn version(&self) -> String {
-            panic!("Not implemented for test stub");
+        fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory {})
         }
     }
 }
@@ -617,7 +625,7 @@ mod tests {
         }
 
         let put_registry =
-            PutRegistry::<TestProtocolBehavior>::new(&[dummy_factory], dummy_factory().id());
+            PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
         let mut context = TraceContext::new(&put_registry, PutOptions::default());
         context.add_knowledge(Knowledge {
             agent_name: AgentName::first(),
