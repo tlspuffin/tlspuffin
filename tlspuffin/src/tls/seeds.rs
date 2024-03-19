@@ -2186,12 +2186,16 @@ pub mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::put_registry::tls_registry;
-    use crate::tls::trace_helper::TraceHelper;
+    use crate::{put_registry::tls_registry, tls::trace_helper::TraceHelper};
 
     #[test]
     fn test_version() {
-        tls_registry().version_strings();
+        for (id, put) in tls_registry().puts() {
+            println!("({:?}) {}:", put.kind(), id);
+            for (component, version) in put.versions().into_iter() {
+                println!("    {}: {}", component, version);
+            }
+        }
     }
 
     #[test]

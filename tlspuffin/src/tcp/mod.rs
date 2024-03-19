@@ -17,9 +17,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, LibraryId},
+    put_registry::{Factory, PutKind},
     stream::Stream,
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -81,16 +82,19 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             TCP_PUT
         }
 
-        fn library(&self) -> LibraryId {
-            "undefined".to_string()
-        }
-
-        fn version(&self) -> String {
-            TcpClientPut::version()
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![(
+                "harness".to_string(),
+                format!("{} ({})", TCP_PUT, VERSION_STR),
+            )]
         }
 
         fn determinism_set_reseed(&self) {
@@ -276,7 +280,7 @@ impl TcpPut for TcpServerPut {
 
 impl Stream<Message, OpaqueMessage> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&mut opaque_message.clone().encode())
+        self.write_to_stream(&opaque_message.clone().encode())
             .unwrap();
     }
 
@@ -289,7 +293,7 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
 
 impl Stream<Message, OpaqueMessage> for TcpClientPut {
     fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&mut opaque_message.clone().encode())
+        self.write_to_stream(&opaque_message.clone().encode())
             .unwrap();
     }
 

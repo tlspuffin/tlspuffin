@@ -10,9 +10,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::{Factory, LibraryId},
+    put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
+    VERSION_STR,
 };
 use smallvec::SmallVec;
 use wolfssl::{
@@ -73,12 +74,16 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             Ok(Box::new(WolfSSL::new(config)?))
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             WOLFSSL520_PUT
         }
 
-        fn library(&self) -> LibraryId {
-            if cfg!(feature = "vendored-wolfssl540") {
+        fn versions(&self) -> Vec<(String, String)> {
+            let wolfssl_shortname = if cfg!(feature = "vendored-wolfssl540") {
                 "wolfssl540"
             } else if cfg!(feature = "vendored-wolfssl530") {
                 "wolfssl530"
@@ -89,15 +94,21 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             } else if cfg!(feature = "vendored-wolfssl430") {
                 "wolfssl430"
             } else if cfg!(feature = "vendored-master") {
-                "wolfsslmaster"
+                "master"
             } else {
                 "unknown"
-            }
-            .to_string()
-        }
+            };
 
-        fn version(&self) -> String {
-            WolfSSL::version()
+            vec![
+                (
+                    "harness".to_string(),
+                    format!("{} ({})", WOLFSSL520_PUT, VERSION_STR),
+                ),
+                (
+                    "library".to_string(),
+                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                ),
+            ]
         }
 
         fn determinism_set_reseed(&self) -> () {

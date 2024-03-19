@@ -32,3 +32,5 @@ pub const GIT_MSG: &str = match option_env!("GIT_MSG") {
     Some(env) => env,
     None => "undefined",
 };
+
+pub const VERSION_STR: &str = env!("VERSION_STR");

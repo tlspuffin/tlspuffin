@@ -7,29 +7,41 @@ mod term_zoo;
 
 #[test]
 fn version_test() {
-    let version = tls_registry().default().version();
-    println!("{}", version);
+    let registry = tls_registry();
+    let versions = registry.default().versions();
+
+    println!("Default tls PUT components:");
+    for (component, version) in versions.iter() {
+        println!("    {}: {}", component, version);
+    }
+
+    #[allow(unused_variables)]
+    let version = versions
+        .iter()
+        .find(|(c, _)| c == "library")
+        .map(|(_, v)| v);
+
     #[cfg(feature = "openssl101f")]
-    assert!(version.contains("1.0.1f"));
+    assert!(version.expect("missing version string").contains("1.0.1f"));
     #[cfg(feature = "openssl102f")]
-    assert!(version.contains("1.0.1u"));
+    assert!(version.expect("missing version string").contains("1.0.1u"));
     #[cfg(feature = "openssl111")]
-    assert!(version.contains("1.1.1k"));
+    assert!(version.expect("missing version string").contains("1.1.1k"));
     #[cfg(feature = "openssl111j")]
-    assert!(version.contains("1.1.1j"));
+    assert!(version.expect("missing version string").contains("1.1.1j"));
     #[cfg(feature = "openssl111u")]
-    assert!(version.contains("1.1.1u"));
+    assert!(version.expect("missing version string").contains("1.1.1u"));
     #[cfg(feature = "openssl312")]
-    assert!(version.contains("3.1.2"));
+    assert!(version.expect("missing version string").contains("3.1.2"));
 
     #[cfg(feature = "wolfssl510")]
-    assert!(version.contains("5.1.0"));
+    assert!(version.expect("missing version string").contains("5.1.0"));
     #[cfg(feature = "wolfssl520")]
-    assert!(version.contains("5.2.0"));
+    assert!(version.expect("missing version string").contains("5.2.0"));
     #[cfg(feature = "wolfssl530")]
-    assert!(version.contains("5.3.0"));
+    assert!(version.expect("missing version string").contains("5.3.0"));
     #[cfg(feature = "wolfssl540")]
-    assert!(version.contains("5.4.0"));
+    assert!(version.expect("missing version string").contains("5.4.0"));
     #[cfg(feature = "wolfssl550")]
-    assert!(version.contains("5.5.0"));
+    assert!(version.expect("missing version string").contains("5.5.0"));
 }

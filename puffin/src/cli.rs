@@ -108,8 +108,12 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
-    for version in put_registry.version_strings() {
-        info!("{}", version);
+
+    for (id, put) in put_registry.puts() {
+        info!("({:?}) {}:", put.kind(), id);
+        for (component, version) in put.versions().into_iter() {
+            info!("    {}: {}", component, version);
+        }
     }
 
     asan_info();
@@ -281,18 +285,18 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
 
         let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
 
-        let mut options = vec![("port", port.as_str()), ("host", &host)];
+        let mut options = vec![("port", port.as_str()), ("host", host)];
 
         if let Some(prog) = prog {
-            options.push(("prog", &prog))
+            options.push(("prog", prog))
         }
 
         if let Some(args) = args {
-            options.push(("args", &args))
+            options.push(("args", args))
         }
 
         if let Some(cwd) = cwd {
-            options.push(("cwd", &cwd))
+            options.push(("cwd", cwd))
         }
 
         let put = PutDescriptor {
