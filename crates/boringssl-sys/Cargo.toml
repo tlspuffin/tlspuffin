@@ -11,6 +11,7 @@ bindgen = "0.69.1"
 [features]
 vendored-master = []
 boring-2023-11-18 = []
+boring-2024-03-22 = []
 
 sancov = []
 asan = []

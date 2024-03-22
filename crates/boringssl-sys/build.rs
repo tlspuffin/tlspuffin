@@ -5,6 +5,8 @@ use boringssl_src::{build, BoringSSLOptions, GitRef};
 fn main() {
     let git_ref: GitRef = if cfg!(feature = "boring-2023-11-18") {
         GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
+    } else if cfg!(feature = "boring-2024-03-22") {
+        GitRef::Commit(String::from("368d0d87d0bd00f8227f74ce18e8e4384eaf6afa"))
     } else if cfg!(feature = "vendored-master") {
         GitRef::Branch(String::from("master"))
     } else {
