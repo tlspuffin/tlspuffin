@@ -15,6 +15,7 @@ use log::{error, info, LevelFilter};
 use crate::{
     algebra::set_deserialize_signature,
     codec::Codec,
+    execution::forked_execution,
     experiment::*,
     fuzzer::{
         harness::{default_put_options, set_default_put_options},
@@ -389,32 +390,10 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use nix::{
-    sys::wait::{waitpid, WaitPidFlag},
-    unistd::{fork, ForkResult},
-};
-
 use crate::{
     agent::AgentName,
     put::{PutDescriptor, PutName},
 };
-
-pub fn expect_crash<R>(func: R)
-where
-    R: FnOnce(),
-{
-    match unsafe { fork() } {
-        Ok(ForkResult::Parent { child, .. }) => {
-            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
-            info!("Finished executing: {:?}", status);
-        }
-        Ok(ForkResult::Child) => {
-            func();
-            std::process::exit(0);
-        }
-        Err(_) => panic!("Fork failed"),
-    }
-}
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &'static PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
@@ -429,16 +408,25 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &'stati
 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
-    expect_crash(move || {
-        let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-        if let Err(err) = trace.execute(&mut ctx) {
-            error!(
-                "Failed to execute trace {}: {:?}",
-                input.as_ref().display(),
-                err
-            );
-        }
-    });
+    let status = forked_execution(
+        move || {
+            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            if let Err(err) = trace.execute(&mut ctx) {
+                error!(
+                    "Failed to execute trace {}: {:?}",
+                    input.as_ref().display(),
+                    err
+                );
+                std::process::exit(1);
+            }
+        },
+        None,
+    );
+
+    match status {
+        Ok(s) => info!("execution finished with status {s:?}"),
+        Err(reason) => panic!("failed to execute trace: {reason}"),
+    }
 }
 
 fn binary_attack<PB: ProtocolBehavior>(
