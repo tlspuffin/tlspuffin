@@ -168,7 +168,7 @@ Now we will go over the sub-commands execute, plot, experiment, and seed.
 * **experiment**
   > This sub-command initiates an experiment. Experiments are stored in a directory named experiments/ in the current working directory. An experiment consists of a directory which contains . The title and description of the experiment can be specified with --title ⟨t⟩ and --description ⟨d⟩ respectively. Both strings are persisted in the metadata of the experiment, together with the current commit hash of , the version and the current date and time.
 * **seed**
-  > This sub-command serializes the default seed corpus in a directory named corpus/ in the current working directory. The default corpus is defined in the source code of using the trace dsl.
+  > This sub-command serializes the default seed corpus in a directory named seeds/ in the current working directory. The default corpus is defined in the source code using the trace dsl.
 
 
 ## Rust Setup
