@@ -22,9 +22,6 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     # openssh
     pkgs.openssl_1_1
 
-    # Old openssl
-    pkgs.xorg.makedepend
-
     pkgs.graphviz
     pkgs.yajl
     pkgs.python310Packages.pip
