@@ -1107,13 +1107,18 @@ pub mod tests {
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
     #[test]
-    #[ignore] // We can not check for this vulnerability right now
+    #[ignore] // We cannot check for this vulnerability right now
     fn test_seed_freak() {
         use puffin::put::PutOptions;
 
         use crate::test_utils::expect_trace_crash;
 
-        expect_trace_crash(seed_freak.build_trace(), PutOptions::default());
+        expect_trace_crash(
+            seed_freak.build_trace(),
+            PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
+        );
     }
 
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
@@ -1124,7 +1129,12 @@ pub mod tests {
 
         use crate::test_utils::expect_trace_crash;
 
-        expect_trace_crash(seed_heartbleed.build_trace(), PutOptions::default());
+        expect_trace_crash(
+            seed_heartbleed.build_trace(),
+            PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
+        );
     }
 
     #[test]
@@ -1135,7 +1145,12 @@ pub mod tests {
 
         use crate::test_utils::expect_trace_crash;
 
-        expect_trace_crash(seed_cve_2021_3449.build_trace(), PutOptions::default());
+        expect_trace_crash(
+            seed_cve_2021_3449.build_trace(),
+            PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
+        );
     }
 
     #[test]
@@ -1189,6 +1204,8 @@ pub mod tests {
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
             PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
         );
     }
 
@@ -1205,7 +1222,12 @@ pub mod tests {
             crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
         }
 
-        expect_trace_crash(seed_cve_2022_38153.build_trace(), PutOptions::default());
+        expect_trace_crash(
+            seed_cve_2022_38153.build_trace(),
+            PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
+        );
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
@@ -1220,7 +1242,12 @@ pub mod tests {
 
         use crate::test_utils::expect_trace_crash;
 
-        expect_trace_crash(seed_cve_2022_39173.build_trace(), PutOptions::default());
+        expect_trace_crash(
+            seed_cve_2022_39173.build_trace(),
+            PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
+        );
     }
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
@@ -1238,6 +1265,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
             PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
         );
     }
 
@@ -1256,6 +1285,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
             PutOptions::default(),
+            Some(std::time::Duration::from_secs(5)),
+            Some(5),
         );
     }
 

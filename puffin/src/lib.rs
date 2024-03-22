@@ -6,6 +6,7 @@ pub mod claims;
 pub mod cli;
 pub mod codec;
 pub mod error;
+pub mod execution;
 pub mod experiment;
 pub mod fuzzer;
 pub mod graphviz;
