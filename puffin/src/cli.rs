@@ -401,6 +401,7 @@ fn seed<PB: ProtocolBehavior>(
 
 use crate::{
     agent::AgentName,
+    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 

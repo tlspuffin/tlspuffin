@@ -405,7 +405,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Check if we have a client hello in last encrypted one
 
-            let constraints = TermConstraints::default();
+                let constraints = TermConstraints::default();
                 let mut mutator = ReplaceReuseMutator::new(constraints);
 
                 loop {
