@@ -15,6 +15,7 @@ use log::{error, info, LevelFilter};
 use crate::{
     algebra::set_deserialize_signature,
     codec::Codec,
+    execution::forked_execution,
     experiment::*,
     fuzzer::{
         harness::{default_put_options, set_default_put_options},
@@ -187,7 +188,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
 
         for path in lookup_paths {
             info!("Executing: {}", path.display());
-            execute(&path, put_registry, is_batch);
+            execute(&path, put_registry);
         }
 
         if !lookup_paths.is_empty() {
@@ -398,54 +399,26 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use nix::{
-    sys::wait::{waitpid, WaitPidFlag},
-    unistd::{fork, ForkResult},
-};
-
 use crate::{
     agent::AgentName,
-    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 
-pub fn expect_crash<R>(func: R)
-where
-    R: FnOnce(),
-{
-    match unsafe { fork() } {
-        Ok(ForkResult::Parent { child, .. }) => {
-            let status = waitpid(child, Option::from(WaitPidFlag::empty())).unwrap();
-            info!("Finished executing: {:?}", status);
-        }
-        Ok(ForkResult::Child) => {
-            func();
-            std::process::exit(0);
-        }
-        Err(_) => panic!("Fork failed"),
-    }
-}
-
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
-    input: P,
-    put_registry: &'static PutRegistry<PB>,
-    is_batch: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &'static PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
             error!("Invalid trace file {}", input.as_ref().display());
-            return Ok(());
+            return;
         }
     };
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    if is_batch {
-        // When generating coverage a crash means that no coverage is stored
-        // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
-        info!("Executing a batch so: Executing in a fork to avoid not being able to gather coverage in case of crash (for coverage evaluation).");
-        expect_crash(move || {
+    // When generating coverage a crash means that no coverage is stored
+    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+    let status = forked_execution(
+        move || {
             let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
             if let Err(err) = trace.execute(&mut ctx) {
                 error!(
@@ -453,19 +426,16 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
                     input.as_ref().display(),
                     err
                 );
+                std::process::exit(1);
             }
-        });
-    } else {
-        let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-        if let Err(err) = trace.execute(&mut ctx) {
-            error!(
-                "Failed to execute trace {}: {:?}",
-                input.as_ref().display(),
-                err
-            );
-        }
+        },
+        None,
+    );
+
+    match status {
+        Ok(s) => info!("execution finished with status {s:?}"),
+        Err(reason) => panic!("failed to execute trace: {reason}"),
     }
-    Ok(())
 }
 
 fn binary_attack<PB: ProtocolBehavior>(
