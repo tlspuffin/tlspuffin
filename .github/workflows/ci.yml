@@ -38,8 +38,8 @@ jobs:
           esac
 
           [[ ${HAS_LABEL_CI_NONE} == true ]] && CI_CHECKS=()
-          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS+=( check smoke docs )
-          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS+=( check smoke docs base extra )
+          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS=( check smoke docs )
+          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS=( check smoke docs base extra )
 
           json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
           json_result="[${json_result:6}]"
@@ -174,7 +174,7 @@ jobs:
       features: ${{ matrix.features }}
       apt-dependencies: ${{ matrix.apt-dependencies }}
       save-cache: ${{ matrix.save-cache }}
-      if: ${{ matrix.if == 'true' }}
+      if: ${{ matrix.if }}
 
   deploy-docs:
     needs: [configure, docs]
