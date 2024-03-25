@@ -2290,7 +2290,7 @@ pub mod tests {
     fn test_seed_client_attacker_boring() {
         use crate::tls::trace_helper::TraceExecutor;
 
-        let ctx = seed_client_attacker_boring.execute_trace();
+        let ctx = seed_client_attacker_full_boring.execute_trace();
         assert!(ctx.agents_successful());
     }
 

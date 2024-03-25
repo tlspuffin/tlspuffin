@@ -166,6 +166,8 @@ mod tests {
             fn_find_encrypted_extensions.name(),
             fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
+            fn_find_server_ticket.name(),              // new for boring
+            fn_find_server_certificate_request.name(), // new for boring
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -189,7 +191,7 @@ mod tests {
     #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
-    fn test_term_eval_() {
+    fn test_term_eval() {
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
@@ -291,6 +293,8 @@ mod tests {
             fn_find_encrypted_extensions.name(),
             fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
+            fn_find_server_ticket.name(),              // new for boring
+            fn_find_server_certificate_request.name(), // new for boring
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
@@ -441,7 +445,7 @@ mod tests {
     #[test_log::test]
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
-    fn test_term_eval_payloads() {
+    fn test_term_payloads_eval() {
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
@@ -582,9 +586,11 @@ mod tests {
             fn_find_encrypted_extensions.name(),
             fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
+            fn_find_server_ticket.name(),              // new for boring
+            fn_find_server_certificate_request.name(), // new for boring
             // // Unable to add a payload and evaluate correctly, TODO: investigate why
-            // fn_derive_psk.name(),
-            // fn_get_ticket.name(),
+            fn_derive_psk.name(),
+            fn_get_ticket.name(),
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())

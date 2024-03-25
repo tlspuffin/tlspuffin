@@ -95,7 +95,6 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn determinism_set_reseed(&self) -> () {
             debug!("[Determinism] set and reseed");
-
             #[cfg(feature = "deterministic")]
             deterministic::determinism_set_reseed_openssl();
         }
