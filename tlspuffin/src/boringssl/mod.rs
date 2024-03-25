@@ -44,7 +44,6 @@ mod util;
 use std::ops::Deref;
 
 use puffin::algebra::ConcreteMessage;
-
 use transcript::extract_current_transcript;
 
 pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {

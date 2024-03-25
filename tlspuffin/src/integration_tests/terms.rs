@@ -54,7 +54,7 @@ mod tests {
                     message::{Message, MessagePayload, OpaqueMessage},
                 },
             },
-            seeds::{create_corpus, seed_client_attacker_boring},
+            seeds::{create_corpus, seed_client_attacker_full_boring},
             trace_helper::TraceHelper,
             TLS_SIGNATURE,
         },
@@ -108,7 +108,7 @@ mod tests {
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-        let mut trace = seed_client_attacker_boring.build_trace();
+        let mut trace = seed_client_attacker_full_boring.build_trace();
         ctx.set_deterministic(true);
         trace.execute(&mut ctx);
         let step0_before = vec![
