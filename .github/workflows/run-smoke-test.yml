@@ -37,6 +37,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: setup
         uses: ./.github/actions/setup
+      - name: build `tlspuffin`
+        run: cargo build --profile=release --features=openssl111j --bin tlspuffin
       - name: run `tlspuffin help`
         run: cargo run --profile=release --features=openssl111j --bin tlspuffin -- help
       - name: run `tlspuffin seed`
@@ -54,6 +56,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: setup
         uses: ./.github/actions/setup
+      - name: build `sshpuffin`
+        run: cargo build --profile=release --bin sshpuffin
       - name: run `sshpuffin help`
         run: cargo run --profile=release --bin sshpuffin -- help
       - name: run `sshpuffin seed`
