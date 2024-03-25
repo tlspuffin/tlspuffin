@@ -781,6 +781,7 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_no_psk,
             fn_named_group_secp384r1
         )
     };
@@ -915,6 +916,7 @@ pub fn seed_cve_2022_39173_full(
             (@client_finished_transcript),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
+            fn_no_psk,
             fn_named_group_secp384r1
         )
     };
