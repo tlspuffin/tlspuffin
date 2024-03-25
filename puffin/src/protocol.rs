@@ -65,6 +65,9 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+
+    /// Creates an initial seed corpus with some old objectives
+    fn create_corpus_obj() -> Vec<(Trace<Self::Matcher>, &'static str)>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
