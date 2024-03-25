@@ -19,7 +19,20 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
       - name: run rustfmt
-        run: just fmt-check
+        run: just fmt-rust-check
+
+  clangfmt:
+    name: clang-format
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: run clang-format
+        run: just fmt-clang-check
 
   clippy:
     name: clippy

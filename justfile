@@ -52,11 +52,50 @@ benchmark:
 install-rustfmt: nightly-toolchain
   rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN
 
-fmt: install-rustfmt
+fmt-rust: install-rustfmt
   export RUSTUP_TOOLCHAIN=$NIGHTLY_TOOLCHAIN && cargo fmt
 
-fmt-check: install-rustfmt
+fmt-rust-check: install-rustfmt
   export RUSTUP_TOOLCHAIN=$NIGHTLY_TOOLCHAIN && cargo fmt -- --check
+
+fmt-clang:
+  #!/usr/bin/env bash
+  FILES=$(
+    find {{ justfile_directory() }} -type f \
+    | grep -v "^{{ justfile_directory() / "vendor" }}" \
+    | grep -v "^{{ justfile_directory() / "target" }}" \
+    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c++|h++|cxx|hxx)$"
+  )
+
+  printf '%s\n' "${FILES}" | xargs -L1 clang-format --verbose -style=file -i
+
+fmt-clang-check:
+  #!/usr/bin/env bash
+  FILES=$(
+    find {{ justfile_directory() }} -type f \
+    | grep -v "^{{ justfile_directory() / "vendor" }}" \
+    | grep -v "^{{ justfile_directory() / "target" }}" \
+    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c++|h++|cxx|hxx)$"
+  )
+
+  check() {
+    diff -u \
+      --label "${1} (original)" \
+      --label "${1} (reformatted)" \
+      "${1}" <(clang-format -style=file "${1}")
+  }
+
+  declare -i result=0
+  while IFS='\n' read -r c_file
+  do
+    check "${c_file}"
+    (( result = ($? || result) ))
+  done < <(printf '%s\n' "${FILES}")
+
+  exit ${result}
+
+fmt: fmt-rust fmt-clang
+fmt-check: fmt-rust-check fmt-clang
 
 default-toolchain:
   # Setups the toolchain from rust-toolchain.toml
