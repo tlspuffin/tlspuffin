@@ -6,6 +6,7 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
+    variable_data::VariableData,
 };
 
 use crate::tls::{
@@ -131,6 +132,28 @@ pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, Fn
         }
     }
     Err(FnError::Unknown("no server certificate".to_owned()))
+}
+
+pub fn fn_find_server_ticket(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::NewSessionTicket {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server tickets".to_owned()))
+}
+
+pub fn fn_find_server_certificate_request(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::CertificateRequest {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server tickets".to_owned()))
 }
 
 pub fn fn_find_encrypted_extensions(messages: &Vec<Message>) -> Result<Message, FnError> {

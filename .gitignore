@@ -38,5 +38,3 @@ coverage.csv
 *.html
 *.css
 stats.json.should-be-empty.log
-
-/crates/boringssl-src/boringssl/

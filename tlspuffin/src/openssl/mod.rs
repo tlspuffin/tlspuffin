@@ -20,6 +20,11 @@ use puffin::{
 #[cfg(feature = "deterministic")]
 use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
+    claims::{
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -90,14 +95,15 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn determinism_set_reseed(&self) -> () {
             debug!("[Determinism] set and reseed");
+
             #[cfg(feature = "deterministic")]
-            determinism_set_reseed_openssl();
+            deterministic::determinism_set_reseed_openssl();
         }
 
         fn determinism_reseed(&self) -> () {
             debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
-            determinism_reseed_openssl();
+            deterministic::determinism_reseed_openssl();
         }
     }
 
@@ -222,7 +228,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         #[cfg(feature = "deterministic")]
         {
             #[cfg(feature = "deterministic")]
-            determinism_reseed_openssl();
+            deterministic::determinism_reseed_openssl();
             warn!("OpenSSL is deterministic now!!");
             Ok(())
         }

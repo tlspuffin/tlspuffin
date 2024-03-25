@@ -25,7 +25,7 @@ exclude = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Maximilian Ammann <max@maxammann.org>", "Lucca Hirschi <lucca.hirschi@inria.fr>", "Michael Mera <dev@michaelmera.com>"]
+authors = ["Maximilian Ammann <max@maxammann.org>", "Lucca Hirschi <lucca.hirschi@inria.fr>", "Michael Mera <dev@michaelmera.com>", "Tom Gouville <tom@tomgouville.fr>"]
 repository = "https://github.com/tlspuffin/tlspuffin"
 homepage = "https://github.com/tlspuffin/tlspuffin"
 license = "MIT OR Apache-2.0"
@@ -51,4 +51,3 @@ debug = true
 
 [profile.dev]
 panic = "abort"
-lto = true

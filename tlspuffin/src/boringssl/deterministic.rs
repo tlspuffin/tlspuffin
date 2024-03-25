@@ -20,20 +20,23 @@ mod tests {
         boringssl::deterministic::reset_rand,
         put_registry::TLS_PUT_REGISTRY,
         tls::{
-            seeds::{create_corpus, seed_client_attacker_boring},
+            seeds::{create_corpus, seed_client_attacker_full_boring},
             trace_helper::TraceHelper,
         },
     };
 
+    // BUG: This test only works in a single threaded cargo test execution
+    #[ignore]
     #[test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))]
     fn test_boringssl_no_randomness_full() {
-        let trace = seed_client_attacker_boring.build_trace();
+        let trace = seed_client_attacker_full_boring.build_trace();
         let mut ctx1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-
-        trace.execute(&mut ctx1);
+        ctx1.set_deterministic(true);
+        let _ = trace.execute(&mut ctx1);
         let mut ctx2 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
-        trace.execute(&mut ctx2);
+        ctx2.set_deterministic(true);
+        let _ = trace.execute(&mut ctx2);
 
         assert_eq!(ctx1, ctx2);
     }
