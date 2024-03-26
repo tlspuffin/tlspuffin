@@ -235,7 +235,7 @@ sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sa
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
 
-gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "wolfssl-sys?/gcov_analysis"]
+gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "boringssl-sys?/gcov_analysis"]
 llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis", "boringssl-sys?/llvm_cov_analysis"]
 
 # WolfSSL bindings are used

@@ -36,11 +36,28 @@ fn main() {
     println!("cargo:rustc-link-lib=static=ssl");
     println!("cargo:rustc-link-lib=stdc++");
 
+    if cfg!(feature = "gcov_analysis") {
+        let clang_output = std::process::Command::new("clang")
+            .args(["--print-resource-dir"])
+            .output()
+            .expect("failed to use clang to get resource dir");
+        let clang_resource_dir: &str = std::str::from_utf8(&clang_output.stdout).unwrap().trim();
+        println!("cargo:rustc-link-search={}/lib/linux/", clang_resource_dir);
+        println!("cargo:rustc-link-lib=static=clang_rt.profile-x86_64");
+    }
+
     let include_path = out_dir.join("include");
 
     let bindings_out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     let mut builder = bindgen::Builder::default()
+        .ctypes_prefix("::libc")
+        .raw_line("use libc::*;")
+        .allowlist_file(".*/openssl/[^/]+\\.h")
+        .allowlist_recursively(false)
+        .blocklist_function("BIO_vprintf")
+        .blocklist_function("BIO_vsnprintf")
+        .blocklist_function("OPENSSL_vasprintf")
         .derive_copy(true)
         .derive_debug(true)
         .derive_default(true)
