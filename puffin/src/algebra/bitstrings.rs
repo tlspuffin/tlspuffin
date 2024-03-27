@@ -265,7 +265,7 @@ pub fn refine_window_heuristic(
         return max(0, current_depth - 1);
     }
     if !st.found_window {
-        trace!("[refine_window_heuristic] window might be too large or juste at a sub-term for which encoding is not meaningful, go narrower");
+        trace!("[refine_window_heuristic] window might be too large or just at a sub-term for which encoding is not meaningful, go narrower");
         return min(path_to_search.len() - 1, current_depth + 1);
     }
     if !st.unique_window {
@@ -369,7 +369,7 @@ pub fn find_unique_match_rec<'a, M, PB>(
     eval_tree: &'a EvalTree,
     whole_term: &TermEval<M>,
     ctx: &TraceContext<PB>,
-    cur_attempts: usize,
+    old_attempts: usize,
 ) -> Result<usize, Error>
 where
     M: Matcher,
@@ -384,11 +384,11 @@ where
         st.found_window = false;
     }
     let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest nodes)
-    let mut attempts = cur_attempts;
+    let mut attempts = 0;
     let eval_root = &eval_tree.encode.as_ref().unwrap()[..];
 
     while !(st.found_window && st.unique_match && st.found_match && st.unique_window) {
-        if attempts > 40 {
+        if attempts > 40 || attempts + old_attempts > 100 {
             let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts.\n - to_search:{:?}\n - window:{:?}\n - path_to_search:{:?},\n path_window:{:?}\n - eval_tree:{:?}", to_search, window, path_to_search, path_window, eval_tree);
             error!("{}", ft);
             return Err(Error::Term(ft));
@@ -430,7 +430,7 @@ where
                 eval_tree,
                 whole_term,
                 ctx,
-                attempts,
+                old_attempts + attempts,
             )?;
 
             return if relative_on_left {
