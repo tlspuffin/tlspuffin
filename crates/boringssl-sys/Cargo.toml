@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 links = "boring"
 
+[dependencies]
+libc = "0.2"
+
 [build-dependencies]
 boringssl-src = { path = "../boringssl-src" }
 bindgen = "0.69.1"
