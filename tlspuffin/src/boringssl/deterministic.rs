@@ -25,7 +25,7 @@ mod tests {
         },
     };
 
-    // BUG: This test only works in a single threaded cargo test execution
+    // TODO: This test only works in a single threaded cargo test execution
     #[ignore]
     #[test]
     fn test_boringssl_no_randomness_full() {
