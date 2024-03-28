@@ -1,5 +1,7 @@
+use std::any::{Any, TypeId};
+
 use puffin::{
-    algebra::{signature::Signature, Matcher},
+    algebra::{signature::Signature, ConcreteMessage, Matcher},
     error::Error,
     protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer},
     put_registry::PutRegistry,
@@ -18,7 +20,9 @@ use crate::{
             msgs::{
                 deframer::MessageDeframer,
                 handshake::{HandshakePayload, ServerKeyExchangePayload},
-                message::{Message, MessagePayload, OpaqueMessage},
+                message::{
+                    any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage,
+                },
             },
         },
         seeds::create_corpus,
@@ -60,23 +64,27 @@ impl ProtocolMessage<OpaqueMessage> for Message {
                             Box::new(ch.random),
                             Box::new(ch.session_id),
                             Box::new(ch.client_version),
+                            Box::new(ch.extensions.0.clone()), // we add both the Vec<T> and below the Wrapper(T) too
+                            Box::new(ch.compression_methods.0.clone()),
+                            Box::new(ch.cipher_suites.0.clone()),
                             Box::new(ch.extensions.clone()),
                             Box::new(ch.compression_methods.clone()),
                             Box::new(ch.cipher_suites.clone()),
                         ];
 
-                        let extensions = ch
-                            .extensions
-                            .iter()
-                            .map(|extension| Box::new(extension.clone()) as Box<dyn VariableData>);
+                        let extensions =
+                            ch.extensions.0.iter().map(|extension| {
+                                Box::new(extension.clone()) as Box<dyn VariableData>
+                            });
                         let compression_methods = ch
                             .compression_methods
+                            .0
                             .iter()
                             .map(|compression| Box::new(*compression) as Box<dyn VariableData>);
-                        let cipher_suites = ch
-                            .cipher_suites
-                            .iter()
-                            .map(|cipher_suite| Box::new(*cipher_suite) as Box<dyn VariableData>);
+                        let cipher_suites =
+                            ch.cipher_suites.0.iter().map(|cipher_suite| {
+                                Box::new(*cipher_suite) as Box<dyn VariableData>
+                            });
 
                         vars.into_iter()
                             .chain(extensions) // also add all extensions individually
@@ -93,10 +101,11 @@ impl ProtocolMessage<OpaqueMessage> for Message {
                             Box::new(sh.cipher_suite),
                             Box::new(sh.compression_method),
                             Box::new(sh.legacy_version),
+                            Box::new(sh.extensions.0.clone()),
                             Box::new(sh.extensions.clone()),
                         ];
 
-                        let server_extensions = sh.extensions.iter().map(|extension| {
+                        let server_extensions = sh.extensions.0.iter().map(|extension| {
                             Box::new(extension.clone()) as Box<dyn VariableData>
                             // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
                         });
@@ -201,5 +210,13 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
         create_corpus()
+    }
+
+    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+        any_get_encoding(message)
+    }
+
+    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
+        Ok(try_read_bytes(bitstring, ty)?)
     }
 }

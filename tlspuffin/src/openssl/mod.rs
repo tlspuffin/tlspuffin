@@ -8,6 +8,7 @@ use openssl::{
 };
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    algebra::ConcreteMessage,
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
@@ -16,6 +17,8 @@ use puffin::{
     trace::TraceContext,
 };
 
+#[cfg(feature = "deterministic")]
+use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
     claims::{
         ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
@@ -119,7 +122,7 @@ impl Drop for OpenSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for OpenSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
+    fn add_to_inbound(&mut self, result: ConcreteMessage) {
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
             self.stream.get_mut(),
             result,
@@ -223,7 +226,9 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
+            #[cfg(feature = "deterministic")]
             deterministic::determinism_reseed_openssl();
+            warn!("OpenSSL is deterministic now!!");
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]

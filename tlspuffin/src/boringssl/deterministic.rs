@@ -28,6 +28,7 @@ mod tests {
     // BUG: This test only works in a single threaded cargo test execution
     #[ignore]
     #[test]
+    #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))]
     fn test_boringssl_no_randomness_full() {
         let trace = seed_client_attacker_full_boring.build_trace();
         let mut ctx1 = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());

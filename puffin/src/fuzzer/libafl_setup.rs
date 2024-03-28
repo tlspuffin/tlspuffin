@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{fmt, path::PathBuf};
+use std::{env, fmt, path::PathBuf};
 
 use libafl::{
     corpus::ondisk::OnDiskMetadataFormat,
@@ -10,10 +10,7 @@ use log4rs::Handle;
 
 use super::harness;
 use crate::{
-    fuzzer::{
-        mutations::{trace_mutations, util::TermConstraints},
-        stats_monitor::StatsMonitor,
-    },
+    fuzzer::{mutations::trace_mutations, stats_monitor::StatsMonitor, utils::TermConstraints},
     log::create_file_config,
     protocol::ProtocolBehavior,
     trace::Trace,
@@ -80,10 +77,7 @@ impl Default for MutationConfig {
             fresh_zoo_after: 100000,
             max_trace_length: 15,
             min_trace_length: 2,
-            term_constraints: TermConstraints {
-                min_term_size: 0,
-                max_term_size: 300,
-            },
+            term_constraints: TermConstraints::default(),
         }
     }
 }
@@ -369,9 +363,18 @@ where
         };
 
         #[cfg(test)]
+        let edge_map_size: usize = // cannot use this in the unsafe env below... TODO
+            if env::var("TARGET").unwrap().contains("aarch64-apple-darwin") {
+            131072
+        } else {
+            65536
+        };
+
+        #[cfg(test)]
         let map = unsafe {
             // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
             pub const EDGES_MAP_SIZE: usize = 65536;
+
             pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
             pub static mut MAX_EDGES_NUM: usize = 0;
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
@@ -439,7 +442,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_mutations(trace_mutations(
+            .with_mutations(trace_mutations::<_, _, PB>(
                 *min_trace_length,
                 *max_trace_length,
                 *term_constraints,

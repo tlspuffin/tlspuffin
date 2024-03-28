@@ -149,6 +149,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
         let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+        let is_batch: bool = matches.get_one::<usize>("number").is_some();
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -269,9 +270,13 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                put_registry,
+                &matches,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -292,9 +297,13 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                 i += 1;
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, put_registry)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                put_registry,
+                &matches,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -392,6 +401,7 @@ fn seed<PB: ProtocolBehavior>(
 
 use crate::{
     agent::AgentName,
+    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 
@@ -445,20 +455,9 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                        let mut data: Vec<u8> = Vec::new();
-                        msg.create_opaque().encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else if let Some(opaque_message) = evaluated
-                        .as_ref()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
-                    {
-                        let mut data: Vec<u8> = Vec::new();
-                        opaque_message.encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else {
-                        error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
-                    }
+                    f.write_all(&evaluated).expect("Unable to write data");
+                } else {
+                    error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
                 }
             }
             Action::Output(_) => {}

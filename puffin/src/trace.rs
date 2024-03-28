@@ -22,15 +22,20 @@ use std::{
     marker::PhantomData,
 };
 
-use log::{debug, trace, warn};
+use libafl::inputs::HasBytesVec;
+use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    algebra::{
+        dynamic_function::TypeShape, error::FnError, remove_prefix, ConcreteMessage, Matcher, Term,
+        TermEval, TermType,
+    },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
+    codec::Codec,
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
@@ -77,13 +82,13 @@ impl<M: Matcher> Knowledge<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.as_ref().type_id();
-        debug!(
+        warn!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
         );
-        trace!("Knowledge data: {:?}", self.data);
+        warn!("Knowledge data: {:?}", self.data);
     }
 }
 impl<M: Matcher> fmt::Display for Knowledge<M> {
@@ -112,6 +117,18 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
     phantom: PhantomData<PB>,
 }
 
+impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.agents == other.agents
+            && self.put_registry == other.put_registry
+            && self.deterministic_put == other.deterministic_put
+            && self.default_put_options == other.default_put_options
+            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
+            && format!("{:?}", self.claims) == format!("{:?}", other.claims)
+    }
+}
+
 impl<PB: ProtocolBehavior + 'static> fmt::Display for TraceContext<PB> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -123,18 +140,6 @@ impl<PB: ProtocolBehavior + 'static> fmt::Display for TraceContext<PB> {
             write!(f, "\n   {},          --  {:?}", k, k);
         }
         Ok(())
-    }
-}
-
-impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
-    fn eq(&self, other: &Self) -> bool {
-        self.agents == other.agents
-            && self.put_registry == other.put_registry
-            && self.deterministic_put == other.deterministic_put
-            && self.default_put_options == other.default_put_options
-            && self.non_default_put_descriptors == other.non_default_put_descriptors
-            && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
-            && format!("{:?}", self.claims) == format!("{:?}", other.claims)
     }
 }
 
@@ -239,7 +244,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
+        message: ConcreteMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put_mut().add_to_inbound(message))
@@ -345,12 +350,28 @@ pub struct Trace<M: Matcher> {
     pub prior_traces: Vec<Trace<M>>,
 }
 
+// Either write this for the CrossOver and splice mutations in bit_mutations.rs
+// Or inline the real one but choosing the crossover manually and doing the
+// the same then.
+impl<M: Matcher> HasBytesVec for Trace<M> {
+    fn bytes(&self) -> &[u8] {
+        todo!()
+    }
+
+    fn bytes_mut(&mut self) -> &mut Vec<u8> {
+        todo!()
+    }
+}
+
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    pub fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             let name = if let Some(reusable) = ctx
                 .agents
@@ -377,7 +398,11 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        nb_steps: usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -390,7 +415,7 @@ impl<M: Matcher> Trace<M> {
             ctx.reset_agents()?;
         }
         self.spawn_agents(ctx)?;
-        let steps = &self.steps;
+        let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
@@ -412,6 +437,12 @@ impl<M: Matcher> Trace<M> {
         }
 
         Ok(())
+    }
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        self.execute_until_step(ctx, self.steps.len())
     }
 
     pub fn execute_deterministic<PB>(
@@ -493,7 +524,7 @@ pub enum Action<M: Matcher> {
 }
 
 impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -590,13 +621,13 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct InputAction<M: Matcher> {
-    pub recipe: Term<M>,
+    pub recipe: TermEval<M>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl<M: Matcher> InputAction<M> {
-    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
+    pub fn new_step(agent: AgentName, recipe: TermEval<M>) -> Step<M> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
@@ -612,25 +643,9 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
-
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-            msg.debug("Input message");
-
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
-        } else if let Some(opaque_message) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessage>()
-        {
-            opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
-        } else {
-            return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
-            ))
-            .into());
-        }
-
+        let message = self.recipe.evaluate(ctx)?;
+        debug!("Will add to inbound a new message");
+        ctx.add_to_inbound(step.agent, message)?;
         ctx.next_state(step.agent)
     }
 }

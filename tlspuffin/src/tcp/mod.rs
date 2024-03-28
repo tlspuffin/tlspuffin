@@ -14,6 +14,7 @@ use std::{
 use log::{debug, error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    algebra::ConcreteMessage,
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
@@ -271,9 +272,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&mut opaque_message.clone().encode())
-            .unwrap();
+    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
+        self.write_to_stream(&mut message).unwrap();
     }
 
     fn take_message_from_outbound(
@@ -284,9 +284,8 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&mut opaque_message.clone().encode())
-            .unwrap();
+    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
+        self.write_to_stream(&mut message).unwrap();
     }
 
     fn take_message_from_outbound(

@@ -4,12 +4,12 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::Term,
+    algebra::{Term, TermEval},
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
-use super::rustls::msgs::handshake::EncryptedExtensions;
+use super::rustls::msgs::handshake::{EncryptedExtensions, ServerExtensions};
 use crate::{
     query::TlsQueryMatcher,
     tls::{
@@ -70,7 +70,7 @@ pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trac
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
                         )
                     },
                 }),
@@ -203,7 +203,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
                         )
                     },
                 }),
@@ -286,9 +286,11 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
                             ((client, 0)),
                             ((client, 0)),
                             ((client, 0)),
-                            (fn_append_cipher_suite(
-                                fn_new_cipher_suites,
-                                fn_cipher_suite13_aes_128_gcm_sha256
+                            (fn_cipher_suites_make(
+                                (fn_append_cipher_suite(
+                                   fn_new_cipher_suites,
+                                    fn_cipher_suite13_aes_128_gcm_sha256
+                                ))
                             )),
                             ((client, 0)),
                             ((client, 0))
@@ -612,13 +614,14 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_cipher_suite13_aes_128_gcm_sha256,
             fn_compression,
-            (fn_server_extensions_append(
-                (fn_server_extensions_append(
-                    fn_server_extensions_new,
-                    (fn_key_share_deterministic_server_extension((@curve)))
-                )),
-                fn_supported_versions13_server_extension
-            ))
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_deterministic_server_extension((@curve)))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
         )
     };
 
@@ -641,12 +644,13 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate = term! {
         fn_certificate13(
             (fn_empty_bytes_vec),
-            (fn_append_certificate_entry(
+            (fn_certificate_entries_make(
+                (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_alice_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -785,11 +789,13 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -803,7 +809,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     /*let encrypted_extensions = term! {
@@ -834,12 +840,13 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate = term! {
         fn_certificate13(
             (fn_get_context((@certificate_request_message))),
-            (fn_append_certificate_entry(
+            (fn_certificate_entries_make(
+                (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_bob_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -1092,12 +1099,14 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1110,7 +1119,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let client_finished = term! {
@@ -1164,18 +1173,20 @@ pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
 
 pub fn _seed_client_attacker12(
     server: AgentName,
-) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
+) -> (Trace<TlsQueryMatcher>, TermEval<TlsQueryMatcher>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_cipher_suite12
-            )),
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                  fn_cipher_suite12
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1197,7 +1208,7 @@ pub fn _seed_client_attacker12(
                 // Add signature cert extension
                 fn_signature_algorithm_cert_extension
             ))
-        )
+        )))
     };
 
     let server_hello_transcript = term! {
@@ -1326,11 +1337,13 @@ pub fn seed_session_resumption_dhe(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1354,7 +1367,7 @@ pub fn seed_session_resumption_dhe(
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -1450,12 +1463,14 @@ pub fn seed_session_resumption_ke(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1477,7 +1492,7 @@ pub fn seed_session_resumption_ke(
                 (fn_preshared_keys_extension_empty_binder(
                     (@new_ticket_message)
                 ))
-            ))
+            ))))
         )
     };
 
@@ -1554,26 +1569,34 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
     _seed_client_attacker_full(server).0
 }
 
+pub fn seed_client_attacker_full_wo_time(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let mut tr = _seed_client_attacker_full(server).0;
+    tr.steps.pop(); // remove last server's output containing timing information in session tickets
+    return (tr);
+}
+
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
+    TermEval<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            )))),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1586,7 +1609,7 @@ pub fn _seed_client_attacker_full(
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let server_hello_transcript = term! {
@@ -1772,12 +1795,15 @@ pub fn _seed_client_attacker_full_boring(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                ))
             )),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+              (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1789,8 +1815,9 @@ pub fn _seed_client_attacker_full_boring(
                     (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
-            ))
-        )
+              )
+            )
+        )))
     };
 
     let server_hello_transcript = term! {
@@ -1932,9 +1959,9 @@ pub fn _seed_client_attacker_full_boring(
 
     (
         trace,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
+        server_hello_transcript.into(),
+        server_finished_transcript.into(),
+        client_finished_transcript.into(),
     )
 }
 
@@ -1969,12 +1996,14 @@ pub fn seed_session_resumption_dhe_full(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1997,7 +2026,7 @@ pub fn seed_session_resumption_dhe_full(
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -2173,11 +2202,30 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 #[cfg(test)]
 pub mod tests {
 
-    use puffin::{agent::AgentName, trace::Action};
+    use log::debug;
+    use puffin::{
+        agent::AgentName,
+        algebra::{
+            bitstrings::{replace_payloads, Payloads},
+            error::FnError,
+            term::evaluate_lazy_test,
+            TermType,
+        },
+        codec::Codec,
+        fuzzer::harness::default_put_options,
+        libafl::inputs::HasBytesVec,
+        protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+        put::PutOptions,
+        trace::{Action, Action::Input, TraceContext},
+    };
     use test_log::test;
 
     use super::*;
-    use crate::{put_registry::TLS_PUT_REGISTRY, tls::trace_helper::TraceHelper};
+    use crate::{
+        protocol::TLSProtocolBehavior,
+        put_registry::TLS_PUT_REGISTRY,
+        tls::{rustls::msgs::message::OpaqueMessage, trace_helper::TraceHelper},
+    };
 
     #[test]
     fn test_version() {
@@ -2234,6 +2282,15 @@ pub mod tests {
         use crate::tls::trace_helper::TraceExecutor;
 
         let ctx = seed_server_attacker_full.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(all(feature = "tls13", feature = "boringssl-binding"))] // require version which supports TLS 1.3
+    #[test]
+    fn test_seed_client_attacker_boring() {
+        use crate::tls::trace_helper::TraceExecutor;
+
+        let ctx = seed_client_attacker_full_boring.execute_trace();
         assert!(ctx.agents_successful());
     }
 
@@ -2504,7 +2561,8 @@ pub mod tests {
             base::Payload,
             enums::{ContentType, HandshakeType, ProtocolVersion},
             handshake::{
-                ClientHelloPayload, HandshakeMessagePayload, HandshakePayload, Random, SessionID,
+                CipherSuites, ClientExtensions, ClientHelloPayload, Compressions,
+                HandshakeMessagePayload, HandshakePayload, Random, SessionID,
             },
             message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
         };
@@ -2697,9 +2755,9 @@ pub mod tests {
                         client_version: ProtocolVersion::TLSv1_3,
                         random: Random::from(random),
                         session_id: SessionID::empty(),
-                        cipher_suites: vec![],
-                        compression_methods: vec![],
-                        extensions: vec![],
+                        cipher_suites: CipherSuites(vec![]),
+                        compression_methods: Compressions(vec![]),
+                        extensions: ClientExtensions(vec![]),
                     }),
                 }),
             };
