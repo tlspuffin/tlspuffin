@@ -42,6 +42,8 @@ jobs:
           - wolfssl540-heap
           - wolfssl540_asan-perf
           - wolfssl540-perf
+          - boringssl202403
+          - boringssl202403_asan
           - libssh
           - tlspuffin_no_default_features
           - sshpuffin_no_default_features
@@ -115,6 +117,12 @@ jobs:
           - name: wolfssl540-perf
             crate: tlspuffin
             features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+          - name: boringssl202403
+            crate: tlspuffin
+            features: boringssl202403
+          - name: boringssl202403_asan
+            crate: tlspuffin
+            features: boringssl202403,asan
           - name: libssh
             crate: sshpuffin
             features: ""

@@ -1,0 +1,42 @@
+From 3e2702713929cc2acae7bc38c68973679492584a Mon Sep 17 00:00:00 2001
+From: Tom Gouville <tom.gouville@protonmail.com>
+Date: Tue, 23 Jan 2024 11:57:36 +0100
+Subject: [PATCH] reset DRBG
+
+---
+ crypto/rand_extra/deterministic.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/crypto/rand_extra/deterministic.c b/crypto/rand_extra/deterministic.c
+index d1d582b07..ff42db9d3 100644
+--- a/crypto/rand_extra/deterministic.c
++++ b/crypto/rand_extra/deterministic.c
+@@ -33,7 +33,24 @@
+ static uint64_t g_num_calls = 0;
+ static CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
+ 
+-void RAND_reset_for_fuzzing(void) { g_num_calls = 0; }
++static void rand_thread_state_free(void *state_in) {
++  struct rand_thread_state *state = state_in;
++
++  if (state_in == NULL) {
++    return;
++  }
++
++  OPENSSL_free(state);
++}
++
++void RAND_reset_for_fuzzing(void) {
++  g_num_calls = 0;
++  struct rand_thread_state *state =
++      CRYPTO_get_thread_local(OPENSSL_THREAD_LOCAL_RAND);
++  rand_thread_state_free(state);
++
++  CRYPTO_set_thread_local(OPENSSL_THREAD_LOCAL_RAND, NULL, NULL);
++}
+ 
+ void CRYPTO_sysrand(uint8_t *out, size_t requested) {
+   static const uint8_t kZeroKey[32];
+-- 
+2.43.0
+

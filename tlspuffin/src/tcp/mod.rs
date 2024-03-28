@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
@@ -91,6 +91,17 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             TcpClientPut::version()
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
+        }
+
+        fn determinism_reseed(&self) -> () {
+            debug!(
+                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
+                self.name()
+            );
         }
     }
 
@@ -380,9 +391,9 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         false
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "Unable to make TCP PUT deterministic!".to_string(),
+            "[deterministic] Unable to reseed TCP PUT!".to_string(),
         ))
     }
 
@@ -435,9 +446,9 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         false
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "Unable to make TCP PUT deterministic!".to_string(),
+            "[deterministic] Unable to reseed TCP PUT!".to_string(),
         ))
     }
 

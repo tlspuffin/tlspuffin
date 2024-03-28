@@ -5,6 +5,7 @@
 //! Each [`Agent`] has an *inbound* and an *outbound channel* (see [`crate::io`])
 
 use core::fmt;
+use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
@@ -149,6 +150,24 @@ pub struct Agent<PB: ProtocolBehavior> {
 
     put: Box<dyn Put<PB>>,
     put_descriptor: PutDescriptor,
+}
+
+impl<PB: ProtocolBehavior> Debug for Agent<PB> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Agent")
+            .field("name", &self.name)
+            .field("put", &self.put.describe_state())
+            .field("put_descriptor", &self.put_descriptor)
+            .finish()
+    }
+}
+
+impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.eq(&other.name)
+            && self.put.describe_state() == other.put.describe_state()
+            && self.put_descriptor.eq(&other.put_descriptor)
+    }
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {

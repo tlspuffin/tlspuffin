@@ -1,0 +1,49 @@
+From f87436455c195b7010de117f766377551ecba2c9 Mon Sep 17 00:00:00 2001
+From: Tom Gouville <tom.gouville@protonmail.com>
+Date: Thu, 1 Feb 2024 10:29:36 +0100
+Subject: [PATCH] transcript extraction
+
+---
+ include/openssl/ssl.h |  3 +++
+ ssl/ssl_lib.cc        | 22 ++++++++++++++++++++++
+ 2 files changed, 25 insertions(+)
+
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+index 2e19253c2..54346a8a9 100644
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -170,6 +170,8 @@ extern "C" {
+ // SSL implementation.
+ 
+ 
++OPENSSL_EXPORT int PUFFIN_extract_transcript(SSL* ssl, uint8_t* out, size_t* out_len);
++
+ // SSL contexts.
+ //
+ // |SSL_CTX| objects manage shared state and configuration between multiple TLS
+diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
+index 58b68e675..ee9bc76fe 100644
+--- a/ssl/ssl_lib.cc
++++ b/ssl/ssl_lib.cc
+@@ -499,6 +499,18 @@ BSSL_NAMESPACE_END
+ 
+ using namespace bssl;
+ 
++int PUFFIN_extract_transcript(SSL *ssl, uint8_t *out, size_t *out_len) {
++  SSL_HANDSHAKE *hs = ssl->s3->hs.get();
++
++  if (hs == NULL) {
++    return 0;
++  } else {
++    hs->transcript.GetHash(out, out_len);
++  }
++
++  return 1;
++}
++
+ int SSL_library_init(void) {
+   CRYPTO_library_init();
+   return 1;
+-- 
+2.43.0
+

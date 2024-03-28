@@ -1,0 +1,9 @@
+[package]
+name = "boringssl-src"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cmake = "0.1"
+bindgen = "0.69.1"
+

@@ -6,6 +6,7 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
+    variable_data::VariableData,
 };
 
 use crate::tls::{
@@ -77,6 +78,115 @@ pub fn fn_decrypt_handshake(
         .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
     Message::try_from(message)
         .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+}
+
+/// Decrypt an Application data message containing multiple handshake messages
+/// and return a vec of handshake messages
+pub fn fn_decrypt_multiple_handshake_messages(
+    application_data: &Message,
+    server_hello_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+) -> Result<Vec<Message>, FnError> {
+    let (suite, key, _) = tls13_handshake_traffic_secret(
+        server_hello_transcript,
+        server_key_share,
+        psk,
+        !*client,
+        group,
+    )?;
+    let decrypter = suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter(&key);
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+
+    let payloads =
+        MessagePayload::multiple_new(message.typ, message.version, message.payload).unwrap();
+
+    let messages = payloads
+        .into_iter()
+        .map(|p| Message {
+            version: message.version,
+            payload: p,
+        })
+        .collect();
+
+    Ok(messages)
+}
+
+pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::Certificate {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server certificate".to_owned()))
+}
+
+pub fn fn_find_server_ticket(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::NewSessionTicket {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server tickets".to_owned()))
+}
+
+pub fn fn_find_server_certificate_request(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::CertificateRequest {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server tickets".to_owned()))
+}
+
+pub fn fn_find_encrypted_extensions(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::EncryptedExtensions {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no encrypted extensions".to_owned()))
+}
+
+pub fn fn_find_server_certificate_verify(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::CertificateVerify {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no certificate verify".to_owned()))
+}
+
+pub fn fn_find_server_finished(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::Finished {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no finished".to_owned()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {

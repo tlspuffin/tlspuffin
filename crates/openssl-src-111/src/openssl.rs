@@ -1,13 +1,8 @@
 extern crate bindgen;
 extern crate cc;
 
-use std::{
-    env, fs,
-    fs::{canonicalize, File},
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{env, fs, fs::{canonicalize, File}, io, io::Write, path::{Path, PathBuf}, process::Command};
+use std::io::ErrorKind;
 
 const REF: &str = if cfg!(feature = "openssl101f") {
     "OpenSSL_1_0_1f"
@@ -44,6 +39,24 @@ fn clone_repo(dest: &str) -> std::io::Result<()> {
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+fn patch_openssl<P: AsRef<Path>>(
+    out_dir: P,
+    patch: &str,
+) -> std::io::Result<()> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let status = Command::new("git")
+        .current_dir(out_dir)
+        .arg("am")
+        .arg(root.join("patches").join(patch).to_str().unwrap())
+        .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
+
+    Ok(())
 }
 
 pub struct Build {
@@ -133,6 +146,12 @@ impl Build {
         fs::create_dir_all(&inner_dir).unwrap();
 
         clone_repo(&inner_dir.to_str().unwrap()).unwrap();
+
+        if cfg!(feature = "openssl312") {
+            let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+            // Patching the repo to get deterministic timestamp
+            patch_openssl(out_dir, "det_timestamp.patch").unwrap();
+        }
 
         let perl_program =
             env::var("OPENSSL_SRC_PERL").unwrap_or(env::var("PERL").unwrap_or("perl".to_string()));

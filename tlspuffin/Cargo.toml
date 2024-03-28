@@ -187,16 +187,56 @@ wolfsslmaster = [
 ]
 
 
+boringsslmaster = [
+    "boringssl-sys/vendored-master",
+    "tls12",
+    "tls13",
+    "boringssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+    "deterministic",
+    "claims"
+]
+
+boringssl202311 = [
+    "boringssl-sys/boring-2023-11-18",
+    "tls12",
+    "tls13",
+    "boringssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "claims",
+    "client-authentication-transcript-extraction",
+    "deterministic",
+]
+
+boringssl202403 = [
+    "boringssl-sys/boring-2024-03-22",
+    "tls12",
+    "tls13",
+    "boringssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "claims",
+    "client-authentication-transcript-extraction",
+    "deterministic",
+]
+
+
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov"]
+sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov", "boringssl-sys?/sancov"]
 
 # Enables ASAN
-asan = ["openssl-src?/asan", "wolfssl-sys?/asan"]
+asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
 
-gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis"]
-llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis"]
+gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "boringssl-sys?/gcov_analysis"]
+llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis", "boringssl-sys?/llvm_cov_analysis"]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -209,6 +249,8 @@ openssl102-binding = ["openssl-binding"]
 # Openssl 1.1.1 bindings
 openssl111-binding = ["openssl-binding"]
 
+boringssl-binding = ["boring", "boringssl-sys", "foreign-types"]
+
 # PUT supports TLS 1.3
 tls13 = []
 # PUT supports TLS 1.2
@@ -218,7 +260,7 @@ tls13-session-resumption = []
 # PUT supports session resumption through RFC5077
 tls12-session-resumption = []
 # PUT is determinisitic
-deterministic = []
+deterministic = ["boringssl-sys?/deterministic"]
 # Require the PUT to implement the claim-interface.h
 claims = ["puffin/claims"]
 # Whether transcript extraction is supported. This is needed for simplified traces.
@@ -257,6 +299,9 @@ security-claims = { version = "0.1.0", optional = false }
 wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
+
+boring = { path = "../crates/boring", optional = true }
+boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.

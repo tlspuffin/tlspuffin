@@ -212,6 +212,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "boring"
+version = "4.0.0"
+dependencies = [
+ "bitflags 2.4.1",
+ "boringssl-sys",
+ "foreign-types 0.5.0",
+ "libc",
+ "once_cell",
+]
+
+[[package]]
+name = "boringssl-src"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cmake",
+]
+
+[[package]]
+name = "boringssl-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "boringssl-src",
+ "libc",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2224,6 +2252,8 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
+ "boring",
+ "boringssl-sys",
  "cfg-if",
  "criterion",
  "env_logger 0.9.3",

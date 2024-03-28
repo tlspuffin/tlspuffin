@@ -1,7 +1,11 @@
 use std::process::Command;
 
-#[cfg(all(feature = "openssl-binding", feature = "wolfssl-binding"))]
-compile_error!("Selecting multiple vendored PUT is currently not supported: openssl/libressl and wolfssl feature flags are mutually exclusive.");
+#[cfg(any(
+    all(feature = "openssl-binding", feature = "wolfssl-binding"),
+    all(feature = "openssl-binding", feature = "boringssl-binding"),
+    all(feature = "wolfssl-binding", feature = "boringssl-binding")
+))]
+compile_error!("Selecting multiple vendored PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
 
 fn main() {
     if cfg!(feature = "asan") {
