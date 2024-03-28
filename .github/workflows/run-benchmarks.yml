@@ -1,15 +1,19 @@
 name: Run benchmarks
 
 on:
+  workflow_dispatch:
   workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   run-benchmarks:
-    name: Benchmark
+    name: benchmark
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup
+      - uses: actions/checkout@v4
+      - name: setup
         uses: ./.github/actions/setup
       - name: Benchmark
         shell: bash

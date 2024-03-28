@@ -1,0 +1,57 @@
+name: Test tlspuffin on Linux
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+      apt-dependencies:
+        required: false
+        type: string
+      features:
+        required: true
+        type: string
+      save-cache:
+        required: false
+        type: string
+      if:
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  tlspuffin-tests:
+    name: cargo test
+    runs-on: ubuntu-22.04
+    if: ${{ inputs.if }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          key: ${{ inputs.name }}
+          save-cache: ${{ inputs.save-cache }}
+      - name: APT Dependencies
+        if: inputs.apt-dependencies
+        run: sudo apt-get install -y ${{ inputs.apt-dependencies }}
+      - name: Build
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ inputs.features }}" "--timings"
+      - name: Upload Build Timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-timings-${{ inputs.name }}
+          path: target/cargo-timings/cargo-timing.html
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlspuffin-${{ inputs.name }}
+          path: target/x86_64-unknown-linux-gnu/release/tlspuffin
+      - name: Test
+        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.features }}" ""

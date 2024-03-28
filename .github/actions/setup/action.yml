@@ -1,4 +1,3 @@
-
 name: setup
 description: Setup toolchains and tools
 
@@ -29,15 +28,20 @@ runs:
         export_env CLANG_PATH "$(clang -print-prog-name=clang)"
         export_env LIBCLANG_PATH "$(llvm-config-"$(clang -dumpversion | cut -d '.' -f1)" --libdir)"
         export_env BINDGEN_EXTRA_CLANG_ARGS "-v"
-
-    - uses: extractions/setup-just@v1
-    - name: Install toolchain
+    - name: setup Git
+      shell: bash
+      run: |
+        git config --global user.email "tlspuffin@tlspuffin"
+        git config --global user.name "tlspuffin"
+        git config --global advice.detachedHead false
+    - uses: extractions/setup-just@v2
+    - name: install Rust toolchain
       shell: bash
       run: just default-toolchain
-    - name: Remove dotnet to have more disk space available
+    - name: remove dotnet to have more disk space available
       shell: bash
       run: sudo rm -rf /usr/share/dotnet
     - uses: Swatinem/rust-cache@v2
       with:
-        sharedKey: ${{ inputs.key }}
+        shared-key: ${{ inputs.key }}
         save-if: ${{ inputs.save-cache }}

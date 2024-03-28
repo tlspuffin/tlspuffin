@@ -14,7 +14,7 @@ static int stdlib_rand_seed(const void *buf, int num)
     {
         return 0;
     }
-    seed = *((uint64_t *) buf);
+    seed = *((uint64_t *)buf);
     return 1;
 }
 
@@ -24,8 +24,8 @@ static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
     {
-        seed = 6364136223846793005ULL*seed + 1;
-        buf[index] = seed>>33;
+        seed = 6364136223846793005ULL * seed + 1;
+        buf[index] = seed >> 33;
     }
     return 1;
 }

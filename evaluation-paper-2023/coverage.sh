@@ -1,6 +1,4 @@
-#!/bin/bash
-
-
+#!/usr/bin/env bash
 
 source ~/venv/bin/activate
 source "$HOME/.cargo/env"
@@ -47,7 +45,6 @@ generate_coverage () {
 
     cd "$build_dir"
 
-    #cargo clean
     find -name "*.gcda" -delete
     cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov_analysis" --no-default-features
 

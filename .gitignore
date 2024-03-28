@@ -38,3 +38,5 @@ coverage.csv
 *.html
 *.css
 stats.json.should-be-empty.log
+
+super-linter.log
