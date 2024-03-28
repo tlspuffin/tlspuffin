@@ -7,7 +7,7 @@ use puffin::{
     trace::Trace,
 };
 
-use crate::{put_registry::TLS_PUT_REGISTRY, query::TlsQueryMatcher};
+use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
 
 // TODO refactor forked execution into a build pattern
 //
@@ -39,7 +39,7 @@ pub fn expect_trace_crash(
                     // Ignore Rust errors
                     let _ = trace
                         .clone()
-                        .execute_deterministic(&TLS_PUT_REGISTRY, default_put_options.clone());
+                        .execute_deterministic(&tls_registry(), default_put_options.clone());
                 },
                 timeout,
             )

@@ -169,7 +169,7 @@ mod tests {
     use puffin::{agent::AgentName, put::PutOptions};
     use test_log::test;
 
-    use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, SSH_PUT_REGISTRY};
+    use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, ssh_registry};
 
     #[test]
     fn test_seed_successful() {
@@ -177,7 +177,7 @@ mod tests {
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
         let context = trace
-            .execute_deterministic(&SSH_PUT_REGISTRY, PutOptions::default())
+            .execute_deterministic(&ssh_registry(), PutOptions::default())
             .unwrap();
 
         assert!(context

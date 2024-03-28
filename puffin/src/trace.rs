@@ -96,13 +96,13 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
-pub struct TraceContext<PB: ProtocolBehavior + 'static> {
+pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
     knowledge: Vec<Knowledge<PB::Matcher>>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
 
-    put_registry: &'static PutRegistry<PB>,
+    put_registry: PutRegistry<PB>,
     deterministic_put: bool,
     default_put_options: PutOptions,
     non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
@@ -111,7 +111,7 @@ pub struct TraceContext<PB: ProtocolBehavior + 'static> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &'static PutRegistry<PB>, default_put_options: PutOptions) -> Self {
+    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -121,7 +121,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             agents: vec![],
             claims,
             non_default_put_descriptors: Default::default(),
-            put_registry,
+            put_registry: put_registry.clone(),
             deterministic_put: false,
             phantom: Default::default(),
             default_put_options,
@@ -129,7 +129,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn put_registry(&self) -> &PutRegistry<PB> {
-        self.put_registry
+        &self.put_registry
     }
 
     pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
@@ -273,7 +273,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     fn default_put_descriptor(&self) -> PutDescriptor {
-        let factory = (self.put_registry.default)();
+        let factory = self.put_registry.default();
         PutDescriptor {
             name: factory.name(),
             options: self.default_put_options.clone(),
@@ -385,7 +385,7 @@ impl<M: Matcher> Trace<M> {
 
     pub fn execute_deterministic<PB>(
         &self,
-        put_registry: &'static PutRegistry<PB>,
+        put_registry: &PutRegistry<PB>,
         default_put_options: PutOptions,
     ) -> Result<TraceContext<PB>, Error>
     where
@@ -399,7 +399,7 @@ impl<M: Matcher> Trace<M> {
 
     pub fn execute_with_non_default_puts<PB>(
         &self,
-        put_registry: &'static PutRegistry<PB>,
+        put_registry: &PutRegistry<PB>,
         descriptors: &[(AgentName, PutDescriptor)],
     ) -> Result<TraceContext<PB>, Error>
     where

@@ -11,9 +11,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -32,13 +33,6 @@ mod bindings;
 #[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
-
-/*
-   Change openssl version:
-   cargo clean -p openssl-src
-   cd openssl-src/openssl
-   git checkout OpenSSL_1_1_1j
-*/
 
 pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct OpenSSLFactory;
@@ -77,12 +71,47 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             })?))
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             OPENSSL111_PUT
         }
 
-        fn version(&self) -> String {
-            OpenSSL::version()
+        fn versions(&self) -> Vec<(String, String)> {
+            let openssl_shortname = if cfg!(feature = "openssl101f") {
+                "openssl101f"
+            } else if cfg!(feature = "openssl102u") {
+                "openssl102u"
+            } else if cfg!(feature = "openssl111") {
+                "openssl111k"
+            } else if cfg!(feature = "openssl111j") {
+                "openssl111j"
+            } else if cfg!(feature = "openssl111u") {
+                "openssl111u"
+            } else if cfg!(feature = "openssl312") {
+                "openssl312"
+            } else if cfg!(feature = "libressl") {
+                "libressl333"
+            } else {
+                "unknown"
+            };
+
+            vec![
+                (
+                    "harness".to_string(),
+                    format!("{} ({})", OPENSSL111_PUT.to_string(), VERSION_STR),
+                ),
+                (
+                    "library".to_string(),
+                    format!("openssl ({} / {})", openssl_shortname, OpenSSL::version()),
+                ),
+            ]
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(OpenSSLFactory)
         }
     }
 

@@ -1,6 +1,7 @@
 use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
 
 use chrono::Local;
+use itertools::Itertools;
 
 use crate::{protocol::ProtocolBehavior, put_registry::PutRegistry, GIT_MSG, GIT_REF};
 
@@ -29,7 +30,17 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
-        put_versions = put_registry.version_strings().join(", "),
+        put_versions = put_registry
+            .puts()
+            .map(|(n, p)| format!(
+                "{} ({})",
+                n,
+                p.versions()
+                    .into_iter()
+                    .map(|(c, v)| format!("{} ({})", c, v))
+                    .join(" ")
+            ))
+            .join(", "),
         date = Local::now().to_rfc3339(),
         git_ref = GIT_REF,
         git_msg = GIT_MSG,

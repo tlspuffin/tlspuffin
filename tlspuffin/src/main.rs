@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
-use tlspuffin::put_registry::TLS_PUT_REGISTRY;
+use tlspuffin::put_registry::tls_registry;
 
 pub fn main() -> ExitCode {
-    puffin::cli::main(&TLS_PUT_REGISTRY)
+    puffin::cli::main(tls_registry())
 }
