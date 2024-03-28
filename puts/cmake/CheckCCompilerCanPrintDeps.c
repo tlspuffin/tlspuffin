@@ -3,6 +3,6 @@
 
 int main()
 {
-    printf("%s\n", "source including system header files");
+    printf("source including system header files\n");
     return 0;
 }
