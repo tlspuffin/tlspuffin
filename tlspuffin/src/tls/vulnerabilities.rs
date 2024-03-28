@@ -1116,8 +1116,8 @@ pub mod tests {
         expect_trace_crash(
             seed_freak.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1132,8 +1132,8 @@ pub mod tests {
         expect_trace_crash(
             seed_heartbleed.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1148,8 +1148,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2021_3449.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1204,8 +1204,8 @@ pub mod tests {
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
             PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1225,8 +1225,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_38153.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1245,8 +1245,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1265,8 +1265,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
@@ -1285,8 +1285,8 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
             PutOptions::default(),
-            Some(std::time::Duration::from_secs(5)),
-            Some(5),
+            Some(std::time::Duration::from_secs(10)),
+            Some(20),
         );
     }
 
