@@ -51,3 +51,7 @@ debug = true
 
 [profile.dev]
 panic = "abort"
+# TODO: Without LTO, the fuzzer hangs in debug releases with BoringSSL
+# To reproduce the bug, simply disable lto and run 
+# `cargo run --bin tlspuffin --features boringssl202403`
+lto = true
