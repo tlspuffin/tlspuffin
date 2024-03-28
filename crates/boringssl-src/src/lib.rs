@@ -103,10 +103,13 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         .cflag("-g")
         .cxxflag("-g")
         .define("CMAKE_BUILD_TYPE", "Release")
-        .define("OPENSSL_NO_BUF_FREELISTS", "1")
-        .define("OPENSSL_NO_ASM", "1");
+        .define("OPENSSL_NO_BUF_FREELISTS", "1");
 
     if options.deterministic {
+        // FUZZ flag will enable deterministic mode in BoringSSL along with
+        // disabling all encryption. To prevent BoringSSL from disabling encryption
+        // we also pass the NO_FUZZER_MODE flag
+        // See https://github.com/google/boringssl/blob/master/FUZZING.md for details
         boring_conf.define("FUZZ", "1");
         boring_conf.define("NO_FUZZER_MODE", "1");
     }
