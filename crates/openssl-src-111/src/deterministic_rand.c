@@ -1,11 +1,7 @@
 // based on https://stackoverflow.com/a/7510354
 #include <openssl/rand.h>
-#include <stdlib.h>
 
 unsigned int tlspuffin_seed = 42;
-const unsigned int m = 0xFFFFFFFF;
-const unsigned int a = 22695477;
-const unsigned int c = 1;
 
 #define UNUSED(x) (void)(x)
 
