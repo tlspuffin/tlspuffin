@@ -48,6 +48,7 @@ ahash = "0.8.3"
 nix = "0.25.0"
 paste = "1.0"
 anyhow = "1.0"
+derivative = "2.2.0"
 
 [dev-dependencies]
 test-log = "0.2.10"

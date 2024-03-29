@@ -1,10 +1,11 @@
 use std::{
     any::{Any, TypeId},
     cmp::{max, min},
-    fmt::format,
+    fmt::{format, Display, Formatter},
 };
 
 use anyhow::Context;
+use derivative::Derivative;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
@@ -20,8 +21,12 @@ use crate::{
     trace::{Trace, TraceContext},
 };
 
+/// Constants governing heuritics for finding payloads in term evaluations
 const THRESHOLD_SUM: usize = 40;
 const THRESHOLD_RATIO: usize = 4;
+const ATT_BEFORE_FALLBACK: usize = 10;
+const ATT_BEFORE_FAIL: usize = 30;
+const ATT_TOTAL_BEFORE_FAIL: usize = 40;
 
 /// `TermEval`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
@@ -102,31 +107,59 @@ impl EvalTree {
     }
 }
 
-/// Useful struct to store local state when searching for a payload in a window
-#[derive(Debug)]
-pub struct StatusSearch {
-    pub found_window: bool,
-    pub unique_window: bool,
-    pub found_match: bool,
-    pub unique_match: bool,
-    shift_window: usize,
-    pos_in_window: usize,
+/// Useful struct to store local state when searching for a payload (to_search) in a window
+#[derive(Derivative, Clone)]
+#[derivative(Debug)]
+pub struct StatusSearch<'a, M: Matcher> {
+    total_attempts: usize,       // total attempts so far
+    path_to_search: &'a [usize], // path of the sub-term corresponding to `to_search` in `whole_term`
+    path_window: &'a [usize],    // path of the sub-term corresponding to `window` in `whole_term`
+    found_window: bool, // whether the current window has successfully been located (`pos_of_window` has been updated)
+    unique_window: bool, // whether the current window has **uniquely** been located
+    found_match: bool,  // whether `to_search` has been found in the current window
+    unique_match: bool, // whether `to_search` has been **uniquely** been located
+    pos_of_window: usize, // position of the window with respect to the whole term evaluation
+    pos_in_window: usize, // position of `to_search` with respect to the current window
+    tried_depth_path: Vec<bool>, // already tried path depths for the window (avoid cycling back)
+    to_search: &'a [u8], // slice to be searched in the window
+    window: &'a [u8],   // window where to look for `to_search`
+    #[derivative(Debug = "ignore")]
+    eval_tree: &'a EvalTree,
+    #[derivative(Debug = "ignore")]
+    whole_term: &'a TermEval<M>,
 }
 
-impl Default for StatusSearch {
-    fn default() -> Self {
+impl<'a, M: Matcher> StatusSearch<'a, M> {
+    fn new(
+        to_search: &'a [u8],
+        path_to_search: &'a [usize],
+        window: &'a [u8],
+        path_window: &'a [usize],
+        eval_tree: &'a EvalTree,
+        whole_term: &'a TermEval<M>,
+    ) -> Self {
+        let mut tried_depth_path = Vec::new();
+        tried_depth_path.resize(path_to_search.len(), false);
         StatusSearch {
+            to_search,
+            path_to_search,
+            window,
+            path_window,
             found_window: true,
             unique_window: true,
             found_match: false,
             unique_match: true,
-            shift_window: 0,
+            pos_of_window: 0,
             pos_in_window: 0,
+            tried_depth_path,
+            eval_tree,
+            whole_term,
+            total_attempts: 0,
         }
     }
 }
 
-/// Storing the result of `eval_or_compute`
+/// Store the result of `eval_or_compute`
 pub enum TreeOrEval<'a> {
     EvalTree(&'a ConcreteMessage),
     Eval(ConcreteMessage),
@@ -140,7 +173,7 @@ impl<'a> TreeOrEval<'a> {
     }
 }
 
-/// Try to recover the evaluation from @eval_tree and this fails, because we have not computed it in the past,
+/// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it in the past,
 /// then we evaluate the corresponding sub-term.
 pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     path_to_eval: &[usize],
@@ -171,12 +204,14 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         }
     }
 }
+
 /// Search relative node. Spec: returns the path p to a node such that all nodes whose path is
 ///  - strictly between p and path_to_search (according to the lexicographic order)
 ///  - and that is not a descendant of p
 /// has an empty encoding.
 /// For example: if p is the closest cousin on the left, then all siblings on the left of path_to_search must have an empty
-/// encoding. Returns p, and whether the encoding of path_to_search comes after the one of p (true) or before (false).
+/// encoding.
+/// Returns p, and whether the encoding of path_to_search comes after the one of p (true) or before (false).
 /// For instance, if p is an ancestor of path_to_search then it will be false.
 /// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of path_to_search.
 pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
@@ -243,22 +278,18 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     }
 }
 
-/// Return the depth we should look for the next window, relatively to the current depth, according to
-/// our heuristics
-pub fn refine_window_heuristic(
-    current_depth: usize,
-    to_search: &[u8],
-    window_len: usize,
-    path_to_search: &[usize],
-    st: &StatusSearch,
-) -> usize {
-    if path_to_search.is_empty() {
+/// Return the depth of the path we should look for the next window, given the current StatusSearch and
+/// notably the current window path depth. This is following best efforts heuristics.
+pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
+    let window_len = st.window.len();
+    let current_depth = st.path_window.len();
+    if st.path_to_search.is_empty() {
         trace!("[refine_window_heuristic] only possible window candidate is the root");
         return 0;
     }
-    if to_search.is_empty() {
+    if st.to_search.is_empty() {
         trace!("[refine_window_heuristic] will be handled with a specific routine anyway");
-        return max(0, path_to_search.len() - 1);
+        return max(0, st.path_to_search.len() - 1);
     }
     if window_len == 0 {
         trace!("[refine_window_heuristic] window is too narrow, we decrease the depth (= increases window)");
@@ -266,59 +297,59 @@ pub fn refine_window_heuristic(
     }
     if !st.found_window {
         trace!("[refine_window_heuristic] window might be too large or just at a sub-term for which encoding is not meaningful, go narrower");
-        return min(path_to_search.len() - 1, current_depth + 1);
+        return min(st.path_to_search.len() - 1, current_depth + 1);
     }
     if !st.unique_window {
         trace!("[refine_window_heuristic] window is too narrow, we decreases the depth");
         return max(0, current_depth - 1);
     }
-    if to_search.len() > 2
-        || sum_vec_cap(to_search, 2) >= THRESHOLD_SUM
-        || window_len / to_search.len() <= THRESHOLD_RATIO
+    if st.to_search.len() > 4
+        || sum_vec_cap(st.to_search, 2) >= THRESHOLD_SUM
+        || window_len / st.to_search.len() <= THRESHOLD_RATIO
     {
         if !st.unique_match {
-            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {path_to_search:?}", min(path_to_search.len(), current_depth + 1));
-            return min(path_to_search.len() - 1, current_depth + 1);
+            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {:?}", min(st.path_to_search.len(), current_depth + 1), st.path_to_search);
+            return min(st.path_to_search.len() - 1, current_depth + 1);
         } else {
             trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
             return current_depth;
         }
-    } else if to_search.len() > 1
-        || sum_vec_cap(to_search, 1) >= THRESHOLD_SUM / 2
-        || window_len / to_search.len() <= THRESHOLD_RATIO * 2
+    } else if st.to_search.len() > 2
+        || sum_vec_cap(st.to_search, 1) >= THRESHOLD_SUM / 2
+        || window_len / st.to_search.len() <= THRESHOLD_RATIO * 2
     {
         if !st.unique_match {
             trace!("[refine_window_heuristic] the below failed, so we go halfway");
             return min(
-                path_to_search.len() - 1,
+                st.path_to_search.len() - 1,
                 max(
                     current_depth + 1,
-                    (path_to_search.len() - current_depth) / 2,
+                    (st.path_to_search.len() - current_depth) / 2,
                 ),
             );
         } else {
             trace!("[refine_window_heuristic] we go a quarter");
             return min(
-                path_to_search.len() - 1,
+                st.path_to_search.len() - 1,
                 max(
                     current_depth + 1,
-                    (path_to_search.len() - current_depth) / 4,
+                    (st.path_to_search.len() - current_depth) / 4,
                 ),
             );
         }
     } else {
         trace!("[refine_window_heuristic] not empty but very unlikely we found uniquely except in window path[0..len-1]");
         if !st.unique_match {
-            return path_to_search.len() - 1;
+            return max(0, st.path_to_search.len() - 1); // TODO: maybe optimize this?
         } else {
-            return max(0, path_to_search.len() - 1);
+            return max(0, st.path_to_search.len() - 1);
         }
     }
 }
 
-/// Search `to_search` (`eval_tree[path].encode`) in root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx))
+/// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx))
 /// such that the match is unique in a window corresponding to the evaluation of a sub-term at a path
-/// in between vec![] (root) and `path_to_search`. Return the position of the match in `in_eval`.
+/// in between vec![] (root) and `path_to_search`. Return the position of the match in `root_eval`.
 /// ctx is only used in rare occasions, where some evaluations were not computed in eval_tree (when searching for siblings).
 // TODO: Investigate this other idea:
 // another option would be to always encode messages having payloads or siblinbgs with payloads and thus storing in TermEval the pos in bytes of each sub-term
@@ -333,105 +364,174 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 ) -> Result<usize, Error> {
     let root_eval = &eval_tree.encode.as_ref().unwrap()[..];
     let window = root_eval; // we start with the largest window (evaluation at the root)
-    let path_window = vec![];
-    // root path
     debug!("[find_unique_match] ## Start with path {path_to_search:?},\n - to_search: {to_search:?}\n - root_eval: {root_eval:?}\n - whole_term:{whole_term}\n - eval_tree: {eval_tree:?}");
     find_unique_match_rec(
-        to_search,
-        path_to_search,
-        root_eval,
-        &path_window,
-        StatusSearch::default(),
-        eval_tree,
-        whole_term,
+        StatusSearch::new(
+            to_search,
+            path_to_search,
+            window,
+            &path_to_search[0..0],
+            eval_tree,
+            whole_term,
+        ),
         ctx,
-        0,
     )
 }
 
-/// Goal: search `to_search` in in_eval_: to_search == in_eval_[returned_value..Y]
+/// Goal: search and locate `st.to_search` in st.window: to_search == st.window[st.pos_in_window...X]
+/// We must often refine the window (larger or smaller) as it is often the case to_search occurs multiple
+/// times in the st.whole_term.evaluate.encode and we must find the correct occurrence, the one corresponding
+/// to `path_to_search`.
 /// Invariants:
 /// - path_window is in between vec![] (root) and `path_to_search`
 /// - window = eval_tree[path_window].encode.unwrap()
-/// - window = eval_tree[vec![]].encode.unwrap()[shift_window..X]
+/// - window = eval_tree[vec![]].encode.unwrap()[pos_of_window..Y]
 /// - to_search = eval_tree[path_to_search].encode.unwrap()
-/// - if `found_match`, then `to_search` is found in `window` at `pos`: to_search == window[pos_in_window..Z]
+/// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`: to_search == window[pos_in_window..Z]
 /// - if `found_window`, then try_new_path_window = path_window
-/// - try_new_depth_path_window = path_to_search[0..try_new_depth_path_window]
+/// - try_new_path_window = path_to_search[0..try_new_depth_path_window]
 /// Therefore: to_search can be found in the whole bitstring (eval_tree[vec![]].encode.unwrap())
 /// at pos `shift_window + pos_in_window`.
 pub fn find_unique_match_rec<'a, M, PB>(
-    to_search: &[u8],
-    path_to_search: &'a [usize],
-    mut window: &'a [u8],
-    mut path_window: &'a [usize],
-    mut st: StatusSearch,
-    eval_tree: &'a EvalTree,
-    whole_term: &TermEval<M>,
+    mut st: StatusSearch<M>,
     ctx: &TraceContext<PB>,
-    old_attempts: usize,
 ) -> Result<usize, Error>
 where
     M: Matcher,
     PB: ProtocolBehavior<Matcher = M>,
 {
-    debug!("[find_unique_match_rec] Start with path_to_search {path_to_search:?},\n - to_search: {to_search:?}\n - window:: {window:?}\n - path_window:{path_window:?}");
-    trace!(" - whole_term: {whole_term}");
-    let mut try_new_depth_path_window =
-        refine_window_heuristic(0, &to_search, window.len(), path_to_search, &st);
-    let mut try_new_path_window = &path_to_search[0..try_new_depth_path_window];
-    if try_new_depth_path_window != 0 {
-        st.found_window = false;
-    }
-    let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest nodes)
-    let mut attempts = 0;
-    let eval_root = &eval_tree.encode.as_ref().unwrap()[..];
+    debug!("[find_unique_match_rec] START ========\n {st:?}");
+    trace!(" - whole_term: {}", st.whole_term);
+    let mut try_new_depth_path_window = refine_window_heuristic(&st);
+    let mut try_new_path_window = &st.path_to_search[0..try_new_depth_path_window];
+    st.found_window = try_new_depth_path_window == 0; // no need to find the window if window=eval_root
+    let eval_root = &st.eval_tree.encode.as_ref().unwrap()[..];
 
+    let mut fallback_end_parent = false; // when basic heuristic fails, we fall back to searching the position relatively to the accumulation of all right siblings
+    let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest nodes)
+    let mut attempts = 0; // while loop # attempts
+
+    // Main while loop where we search for `to_search` in `eval_root` in a unique way (one match) by varying
+    // the search window `window`
     while !(st.found_window && st.unique_match && st.found_match && st.unique_window) {
-        if attempts > 40 || attempts + old_attempts > 100 {
-            let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts.\n - to_search:{:?}\n - window:{:?}\n - path_to_search:{:?},\n path_window:{:?}\n - eval_tree:{:?}", to_search, window, path_to_search, path_window, eval_tree);
+        if st.path_to_search.is_empty() {
+            return Ok(0); // then to_search = window
+        }
+
+        if attempts > ATT_BEFORE_FAIL || attempts + st.total_attempts > ATT_TOTAL_BEFORE_FAIL {
+            let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts.\n {st:?}");
             error!("{}", ft);
             return Err(Error::Term(ft));
         }
+
+        // Prevent cycling larger -> smaller -> larger window, and fallback to other heuristics
+        if attempts > 0 && !st.found_window && st.tried_depth_path[try_new_depth_path_window] {
+            // we already tried to search for and locate this window!
+            let ft = format!("[find_unique_match_rec] [CYCLING BACK] Unable to find a match after {attempts} attempts.\n {st:?}");
+            warn!("{}", ft);
+            fallback_end_parent = true;
+        } else {
+            st.tried_depth_path[try_new_depth_path_window] = true;
+        }
+
         // initially found_match is false (not searched and found to_search yet)
-        debug!("[find_unique_match_rec] ATTEMPT #{attempts} with StatutSearch: {st:?}, fallback_empty:{fallback_empty}\n - path_window:{path_window:?}, try_new_path_window:{try_new_path_window:?}, to_search.len():{}, window.len():{}", to_search.len(), window.len());
-        trace!("  - to_search: {to_search:?}\n  - window: {window:?}");
+        debug!("[find_unique_match_rec] ATTEMPT #{attempts} with fallback_end_parent: {fallback_end_parent}, fallback_empty:{fallback_empty}\n {st:?}");
+        trace!(
+            "  - whole_term: {}\n  - eval_tree: {:?}",
+            st.whole_term,
+            st.eval_tree
+        );
         attempts += 1;
         if attempts > 3 {
-            warn!("[find_unique_match] HIGH NUMBER OF ATTEMPTS!");
+            warn!("[find_unique_match_rec] HIGH NUMBER OF ATTEMPTS!");
         }
-        if attempts > 15 {
+
+        // First fallback heuristic: compute right-shift with respect to the parent term evaluation
+        if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
             fallback_empty = true;
+            if st.path_window.len() != st.path_to_search.len() - 1 {
+                // this should be the case after a few iterations!
+                fallback_empty = true;
+                continue;
+            }
+            // We should address failing cases such as:
+            // - to_search is included in header of parent term encoding (e.g., compression method is in header of ClientHello)
+            // - to_search is included in siblings (e.g., same cipher suite repeated many times in a list)
+            // Assumption: the formatting of t may add some header at the beginning, but no footer at the end
+            //             so that t.encode = HEAD || [ti.encode]_i
+            // Strategy: we compute the length of the evaluations of all siblings on the right and locate
+            // to_search in the window of the parent term evaluation, shifting from the right by this
+            // quantity.
+            warn!("[find_unique_match_rec] Trying heuristic based on shift from the end of window {st:?}\n. Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
+            trace!("Whole_term {}", st.whole_term);
+            let t_parent = find_term_by_term_path(
+                st.whole_term,
+                &st.path_to_search[0..st.path_to_search.len() - 1],
+            )
+            .ok_or({
+                Error::Term(format!(
+                    "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]"
+                ))
+            })?;
+
+            if let Term::Application(_, args) = &t_parent.term {
+                let arg_num = st.path_to_search[st.path_to_search.len() - 1];
+                let mut acc = 0;
+                let mut p = st.path_to_search.to_vec();
+                for i in (arg_num..args.len()).rev() {
+                    p[st.path_to_search.len() - 1] = i;
+                    if let Ok(res) = eval_or_compute(&p, st.eval_tree, st.whole_term, ctx) {
+                        trace!(
+                            "[find_unique_match_rec] Argument {i} is {} bytes long",
+                            res.to_pointer().len()
+                        );
+                        acc += res.to_pointer().len();
+                        continue;
+                    } else {
+                        fallback_empty = true; // some failure happened, fallback to the final heuristic
+                        break;
+                    }
+                }
+                if !fallback_empty {
+                    st.found_match = true;
+                    st.unique_match = true;
+                    debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
+                    st.pos_in_window = st.window.len() - acc;
+                } else {
+                    continue;
+                }
+            } else {
+                return Err(Error::Term(format!(
+                    "[find_unique_match_rec] Should never happen [Var]"
+                )));
+            }
         }
 
-        if path_to_search.is_empty() {
-            return Ok(0); // only valid option
-        }
-
-        // SPECIAL CASE EMPTY PAYLOAD or FALLBACK
-        if to_search.is_empty() || fallback_empty {
-            // let mut sibling_eval = vec![];
-            debug!(
-                "[find_unique_match_rec] Empty to_search or fallback mode, looking for a relative!"
+        // Second fallback heuristic: locate a sibling
+        if st.to_search.is_empty() || fallback_empty {
+            warn!(
+                "[[replace_payloads] ] Empty to_search or fallback mode, looking for a relative!"
             );
-            // Search for a relative node.
-            // Spec: is the shortest sibling having a non-empty encoding (on the left or on the right)
+            // to_search is empty, there is no way to locate it directly.
+            // Instead, we compute and locate the closest sibling having a non-empty evaluation
+            // and locate to_search relatively to the latter.
+            // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the left or on the right)
             let (path_relative, eval_relative_, relative_on_left) =
-                find_relative_node(path_to_search, eval_tree, whole_term, ctx)?;
+                find_relative_node(st.path_to_search, st.eval_tree, st.whole_term, ctx)?;
             let eval_relative = eval_relative_.to_pointer();
-            trace!("[find_unique_match_rec] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
+            trace!("[replace_payloads] ] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
-            let pos_relative_in_root = find_unique_match_rec(
+            let mut st2 = StatusSearch::new(
                 eval_relative,
                 &path_relative,
                 eval_root,
                 &path_relative[0..0],
-                StatusSearch::default(),
-                eval_tree,
-                whole_term,
-                ctx,
-                old_attempts + attempts,
-            )?;
+                st.eval_tree,
+                st.whole_term,
+            );
+            st2.total_attempts += attempts + st.total_attempts;
+
+            let pos_relative_in_root = find_unique_match_rec(st2, ctx)?;
 
             return if relative_on_left {
                 Ok(pos_relative_in_root + eval_relative.len())
@@ -440,106 +540,96 @@ where
             };
         }
 
-        // NEW WINDOW
+        // Main heuristic: STEP 1 LOCATE THE NEW WINDOW
         if !st.found_window {
             // then we need to compute and search for the new window
             debug!(
-                "[find_unique_match] NEW WINDOW: from {path_window:?} to {try_new_path_window:?}"
+                "[find_unique_match_rec] NEW WINDOW: from {:?} to {try_new_path_window:?}",
+                st.path_window
             );
             st.found_match = false;
             st.found_window = false;
-            let new_window_eval_tree = eval_tree.get(try_new_path_window)?;
+            let new_window_eval_tree = st.eval_tree.get(try_new_path_window)?;
             if let Some(new_window_eval) = &new_window_eval_tree.encode {
-                debug!("[find_unique_match] window has encoding");
+                debug!("[find_unique_match_rec] window has encoding");
                 if let Some((pos_w, unique_w)) = search_sub_vec_double(eval_root, new_window_eval) {
-                    debug!("[find_unique_match] found the window");
+                    debug!("[find_unique_match_rec] found the window");
                     if unique_w {
-                        debug!("[find_unique_match] unique window match");
+                        debug!("[find_unique_match_rec] unique window match");
                         // refining window succeeds!
                         st = StatusSearch {
                             found_window: true,
                             unique_window: true,
-                            shift_window: pos_w,
+                            pos_of_window: pos_w,
                             ..st
                         };
-                        window = new_window_eval;
-                        path_window = try_new_path_window;
-                        debug!("Found window and is unique. New window with path_window:{path_window:?}");
+                        st.window = new_window_eval;
+                        st.path_window = try_new_path_window;
+                        debug!(
+                            "[find_unique_match_rec] Found window and is unique. New window with path_window:{:?}",
+                            st.path_window
+                        );
+                        // We should now look for to_search in this window
                         continue;
                     } else {
                         // window found twice, it is too small, we reduce the try_new_path_depth
-                        debug!("[find_unique_match] not unique window match");
+                        debug!("[find_unique_match_rec] not unique window match");
                         st.found_window = true;
                     }
-                } // else: not found, we leave st unmodified
-                  // // {
-                  //     // window not found, it might be too large, we increase try_new_path_depth
-                  //     debug!("[find_unique_match] window not found");
-                try_new_depth_path_window = refine_window_heuristic(
-                    // window found twice
-                    try_new_depth_path_window,
-                    &to_search,
-                    window.len(),
-                    &path_to_search,
-                    &st,
-                );
-                try_new_path_window = &path_to_search[0..try_new_depth_path_window];
+                } else {
+                    // not found, we leave st unmodified (with st.found_window = false)
+                    debug!("[find_unique_match_rec] window not found");
+                }
+                let mut st2 = st.clone();
+                st2.window = new_window_eval;
+                st2.path_window = try_new_path_window;
+                try_new_depth_path_window = refine_window_heuristic(&st2);
+                try_new_path_window = &st.path_to_search[0..try_new_depth_path_window];
                 st.found_window = false;
-                debug!("Found window but not unique. New window with try_new_path_window:{try_new_path_window:?}, path_window was {path_window:?}");
+                debug!("[find_unique_match_rec] New window with try_new_path_window:{try_new_path_window:?}, path_window was {:?}", st.path_window);
                 continue;
             } else {
                 // Was not able to encode this sub-message
-                let ft = format!("[replace_payloads] [find_window] Unable to find a window due to missing evaluation on EvalTree.\n - to_search:{:?}\n - eval_root:{:?}\n - path_to_search:{:?}\n - eval_tree:{:?}",
-                                 to_search, eval_root, path_to_search, eval_tree);
+                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a window due to missing evaluation on EvalTree.\n - to_search:{:?}\n - eval_root:{:?}\n - path_to_search:{:?}\n - eval_tree:{:?}",
+                                 st.to_search, eval_root, st.path_to_search, st.eval_tree);
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
         }
 
+        // Main heuristic: STEP 2 `to_search` in `window`
         if !st.found_match {
-            // SEARCH IN NEW WINDOW
-            if let Some((pos, unique)) = search_sub_vec_double(&window, to_search) {
-                debug!("[find_unique_match] to_search was found in window");
+            if let Some((pos, unique)) = search_sub_vec_double(&st.window, st.to_search) {
+                debug!("[find_unique_match_rec] to_search was found in window");
                 st.found_match = true;
                 if unique {
-                    debug!("[find_unique_match] to_search was uniquely found in window");
+                    debug!("[find_unique_match_rec] to_search was uniquely found in window");
                     st.unique_match = true;
                     st.pos_in_window = pos;
                 } else {
                     // to_search was found twice, we need to refine the search window
-                    debug!("[find_unique_match] to_search was not uniquely found in window");
+                    debug!("[find_unique_match_rec] to_search was not uniquely found in window");
                     st.unique_match = false; // will yield a deeper path_sub and hence narrower window at the next iteration
-                    let try_new_depth_path_window = refine_window_heuristic(
-                        path_window.len(),
-                        &to_search,
-                        window.len(),
-                        &path_to_search,
-                        &st,
-                    );
-                    try_new_path_window = &path_to_search[0..try_new_depth_path_window];
+                    let try_new_depth_path_window = refine_window_heuristic(&st);
+                    try_new_path_window = &st.path_to_search[0..try_new_depth_path_window];
                     st.found_window = false;
-                    debug!("Found match but not unique. New window with try_new_path_window:{try_new_path_window:?}");
+                    debug!("[find_unique_match_rec] Found match but not unique. New window with try_new_path_window:{try_new_path_window:?}");
                     continue;
                 }
             } else {
-                let ft = format!("[replace_payloads] [find_window] Unable to find a to_search in current window. Should never happen!\n - to_search:{:?}\n -window: {:?}\n - in_eval:{:?}\n - path:{:?}\n - eval_tree:{:?}",
-                                 to_search, window, eval_root, path_to_search, eval_tree);
+                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a to_search in current window. Should never happen!\n - to_search:{:?}\n -window: {:?}\n - in_eval:{:?}\n - path:{:?}\n - eval_tree:{:?}",
+                                 st.to_search, st.window, eval_root, st.path_to_search, st.eval_tree);
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
-        } else {
-            let ft = format!(
-                "[replace_payloads] [find_window] Should never happen: end of while with st:{st:?}"
-            );
-            error!("{}", ft);
-            return Err(Error::Term(ft));
         }
     }
     debug!(
-        "[find_unique_match] ## END found a match for {path_to_search:?} at {}",
-        st.shift_window + st.pos_in_window
+        "[find_unique_match_rec] ## END found a match for {:?} at {}",
+        st.path_to_search,
+        st.pos_of_window + st.pos_in_window
     );
-    Ok(st.shift_window + st.pos_in_window)
+    Ok(st.pos_of_window + st.pos_in_window)
 }
 
 /// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified bitstring.
@@ -588,11 +678,12 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         // TODO: SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
         if !(to_modify[start..end] == *old_bitstring) {
             let ft = format!(
-                "[replace_payload] Payloads returned by eval_until_opaque were inconsistent!\n\
+                "[replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
                    - term: {term}\n\
                    - to_replace[start..end].to_vec() = !to_modify[{start}..{end}].to_vec() = {:?}\n\
                    - payload.payload_0.bytes() = {:?}\n\
-                   - to_modify={to_modify:?}",
+                   - to_modify={to_modify:?}\n\
+                   - payload_context: {payload_context:?}",
                 to_modify[start..end].to_vec(),
                 old_bitstring
             );
@@ -620,14 +711,6 @@ impl<M: Matcher> TermEval<M> {
     /// evaluating the opaque function, which then needs to be read to convert it back to a Box<dyn Any>.
     /// @path: current path of &self in the overall recipe (initially []).
     /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments first.
-    // TODO REMOVE:
-    // To each payload, we associate
-    // the path from which it originates and the pos_in_context (offset (in # bytes) where to find the payload in the
-    // current term and the window (context)). The offset is always relative to the current window
-    // context.
-    // Invariant: concrete[pos_in_context..pos_in_context+payload.payload_0.len()] == payload.payload_0
-    // Therefore, the position/offset (usize) is the position where to replace the payload in the current context.
-    //  term.eval_until_opaque(Vec::new(), context, with_payloads, false)
     pub(crate) fn eval_until_opaque<PB>(
         &self,
         eval_tree: &mut EvalTree,

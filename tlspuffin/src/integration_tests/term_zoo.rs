@@ -554,12 +554,13 @@ mod tests {
         // TODO:
         // Understand warning and errors, try also without limiting to once a function
         // Issues to address:
-        //       A. cycling between:
+        //       A. cycling between:  [FIXED WITH tried_depth_path]
         //          1.window_depth +1 when !st.unique_match
         //          2. window depth -1 when !st.unique_window
-        //       B. Related and example of A:
+        //       B. Related and example of A:  [FIXED WITH fallback_end_parent]
         //           always fails when BS// is in a term t such that just before or after is a similar t with same encoding
         //           there won't be a suitable window then!
+        //           Also always fail when the payload is at pos p and a sibling encoding contains the same encoding [ALSO FIXED]
         //       C.  Read_bytes fail because of MakeMessage but even without adding a != payload for: HandshakeHash, Vec<ClientExtension>, Vec<ServerExtension>
         //           Could add a test that encode and read many different types, as in this test
         //       E. Other failures when running this with DEBUG level=warn
