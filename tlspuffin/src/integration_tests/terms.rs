@@ -101,12 +101,14 @@ mod tests {
     }
 
     // UNI TESTS for eval_until_opaque and replace_payloads
+    // Does not work in CI or when executed with other tests when multi threads are used for the same reason
+    // test_attacker_full_det_recreate fails in multi-threads.
+    // This test passes with the option `-test-threads=1` though.
     //    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
-    // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and wimdow refinement of `eval_until_opaque`
+    // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and window refinement of `eval_until_opaque`
     // in detail.
     #[test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
-                                                                          // #[test_log::test]
     fn test_replace_bitstring_multiple() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
         let mut trace = seed_client_attacker_full_boring.build_trace();

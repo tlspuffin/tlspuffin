@@ -613,9 +613,13 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
     } else {
         trace!("[refine_window_heuristic] not empty but very unlikely we found uniquely except in window path[0..len-1]");
         if !st.unique_match {
-            return max(0, st.path_to_search.len() - 1); // TODO: maybe optimize this?
-        } else {
             return max(0, st.path_to_search.len() - 1);
+        } else {
+            return min(
+                // TODO: this slight optimization (trying st.path_to_search.len() -2) has not been benchmarked/measured
+                st.path_to_search.len() - 1,
+                max(current_depth + 1, max(st.path_to_search.len(), 2) - 2),
+            );
         }
     }
 }
