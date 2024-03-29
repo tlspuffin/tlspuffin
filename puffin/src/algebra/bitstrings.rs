@@ -1,11 +1,13 @@
 use std::{
     any::{Any, TypeId},
+    borrow::{
+        Cow,
+        Cow::{Borrowed, Owned},
+    },
     cmp::{max, min},
     fmt::{format, Display, Formatter},
+    ops::Deref,
 };
-use std::borrow::Cow;
-use std::borrow::Cow::{Borrowed, Owned};
-use std::ops::Deref;
 
 use anyhow::Context;
 use derivative::Derivative;
@@ -14,10 +16,7 @@ use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    algebra::{
-        dynamic_function::TypeShape, ConcreteMessage, Matcher, Term,
-        TermEval, TermType,
-    },
+    algebra::{dynamic_function::TypeShape, ConcreteMessage, Matcher, Term, TermEval, TermType},
     error::Error,
     fuzzer::utils::{find_term_by_term_path, TermPath},
     protocol::ProtocolBehavior,

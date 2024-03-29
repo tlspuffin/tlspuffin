@@ -106,7 +106,7 @@ mod tests {
     // in detail.
     #[test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
-// #[test_log::test]
+                                                                          // #[test_log::test]
     fn test_replace_bitstring_multiple() {
         let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
         let mut trace = seed_client_attacker_full_boring.build_trace();
