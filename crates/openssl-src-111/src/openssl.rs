@@ -4,7 +4,6 @@ extern crate cc;
 use std::io::ErrorKind;
 use std::{
     env,
-    fs::{canonicalize, File},
     io,
     fs::{self, canonicalize, File},
     io::Write,
