@@ -99,7 +99,8 @@ fn test_make_message() {
 }
 
 /// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all payloads of strict sub-terms
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
+#[cfg(all(feature = "tls13", not(feature = "boringssl-binding")))]
+// require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full cannot be executed with boringssl
 #[test]
 // #[test_log::test]
 fn test_byte_remove_payloads() {
@@ -320,6 +321,7 @@ fn test_byte_interesting() {
 
     while i < MAX {
         i += 1;
+        error!("Test attempt {i}");
         mutator_byte_interesting
             .mutate(&mut state, &mut trace, 0)
             .unwrap();
@@ -332,21 +334,22 @@ fn test_byte_interesting() {
                     for payload in t.all_payloads() {
                         if payload.payload_0 != payload.payload {
                             debug!(
-                                "ByteInterestingMutatorDY created different payloads at step {i}: {:?}",
+                                "[test_byte_interesting] ByteInterestingMutatorDY created different payloads at step {i}: {:?}",
                                 payload
                             );
                             found = true;
                         }
                     }
                     if found {
-                        debug!("We found different payload. Now evaluating....",);
+                        debug!("[test_byte_interesting] We found different payload. Now evaluating e1\n {t}....",);
                         let e1 = t.evaluate(&ctx).unwrap();
+                        debug!("[test_byte_interesting] Now symbolically evaluating....",);
                         let e2 = t.evaluate_symbolic(&ctx).unwrap();
                         if e1 != e2 {
-                            debug!("Evaluation differed, good...");
+                            debug!("[test_byte_interesting] Evaluation differed, good...");
                             break;
                         } else {
-                            debug!("Should never happen!");
+                            debug!("[test_byte_interesting] Should never happen!");
                         }
                     }
                 }
