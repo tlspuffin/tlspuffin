@@ -15,7 +15,7 @@ use crate::{
     SSH_PUT_REGISTRY,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {

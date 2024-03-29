@@ -1,9 +1,11 @@
 extern crate bindgen;
 extern crate cc;
 
+use std::io::ErrorKind;
 use std::{
     env, fs,
     fs::{canonicalize, File},
+    io,
     io::Write,
     path::{Path, PathBuf},
     process::Command,
@@ -44,6 +46,21 @@ fn clone_repo(dest: &str) -> std::io::Result<()> {
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+fn patch_openssl<P: AsRef<Path>>(out_dir: P, patch: &str) -> std::io::Result<()> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let status = Command::new("git")
+        .current_dir(out_dir)
+        .arg("am")
+        .arg(root.join("patches").join(patch).to_str().unwrap())
+        .status()?;
+
+    if !status.success() {
+        return Err(io::Error::from(ErrorKind::Other));
+    }
+
+    Ok(())
 }
 
 pub struct Build {

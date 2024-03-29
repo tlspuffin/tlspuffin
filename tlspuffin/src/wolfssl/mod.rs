@@ -2,6 +2,8 @@
 
 use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
 
+use foreign_types::{ForeignType, ForeignTypeRef};
+use log::{error, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
@@ -77,6 +79,14 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             WolfSSL::version()
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            error!("[determinism_set_reseed] Not yet implemented.")
+        }
+
+        fn determinism_reseed(&self) -> () {
+            error!("[determinism_reseed] Not yet implemented.")
         }
     }
 
@@ -263,9 +273,9 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         unsafe { version().to_string() }
     }
 
-    fn set_deterministic(&mut self) -> Result<(), puffin::error::Error> {
+    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Agent(
-            "WolfSSL does not support determinism".to_string(),
+            "[determinism] WolfSSL does not support reseed".to_string(),
         ))
     }
 

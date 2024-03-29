@@ -9,6 +9,7 @@ use puffin::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
+use super::rustls::msgs::handshake::EncryptedExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{
@@ -935,6 +936,156 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
+// TODO: `BAD_SIGNATURE` error
+pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatcher> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let extensions = term! {
+        fn_decrypt_multiple_handshake_messages(
+            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+            (fn_server_hello_transcript(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0  // sequence 0
+        )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+            fn_find_server_certificate_request((@extensions))
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_get_context((@certificate_request_message))),
+            (fn_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_bob_cert
+                )),
+              fn_empty_certificate_chain
+            ))
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_rsa_sign_client(
+                (fn_certificate_transcript(((server, 0)))),
+                fn_bob_key,
+                fn_rsa_pss_signature_algorithm
+            ))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (fn_server_finished_transcript(((server, 0)))),
+                (fn_server_hello_transcript(((server, 0)))),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor {
+            name: server,
+            tls_version: TLSVersion::V1_3,
+            typ: AgentType::Server,
+            client_authentication: true,
+            ..AgentDescriptor::default()
+        }],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_1  // sequence 1
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (fn_server_hello_transcript(((server, 0)))),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_2  // sequence 2
+                        )
+                    },
+                }),
+            },
+        ],
+    }
+}
+
 pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
@@ -1603,6 +1754,190 @@ pub fn _seed_client_attacker_full(
     )
 }
 
+pub fn seed_client_attacker_full_boring(server: AgentName) -> Trace<TlsQueryMatcher> {
+    _seed_client_attacker_full_boring(server).0
+}
+
+/// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
+pub fn _seed_client_attacker_full_boring(
+    server: AgentName,
+) -> (
+    Trace<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+) {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                (@client_hello) // ClientHello
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+        )
+    };
+
+    // ((0, 1)) could be a CCS the server sends one
+
+    let extensions = term! {
+        fn_decrypt_multiple_handshake_messages(
+            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0  // sequence 0
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_find_encrypted_extensions((@extensions))
+    };
+
+    let encrypted_extension_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext Encrypted Extensions
+        )
+    };
+
+    let server_certificate = term! {
+        fn_find_server_certificate((@extensions))
+    };
+
+    let server_certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extension_transcript),
+            (@server_certificate) // plaintext Server Certificate
+        )
+    };
+
+    let server_certificate_verify = term! {
+        fn_find_server_certificate_verify((@extensions))
+    };
+
+    let server_certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_transcript),
+            (@server_certificate_verify) // plaintext Server Certificate Verify
+        )
+    };
+
+    let server_finished = term! {
+        fn_find_server_finished((@extensions))
+    };
+
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_verify_transcript),
+            (@server_finished) // plaintext Server Handshake Finished
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_finished_transcript),
+            (@client_finished)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        @client_hello
+                    },
+                }),
+            },
+            OutputAction::new_step(server),
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (@server_hello_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            OutputAction::new_step(server),
+            /*Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                         fn_encrypt_application(
+                            fn_alert_close_notify,
+                            (@server_hello_transcript),
+                            (@server_finished_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_seq_0  // sequence 0
+                        )
+                    },
+                }),
+            },
+            OutputAction::new_step(server),*/
+        ],
+    };
+
+    (
+        trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
+    )
+}
+
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
 pub fn seed_session_resumption_dhe_full(
@@ -1822,8 +2157,10 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_successful12_with_tickets: cfg(feature = "tls12-session-resumption"),
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
-        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
-        seed_client_attacker_full: cfg(feature = "tls13"),
+        seed_client_attacker_full: cfg(all(feature = "tls13", not(feature = "boringssl-binding"))),
+        seed_client_attacker_full_boring: cfg(all(feature = "tls13", feature = "boringssl-binding")),
+        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction", not(feature = "boringssl-binding"))),
+        seed_client_attacker_auth_boring: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction", feature = "boringssl-binding")),
         seed_client_attacker12: cfg(feature = "tls12"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
@@ -1868,6 +2205,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_client_attacker_auth() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1881,11 +2219,16 @@ pub mod tests {
     fn test_seed_client_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
-        let ctx = seed_client_attacker_full.execute_trace();
+        let ctx = if cfg!(not(feature = "boringssl-binding")) {
+            seed_client_attacker_full.execute_trace()
+        } else {
+            seed_client_attacker_full_boring.execute_trace()
+        };
         assert!(ctx.agents_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_server_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1896,6 +2239,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_dhe() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1906,6 +2250,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_dhe_full() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1916,6 +2261,7 @@ pub mod tests {
 
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_session_resumption_ke() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1925,6 +2271,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1934,6 +2281,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_client_auth() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1956,6 +2304,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_with_ccs() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1967,6 +2316,7 @@ pub mod tests {
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
+    #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_with_tickets() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1977,6 +2327,7 @@ pub mod tests {
 
     #[test]
     #[cfg(feature = "tls12")]
+    #[cfg(not(feature = "boringssl-binding"))]
     fn test_seed_successful12() {
         use crate::tls::trace_helper::TraceExecutor;
 

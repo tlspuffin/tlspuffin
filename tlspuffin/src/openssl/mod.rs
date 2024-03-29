@@ -1,6 +1,6 @@
 use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
-use log::info;
+use log::{debug, info, warn};
 use openssl::{
     error::ErrorStack,
     ssl::{Ssl, SslContext, SslMethod, SslStream, SslVerifyMode},
@@ -17,6 +17,11 @@ use puffin::{
 };
 
 use crate::{
+    claims::{
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -83,6 +88,18 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn version(&self) -> String {
             OpenSSL::version()
+        }
+
+        fn determinism_set_reseed(&self) -> () {
+            debug!("[Determinism] set and reseed");
+            #[cfg(feature = "deterministic")]
+            deterministic::set_openssl_deterministic();
+        }
+
+        fn determinism_reseed(&self) -> () {
+            debug!("[Determinism] reseed");
+            #[cfg(feature = "deterministic")]
+            deterministic::set_openssl_deterministic();
         }
     }
 
@@ -203,7 +220,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn set_deterministic(&mut self) -> Result<(), Error> {
+    fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
             deterministic::set_openssl_deterministic();

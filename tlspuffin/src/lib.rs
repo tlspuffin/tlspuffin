@@ -102,6 +102,8 @@
 //! ```
 //!
 
+#[cfg(feature = "boringssl-binding")]
+pub mod boringssl;
 pub mod claims;
 pub mod debug;
 #[cfg(feature = "openssl-binding")]

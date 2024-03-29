@@ -206,6 +206,13 @@ define_signature!(
     fn_new_transcript
     fn_append_transcript
     fn_decrypt_handshake
+    fn_decrypt_multiple_handshake_messages
+    fn_find_server_certificate
+    fn_find_server_certificate_request
+    fn_find_server_ticket
+    fn_find_server_certificate_verify
+    fn_find_encrypted_extensions
+    fn_find_server_finished
     fn_no_psk
     fn_psk
     fn_decrypt_application
