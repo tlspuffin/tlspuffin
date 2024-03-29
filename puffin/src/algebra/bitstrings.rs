@@ -205,148 +205,6 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     }
 }
 
-/// Search relative node. Spec: returns the path p to a node such that all nodes whose path is
-///  - strictly between p and path_to_search (according to the lexicographic order)
-///  - and that is not a descendant of p
-/// has an empty encoding.
-/// For example: if p is the closest cousin on the left, then all siblings on the left of path_to_search must have an empty
-/// encoding.
-/// Returns p, and whether the encoding of path_to_search comes after the one of p (true) or before (false).
-/// For instance, if p is an ancestor of path_to_search then it will be false.
-/// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of path_to_search.
-pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
-    path_to_search: &[usize],
-    eval_tree: &'a EvalTree,
-    whole_term: &TermEval<M>,
-    ctx: &TraceContext<PB>,
-) -> Result<(TermPath, TreeOrEval<'a>, bool), Error> {
-    if path_to_search.is_empty() {
-        let ft = format!("[find_relative_node] Empty path_to_search!! Error!");
-        error!("{}", ft);
-        return Err(Error::Term(ft));
-    }
-    debug!("[find_relative_node] Look a relative node from {path_to_search:?}");
-    let path_parent = &path_to_search[0..path_to_search.len() - 1];
-    let mut att = 0;
-    let eval_t_parent = eval_tree.get(path_parent)?;
-    let nb_args = eval_t_parent.args.len();
-    let arg_to_search = *path_to_search.last().unwrap();
-    trace!("arg_to_search: {arg_to_search}, nb_args:{nb_args}, path_parent:{path_parent:?}");
-    if arg_to_search > 0 {
-        // search on the left until finding an appropriate sibling
-        let mut sib_left = arg_to_search as isize - 1isize;
-        while sib_left >= 0 && att < 20 {
-            att += 1;
-            debug!("[find_relative_node] trying on the left, arg_to_search:{arg_to_search}, sib_left:{sib_left}");
-            let mut path_sib = path_parent.to_vec();
-            path_sib.push(sib_left as usize);
-            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
-            let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
-            if !eval_sib.to_pointer().is_empty() {
-                assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, true)); // on the left of path_to_search
-            } else {
-                sib_left -= 1;
-            }
-        }
-    } // we failed to find a sibling candidate on the left, let us try on the right
-    if arg_to_search < nb_args - 1 {
-        // search on the right until finding an appropriate sibling
-        let mut sib_right = arg_to_search + 1;
-        while sib_right <= nb_args - 1 && att < 20 {
-            att += 1;
-            debug!("[find_relative_node] trying on the right, arg_to_search:{arg_to_search}, sib_right:{sib_right}");
-            let mut path_sib = path_parent.to_vec();
-            path_sib.push(sib_right as usize);
-            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
-            let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
-            if !eval_sib.to_pointer().is_empty() {
-                let mut path_sib = path_parent.to_vec();
-                path_sib.push(sib_right);
-                assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, false)); // on the right of path_to_search
-            } else {
-                sib_right += 1;
-            }
-        }
-    } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
-    debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
-    if path_parent.len() < path_to_search.len() {
-        return find_relative_node(path_parent, eval_tree, whole_term, ctx);
-    } else {
-        panic!("[find_relative_node] should never happen, new path is not shorter!");
-    }
-}
-
-/// Return the depth of the path we should look for the next window, given the current StatusSearch and
-/// notably the current window path depth. This is following best efforts heuristics.
-pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
-    let window_len = st.window.len();
-    let current_depth = st.path_window.len();
-    if st.path_to_search.is_empty() {
-        trace!("[refine_window_heuristic] only possible window candidate is the root");
-        return 0;
-    }
-    if st.to_search.is_empty() {
-        trace!("[refine_window_heuristic] will be handled with a specific routine anyway");
-        return max(0, st.path_to_search.len() - 1);
-    }
-    if window_len == 0 {
-        trace!("[refine_window_heuristic] window is too narrow, we decrease the depth (= increases window)");
-        return max(0, current_depth - 1);
-    }
-    if !st.found_window {
-        trace!("[refine_window_heuristic] window might be too large or just at a sub-term for which encoding is not meaningful, go narrower");
-        return min(st.path_to_search.len() - 1, current_depth + 1);
-    }
-    if !st.unique_window {
-        trace!("[refine_window_heuristic] window is too narrow, we decreases the depth");
-        return max(0, current_depth - 1);
-    }
-    if st.to_search.len() > 4
-        || sum_vec_cap(st.to_search, 2) >= THRESHOLD_SUM
-        || window_len / st.to_search.len() <= THRESHOLD_RATIO
-    {
-        if !st.unique_match {
-            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {:?}", min(st.path_to_search.len(), current_depth + 1), st.path_to_search);
-            return min(st.path_to_search.len() - 1, current_depth + 1);
-        } else {
-            trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
-            return current_depth;
-        }
-    } else if st.to_search.len() > 2
-        || sum_vec_cap(st.to_search, 1) >= THRESHOLD_SUM / 2
-        || window_len / st.to_search.len() <= THRESHOLD_RATIO * 2
-    {
-        if !st.unique_match {
-            trace!("[refine_window_heuristic] the below failed, so we go halfway");
-            return min(
-                st.path_to_search.len() - 1,
-                max(
-                    current_depth + 1,
-                    (st.path_to_search.len() - current_depth) / 2,
-                ),
-            );
-        } else {
-            trace!("[refine_window_heuristic] we go a quarter");
-            return min(
-                st.path_to_search.len() - 1,
-                max(
-                    current_depth + 1,
-                    (st.path_to_search.len() - current_depth) / 4,
-                ),
-            );
-        }
-    } else {
-        trace!("[refine_window_heuristic] not empty but very unlikely we found uniquely except in window path[0..len-1]");
-        if !st.unique_match {
-            return max(0, st.path_to_search.len() - 1); // TODO: maybe optimize this?
-        } else {
-            return max(0, st.path_to_search.len() - 1);
-        }
-    }
-}
-
 /// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx))
 /// such that the match is unique in a window corresponding to the evaluation of a sub-term at a path
 /// in between vec![] (root) and `path_to_search`. Return the position of the match in `root_eval`.
@@ -630,6 +488,148 @@ where
         st.pos_of_window + st.pos_in_window
     );
     Ok(st.pos_of_window + st.pos_in_window)
+}
+
+/// Search relative node. Spec: returns the path p to a node such that all nodes whose path is
+///  - strictly between p and path_to_search (according to the lexicographic order)
+///  - and that is not a descendant of p
+/// has an empty encoding.
+/// For example: if p is the closest cousin on the left, then all siblings on the left of path_to_search must have an empty
+/// encoding.
+/// Returns p, and whether the encoding of path_to_search comes after the one of p (true) or before (false).
+/// For instance, if p is an ancestor of path_to_search then it will be false.
+/// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of path_to_search.
+pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+    path_to_search: &[usize],
+    eval_tree: &'a EvalTree,
+    whole_term: &TermEval<M>,
+    ctx: &TraceContext<PB>,
+) -> Result<(TermPath, TreeOrEval<'a>, bool), Error> {
+    if path_to_search.is_empty() {
+        let ft = format!("[find_relative_node] Empty path_to_search!! Error!");
+        error!("{}", ft);
+        return Err(Error::Term(ft));
+    }
+    debug!("[find_relative_node] Look a relative node from {path_to_search:?}");
+    let path_parent = &path_to_search[0..path_to_search.len() - 1];
+    let mut att = 0;
+    let eval_t_parent = eval_tree.get(path_parent)?;
+    let nb_args = eval_t_parent.args.len();
+    let arg_to_search = *path_to_search.last().unwrap();
+    trace!("arg_to_search: {arg_to_search}, nb_args:{nb_args}, path_parent:{path_parent:?}");
+    if arg_to_search > 0 {
+        // search on the left until finding an appropriate sibling
+        let mut sib_left = arg_to_search as isize - 1isize;
+        while sib_left >= 0 && att < 20 {
+            att += 1;
+            debug!("[find_relative_node] trying on the left, arg_to_search:{arg_to_search}, sib_left:{sib_left}");
+            let mut path_sib = path_parent.to_vec();
+            path_sib.push(sib_left as usize);
+            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
+            let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
+            if !eval_sib.to_pointer().is_empty() {
+                assert!(path_sib != path_to_search);
+                return Ok((path_sib, eval_sib, true)); // on the left of path_to_search
+            } else {
+                sib_left -= 1;
+            }
+        }
+    } // we failed to find a sibling candidate on the left, let us try on the right
+    if arg_to_search < nb_args - 1 {
+        // search on the right until finding an appropriate sibling
+        let mut sib_right = arg_to_search + 1;
+        while sib_right <= nb_args - 1 && att < 20 {
+            att += 1;
+            debug!("[find_relative_node] trying on the right, arg_to_search:{arg_to_search}, sib_right:{sib_right}");
+            let mut path_sib = path_parent.to_vec();
+            path_sib.push(sib_right as usize);
+            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
+            let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
+            if !eval_sib.to_pointer().is_empty() {
+                let mut path_sib = path_parent.to_vec();
+                path_sib.push(sib_right);
+                assert!(path_sib != path_to_search);
+                return Ok((path_sib, eval_sib, false)); // on the right of path_to_search
+            } else {
+                sib_right += 1;
+            }
+        }
+    } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
+    debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
+    if path_parent.len() < path_to_search.len() {
+        return find_relative_node(path_parent, eval_tree, whole_term, ctx);
+    } else {
+        panic!("[find_relative_node] should never happen, new path is not shorter!");
+    }
+}
+
+/// Return the depth of the path we should look for the next window, given the current StatusSearch and
+/// notably the current window path depth. This is following best efforts heuristics.
+pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
+    let window_len = st.window.len();
+    let current_depth = st.path_window.len();
+    if st.path_to_search.is_empty() {
+        trace!("[refine_window_heuristic] only possible window candidate is the root");
+        return 0;
+    }
+    if st.to_search.is_empty() {
+        trace!("[refine_window_heuristic] will be handled with a specific routine anyway");
+        return max(0, st.path_to_search.len() - 1);
+    }
+    if window_len == 0 {
+        trace!("[refine_window_heuristic] window is too narrow, we decrease the depth (= increases window)");
+        return max(0, current_depth - 1);
+    }
+    if !st.found_window {
+        trace!("[refine_window_heuristic] window might be too large or just at a sub-term for which encoding is not meaningful, go narrower");
+        return min(st.path_to_search.len() - 1, current_depth + 1);
+    }
+    if !st.unique_window {
+        trace!("[refine_window_heuristic] window is too narrow, we decreases the depth");
+        return max(0, current_depth - 1);
+    }
+    if st.to_search.len() > 4
+        || sum_vec_cap(st.to_search, 2) >= THRESHOLD_SUM
+        || window_len / st.to_search.len() <= THRESHOLD_RATIO
+    {
+        if !st.unique_match {
+            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {:?}", min(st.path_to_search.len(), current_depth + 1), st.path_to_search);
+            return min(st.path_to_search.len() - 1, current_depth + 1);
+        } else {
+            trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
+            return current_depth;
+        }
+    } else if st.to_search.len() > 2
+        || sum_vec_cap(st.to_search, 1) >= THRESHOLD_SUM / 2
+        || window_len / st.to_search.len() <= THRESHOLD_RATIO * 2
+    {
+        if !st.unique_match {
+            trace!("[refine_window_heuristic] the below failed, so we go halfway");
+            return min(
+                st.path_to_search.len() - 1,
+                max(
+                    current_depth + 1,
+                    (st.path_to_search.len() - current_depth) / 2,
+                ),
+            );
+        } else {
+            trace!("[refine_window_heuristic] we go a quarter");
+            return min(
+                st.path_to_search.len() - 1,
+                max(
+                    current_depth + 1,
+                    (st.path_to_search.len() - current_depth) / 4,
+                ),
+            );
+        }
+    } else {
+        trace!("[refine_window_heuristic] not empty but very unlikely we found uniquely except in window path[0..len-1]");
+        if !st.unique_match {
+            return max(0, st.path_to_search.len() - 1); // TODO: maybe optimize this?
+        } else {
+            return max(0, st.path_to_search.len() - 1);
+        }
+    }
 }
 
 /// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified bitstring.
