@@ -87,6 +87,8 @@ coverage, expressiveness of executable protocol traces and stable and extensible
   * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
   * LibreSSL 3.3.3
   * wolfSSL 5.1.0 - 5.4.0
+  * BoringSSL (last commit tested 368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)
+    - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
 * Reproducible for each LUT. We use sources from forks this are in the [tlspuffin organisation](https://github.com/tlspuffin)
 * 70% Test Coverage
 * Writtin in Rust!
@@ -104,6 +106,10 @@ OpenSSL 1.0:
 WolfSSL:
 * autoconf
 * libtool
+
+BoringSSL:
+* go
+* cmake
 
 For the python `tlspuffin-analyzer`:
 * libyajl-dev
