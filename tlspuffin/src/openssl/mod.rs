@@ -8,7 +8,6 @@ use openssl::{
 };
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
-    algebra::ConcreteMessage,
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
@@ -17,8 +16,6 @@ use puffin::{
     trace::TraceContext,
 };
 
-#[cfg(feature = "deterministic")]
-use crate::openssl::deterministic::{determinism_reseed_openssl, determinism_set_reseed_openssl};
 use crate::{
     claims::{
         ClaimData, ClaimDataMessage, ClaimDataTranscript, ClientHello, Finished, TlsClaim,
@@ -96,13 +93,13 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn determinism_set_reseed(&self) -> () {
             debug!("[Determinism] set and reseed");
             #[cfg(feature = "deterministic")]
-            deterministic::determinism_set_reseed_openssl();
+            deterministic::set_openssl_deterministic();
         }
 
         fn determinism_reseed(&self) -> () {
             debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
-            deterministic::determinism_reseed_openssl();
+            deterministic::set_openssl_deterministic();
         }
     }
 
@@ -122,7 +119,7 @@ impl Drop for OpenSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for OpenSSL {
-    fn add_to_inbound(&mut self, result: ConcreteMessage) {
+    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
             self.stream.get_mut(),
             result,
@@ -226,9 +223,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            #[cfg(feature = "deterministic")]
-            deterministic::determinism_reseed_openssl();
-            warn!("OpenSSL is deterministic now!!");
+            deterministic::set_openssl_deterministic();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]

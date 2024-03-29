@@ -129,7 +129,6 @@ impl Stream<Message, OpaqueMessage> for BoringSSL {
         &mut self,
     ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
         let memory_stream = self.stream.get_mut();
-        //memory_stream.take_message_from_outbound()
 
         MemoryStream::take_message_from_outbound(memory_stream)
     }

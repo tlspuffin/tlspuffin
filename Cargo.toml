@@ -51,3 +51,7 @@ debug = true
 
 [profile.dev]
 panic = "abort"
+# Without LTO, the fuzzer hangs in debug releases with BoringSSL
+# and ASAN. If you want to do a debug build with BoringSSL and ASAN
+# you need to activate LTO.
+# lto = true

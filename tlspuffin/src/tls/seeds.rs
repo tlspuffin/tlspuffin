@@ -943,7 +943,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-// BUG: `BAD_SIGNATURE` error
+// TODO: `BAD_SIGNATURE` error
 pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
