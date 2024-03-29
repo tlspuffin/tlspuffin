@@ -1,16 +1,58 @@
 name: Run checks
 
 on:
+  workflow_dispatch:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
-  run-checks:
-    name: Check
+  rustfmt:
+    name: rustfmt
     runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup
-        uses: ./.github/actions/setup
-      - name: Format
+    defaults:
+      run:
         shell: bash
-        run: just fmt-check
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: run rustfmt
+        run: just fmt-rust-check
+
+  clangfmt:
+    name: clang-format
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: run clang-format
+        run: just fmt-clang-check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: check workspace
+        run: just check-workspace
+      - name: check `libressl-src`
+        run: just check-crate libressl-src libressl333
+      - name: check `libressl-src`
+        run: just check-crate libressl-src libressl333
+      - name: check `openssl-src`
+        run: just check-crate openssl-src-111 openssl101f
+      - name: check `wolfssl`
+        run: just check-crate wolfssl wolfssl430,wolfssl-sys/wolfssl430
+      - name: check `wolfssl-sys`
+        run: just check-crate wolfssl-sys wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905

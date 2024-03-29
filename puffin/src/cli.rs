@@ -52,7 +52,7 @@ fn create_app() -> Command {
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                          .arg(arg!(-d --description <d> "Descritpion of the experiment"))
             ,
-            Command::new("seed").about("Generates seeds to ./corpus"),
+            Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -66,6 +66,9 @@ fn create_app() -> Command {
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
+            Command::new("execute-traces")
+                .about("Executes traces stored in files.")
+                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..)),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -160,7 +163,7 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
                         .expect("failed to read directory")
                         .map(|entry| entry.expect("failed to read path in directory").path())
                         .filter(|path| {
-                            !path.file_name().unwrap().to_str().unwrap().starts_with(".")
+                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
                         })
                         .collect()
                 } else {
@@ -169,7 +172,14 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             })
             .collect::<Vec<_>>();
 
-        paths.sort_by_key(|path| fs::metadata(path).unwrap().modified().unwrap());
+        paths.sort_by_key(|path| {
+            fs::metadata(path)
+                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
+                .modified()
+                .unwrap()
+        });
+
+        let n: usize = *matches.get_one("number").unwrap_or(&paths.len());
 
         let mut end_reached = false;
 
@@ -186,16 +196,24 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
             &paths[0..0]
         };
 
+        info!("execute: found {} inputs", paths.len());
+        info!(
+            "execute: running on subset [{}..{}] ({} inputs)",
+            index,
+            index + n,
+            lookup_paths.len()
+        );
+
         for path in lookup_paths {
             info!("Executing: {}", path.display());
-            execute(&path, put_registry);
+            execute(path, put_registry);
         }
 
         if !lookup_paths.is_empty() {
             println!(
                 "{}",
                 fs::metadata(&lookup_paths[0])
-                    .unwrap()
+                    .unwrap_or_else(|_| panic!("missing trace file {}", lookup_paths[0].display()))
                     .modified()
                     .unwrap()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -209,6 +227,42 @@ pub fn main<PB: ProtocolBehavior + Clone + 'static>(
         } else {
             return ExitCode::SUCCESS;
         }
+    } else if let Some(matches) = matches.subcommand_matches("execute-traces") {
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+
+        let mut paths = inputs
+            .flat_map(|input| {
+                let input = PathBuf::from(input);
+
+                if input.is_dir() {
+                    fs::read_dir(input)
+                        .expect("failed to read directory")
+                        .map(|entry| entry.expect("failed to read path in directory").path())
+                        .filter(|path| {
+                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
+                        })
+                        .collect()
+                } else {
+                    vec![input]
+                }
+            })
+            .collect::<Vec<_>>();
+
+        paths.sort_by_key(|path| {
+            fs::metadata(path)
+                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
+                .modified()
+                .unwrap()
+        });
+
+        info!("execute: found {} inputs", paths.len());
+
+        for path in paths {
+            info!("Executing: {}", path.display());
+            execute(path, put_registry);
+        }
+
+        return ExitCode::SUCCESS;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
@@ -393,9 +447,9 @@ fn seed<PB: ProtocolBehavior>(
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
         trace.to_file(format!("./seeds/{}.trace", name))?;
-
-        info!("Generated seed traces into the directory ./corpus")
     }
+
+    info!("Generated seed traces into the directory ./seeds");
     Ok(())
 }
 

@@ -18,7 +18,6 @@ use crate::{
             enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
             handshake::{Random, ServerExtension, SessionID},
         },
-        trace_helper::TraceHelper,
     },
 };
 
@@ -2162,12 +2161,22 @@ pub fn seed_session_resumption_dhe_full(
 }
 
 macro_rules! corpus {
-    ( $( $func:ident $(: $meta:meta)* ),* ) => {
+    () => {
+        vec![]
+    };
+
+    ( $( $func:ident : cfg($( $meta:meta),* ) ),* ) => {
         {
-            let mut corpus = Vec::new();
+            #[cfg(any( $( $( $meta ),* ),* ))]
+            use crate::tls::trace_helper::TraceHelper;
+            #[cfg(any( $( $( $meta ),* ),* ))]
+            let mut corpus = vec![];
+
+            #[cfg(not(any( $( $( $meta ),* ),* )))]
+            let corpus = vec![];
 
             $(
-                $( #[$meta] )*
+                #[cfg( $( $meta ),* )]
                 corpus.push(($func.build_trace(), $func.fn_name()));
             )*
 
@@ -2182,8 +2191,8 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_successful: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
         seed_successful_with_tickets: cfg(feature = "tls13"),
-        seed_successful12: cfg(not(feature = "tls12-session-resumption")),
-        seed_successful12_with_tickets: cfg(feature = "tls12-session-resumption"),
+        seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
+        seed_successful12_with_tickets: cfg(all(feature = "tls12", feature = "tls12-session-resumption")),
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
         seed_client_attacker_full: cfg(all(feature = "tls13", not(feature = "boringssl-binding"))),
