@@ -3,6 +3,9 @@ use std::{
     cmp::{max, min},
     fmt::{format, Display, Formatter},
 };
+use std::borrow::Cow;
+use std::borrow::Cow::{Borrowed, Owned};
+use std::ops::Deref;
 
 use anyhow::Context;
 use derivative::Derivative;
@@ -12,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     algebra::{
-        bitstrings::TreeOrEval::Eval, dynamic_function::TypeShape, ConcreteMessage, Matcher, Term,
+        dynamic_function::TypeShape, ConcreteMessage, Matcher, Term,
         TermEval, TermType,
     },
     error::Error,
@@ -159,20 +162,6 @@ impl<'a, M: Matcher> StatusSearch<'a, M> {
     }
 }
 
-/// Store the result of `eval_or_compute`
-pub enum TreeOrEval<'a> {
-    EvalTree(&'a ConcreteMessage),
-    Eval(ConcreteMessage),
-}
-impl<'a> TreeOrEval<'a> {
-    pub fn to_pointer(self: &'a Self) -> &'a ConcreteMessage {
-        match self {
-            TreeOrEval::EvalTree(e) => e,
-            Eval(e) => &e,
-        }
-    }
-}
-
 /// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it in the past,
 /// then we evaluate the corresponding sub-term.
 pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
@@ -180,9 +169,9 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     eval_tree: &'a EvalTree,
     whole_term: &TermEval<M>,
     ctx: &TraceContext<PB>,
-) -> Result<TreeOrEval<'a>, Error> {
+) -> Result<Cow<'a, ConcreteMessage>, Error> {
     match eval_tree.get(&path_to_eval)?.encode.as_ref() {
-        Some(eval) => Ok(TreeOrEval::EvalTree(eval)),
+        Some(eval) => Ok(Borrowed(eval)),
         None => {
             trace!("[eval_or_compute] We did not compute eval before, we do it now.");
             let sibling_term = find_term_by_term_path(whole_term, &path_to_eval).ok_or(
@@ -200,7 +189,7 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
                 false,
                 whole_term.get_type_shape(),
             )?;
-            Ok(Eval(PB::any_get_encoding(&sibling_eval_box)?))
+            Ok(Owned(PB::any_get_encoding(&sibling_eval_box)?))
         }
     }
 }
@@ -341,9 +330,9 @@ where
                     if let Ok(res) = eval_or_compute(&p, st.eval_tree, st.whole_term, ctx) {
                         trace!(
                             "[find_unique_match_rec] Argument {i} is {} bytes long",
-                            res.to_pointer().len()
+                            res.deref().len()
                         );
-                        acc += res.to_pointer().len();
+                        acc += res.deref().len();
                         continue;
                     } else {
                         fallback_empty = true; // some failure happened, fallback to the final heuristic
@@ -376,7 +365,7 @@ where
             // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the left or on the right)
             let (path_relative, eval_relative_, relative_on_left) =
                 find_relative_node(st.path_to_search, st.eval_tree, st.whole_term, ctx)?;
-            let eval_relative = eval_relative_.to_pointer();
+            let eval_relative = eval_relative_.deref();
             trace!("[replace_payloads] ] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
             let mut st2 = StatusSearch::new(
@@ -504,7 +493,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     eval_tree: &'a EvalTree,
     whole_term: &TermEval<M>,
     ctx: &TraceContext<PB>,
-) -> Result<(TermPath, TreeOrEval<'a>, bool), Error> {
+) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool), Error> {
     if path_to_search.is_empty() {
         let ft = format!("[find_relative_node] Empty path_to_search!! Error!");
         error!("{}", ft);
@@ -527,7 +516,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             path_sib.push(sib_left as usize);
             // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
-            if !eval_sib.to_pointer().is_empty() {
+            if !eval_sib.deref().is_empty() {
                 assert!(path_sib != path_to_search);
                 return Ok((path_sib, eval_sib, true)); // on the left of path_to_search
             } else {
@@ -545,7 +534,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             path_sib.push(sib_right as usize);
             // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
-            if !eval_sib.to_pointer().is_empty() {
+            if !eval_sib.deref().is_empty() {
                 let mut path_sib = path_parent.to_vec();
                 path_sib.push(sib_right);
                 assert!(path_sib != path_to_search);
