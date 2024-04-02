@@ -5,7 +5,16 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-// FIXME: C/Rust duplication of type definitions
+// TODO re-design to remove TLS-specific constructs
+//
+//     For now, the PUT communication interfaces are TLS-specific, e.g. X509
+//     stores, protocol versions, ...
+//
+//     In order to support different protocols, the TLS-specific definitions
+//     need to be either encapsulated in a generic interface or moved to a
+//     different file that contains the protocol-specific parts.
+
+// FIXME C/Rust duplication of type definitions
 //
 //     All the types related to the descriptor are equivalent of the Rust
 //     structs and enums. To avoid discrepancy, we could generate a header from
