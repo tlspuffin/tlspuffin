@@ -1,4 +1,3 @@
-extern crate bindgen;
 extern crate cc;
 
 use std::io::ErrorKind;
@@ -8,41 +7,26 @@ use std::{
     fs::{self, canonicalize, File},
     io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Output},
 };
 
-const REF: &str = if cfg!(feature = "openssl101f") {
-    "OpenSSL_1_0_1f"
+const MK_VENDOR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tools/mk_vendor");
+
+const PRESET: &str = if cfg!(feature = "openssl101f") {
+    "openssl101f"
 } else if cfg!(feature = "openssl102u") {
-    "OpenSSL_1_0_2u"
+    "openssl102u"
 } else if cfg!(feature = "openssl111k") {
-    "fuzz-OpenSSL_1_1_1k"
+    "openssl111k"
 } else if cfg!(feature = "openssl111j") {
-    "fuzz-OpenSSL_1_1_1j"
+    "openssl111j"
 } else if cfg!(feature = "openssl111u") {
-    "fuzz-OpenSSL_1_1_1u"
+    "openssl111u"
 } else if cfg!(feature = "openssl312") {
-    "fuzz-OpenSSL_3_1_2"
-} else if cfg!(feature = "master") {
-    "master"
+    "openssl312"
 } else {
-    panic!("Unknown version of OpenSSL requested!")
+    panic!("Missing OpenSSL version. Use --features=[opensslxxxx] to set the version.");
 };
-
-fn clone_repo(dest: &str) -> std::io::Result<()> {
-    std::fs::remove_dir_all(dest)?;
-    Command::new("git")
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("--branch")
-        .arg(REF)
-        .arg("https://github.com/tlspuffin/openssl")
-        .arg(dest)
-        .status()?;
-
-    Ok(())
-}
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -86,11 +70,7 @@ impl Build {
         self
     }
 
-    fn cmd_make(&self) -> Command {
-        Command::new("make")
-    }
-
-    pub fn build_deterministic_rand(install_dir: &Path) {
+    pub fn build_deterministic_rand(openssl: &Artifacts) {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let file = root.join("src").join("deterministic_rand.c");
         let buf = canonicalize(file).unwrap();
@@ -100,186 +80,95 @@ impl Build {
 
         cc::Build::new()
             .file(deterministic_rand)
-            .include(install_dir.join("include"))
+            .include(&openssl.include_dir)
             .compile("deterministic_rand");
-    }
-
-    pub fn insert_claim_interface(additional_headers: &Path) -> std::io::Result<()> {
-        let interface = security_claims::CLAIM_INTERFACE_H;
-
-        let path = additional_headers.join("claim-interface.h");
-
-        let mut file = File::create(path)?;
-        file.write_all(interface.as_bytes())?;
-
-        Ok(())
     }
 
     pub fn build(&mut self) -> Artifacts {
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
-        let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
-        let build_dir = out_dir.join("build");
-        let install_dir = out_dir.join("install");
-        let additional_headers = out_dir.join("additional_headers");
-        fs::create_dir_all(&additional_headers).unwrap();
-        Self::insert_claim_interface(&additional_headers).unwrap();
 
-        if build_dir.exists() {
-            fs::remove_dir_all(&build_dir).unwrap();
-        }
-        if install_dir.exists() {
-            fs::remove_dir_all(&install_dir).unwrap();
-        }
+        let mut mk_vendor_config: Vec<String> = vec![];
+        mk_vendor_config.push(format!("openssl:{}", PRESET));
 
-        let inner_dir = build_dir.join("src");
-        fs::create_dir_all(&inner_dir).unwrap();
+        let mut options: Vec<&str> = vec![];
+        #[cfg(feature = "asan")]
+        options.push("asan");
+        #[cfg(feature = "sancov")]
+        options.push("sancov");
+        #[cfg(feature = "gcov_analysis")]
+        options.push("gcov");
+        #[cfg(feature = "llvm_cov_analysis")]
+        options.push("llvm_cov");
 
-        clone_repo(inner_dir.to_str().unwrap()).unwrap();
+        mk_vendor_config.push(format!("--options={}", options.join(",")));
 
-        let perl_program =
-            env::var("OPENSSL_SRC_PERL").unwrap_or(env::var("PERL").unwrap_or("perl".to_string()));
-        let mut configure = Command::new(perl_program);
-        configure.arg("./Configure");
-
-        configure.arg(&format!("--prefix={}", install_dir.display()));
-        #[cfg(feature = "openssl312")]
-        configure.arg(&format!("--libdir={}/lib", install_dir.display()));
-
-        configure
-            // No shared objects, we just want static libraries
-            .arg("no-dso")
-            .arg("no-shared");
-
-        // No need to build tests, we won't run them anyway
-        // TODO .arg("no-unit-test")
-        // Nothing related to zlib please
-        // TODO .arg("no-comp")
-        // TODO .arg("no-zlib")
-        // TODO .arg("no-zlib-dynamic")
-
-        // TODO: does only work when combinded with rand.patch?
-        // configure.arg("--with-rand-seed=none");
-
-        // if cfg!(feature = "weak-crypto") {
-        //     configure
-        //         .arg("enable-md2")
-        //         .arg("enable-rc5")
-        //         .arg("enable-weak-ssl-ciphers");
-        // } else {
-        //     configure
-        //         .arg("no-md2")
-        //         .arg("no-rc5")
-        //         .arg("no-weak-ssl-ciphers");
-        // }
-
-        // if cfg!(not(feature = "seed")) {
-        //     configure.arg("no-seed");
-        // }
-
-        let os = match target {
-            "aarch64-apple-darwin" => "darwin64-arm64-cc",
-            "x86_64-apple-darwin" => "darwin64-x86_64-cc",
-            "x86_64-unknown-linux-gnu" => "linux-x86_64",
-            _ => panic!("don't know how to configure OpenSSL for {}", target),
+        let suffix = if !options.is_empty() {
+            format!("-{}", options.join("-"))
+        } else {
+            "".to_string()
         };
-        configure.arg(os);
+        mk_vendor_config.push(format!("--name={}{}", PRESET, suffix));
 
-        // if cfg!(feature = "no-rand") {
-        //     configure.arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION");
-        // }
+        let mut build_cmd = Command::new(MK_VENDOR);
+        build_cmd.arg("make");
+        build_cmd.args(&mk_vendor_config);
 
-        let cc = "clang".to_owned();
-        let mut cflags = "".to_owned();
+        self.run_command(build_cmd, format!("Building OpenSSL {}", PRESET));
 
-        configure.arg("-fPIE"); // -fPIC was previously added through Cargo flags
-        cflags.push_str(" -g ");
+        let mut locate_cmd = Command::new(MK_VENDOR);
+        locate_cmd.arg("locate");
+        locate_cmd.args(&mk_vendor_config);
 
-        if cfg!(feature = "sancov") {
-            cflags.push_str(" -fsanitize-coverage=trace-pc-guard ");
-        }
-
-        if cfg!(feature = "gcov_analysis") {
-            cflags.push_str(" -ftest-coverage -fprofile-arcs -O0 ");
-        }
-
-        if cfg!(feature = "llvm_cov_analysis") {
-            cflags.push_str(" -fprofile-instr-generate -fcoverage-mapping -O0 ");
-        }
-
-        // Make additional headers available
-        cflags.push_str(
-            format!(
-                " -I{}",
-                canonicalize(&additional_headers).unwrap().to_str().unwrap()
-            )
-            .as_str(),
+        let res = self.run_command(
+            locate_cmd,
+            format!("Getting install prefix for OpenSSL {}", PRESET),
         );
+        let prefix = PathBuf::from(String::from_utf8_lossy(&res.stdout).into_owned().trim());
 
-        if cfg!(feature = "asan") {
-            // Disable freelists as they may interfere with malloc
-            configure.arg("-DOPENSSL_NO_BUF_FREELISTS");
-
-            //configure.arg("enable-asan"); // If compiled with clang this implies "-static-libasan"
-            // Important: Make sure to pass these flags to the linker invoked by rustc!
-            cflags.push_str(" -fsanitize=address -shared-libsan");
-        }
-
-        configure.env("CFLAGS", cflags);
-        configure.env("CC", cc);
-
-        // And finally, run the perl configure script!
-        configure.current_dir(&inner_dir);
-        self.run_command(configure, "configuring OpenSSL build");
-
-        let mut depend = self.cmd_make();
-        depend.arg("depend").current_dir(&inner_dir);
-        self.run_command(depend, "building OpenSSL dependencies");
-
-        let mut build = self.cmd_make();
-        build.current_dir(&inner_dir);
-
-        #[cfg(feature = "openssl101f")]
-        build.arg("-j1");
-        #[cfg(not(feature = "openssl101f"))]
-        build.arg("-j32");
-
-        self.run_command(build, "building OpenSSL");
-
-        let mut install = self.cmd_make();
-        install.arg("install_sw").current_dir(&inner_dir);
-
-        self.run_command(install, "installing OpenSSL");
-
-        if cfg!(feature = "no-rand") {
-            Self::build_deterministic_rand(&install_dir);
-        }
-
-        Artifacts {
-            lib_dir: install_dir.join("lib"),
-            bin_dir: install_dir.join("bin"),
-            include_dir: install_dir.join("include"),
+        let openssl = Artifacts {
+            lib_dir: prefix.join("lib"),
+            bin_dir: prefix.join("bin"),
+            include_dir: prefix.join("include"),
             libs: vec!["ssl".to_string(), "crypto".to_string()],
             target: target.to_string(),
+        };
+
+        if cfg!(feature = "no-rand") {
+            Self::build_deterministic_rand(&openssl);
         }
+
+        println!("cargo:rerun-if-changed={}", openssl.lib_dir.display());
+        println!("cargo:rerun-if-changed={}", openssl.include_dir.display());
+
+        openssl
     }
 
-    fn run_command(&self, mut command: Command, desc: &str) {
+    fn run_command(&self, mut command: Command, desc: impl AsRef<str>) -> Output {
         println!("running {:?}", command);
-        let status = command.status().unwrap();
-        if !status.success() {
-            panic!(
-                "
+        let res = command.output().unwrap();
 
+        println!(
+            concat!(
+                "\n\n\n",
+                "{}:\n",
+                "    Command: {:?}\n",
+                "    Exit status: {}\n",
+                "    ===== stdout =====\n{}\n",
+                "    ===== stderr =====\n{}\n",
+                "\n\n"
+            ),
+            desc.as_ref(),
+            command,
+            res.status,
+            String::from_utf8_lossy(&res.stdout).into_owned().trim(),
+            String::from_utf8_lossy(&res.stderr).into_owned().trim()
+        );
 
-Error {}:
-    Command: {:?}
-    Exit status: {}
-
-
-    ",
-                desc, command, status
-            );
+        if !res.status.success() {
+            panic!("Command failed. Cannot build OpenSSL vendor library.");
         }
+
+        res
     }
 }
 
