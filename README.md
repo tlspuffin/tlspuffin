@@ -100,9 +100,6 @@ coverage, expressiveness of executable protocol traces and stable and extensible
 * clang
 * graphviz
 
-OpenSSL 1.0:
-* makedepend from `xutils-dev package
-
 WolfSSL:
 * autoconf
 * libtool
