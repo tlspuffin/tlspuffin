@@ -335,7 +335,10 @@ impl<M: Matcher> From<TermEval<M>> for Term<M> {
 fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring: bool) -> String {
     let tabs = "\t".repeat(depth);
     match term {
-        Term::Variable(ref v) => format!("{}{}", tabs, v),
+        Term::Variable(ref v) => {
+            let is_bitstring = if is_bitstring { "BS//" } else { "" };
+            format!("{}{}{}", tabs, is_bitstring, v)
+        }
         Term::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);

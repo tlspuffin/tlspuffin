@@ -2,7 +2,7 @@ use std::{ops::Not, thread::panicking};
 
 use anyhow::{Context, Result};
 use libafl::prelude::*;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 
 use super::utils::{Choosable, *};
 use crate::{
@@ -602,9 +602,12 @@ where
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
     tr.execute_until_step(ctx, path.0).err().map(|e| {
-        error!("mutation::MakeMessage trace is not executable until step {},\
+        // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
+        // TODO: we could memoize the recipe evaluation in a Option<ConcreteMessage> and use that
+        debug!("mutation::MakeMessage trace is not executable until step {},\
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
-            TO CHECK! Error: {e}\n trace:\n{}", path.0, &tr);
+            Error: {e}", path.0);
+        trace!("{}", &tr);
         return Ok::<MutationResult, Error>(MutationResult::Skipped)
     });
 
@@ -649,14 +652,20 @@ where
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if not directly dropped
                 // by the feedback loop once executed)
-                Ok(()) => Ok(MutationResult::Mutated),
+                Ok(()) => {
+                    debug!("mutation::MakeMessage successful!");
+                    Ok(MutationResult::Mutated)
+                }
                 Err(e) => {
-                    warn!("mutation::MakeMessage failed due to {e}");
+                    debug!("mutation::MakeMessage failed due to {e}");
                     Ok(MutationResult::Skipped)
                 }
             }
         } else {
-            warn!("mutation::MakeMessage failed to choose term");
+            debug!(
+                "mutation::MakeMessage failed to choose term in trace:\n {}",
+                &trace
+            );
             Ok(MutationResult::Skipped)
         }
     }

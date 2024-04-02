@@ -82,13 +82,13 @@ impl<M: Matcher> Knowledge<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.as_ref().type_id();
-        warn!(
+        debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
         );
-        warn!("Knowledge data: {:?}", self.data);
+        debug!("Knowledge data: {:?}", self.data);
     }
 }
 impl<M: Matcher> fmt::Display for Knowledge<M> {
@@ -644,8 +644,9 @@ impl<M: Matcher> InputAction<M> {
     {
         // message controlled by the attacker
         let message = self.recipe.evaluate(ctx)?;
-        debug!("Will add to inbound a new message");
+        debug!("Add to inbound a new message...");
         ctx.add_to_inbound(step.agent, message)?;
+        debug!("Next state...");
         ctx.next_state(step.agent)
     }
 }

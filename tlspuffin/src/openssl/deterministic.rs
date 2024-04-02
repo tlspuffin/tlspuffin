@@ -1,6 +1,6 @@
 use std::os::raw::c_int;
 
-use log::warn;
+use log::{debug, warn};
 
 #[cfg(feature = "deterministic")]
 extern "C" {
@@ -10,7 +10,7 @@ extern "C" {
 
 #[cfg(feature = "deterministic")]
 pub fn set_openssl_deterministic() {
-    warn!("OpenSSL is no longer random!");
+    debug!("OpenSSL is no longer random!");
     unsafe {
         make_openssl_deterministic();
         let mut seed: [u8; 4] = 42u32.to_le().to_ne_bytes();
