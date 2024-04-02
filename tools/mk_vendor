@@ -35,12 +35,12 @@ Examples:
 "
 
 MAKE_USAGE="Usage:
-    ${NAME} make <configuration>[:<preset>] [vendor-options]
+    ${NAME} make <configuration>[:<preset>] [library-options]
     ${NAME} make -h | --help
 
 fetch, patch, build and install a vendor library
 
-Vendor Options:
+Library Options:
     -n,--name=STRING       override the configuration name
     -f,--fetch=STRING      override the fetch method used to retrieve the sources
     -p,--patch=STRING,...  override the patch sets applied to the sources
@@ -63,13 +63,13 @@ Examples:
 "
 
 LOCATE_USAGE="Usage:
-    ${NAME} locate <configuration>[:<preset>] [vendor-options]
+    ${NAME} locate <configuration>[:<preset>] [library-options]
     ${NAME} locate -h | --help
 
 Display the path to the install prefix that would be created by passing the same
-vendor configuration to '${NAME} make'.
+library configuration to '${NAME} make'.
 
-Vendor Options:
+Library Options:
     -n,--name=STRING       override the configuration name
     -f,--fetch=STRING      override the fetch method used to retrieve the sources
     -p,--patch=STRING,...  override the patch sets applied to the sources
@@ -320,7 +320,7 @@ display_configuration() {
     printf '\n  vendor:\n'
     printf '    VENDOR_NAME = %s\n' "${VENDOR_NAME}"
     printf '    VENDOR_DIR = %s\n' "${VENDOR_DIR}"
-    printf '    VENDOR_UID = %s\n' "${CONFUID}"
+    printf '    CONFIG_UID = %s\n' "${CONFUID}"
 
     printf '\n  fetch:\n'
     printf '    FETCH_METHOD = %s\n' "${FETCH_METHOD}"
@@ -814,11 +814,11 @@ run_cmd_make() {
     } > "${OUTDIR}/mk_vendor.conf"
 
     if ! CC="${CC:-clang}" cmake "${cmake_flags[@]}"; then
-        die "failed configuration step for vendor lib '${VENDOR_NAME}'"
+        die "failed configuration step for vendor library '${VENDOR_NAME}'"
     fi
 
     if ! cmake --build "${BLDDIR}" --target vendor; then
-        die "failed build step for vendor lib '${VENDOR_NAME}'"
+        die "failed build step for vendor library '${VENDOR_NAME}'"
     fi
 
     exit 0

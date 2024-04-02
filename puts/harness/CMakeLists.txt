@@ -7,25 +7,25 @@ enable_testing()
 set(PUTS "")
 set(PUT_LIBS "")
 
-string(REPLACE "," ";" VENDORS "${VENDORS}")
-foreach(vendor_path IN LISTS VENDORS)
+string(REPLACE "," ";" LIBRARIES "${LIBRARIES}")
+foreach(library_path IN LISTS LIBRARIES)
     set(PROTOCOL "tls")
     set(HARNESS "openssl")
 
     # FIXME retrieve mk_vendor config uid if available
-    string(SHA256 VENDOR_HASH "${PROTOCOL}/${HARNESS}/${vendor_path}")
-    string(SUBSTRING ${VENDOR_HASH} 0 16 VENDOR_HASH)
+    string(SHA256 LIBRARY_HASH "${PROTOCOL}/${HARNESS}/${library_path}")
+    string(SUBSTRING ${LIBRARY_HASH} 0 16 LIBRARY_HASH)
 
-    set(PUT_ID "${VENDOR_HASH}")
+    set(PUT_ID "${LIBRARY_HASH}")
 
     add_library(put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT ${PROTOCOL}/${HARNESS}/src/put.c)
     set_property(TARGET put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
     target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${HARNESS}_${PUT_ID})
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
-    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${vendor_path}/include")
+    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${library_path}/include")
 
     add_custom_command(
-        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${vendor_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
+        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
         COMMENT "relocation for put-${PROTOCOL}-${HARNESS}-${PUT_ID}" VERBATIM)
 
     add_custom_target(relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID} ALL DEPENDS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)

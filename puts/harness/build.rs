@@ -57,17 +57,17 @@ pub fn main() {
             .unwrap_or(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vendor").to_string()),
     );
 
-    let vendor_names = env::var("WITH_PUT")
+    let library_names = env::var("WITH_PUT")
         .map(|wp| wp.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
         .unwrap_or_else(|_| {
             println!("cargo:rerun-if-changed={}", &vendor_dir.to_str().unwrap());
-            all_vendors(&vendor_dir)
+            all_libraries(&vendor_dir)
         });
 
-    build_puts(&vendor_dir, vendor_names)
+    build_puts(&vendor_dir, library_names)
 }
 
-pub fn build_puts(vendor_dir: &Path, vendor_names: Vec<String>) {
+pub fn build_puts(vendor_dir: &Path, library_names: Vec<String>) {
     let protocols: Vec<&str> = vec![
         #[cfg(feature = "tls")]
         "tls",
@@ -76,19 +76,19 @@ pub fn build_puts(vendor_dir: &Path, vendor_names: Vec<String>) {
     let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let vendors: Vec<String> = vendor_names
+    let libraries: Vec<String> = library_names
         .iter()
         .map(|vendor| vendor_dir.join(vendor).to_str().unwrap().to_string())
         .collect();
 
-    for vendor in vendors.iter() {
+    for vendor in libraries.iter() {
         println!("cargo:rerun-if-changed={}", vendor);
     }
 
     cmake::Config::new(src_dir)
         .profile("Debug")
         .define("BUILD_SHARED_LIBS", "OFF")
-        .define("VENDORS", vendors.join(","))
+        .define("LIBRARIES", libraries.join(","))
         .define("PROTOCOLS", protocols.join(","))
         .build();
 
@@ -104,7 +104,7 @@ pub fn build_puts(vendor_dir: &Path, vendor_names: Vec<String>) {
     println!("cargo:rustc-link-lib=static=puts-bundle");
 }
 
-pub fn all_vendors(vendor_dir: &Path) -> Vec<String> {
+pub fn all_libraries(vendor_dir: &Path) -> Vec<String> {
     if let Ok(dir_entry) = vendor_dir.read_dir() {
         dir_entry
             .filter_map(|x| x.ok())
