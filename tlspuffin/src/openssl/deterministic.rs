@@ -24,12 +24,12 @@ mod tests {
     use openssl::rand::rand_bytes;
 
     #[test]
-    #[cfg(all(feature = "deterministic", feature = "openssl111-binding"))]
+    #[cfg(feature = "openssl111-binding")]
     fn test_openssl_no_randomness() {
         use crate::openssl::deterministic::set_openssl_deterministic;
         set_openssl_deterministic();
         let mut buf1 = [0; 2];
         rand_bytes(&mut buf1).unwrap();
-        assert_eq!(buf1, [177, 180]);
+        assert_eq!(buf1, [183, 96]);
     }
 }

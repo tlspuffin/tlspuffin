@@ -161,6 +161,12 @@ jobs:
           - name: wolfssl540-perf
             features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: boringssl202403
+            features: boringssl202403
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: boringssl202403_asan
+            features: boringssl202403,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
 
     uses: ./.github/workflows/run-tlspuffin-tests.yml
     with:
