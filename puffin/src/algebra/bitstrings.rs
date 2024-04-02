@@ -777,16 +777,16 @@ impl<M: Matcher> TermEval<M> {
                 Ok((d, vec![]))
             }
             Term::Application(func, args) => {
-                debug!("[eval_until_opaque] [App]: Application from path={path:?}");
+                trace!("[eval_until_opaque] [App]: Application from path={path:?}");
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new(); // will contain all the arguments on which to call the function symbol implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque function symbols)
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
                 let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
                 for (i, ti) in args.iter().enumerate() {
-                    debug!("  + Treating argument # {i} from path {path:?}...");
+                    trace!("  + Treating argument # {i} from path {path:?}...");
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
-                        debug!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
+                        trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let typei = func.shape().argument_types[i];
                         let di = PB::try_read_bytes(bi, typei.into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
@@ -825,10 +825,10 @@ impl<M: Matcher> TermEval<M> {
                             eval_tree_args.push(eval_tree_i);
                             all_payloads.append(p_s.as_mut()); // collect the payloads
                         }
-                        debug!("  + Ending treating argument # {i} from path {path:?}...");
+                        trace!("  + Ending treating argument # {i} from path {path:?}...");
                     }
                 }
-                debug!("[eval_until_opaque] Now calling the function symbol implementation and then updating payloads...");
+                trace!("[eval_until_opaque] Now calling the function symbol implementation and then updating payloads...");
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
 
@@ -844,7 +844,7 @@ impl<M: Matcher> TermEval<M> {
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
                     if let Ok(eval) = PB::any_get_encoding(&result) {
-                        trace!("        / We successfully evaluated the term into: {eval:?}");
+                        debug!("        / We successfully evaluated the term into: {eval:?}");
                         eval_tree.encode = Some(eval);
                     } else {
                         if path.is_empty() {
