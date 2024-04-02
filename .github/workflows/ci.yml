@@ -1,0 +1,182 @@
+name: Build & Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - trailofbits
+  pull_request:
+
+permissions:
+  pull-requests: read # needed for label-based CI/CD configuration
+  contents: write     # needed for deployment jobs
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      checks: ${{ steps.set-checks-profiles.outputs.checks }}
+      deploy: ${{ steps.set-deploy-profiles.outputs.deploy }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - id: set-checks-profiles
+        name: Set CI profiles
+        run: |
+          #!/usr/bin/env bash
+          CI_CHECKS=()
+          HAS_LABEL_CI_NONE=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
+          HAS_LABEL_CI_FAST=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
+          HAS_LABEL_CI_FULL=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+
+          # set defaults
+          case "${{ github.event_name == 'pull_request' }}" in
+            true)  CI_CHECKS=( check smoke docs );;
+            false) CI_CHECKS=( check smoke docs base extra );;
+          esac
+
+          [[ ${HAS_LABEL_CI_NONE} == true ]] && CI_CHECKS=()
+          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS=( check smoke docs )
+          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS=( check smoke docs base extra )
+
+          json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
+          json_result="[${json_result:6}]"
+
+          printf 'checks=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+
+      - id: set-deploy-profiles
+        name: Set CD profiles
+        run: |
+          #!/usr/bin/env bash
+          CD_DEPLOYEMENTS=()
+
+          if [[ ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main') }} == true ]]; then
+            CD_DEPLOYEMENTS+=( docs )
+          fi
+
+          json_result=$(printf ', "%s"' "x" "${CD_DEPLOYEMENTS[@]}")
+          json_result="[${json_result:6}]"
+
+          printf 'deploy=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: print CI/CD profiles
+        run: |
+          #!/usr/bin/env bash
+          printf 'selected CI profiles: %s\n' '${{ steps.set-checks-profiles.outputs.checks }}'
+          printf 'selected CD profiles: %s\n' '${{ steps.set-deploy-profiles.outputs.deploy }}'
+          printf 'triggering event:\n'
+          cat "${GITHUB_EVENT_PATH}"
+
+  check:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'check') }}
+    uses: ./.github/workflows/run-checks.yml
+
+  smoke-test:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'smoke') }}
+    uses: ./.github/workflows/run-smoke-test.yml
+
+  docs:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'docs') }}
+    uses: ./.github/workflows/build-docs.yml
+
+  run-benchmarks:
+    needs: [configure, smoke-test]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+    uses: ./.github/workflows/run-benchmarks.yml
+
+  test-tlspuffin:
+    needs: [configure, smoke-test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: openssl111
+            features: openssl111
+            save-cache: "true" # We only save the cache once, else we get too mache cache entries
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: openssl111j
+            features: openssl111j
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: openssl101f_asan
+            features: openssl101f,asan
+            apt-dependencies: xutils-dev
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: openssl102u
+            features: openssl102u
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: libressl
+            features: libressl
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl430
+            features: wolfssl430
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl510
+            features: wolfssl510
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl510-sig
+            features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl510-skip
+            features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl520
+            features: wolfssl520
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl520_asan
+            features: wolfssl520,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl530
+            features: wolfssl530
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl530_asan
+            features: wolfssl530,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl540
+            features: wolfssl540
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - name: wolfssl540-sdos2
+            features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl530-cdos
+            features: wolfssl530,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl540_asan
+            features: wolfssl540,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl540-buf
+            features: wolfssl540,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl540-heap
+            features: wolfssl540,asan,fix-CVE-2022-39173
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl540_asan-perf
+            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: wolfssl540-perf
+            features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: boringssl202403
+            features: boringssl202403
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+          - name: boringssl202403_asan
+            features: boringssl202403,asan
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+
+    uses: ./.github/workflows/run-tlspuffin-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      features: ${{ matrix.features }}
+      apt-dependencies: ${{ matrix.apt-dependencies }}
+      save-cache: ${{ matrix.save-cache }}
+      if: ${{ matrix.if }}
+
+  deploy-docs:
+    needs: [configure, docs]
+    if: ${{ contains(fromJson(needs.configure.outputs.deploy), 'docs') }}
+    uses: ./.github/workflows/deploy-docs.yml
