@@ -1,21 +1,19 @@
-use std::os::raw::c_int;
-
-use log::warn;
+use log::debug;
 
 #[cfg(feature = "deterministic")]
 extern "C" {
-    fn make_openssl_deterministic();
-    fn RAND_seed(buf: *mut u8, num: c_int);
+    fn deterministic_rng_set();
+    fn deterministic_rng_reseed(buffer: *const u8, length: libc::size_t);
 }
 
 #[cfg(feature = "deterministic")]
 pub fn set_openssl_deterministic() {
-    warn!("OpenSSL is no longer random!");
+    const SEED: [u8; 8] = 42u64.to_le().to_ne_bytes();
+
+    debug!("setting OpenSSL in deterministic mode");
     unsafe {
-        make_openssl_deterministic();
-        let mut seed: [u8; 8] = 42u64.to_le().to_ne_bytes();
-        let buf = seed.as_mut_ptr();
-        RAND_seed(buf, 8);
+        deterministic_rng_set();
+        deterministic_rng_reseed(SEED.as_ptr(), SEED.len());
     }
 }
 

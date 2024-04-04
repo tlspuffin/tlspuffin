@@ -1,20 +1,21 @@
 // based on https://stackoverflow.com/a/7510354
 #include <openssl/rand.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-static uint64_t seed = 42;
+#define DEFAULT_RNG_SEED 42
+static uint64_t seed = DEFAULT_RNG_SEED;
 
 #define UNUSED(x) (void)(x)
+
+void deterministic_rng_set();
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
 
 // Seed the RNG. srand() takes an unsigned int, so we just use the first
 // sizeof(uint64_t) bytes in the buffer to seed the RNG.
 static int stdlib_rand_seed(const void *buf, int num)
 {
-    if (num < sizeof(uint64_t))
-    {
-        return 0;
-    }
-    seed = *((uint64_t *)buf);
+    deterministic_rng_reseed(buf, num);
     return 1;
 }
 
@@ -56,7 +57,14 @@ RAND_METHOD stdlib_rand_meth = {
     stdlib_rand_status,
 };
 
-void make_openssl_deterministic()
-{
+void deterministic_rng_set() {
     RAND_set_rand_method(&stdlib_rand_meth);
+}
+
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length) {
+    if (buffer == NULL || length < sizeof(uint64_t)) {
+        seed = DEFAULT_RNG_SEED;
+    }
+
+    seed = *((uint64_t *)buffer);
 }
