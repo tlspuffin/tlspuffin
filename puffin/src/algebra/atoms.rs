@@ -116,6 +116,7 @@ impl Function {
         // debug!("Name: {}", self.fn_container.shape.name);
         self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
         || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
@@ -133,6 +134,18 @@ impl Function {
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
+        // Uses hashes
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_append_transcript"
+        // arg is not present
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder"
+        // Use enc
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data_server"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
+        // TODO:
+        // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
+
     }
 
     /// Does the function symbol computes a list such as fn_append_certificate?
