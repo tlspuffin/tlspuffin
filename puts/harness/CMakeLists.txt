@@ -44,7 +44,9 @@ foreach(PUT_LIB IN LISTS PUT_LIBS)
     install(FILES "$<TARGET_OBJECTS:${PUT_LIB}>" DESTINATION ".")
 endforeach()
 
-add_library(puts-bundle STATIC ${BUNDLE_OBJECTS})
+# NOTE adding empty.c allows us to build even when there is no PUT in the bundle
+file(WRITE ${CMAKE_BINARY_DIR}/empty.c "")
+add_library(puts-bundle STATIC ${CMAKE_BINARY_DIR}/empty.c ${BUNDLE_OBJECTS})
 set_target_properties(puts-bundle PROPERTIES LINKER_LANGUAGE C)
 
 # create Rust init file
@@ -53,10 +55,14 @@ set(RUST_INIT_DECL "")
 set(RUST_INIT_CALL "")
 foreach(put_id IN LISTS PUTS)
     string(APPEND RUST_INIT_DECL "    fn register_${put_id}(callback: FnRegister);\n")
-    string(APPEND RUST_INIT_CALL "        register_${put_id}(callback);\n")
+    string(APPEND RUST_INIT_CALL "        unsafe { register_${put_id}(callback); };\n")
 endforeach()
 
-file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\nextern {\n${RUST_INIT_DECL}}\n\npub fn register(callback: FnRegister) {\n    unsafe {\n${RUST_INIT_CALL}    }\n}\n")
+if(NOT RUST_INIT_DECL)
+    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\npub fn register(_callback: FnRegister) {}\n")
+else()
+    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\nextern {\n${RUST_INIT_DECL}}\n\npub fn register(callback: FnRegister) {\n    ${RUST_INIT_CALL}\n}\n")
+endif()
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")
 install(FILES $<TARGET_FILE:puts-bundle> DESTINATION ".")
