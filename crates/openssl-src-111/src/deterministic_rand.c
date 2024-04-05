@@ -1,25 +1,37 @@
 // based on https://stackoverflow.com/a/7510354
 #include <openssl/rand.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-static uint64_t seed = 42;
+#ifndef thread_local
+// since C11 the standard include _Thread_local
+#if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
+#define thread_local _Thread_local
+
+// note that __GNUC__ covers clang and ICC
+#elif defined __GNUC__ || defined __SUNPRO_C || defined __xlC__
+#define thread_local __thread
+
+#else
+#error "no support for thread-local declarations"
+#endif
+#endif
+
+#define DEFAULT_RNG_SEED 42
+
+static thread_local uint64_t seed = DEFAULT_RNG_SEED;
 
 #define UNUSED(x) (void)(x)
 
-// Seed the RNG. srand() takes an unsigned int, so we just use the first
-// sizeof(uint64_t) bytes in the buffer to seed the RNG.
+void deterministic_rng_set();
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
+
 static int stdlib_rand_seed(const void *buf, int num)
 {
-    if (num < sizeof(uint64_t))
-    {
-        return 0;
-    }
-    seed = *((uint64_t *)buf);
+    deterministic_rng_reseed(buf, num);
     return 1;
 }
 
-// Fill the buffer with random bytes.  For each byte in the buffer, we generate
-// a random number and clamp it to the range of a byte, 0-255.
 static int stdlib_rand_bytes(unsigned char *buf, int num)
 {
     for (int index = 0; index < num; ++index)
@@ -56,7 +68,17 @@ RAND_METHOD stdlib_rand_meth = {
     stdlib_rand_status,
 };
 
-void make_openssl_deterministic()
+void deterministic_rng_set()
 {
     RAND_set_rand_method(&stdlib_rand_meth);
+}
+
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+{
+    if (buffer == NULL || length < sizeof(uint64_t))
+    {
+        seed = DEFAULT_RNG_SEED;
+    }
+
+    seed = *((uint64_t *)buffer);
 }

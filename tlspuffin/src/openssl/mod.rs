@@ -39,13 +39,6 @@ mod bindings;
 mod deterministic;
 mod util;
 
-/*
-   Change openssl version:
-   cargo clean -p openssl-src
-   cd openssl-src/openssl
-   git checkout OpenSSL_1_1_1j
-*/
-
 pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct OpenSSLFactory;
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
@@ -86,16 +79,19 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             OpenSSL::version()
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             debug!("[Determinism] set and reseed");
             #[cfg(feature = "deterministic")]
-            deterministic::set_openssl_deterministic();
+            {
+                deterministic::rng_set();
+                deterministic::rng_reseed();
+            }
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
-            deterministic::set_openssl_deterministic();
+            deterministic::rng_reseed();
         }
     }
 
@@ -236,7 +232,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn determinism_reseed(&mut self) -> Result<(), Error> {
         #[cfg(feature = "deterministic")]
         {
-            deterministic::set_openssl_deterministic();
+            deterministic::rng_reseed();
             Ok(())
         }
         #[cfg(not(feature = "deterministic"))]
