@@ -125,7 +125,7 @@ impl Function {
         self.fn_container.shape.is_constant()
     }
 
-    pub fn name<'a>(&'a self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         self.fn_container.shape.name
     }
 

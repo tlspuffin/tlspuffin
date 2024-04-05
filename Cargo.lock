@@ -2275,9 +2275,22 @@ dependencies = [
  "smallvec",
  "tempfile",
  "test-log",
+ "tlspuffin-harness-sys",
  "webpki",
  "wolfssl",
  "wolfssl-sys",
+]
+
+[[package]]
+name = "tlspuffin-harness-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cc",
+ "cmake",
+ "libc",
+ "log",
+ "puffin",
 ]
 
 [[package]]

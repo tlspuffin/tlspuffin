@@ -177,9 +177,10 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     ) -> Result<Self, Error> {
         let put_descriptor = context.put_descriptor(agent_descriptor);
 
-        let factory = context
+        let (_, factory) = context
             .put_registry()
-            .find_factory(put_descriptor.name)
+            .puts()
+            .find(|(_, factory)| factory.name() == put_descriptor.name)
             .ok_or_else(|| {
                 Error::Agent(format!(
                     "unable to find PUT {} factory in binary",

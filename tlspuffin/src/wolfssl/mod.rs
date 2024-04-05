@@ -10,9 +10,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
+    VERSION_STR,
 };
 use smallvec::SmallVec;
 use wolfssl::{
@@ -73,12 +74,41 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             Ok(Box::new(WolfSSL::new(config)?))
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             WOLFSSL520_PUT
         }
 
-        fn version(&self) -> String {
-            WolfSSL::version()
+        fn versions(&self) -> Vec<(String, String)> {
+            let wolfssl_shortname = if cfg!(feature = "vendored-wolfssl540") {
+                "wolfssl540"
+            } else if cfg!(feature = "vendored-wolfssl530") {
+                "wolfssl530"
+            } else if cfg!(feature = "vendored-wolfssl520") {
+                "wolfssl520"
+            } else if cfg!(feature = "vendored-wolfssl510") {
+                "wolfssl510"
+            } else if cfg!(feature = "vendored-wolfssl430") {
+                "wolfssl430"
+            } else if cfg!(feature = "vendored-master") {
+                "master"
+            } else {
+                "unknown"
+            };
+
+            vec![
+                (
+                    "harness".to_string(),
+                    format!("{} ({})", WOLFSSL520_PUT, VERSION_STR),
+                ),
+                (
+                    "library".to_string(),
+                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                ),
+            ]
         }
 
         fn determinism_set_reseed(&self) -> () {
@@ -87,6 +117,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn determinism_reseed(&self) -> () {
             error!("[determinism_reseed] Not yet implemented.")
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(WolfSSLFactory)
         }
     }
 
