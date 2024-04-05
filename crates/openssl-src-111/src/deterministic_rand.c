@@ -3,8 +3,23 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef thread_local
+// since C11 the standard include _Thread_local
+#if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
+#define thread_local _Thread_local
+
+// note that __GNUC__ covers clang and ICC
+#elif defined __GNUC__ || defined __SUNPRO_C || defined __xlC__
+#define thread_local __thread
+
+#else
+#error "no support for thread-local declarations"
+#endif
+#endif
+
 #define DEFAULT_RNG_SEED 42
-static uint64_t seed = DEFAULT_RNG_SEED;
+
+static thread_local uint64_t seed = DEFAULT_RNG_SEED;
 
 #define UNUSED(x) (void)(x)
 
@@ -53,12 +68,15 @@ RAND_METHOD stdlib_rand_meth = {
     stdlib_rand_status,
 };
 
-void deterministic_rng_set() {
+void deterministic_rng_set()
+{
     RAND_set_rand_method(&stdlib_rand_meth);
 }
 
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length) {
-    if (buffer == NULL || length < sizeof(uint64_t)) {
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+{
+    if (buffer == NULL || length < sizeof(uint64_t))
+    {
         seed = DEFAULT_RNG_SEED;
     }
 
