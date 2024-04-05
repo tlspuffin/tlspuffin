@@ -64,7 +64,7 @@ fmt-clang:
     find {{ justfile_directory() }} -type f \
     | grep -v "^{{ justfile_directory() / "vendor" }}" \
     | grep -v "^{{ justfile_directory() / "target" }}" \
-    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c++|h++|cxx|hxx)$"
+    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c\+\+|h\+\+|cxx|hxx)$"
   )
 
   printf '%s\n' "${FILES}" | xargs -L1 clang-format --verbose -style=file -i
@@ -75,7 +75,7 @@ fmt-clang-check:
     find {{ justfile_directory() }} -type f \
     | grep -v "^{{ justfile_directory() / "vendor" }}" \
     | grep -v "^{{ justfile_directory() / "target" }}" \
-    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c++|h++|cxx|hxx)$"
+    | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c\+\+|h\+\+|cxx|hxx)$"
   )
 
   check() {

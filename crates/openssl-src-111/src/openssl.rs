@@ -1,6 +1,5 @@
 extern crate cc;
 
-use std::io::ErrorKind;
 use std::{
     env,
     fs::canonicalize,
