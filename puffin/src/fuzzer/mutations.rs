@@ -127,6 +127,7 @@ where
             ) {
                 let term_a_cloned = term_a.clone();
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
+                    debug!("[Mutation] Mutate SwapMutator on terms\n{} and\n {}", term_a_cloned, term_b_mut);
                     let term_b_cloned = term_b_mut.clone();
                     term_b_mut.mutate(term_a_cloned);
                     if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
@@ -200,6 +201,7 @@ where
         };
         if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
+            debug!("[Mutation] Mutate RemoveAndLiftMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(_) => Ok(MutationResult::Skipped),
@@ -275,6 +277,7 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+            debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(variable) => {
@@ -365,6 +368,7 @@ where
                 self.constraints,
                 rand,
             ) {
+                debug!("[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}", to_replace, replacement);
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }
@@ -422,6 +426,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
+        debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
     }
@@ -475,6 +480,7 @@ where
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
+        debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
         trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
@@ -534,7 +540,7 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            debug!("Mutate GenerateMutator on term {}", to_mutate);
+            debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 self.zoo.insert(TermZoo::generate(self.signature, rand))
@@ -647,7 +653,7 @@ where
         if let Some((chosen_term, (step_index, term_path))) =
             choose(trace, constraints_make_message, rand)
         {
-            debug!("Mutate MakeMessage on term {}", chosen_term);
+            debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if not directly dropped

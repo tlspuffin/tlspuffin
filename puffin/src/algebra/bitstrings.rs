@@ -172,7 +172,7 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     match eval_tree.get(&path_to_eval)?.encode.as_ref() {
         Some(eval) => Ok(Borrowed(eval)),
         None => {
-            trace!("[eval_or_compute] We did not compute eval before, we do it now.");
+            debug!("[eval_or_compute] We did not compute eval before for path {path_to_eval:?}, we do it now.");
             let sibling_term = find_term_by_term_path(whole_term, &path_to_eval).ok_or(
                 Error::Term(format!("[eval_or_compute] Should never happen1")),
             )?;
@@ -211,7 +211,7 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     let root_eval = &eval_tree.encode.as_ref().unwrap()[..];
     let window = root_eval; // we start with the largest window (evaluation at the root)
     debug!("[find_unique_match] ## Start with path {path_to_search:?},\n - to_search: {to_search:?}\n - root_eval: {root_eval:?}\n - whole_term:{whole_term}\n - eval_tree: {eval_tree:?}");
-    find_unique_match_rec(
+    match find_unique_match_rec(
         StatusSearch::new(
             to_search,
             path_to_search,
@@ -221,7 +221,26 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             whole_term,
         ),
         ctx,
-    )
+    ) {
+        Ok(pos) => {
+            warn!("[find_unique_match] Success for path {path_to_search:?}");
+            Ok(pos)
+        }
+        Err(e) => {
+            error!(
+                "[find_unique_match] Failure. Did not find:\n{:?}\n - whole_term:{whole_term}",
+                StatusSearch::new(
+                    to_search,
+                    path_to_search,
+                    window,
+                    &path_to_search[0..0],
+                    eval_tree,
+                    whole_term,
+                )
+            );
+            Err(e)
+        }
+    }
 }
 
 /// Goal: search and locate `st.to_search` in st.window: to_search == st.window[st.pos_in_window...X]
@@ -265,7 +284,12 @@ where
         }
 
         if attempts > ATT_BEFORE_FAIL || attempts + st.total_attempts > ATT_TOTAL_BEFORE_FAIL {
-            let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts.\n {st:?}");
+            let ft = format!("[replace_payloads] [find_unique_match_rec] [MAX ATTEMPTS] Unable to find a match after {attempts} attempts + {} previous attempts.\n\
+              - {st:?}\n\
+              - eval_root: {eval_root:?}\n\
+              - whole_term: {}",
+            st.total_attempts,
+            st.whole_term);
             error!("{}", ft);
             return Err(Error::Term(ft));
         }
@@ -308,55 +332,57 @@ where
             // Strategy: we compute the length of the evaluations of all siblings on the right and locate
             // to_search in the window of the parent term evaluation, shifting from the right by this
             // quantity.
-            warn!("[find_unique_match_rec] Trying heuristic based on shift from the end of window {st:?}\n. Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
-            trace!("Whole_term {}", st.whole_term);
-            let t_parent = find_term_by_term_path(
+            warn!("[find_unique_match_rec] Trying heuristic based on shift from the end of window\n {st:?}.\n Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
+            debug!("Whole_term {}", st.whole_term);
+            if let Some(t_parent) = find_term_by_term_path(
                 st.whole_term,
                 &st.path_to_search[0..st.path_to_search.len() - 1],
-            )
-            .ok_or({
-                Error::Term(format!(
-                    "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]"
-                ))
-            })?;
-
-            if let Term::Application(_, args) = &t_parent.term {
-                let arg_num = st.path_to_search[st.path_to_search.len() - 1];
-                let mut acc = 0;
-                let mut p = st.path_to_search.to_vec();
-                for i in (arg_num..args.len()).rev() {
-                    p[st.path_to_search.len() - 1] = i;
-                    if let Ok(res) = eval_or_compute(&p, st.eval_tree, st.whole_term, ctx) {
-                        trace!(
-                            "[find_unique_match_rec] Argument {i} is {} bytes long",
-                            res.deref().len()
-                        );
-                        acc += res.deref().len();
-                        continue;
-                    } else {
-                        fallback_empty = true; // some failure happened, fallback to the final heuristic
-                        break;
+            ) {
+                if let Term::Application(_, args) = &t_parent.term {
+                    let arg_num = st.path_to_search[st.path_to_search.len() - 1];
+                    let mut acc = 0;
+                    let mut p = st.path_to_search.to_vec();
+                    for i in (arg_num..args.len()).rev() {
+                        p[st.path_to_search.len() - 1] = i;
+                        if let Ok(res) = eval_or_compute(&p, st.eval_tree, st.whole_term, ctx) {
+                            debug!(
+                                "[find_unique_match_rec] Argument {i} is {} bytes long",
+                                res.deref().len()
+                            );
+                            acc += res.deref().len();
+                            continue;
+                        } else {
+                            debug!("[find_unique_match_rec] Unable to eval_or_compute for arg {i}...");
+                            fallback_empty = true; // some failure happened, fallback to the final heuristic
+                            break;
+                        }
                     }
-                }
-                if !fallback_empty {
-                    st.found_match = true;
-                    st.unique_match = true;
-                    debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
-                    st.pos_in_window = st.window.len() - acc;
+                    if !fallback_empty {
+                        st.found_match = true;
+                        st.unique_match = true;
+                        debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
+                        st.pos_in_window = st.window.len() - acc;
+                    } else {
+                        continue;
+                    }
                 } else {
-                    continue;
+                    let ft = format!("[find_unique_match_rec] Should never happen [Var]");
+                    error!("{}", ft);
+                    return Err(Error::Term(ft));
                 }
             } else {
-                return Err(Error::Term(format!(
-                    "[find_unique_match_rec] Should never happen [Var]"
-                )));
+                let ft = format!(
+                    "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]"
+                );
+                error!("{}", ft);
+                return Err(Error::Term(ft));
             }
         }
 
         // Second fallback heuristic: locate a sibling
         if st.to_search.is_empty() || fallback_empty {
             warn!(
-                "[[replace_payloads] ] Empty to_search or fallback mode, looking for a relative!"
+                "[replace_payloads] Empty to_search or fallback mode, looking for a relative!"
             );
             // to_search is empty, there is no way to locate it directly.
             // Instead, we compute and locate the closest sibling having a non-empty evaluation
@@ -365,7 +391,7 @@ where
             let (path_relative, eval_relative_, relative_on_left) =
                 find_relative_node(st.path_to_search, st.eval_tree, st.whole_term, ctx)?;
             let eval_relative = eval_relative_.deref();
-            trace!("[replace_payloads] ] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
+            warn!("[replace_payloads] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
             let mut st2 = StatusSearch::new(
                 eval_relative,
@@ -436,8 +462,8 @@ where
                 continue;
             } else {
                 // Was not able to encode this sub-message
-                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a window due to missing evaluation on EvalTree.\n - to_search:{:?}\n - eval_root:{:?}\n - path_to_search:{:?}\n - eval_tree:{:?}",
-                                 st.to_search, eval_root, st.path_to_search, st.eval_tree);
+                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a window due to missing evaluation on EvalTree.\n - st: {st:?}\n - eval_root:{:?}\n - eval_tree:{:?}\n - whole_term: {}",
+                                 eval_root, st.eval_tree, st.whole_term);
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
@@ -463,8 +489,8 @@ where
                     continue;
                 }
             } else {
-                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a to_search in current window. Should never happen!\n - to_search:{:?}\n -window: {:?}\n - in_eval:{:?}\n - path:{:?}\n - eval_tree:{:?}",
-                                 st.to_search, st.window, eval_root, st.path_to_search, st.eval_tree);
+                let ft = format!("[replace_payloads] [find_unique_match_rec] Unable to find a to_search in current window. Should never happen!\n  - st: {st:?}\n - eval_root:{:?}\n - eval_tree:{:?}\n - whole_term: {}",
+                                 eval_root, st.eval_tree, st.whole_term);
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
@@ -494,7 +520,9 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     ctx: &TraceContext<PB>,
 ) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool), Error> {
     if path_to_search.is_empty() {
-        let ft = format!("[find_relative_node] Empty path_to_search!! Error!");
+        let ft = format!(
+            "[find_relative_node] Empty path_to_search!! Error!\n - whole_term: {whole_term}"
+        );
         error!("{}", ft);
         return Err(Error::Term(ft));
     }
@@ -671,13 +699,18 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         if !(to_modify[start..end] == *old_bitstring) {
             let ft = format!(
                 "[replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
+                   - payload_path: {:?}\n\
+                   - payload: {:?}\n\
+                   - payload_0.bytes() != to_modify[{start}..{end}].to_vec()\n\
+                   - payload_0.bytes() = {:?}\n\
+                   - to_modify[{start}..{end}].to_vec() = {:?}\n\
                    - term: {term}\n\
-                   - to_replace[start..end].to_vec() = !to_modify[{start}..{end}].to_vec() = {:?}\n\
-                   - payload.payload_0.bytes() = {:?}\n\
                    - to_modify={to_modify:?}\n\
                    - payload_context: {payload_context:?}",
+                payload_context.path,
+                payload_context.payloads,
+                old_bitstring,
                 to_modify[start..end].to_vec(),
-                old_bitstring
             );
             error!("{}", ft);
             return Err(Error::Term(ft));
@@ -718,7 +751,7 @@ impl<M: Matcher> TermEval<M> {
     {
         debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            debug!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
+            trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
             if let Ok(di) =
                 PB::try_read_bytes(payload.payload_0.clone().into(), (*type_term).into())
             {
@@ -730,7 +763,7 @@ impl<M: Matcher> TermEval<M> {
                 eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
                 return Ok((di, p_c));
             }
-            debug!("[eval_until_opaque] Attempt failed, fall back to normal evaluation...");
+            trace!("[eval_until_opaque] Attempt failed, fall back to normal evaluation...");
         }
 
         match &self.term {
