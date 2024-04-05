@@ -129,7 +129,7 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
             // TODO: balance out this trade-off
             rand,
         ) {
-            debug!("Mutate {} on term {}", std::any::type_name::<[<$mutation  DY>]<S>>(), &to_mutate);
+            debug!("[Mutation-bit] Mutate {} on term\n{}", std::any::type_name::<[<$mutation  DY>]<S>>(), &to_mutate);
             if let Some(payloads) = &mut to_mutate.payloads {
                 libafl::mutators::mutations::$mutation.mutate(state, &mut payloads.payload, stage_idx)
             } else {
@@ -237,7 +237,7 @@ where
             rand,
         ) {
             debug!(
-                "Mutate {} on term {}",
+                "[Mutation-bit] Mutate {} on term\n{}",
                 std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
                 &to_mutate
             );
@@ -307,7 +307,7 @@ where
             rand,
         ) {
             debug!(
-                "Mutate {} on term {}",
+                "[Mutation-bit] Mutate {} on term\n{}",
                 std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
                 &to_mutate
             );

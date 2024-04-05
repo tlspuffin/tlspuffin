@@ -482,7 +482,7 @@ where
                     // to_search was found twice, we need to refine the search window
                     debug!("[find_unique_match_rec] to_search was not uniquely found in window");
                     st.unique_match = false; // will yield a deeper path_sub and hence narrower window at the next iteration
-                    let try_new_depth_path_window = refine_window_heuristic(&st);
+                    try_new_depth_path_window = refine_window_heuristic(&st);
                     try_new_path_window = &st.path_to_search[0..try_new_depth_path_window];
                     st.found_window = false;
                     debug!("[find_unique_match_rec] Found match but not unique. New window with try_new_path_window:{try_new_path_window:?}");
@@ -572,7 +572,10 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         }
     } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
     debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
-    if path_parent.len() < path_to_search.len() {
+    if path_parent.is_empty() {
+        return Ok((vec![], Borrowed(eval_tree.encode.as_ref().unwrap()), true));
+    // TODO: additional checks?
+    } else if path_parent.len() < path_to_search.len() {
         return find_relative_node(path_parent, eval_tree, whole_term, ctx);
     } else {
         panic!("[find_relative_node] should never happen, new path is not shorter!");
@@ -609,8 +612,14 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
         || window_len / st.to_search.len() <= THRESHOLD_RATIO
     {
         if !st.unique_match {
-            trace!("[refine_window_heuristic] the below failed, so we go to the first child {}, was {current_depth}, path_to_search: {:?}", min(st.path_to_search.len(), current_depth + 1), st.path_to_search);
-            return min(st.path_to_search.len() - 1, current_depth + 1);
+            trace!("[refine_window_heuristic] the below failed, so we go halfway");
+            return min(
+                st.path_to_search.len() - 1,
+                max(
+                    current_depth + 1,
+                    (st.path_to_search.len() - current_depth) / 2,
+                ),
+            );
         } else {
             trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
             return current_depth;
