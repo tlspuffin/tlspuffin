@@ -127,7 +127,10 @@ where
             ) {
                 let term_a_cloned = term_a.clone();
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
-                    debug!("[Mutation] Mutate SwapMutator on terms\n{} and\n {}", term_a_cloned, term_b_mut);
+                    debug!(
+                        "[Mutation] Mutate SwapMutator on terms\n{} and\n {}",
+                        term_a_cloned, term_b_mut
+                    );
                     let term_b_cloned = term_b_mut.clone();
                     term_b_mut.mutate(term_a_cloned);
                     if let Some(trace_a_mut) = find_term_mut(trace, &trace_path_a) {
@@ -201,7 +204,10 @@ where
         };
         if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
-            debug!("[Mutation] Mutate RemoveAndLiftMutator on term\n{}", to_mutate);
+            debug!(
+                "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
+                to_mutate
+            );
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 Term::Variable(_) => Ok(MutationResult::Skipped),
@@ -368,7 +374,10 @@ where
                 self.constraints,
                 rand,
             ) {
-                debug!("[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}", to_replace, replacement);
+                debug!(
+                    "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
+                    to_replace, replacement
+                );
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
             }

@@ -145,7 +145,6 @@ impl Function {
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
         // TODO:
         // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
-
     }
 
     /// Does the function symbol computes a list such as fn_append_certificate?

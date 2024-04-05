@@ -352,7 +352,9 @@ where
                             acc += res.deref().len();
                             continue;
                         } else {
-                            debug!("[find_unique_match_rec] Unable to eval_or_compute for arg {i}...");
+                            debug!(
+                                "[find_unique_match_rec] Unable to eval_or_compute for arg {i}..."
+                            );
                             fallback_empty = true; // some failure happened, fallback to the final heuristic
                             break;
                         }
@@ -381,9 +383,7 @@ where
 
         // Second fallback heuristic: locate a sibling
         if st.to_search.is_empty() || fallback_empty {
-            warn!(
-                "[replace_payloads] Empty to_search or fallback mode, looking for a relative!"
-            );
+            warn!("[replace_payloads] Empty to_search or fallback mode, looking for a relative!");
             // to_search is empty, there is no way to locate it directly.
             // Instead, we compute and locate the closest sibling having a non-empty evaluation
             // and locate to_search relatively to the latter.
