@@ -1,28 +1,43 @@
-From 3e2702713929cc2acae7bc38c68973679492584a Mon Sep 17 00:00:00 2001
-From: Tom Gouville <tom.gouville@protonmail.com>
-Date: Tue, 23 Jan 2024 11:57:36 +0100
-Subject: [PATCH] reset DRBG
-
----
- crypto/rand_extra/deterministic.c | 19 ++++++++++++++++++-
- 1 file changed, 18 insertions(+), 1 deletion(-)
-
 diff --git a/crypto/rand_extra/deterministic.c b/crypto/rand_extra/deterministic.c
-index d1d582b07..ff42db9d3 100644
+index d1d582b07..a6e1d092d 100644
 --- a/crypto/rand_extra/deterministic.c
 +++ b/crypto/rand_extra/deterministic.c
-@@ -33,7 +33,24 @@
- static uint64_t g_num_calls = 0;
- static CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
+@@ -24,16 +24,46 @@
  
--void RAND_reset_for_fuzzing(void) { g_num_calls = 0; }
+ #include "../internal.h"
+ 
++#ifndef thread_local
++// since C11 the standard include _Thread_local
++#if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
++#define thread_local _Thread_local
++
++// note that __GNUC__ covers clang and ICC
++#elif defined __GNUC__ || defined __SUNPRO_C || defined __xlC__
++#define thread_local __thread
++
++#else
++#error "no support for thread-local declarations"
++#endif
++#endif
+ 
+ // g_num_calls is the number of calls to |CRYPTO_sysrand| that have occurred.
+ //
+ // This is intentionally not thread-safe. If the fuzzer mode is ever used in a
+ // multi-threaded program, replace this with a thread-local. (A mutex would not
+ // be deterministic.)
+-static uint64_t g_num_calls = 0;
+-static CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
++static thread_local uint64_t g_num_calls = 0;
++static thread_local CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
++
 +static void rand_thread_state_free(void *state_in) {
 +  struct rand_thread_state *state = state_in;
 +
 +  if (state_in == NULL) {
 +    return;
 +  }
-+
+ 
+-void RAND_reset_for_fuzzing(void) { g_num_calls = 0; }
 +  OPENSSL_free(state);
 +}
 +
@@ -37,6 +52,3 @@ index d1d582b07..ff42db9d3 100644
  
  void CRYPTO_sysrand(uint8_t *out, size_t requested) {
    static const uint8_t kZeroKey[32];
--- 
-2.43.0
-
