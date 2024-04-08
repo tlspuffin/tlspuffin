@@ -26,7 +26,7 @@ mod tests {
 
     use crate::{
         protocol::TLSProtocolBehavior,
-        put_registry::TLS_PUT_REGISTRY,
+        put_registry::tls_registry,
         query::TlsQueryMatcher,
         tls::{
             fn_impl::*,
@@ -118,6 +118,7 @@ mod tests {
     #[test]
     #[test_log::test]
     fn test_term_lazy_eval() {
+        let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         // debug!("zoo size: {}", zoo.terms().len());
@@ -140,7 +141,7 @@ mod tests {
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
+        let mut ctx = TraceContext::new(&tls_registry, Default::default());
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
@@ -192,11 +193,12 @@ mod tests {
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_eval() {
+        let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
-        let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
+        let mut ctx = TraceContext::new(&tls_registry, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_any_encode_fail = 0;
@@ -446,9 +448,10 @@ mod tests {
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_payloads_eval() {
+        let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, Default::default());
+        let mut ctx = TraceContext::new(&tls_registry, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_payload_fail = 0;

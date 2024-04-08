@@ -143,7 +143,7 @@ impl Drop for OpenSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for OpenSSL {
-    fn add_to_inbound(&mut self, result: ConcreteMessage) {
+    fn add_to_inbound(&mut self, result: &ConcreteMessage) {
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
             self.stream.get_mut(),
             result,

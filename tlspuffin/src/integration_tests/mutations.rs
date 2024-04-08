@@ -26,6 +26,7 @@ use puffin::{
         state::StdState,
     },
     put::PutOptions,
+    put_registry,
     trace::{Action, Step, Trace, TraceContext},
 };
 
@@ -61,6 +62,7 @@ fn create_state() -> StdState<
 #[test]
 #[test_log::test]
 fn test_make_message() {
+    let tls_registry = tls_registry();
     let mut state = create_state();
     let mut mutator: MakeMessage<
         StdState<
@@ -70,9 +72,9 @@ fn test_make_message() {
             InMemoryCorpus<Trace<TlsQueryMatcher>>,
         >,
         TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default());
+    > = MakeMessage::new(TermConstraints::default(), &tls_registry);
 
-    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
@@ -104,6 +106,7 @@ fn test_make_message() {
 #[test]
 // #[test_log::test]
 fn test_byte_remove_payloads() {
+    let tls_registry = tls_registry();
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -113,9 +116,9 @@ fn test_byte_remove_payloads() {
             InMemoryCorpus<Trace<TlsQueryMatcher>>,
         >,
         TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default());
+    > = MakeMessage::new(TermConstraints::default(), &tls_registry);
 
-    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
@@ -185,6 +188,7 @@ fn test_byte_remove_payloads() {
 #[test]
 #[test_log::test]
 fn test_byte_simple() {
+    let tls_registry = tls_registry();
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -194,10 +198,10 @@ fn test_byte_simple() {
             InMemoryCorpus<Trace<TlsQueryMatcher>>,
         >,
         TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default());
+    > = MakeMessage::new(TermConstraints::default(), &tls_registry);
     let mut mutator_byte = ByteFlipMutatorDY::new();
 
-    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
@@ -264,6 +268,7 @@ fn test_byte_simple() {
 #[test]
 #[test_log::test]
 fn test_byte_interesting() {
+    let tls_registry = tls_registry();
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -273,10 +278,10 @@ fn test_byte_interesting() {
             InMemoryCorpus<Trace<TlsQueryMatcher>>,
         >,
         TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default());
+    > = MakeMessage::new(TermConstraints::default(), &tls_registry);
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new();
 
-    let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
     ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());

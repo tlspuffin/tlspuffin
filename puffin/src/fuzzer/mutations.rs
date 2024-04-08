@@ -15,15 +15,17 @@ use crate::{
     codec::Codec,
     fuzzer::{bit_mutations::*, harness::default_put_options, term_zoo::TermZoo},
     protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
     trace::{Action::Input, Trace, TraceContext},
 };
 
-pub fn trace_mutations<S, M: Matcher, PB>(
+pub fn trace_mutations<'a, S, M: Matcher, PB>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
     signature: &'static Signature,
+    put_registry: &'a PutRegistry<PB>,
 ) -> tuple_list_type!(
           RepeatMutator<S>,
           SkipMutator<S>,
@@ -32,7 +34,7 @@ pub fn trace_mutations<S, M: Matcher, PB>(
           RemoveAndLiftMutator<S>,
           GenerateMutator<S, M>,
           SwapMutator<S>,
-          MakeMessage<S,PB>,
+          MakeMessage<'a, S,PB>,
    // Type of the mutations that compose the Havoc mutator (copied and pasted from above)
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
@@ -76,7 +78,7 @@ where
         RemoveAndLiftMutator::new(constraints),
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints),
-        MakeMessage::new(constraints),
+        MakeMessage::new(constraints, put_registry),
     )
     .merge(havoc_mutations_DY())
 }
@@ -584,23 +586,25 @@ where
 // Start bit-level Mutations
 
 /// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
-pub struct MakeMessage<S, PB>
+pub struct MakeMessage<'a, S, PB>
 where
     S: HasRand,
 {
     constraints: TermConstraints,
     phantom_s: (std::marker::PhantomData<S>, std::marker::PhantomData<PB>),
+    put_registry: &'a PutRegistry<PB>,
 }
 
-impl<S, PB> MakeMessage<S, PB>
+impl<'a, S, PB> MakeMessage<'a, S, PB>
 where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints) -> Self {
+    pub fn new(constraints: TermConstraints, put_registry: &'a PutRegistry<PB>) -> Self {
         Self {
             constraints,
             phantom_s: (std::marker::PhantomData, std::marker::PhantomData),
+            put_registry,
         }
     }
 }
@@ -636,7 +640,8 @@ where
     Ok(())
 }
 
-impl<S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S> for MakeMessage<S, PB>
+impl<'a, S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S>
+    for MakeMessage<'a, S, PB>
 where
     S: HasRand,
     PB: ProtocolBehavior<Matcher = M>,
@@ -663,7 +668,7 @@ where
             choose(trace, constraints_make_message, rand)
         {
             debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
-            let mut ctx = TraceContext::new(PB::registry(), default_put_options().clone());
+            let mut ctx = TraceContext::new(self.put_registry, default_put_options().clone());
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if not directly dropped
                 // by the feedback loop once executed)
@@ -686,12 +691,12 @@ where
     }
 }
 
-impl<S, PB> Named for MakeMessage<S, PB>
+impl<'a, S, PB> Named for MakeMessage<'a, S, PB>
 where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<MakeMessage<S, PB>>()
+        std::any::type_name::<MakeMessage<'a, S, PB>>()
     }
 }
 

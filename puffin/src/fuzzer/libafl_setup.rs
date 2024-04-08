@@ -407,8 +407,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB: ProtocolBehavior + Clone + 'static>(
-    put_registry: &PutRegistry<PB>,
+pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
+    put_registry: &'a PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error> {
@@ -450,6 +450,7 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
                 *term_constraints,
                 *fresh_zoo_after,
                 PB::signature(),
+                put_registry,
             ))
             .with_initial_inputs(PB::create_corpus())
             .with_rand(StdRand::new())

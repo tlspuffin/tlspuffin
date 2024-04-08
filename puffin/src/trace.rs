@@ -244,7 +244,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: ConcreteMessage,
+        message: &ConcreteMessage,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put_mut().add_to_inbound(message))
@@ -645,7 +645,7 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let message = self.recipe.evaluate(ctx)?;
         debug!("Add to inbound a new message...");
-        ctx.add_to_inbound(step.agent, message)?;
+        ctx.add_to_inbound(step.agent, &message)?;
         debug!("Next state...");
         ctx.next_state(step.agent)
     }

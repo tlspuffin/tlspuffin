@@ -34,7 +34,7 @@ mod tests {
 
     use crate::{
         protocol::TLSProtocolBehavior,
-        put_registry::TLS_PUT_REGISTRY,
+        put_registry::tls_registry,
         query::TlsQueryMatcher,
         tls::{
             fn_impl::*,
@@ -110,7 +110,8 @@ mod tests {
     #[test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
-        let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+        let tls_registry = tls_registry();
+        let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
         let mut trace = seed_client_attacker_full_boring.build_trace();
         ctx.set_deterministic(true);
         trace.execute(&mut ctx);
@@ -264,6 +265,7 @@ mod tests {
                               // #[test]
     fn test_evaluate_recipe_input_compare_new() {
         use crate::tls::trace_helper::TraceExecutor;
+        let tls_registry = tls_registry();
 
         for (tr, name) in create_corpus() {
             debug!("\n\n============= Executing trace {name}");
@@ -271,7 +273,7 @@ mod tests {
                 // currently failing traces because of broken certs (?), even before my edits
                 continue;
             }
-            let mut ctx = TraceContext::new(&TLS_PUT_REGISTRY, PutOptions::default());
+            let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
             ctx.set_deterministic(true);
 
             for trace in &tr.prior_traces {
@@ -296,7 +298,7 @@ mod tests {
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, msg.encode()).expect("");
+                                    ctx.add_to_inbound(step.agent, &msg.encode()).expect("");
                                 } else {
                                     panic!("Should not happen")
                                 }
@@ -310,7 +312,7 @@ mod tests {
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, msg.encode()).expect("");
+                                    ctx.add_to_inbound(step.agent, &msg.encode()).expect("");
                                 } else {
                                     panic!("Should not happen")
                                 }

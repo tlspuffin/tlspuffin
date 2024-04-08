@@ -2230,10 +2230,9 @@ pub mod tests {
     use test_log::test;
 
     use super::*;
-    use crate::{put_registry::tls_registry, tls::trace_helper::TraceHelper};
     use crate::{
         protocol::TLSProtocolBehavior,
-        put_registry::TLS_PUT_REGISTRY,
+        put_registry::tls_registry,
         tls::{rustls::msgs::message::OpaqueMessage, trace_helper::TraceHelper},
     };
 
