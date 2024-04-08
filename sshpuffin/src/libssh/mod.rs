@@ -213,8 +213,8 @@ pub struct LibSSL {
 impl LibSSL {}
 
 impl Stream<SshMessage, RawSshMessage> for LibSSL {
-    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
-        self.fuzz_stream.write_all(&mut message).unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.fuzz_stream.write_all(message).unwrap();
     }
 
     fn take_message_from_outbound(
