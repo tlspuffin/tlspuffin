@@ -1,0 +1,45 @@
+name: mk_vendor
+description: build a PUT vendor library
+
+inputs:
+  vendor:
+    description: 'The vendor library name (e.g. "openssl" or "wolfssl")'
+    required: true
+  preset:
+    description: 'The name of the configuration preset (e.g. "openssl111j")'
+    required: true
+  options:
+    description: 'A comma-separated list of additional build options (e.g. "sancov,asan")'
+    required: false
+    default: ''
+  name:
+    description: 'The name of the resulting PUT vendor library'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  defaults:
+    run:
+      shell: bash
+  steps:
+    - uses: actions/cache@v4
+      id: library-cache
+      path: |
+        vendor/${{ inputs.name }}
+      with:
+        key: mk_vendor_cache-${{ runner.os }}-${{ inputs.vendor }}-${{ inputs.name || inputs.preset }}-${{ inputs.options || 'default' }}
+
+    - name: run mk_vendor
+      if: steps.library-cache.outputs.cache-hit != 'true'
+      run: |
+        #!/usr/bin/env bash
+        VENDOR=${{ inputs.vendor }}
+        PRESET=${{ inputs.preset }}
+
+        args=( make "${VENDOR}:${PRESET}" )
+
+        [[ -n "${{ inputs.options }}" ]] && args+=( --options="${{ inputs.options }}" )
+        [[ -n "${{ inputs.name }}" ]] && args+=( --name="${{ inputs.name }}" )
+
+        ./tools/mk_vendor "${args[@]}"

@@ -38,7 +38,12 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
       - name: build OpenSSL dependency
-        run: ./tools/mk_vendor make openssl:openssl111j --options=sancov --name=openssl111j-sancov
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "openssl"
+          preset: "openssl111j"
+          name: "openssl111j-sancov"
+          options: "sancov"
       - name: build `tlspuffin`
         run: cargo build --profile=release --features=openssl111j --bin tlspuffin
       - name: run `tlspuffin help`
