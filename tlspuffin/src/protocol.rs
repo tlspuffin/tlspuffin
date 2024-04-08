@@ -4,7 +4,6 @@ use puffin::{
     algebra::{signature::Signature, ConcreteMessage, Matcher},
     error::Error,
     protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer},
-    put_registry::PutRegistry,
     trace::Trace,
     variable_data::VariableData,
 };
@@ -12,7 +11,6 @@ use puffin::{
 use crate::{
     claims::TlsClaim,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
-    put_registry::TLS_PUT_REGISTRY,
     query::TlsQueryMatcher,
     tls::{
         rustls::{
@@ -202,10 +200,6 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn signature() -> &'static Signature {
         &TLS_SIGNATURE
-    }
-
-    fn registry() -> &'static PutRegistry<Self> {
-        &TLS_PUT_REGISTRY
     }
 
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {

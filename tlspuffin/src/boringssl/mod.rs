@@ -15,9 +15,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -83,8 +84,39 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             })?))
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             BORINGSSL_PUT
+        }
+
+        fn versions(&self) -> Vec<(String, String)> {
+            let boringssl_shortname = if cfg!(feature = "boringssl202311") {
+                "boringssl202311"
+            } else if cfg!(feature = "boringssl202403") {
+                "boringssl202403"
+            } else if cfg!(feature = "boringsslmaster") {
+                "master"
+            } else {
+                "unknown"
+            };
+
+            vec![
+                (
+                    "harness".to_string(),
+                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                ),
+                (
+                    "library".to_string(),
+                    format!(
+                        "boringssl ({} / {})",
+                        boringssl_shortname,
+                        BoringSSL::version()
+                    ),
+                ),
+            ]
         }
 
         fn determinism_set_reseed(&self) -> () {
@@ -97,8 +129,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             deterministic::reset_rand();
         }
 
-        fn version(&self) -> String {
-            BoringSSL::version()
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(BoringSSLFactory)
         }
     }
 

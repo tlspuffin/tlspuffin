@@ -18,9 +18,10 @@ use puffin::{
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
-    put_registry::Factory,
+    put_registry::{Factory, PutKind},
     stream::Stream,
     trace::TraceContext,
+    VERSION_STR,
 };
 
 use crate::{
@@ -86,23 +87,34 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
+        fn kind(&self) -> PutKind {
+            PutKind::Rust
+        }
+
         fn name(&self) -> PutName {
             TCP_PUT
         }
 
-        fn version(&self) -> String {
-            TcpClientPut::version()
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![(
+                "harness".to_string(),
+                format!("{} ({})", TCP_PUT, VERSION_STR),
+            )]
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
                 self.name()
             );
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
+            Box::new(TCPFactory)
         }
     }
 
@@ -272,8 +284,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
-        self.write_to_stream(&mut message).unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(
@@ -284,8 +296,8 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, mut message: ConcreteMessage) {
-        self.write_to_stream(&mut message).unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(
@@ -728,7 +740,7 @@ mod tests {
     use test_log::test;
 
     use crate::{
-        put_registry::{TCP_PUT, TLS_PUT_REGISTRY},
+        put_registry::{tls_registry, TCP_PUT},
         tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
@@ -748,12 +760,13 @@ mod tests {
             options: guard.build_options(),
         };
 
+        let put_registry = tls_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
         let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(initial_server, put.clone()), (server, put)],
             )
             .unwrap();
@@ -774,10 +787,11 @@ mod tests {
             options: guard.build_options(),
         };
 
+        let put_registry = tls_registry();
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
         let mut context = trace
-            .execute_with_non_default_puts(&TLS_PUT_REGISTRY, &[(server, put)])
+            .execute_with_non_default_puts(&put_registry, &[(server, put)])
             .unwrap();
 
         let server = AgentName::first();
@@ -805,13 +819,14 @@ mod tests {
             options: client_guard.build_options(),
         };
 
+        let put_registry = tls_registry();
         let trace = seed_successful12_with_tickets.build_trace();
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(client_name, client), (server_name, server)],
             )
             .unwrap();
@@ -846,13 +861,14 @@ mod tests {
             options: client_guard.build_options(),
         };
 
+        let put_registry = tls_registry();
         let trace = seed_successful12_with_tickets.build_trace();
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
         let mut context = trace
             .execute_with_non_default_puts(
-                &TLS_PUT_REGISTRY,
+                &put_registry,
                 &[(client_name, client), (server_name, server)],
             )
             .unwrap();

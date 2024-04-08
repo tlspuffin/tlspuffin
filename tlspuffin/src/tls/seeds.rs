@@ -2230,6 +2230,7 @@ pub mod tests {
     use test_log::test;
 
     use super::*;
+    use crate::{put_registry::tls_registry, tls::trace_helper::TraceHelper};
     use crate::{
         protocol::TLSProtocolBehavior,
         put_registry::TLS_PUT_REGISTRY,
@@ -2238,7 +2239,12 @@ pub mod tests {
 
     #[test]
     fn test_version() {
-        TLS_PUT_REGISTRY.version_strings();
+        for (id, put) in tls_registry().puts() {
+            println!("({:?}) {}:", put.kind(), id);
+            for (component, version) in put.versions().into_iter() {
+                println!("    {}: {}", component, version);
+            }
+        }
     }
 
     #[test]

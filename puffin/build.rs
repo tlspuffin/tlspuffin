@@ -30,7 +30,15 @@ pub fn get_git_msg() -> String {
         .to_string()
 }
 
+pub fn get_version() -> String {
+    let semver = env!("CARGO_PKG_VERSION");
+    let commit = format!("+git.{}", get_git_ref());
+
+    format!("tlspuffin {}{}", semver, commit)
+}
+
 fn main() {
     println!("cargo:rustc-env=GIT_REF={}", get_git_ref());
     println!("cargo:rustc-env=GIT_MSG={}", get_git_msg());
+    println!("cargo:rustc-env=VERSION_STR={}", get_version());
 }

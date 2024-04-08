@@ -30,7 +30,7 @@ option(WITH_LLVM_COV "Build with instrumentation for llvm coverage" OFF)
 
 set(CFLAGS_EXTRA "" CACHE STRING "extra flags for C compiler")
 string(REPLACE "," ";" CFLAGS_EXTRA "${CFLAGS_EXTRA}")
-list(APPEND CFLAGS_EXTRA -I${CMAKE_SOURCE_DIR}/../../../../tlspuffin-claims)
+list(APPEND CFLAGS_EXTRA -fvisibility=hidden -I${CMAKE_SOURCE_DIR}/../../../../tlspuffin-claims)
 
 set(LDFLAGS_EXTRA "" CACHE STRING "extra flags for the linker")
 string(REPLACE "," ";" LDFLAGS_EXTRA "${LDFLAGS_EXTRA}")

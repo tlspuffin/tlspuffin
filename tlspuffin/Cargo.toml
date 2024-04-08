@@ -14,6 +14,8 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
+cputs = ["tls-harness"]
+
 openssl-default = [
     "tls12",
     "tls13",
@@ -299,10 +301,12 @@ security-claims = { version = "0.1.0", optional = false }
 # WolfSSL
 wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
-foreign-types = { version = "0.5.0", optional = true }
 
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
+
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"], optional = true }
+foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
