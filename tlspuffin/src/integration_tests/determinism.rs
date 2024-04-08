@@ -3,13 +3,15 @@
     feature = "deterministic",
     feature = "boringssl-binding",
     feature = "tls13",
-    feature = "TODO"
-))] // TODO: only passes in mono-thread!! with option `-test-threads=1`
+))]
 fn test_attacker_full_det_recreate() {
     // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
-    use puffin::{put::PutOptions, put_registry::tls_registry, trace::TraceContext};
+    use puffin::{put::PutOptions, trace::TraceContext};
 
-    use crate::tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper};
+    use crate::{
+        put_registry::tls_registry,
+        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
+    };
 
     let put_registry = tls_registry();
 
@@ -17,7 +19,7 @@ fn test_attacker_full_det_recreate() {
 
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(&tl, PutOptions::default());
+    let mut ctx_1 = TraceContext::new(&put_registry, PutOptions::default());
     trace.execute(&mut ctx_1);
 
     for i in 0..200 {
