@@ -105,7 +105,6 @@ jobs:
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: openssl101f_asan
             features: openssl101f,asan
-            apt-dependencies: xutils-dev
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: openssl102u
             features: openssl102u
@@ -172,7 +171,6 @@ jobs:
     with:
       name: ${{ matrix.name }}
       features: ${{ matrix.features }}
-      apt-dependencies: ${{ matrix.apt-dependencies }}
       save-cache: ${{ matrix.save-cache }}
       if: ${{ matrix.if }}
 

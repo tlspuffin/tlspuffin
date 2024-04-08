@@ -6,9 +6,6 @@ on:
       name:
         required: true
         type: string
-      apt-dependencies:
-        required: false
-        type: string
       features:
         required: true
         type: string
@@ -38,9 +35,6 @@ jobs:
         with:
           key: ${{ inputs.name }}
           save-cache: ${{ inputs.save-cache }}
-      - name: APT Dependencies
-        if: inputs.apt-dependencies
-        run: sudo apt-get install -y ${{ inputs.apt-dependencies }}
       - name: Build
         run: just build tlspuffin x86_64-unknown-linux-gnu "${{ inputs.features }}" "--timings"
       - name: Upload Build Timings
