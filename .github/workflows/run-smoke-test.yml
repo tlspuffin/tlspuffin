@@ -37,6 +37,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: setup
         uses: ./.github/actions/setup
+      - name: build OpenSSL dependency
+        run: ./tools/mk_vendor make openssl:openssl111j --options=sancov --name=openssl111j-sancov
       - name: build `tlspuffin`
         run: cargo build --profile=release --features=openssl111j --bin tlspuffin
       - name: run `tlspuffin help`
