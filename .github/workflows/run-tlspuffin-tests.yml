@@ -6,12 +6,20 @@ on:
       name:
         required: true
         type: string
-      features:
+      vendor:
         required: true
         type: string
-      save-cache:
+      preset:
+        required: true
+        type: string
+      options:
         required: false
         type: string
+        default: ''
+      features:
+        required: false
+        type: string
+        default: ''
       if:
         required: false
         default: true
@@ -30,22 +38,29 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: Setup
+      - name: setup
         uses: ./.github/actions/setup
         with:
-          key: ${{ inputs.name }}
-          save-cache: ${{ inputs.save-cache }}
-      - name: Build
-        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ inputs.features }}" "--timings"
+          key: ${{ inputs.vendor }}-${{ inputs.preset }}-${{ inputs.features }}
+      - name: build vendor library
+        if: ${{ contains(fromJson('["openssl"]'), inputs.vendor) }}
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "${{ inputs.vendor }}"
+          preset: "${{ inputs.preset }}"
+          name: "${{ inputs.preset }}-${{ join(fromJson(format('[{0}]', inputs.options)), '-') }}"
+          options: "${{ inputs.options }}"
+      - name: build
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" "--timings"
       - name: Upload Build Timings
         uses: actions/upload-artifact@v4
         with:
           name: cargo-timings-${{ inputs.name }}
           path: target/cargo-timings/cargo-timing.html
-      - name: Upload Build
+      - name: upload Build
         uses: actions/upload-artifact@v4
         with:
           name: tlspuffin-${{ inputs.name }}
           path: target/x86_64-unknown-linux-gnu/release/tlspuffin
-      - name: Test
-        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.features }}" ""
+      - name: test
+        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" ""

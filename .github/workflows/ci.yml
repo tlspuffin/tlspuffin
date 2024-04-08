@@ -96,82 +96,128 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: openssl111
-            features: openssl111
-            save-cache: "true" # We only save the cache once, else we get too mache cache entries
+          - vendor: openssl
+            preset: openssl111k
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: openssl111j
-            features: openssl111j
+          - vendor: openssl
+            preset: openssl111j
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: openssl101f_asan
-            features: openssl101f,asan
+          - vendor: openssl
+            preset: openssl101f
+            options: sancov,asan
+            features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: openssl102u
-            features: openssl102u
+          - vendor: openssl
+            preset: openssl102u
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: libressl
-            features: libressl
+          - vendor: libressl
+            preset: libressl
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl430
-            features: wolfssl430
+          - vendor: wolfssl
+            preset: wolfssl430
+            options: sancov
+            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+          - vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl510
-            features: wolfssl510
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl510-sig
-            features: wolfssl510,fix-CVE-2022-25640,fix-CVE-2022-39173
+            vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
+            features: fix-CVE-2022-25640,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl510-skip
-            features: wolfssl510,fix-CVE-2022-25638,fix-CVE-2022-39173
+            vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
+            features: fix-CVE-2022-25638,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl520
-            features: wolfssl520
+          - vendor: wolfssl
+            preset: wolfssl520
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl520_asan
-            features: wolfssl520,asan
+          - vendor: wolfssl
+            preset: wolfssl520
+            options: sancov,asan
+            features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl530
-            features: wolfssl530
+          - vendor: wolfssl
+            preset: wolfssl530
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl530_asan
-            features: wolfssl530,asan
+          - vendor: wolfssl
+            preset: wolfssl530
+            options: sancov,asan
+            features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl540
-            features: wolfssl540
+          - vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
           - name: wolfssl540-sdos2
-            features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: wolfssl-disable-postauth,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl530-cdos
-            features: wolfssl530,fix-CVE-2022-39173
+            vendor: wolfssl
+            preset: wolfssl530,
+            options: sancov
+            features: fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540_asan
-            features: wolfssl540,asan
+          - vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-buf
-            features: wolfssl540,fix-CVE-2022-42905
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-heap
-            features: wolfssl540,asan,fix-CVE-2022-39173
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540_asan-perf
-            features: wolfssl540,asan,fix-CVE-2022-39173,fix-CVE-2022-42905
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan,fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
           - name: wolfssl540-perf
-            features: wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: boringssl202403
-            features: boringssl202403
+          - vendor: boringssl
+            preset: boringssl202403
+            options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: boringssl202403_asan
-            features: boringssl202403,asan
+          - vendor: boringssl
+            preset: boringssl202403
+            options: sancov,asan
+            features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
 
     uses: ./.github/workflows/run-tlspuffin-tests.yml
+    name: tlspuffin ${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
     with:
-      name: ${{ matrix.name }}
+      name: ${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
+      vendor: ${{ matrix.vendor }}
+      preset: ${{ matrix.preset }}
+      options: ${{ matrix.options }}
       features: ${{ matrix.features }}
-      save-cache: ${{ matrix.save-cache }}
       if: ${{ matrix.if }}
 
   deploy-docs:

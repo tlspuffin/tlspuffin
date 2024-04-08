@@ -24,10 +24,11 @@ openssl-default = [
     "openssl-binding",
 ]
 
-openssl111 = [
+openssl111 = ["openssl111k"]
+
+openssl111k = [
     "openssl-src",
     "openssl-src/openssl111k",
-    # Unused, 111 is default: "openssl-src/openssl111",
     "openssl-src/no-rand",
     "tls12",
     "tls13",
@@ -42,7 +43,6 @@ openssl111 = [
 openssl111j = [
     "openssl-src",
     "openssl-src/openssl111j",
-    # Unused, 111 is default: "openssl-src/openssl111",
     "openssl-src/no-rand",
     "tls12",
     "tls13",
@@ -57,7 +57,6 @@ openssl111j = [
 openssl111u = [
     "openssl-src",
     "openssl-src/openssl111u",
-    # Unused, 111 is default: "openssl-src/openssl111",
     "openssl-src/no-rand",
     "tls12",
     "tls13",
