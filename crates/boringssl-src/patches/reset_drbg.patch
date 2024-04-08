@@ -1,8 +1,8 @@
 diff --git a/crypto/rand_extra/deterministic.c b/crypto/rand_extra/deterministic.c
-index d1d582b07..a6e1d092d 100644
+index d1d582b07..a0e87f8d5 100644
 --- a/crypto/rand_extra/deterministic.c
 +++ b/crypto/rand_extra/deterministic.c
-@@ -24,16 +24,46 @@
+@@ -24,23 +24,50 @@
  
  #include "../internal.h"
  
@@ -28,7 +28,6 @@ index d1d582b07..a6e1d092d 100644
 -static uint64_t g_num_calls = 0;
 -static CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
 +static thread_local uint64_t g_num_calls = 0;
-+static thread_local CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
 +
 +static void rand_thread_state_free(void *state_in) {
 +  struct rand_thread_state *state = state_in;
@@ -52,3 +51,10 @@ index d1d582b07..a6e1d092d 100644
  
  void CRYPTO_sysrand(uint8_t *out, size_t requested) {
    static const uint8_t kZeroKey[32];
+ 
+-  CRYPTO_MUTEX_lock_write(&g_num_calls_lock);
+   uint64_t num_calls = g_num_calls++;
+-  CRYPTO_MUTEX_unlock_write(&g_num_calls_lock);
+ 
+   uint8_t nonce[12];
+   OPENSSL_memset(nonce, 0, sizeof(nonce));
