@@ -58,7 +58,7 @@ mk_vendor VENDOR PRESET NAME="" OPTIONS="":
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}"
 
 benchmark:
-  cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111"
+  cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111k"
 
 install-rustfmt: nightly-toolchain
   rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN

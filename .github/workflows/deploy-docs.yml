@@ -1,4 +1,4 @@
-name: Deploy documentation
+name: deploy-docs
 
 on:
   workflow_call:

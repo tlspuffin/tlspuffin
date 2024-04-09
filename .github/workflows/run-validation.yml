@@ -189,7 +189,6 @@ jobs:
     uses: ./.github/workflows/run-tlspuffin-tests.yml
     name: tlspuffin ${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
     with:
-      name: ${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
       vendor: ${{ matrix.vendor }}
       preset: ${{ matrix.preset }}
       options: ${{ matrix.options }}
