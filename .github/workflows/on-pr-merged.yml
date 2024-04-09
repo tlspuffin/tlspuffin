@@ -1,0 +1,26 @@
+name: on-pr-merged
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write # needed for deployment jobs
+
+jobs:
+  validation:
+    name: Validation (fast) 
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: fast
+
+  prebuild:
+    needs: [validation]
+    name: Pre-build tlspuffin Binaries
+    uses: ./.github/workflows/run-prebuild.yml
+
+  deploy-docs:
+    needs: [validation]
+    name: Deploy dev Documentation
+    uses: ./.github/workflows/deploy-docs.yml

@@ -1,0 +1,130 @@
+name: on-pr-changed
+
+on:
+  pull_request:
+    types: [synchronize, ready_for_review, labeled, unlabeled]
+
+permissions:
+  pull-requests: read # needed for label-based CI configuration
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      profile: ${{ steps.set-validation-profile.outputs.profile }}
+      ignored: ${{ steps.set-validation-profile.outputs.ignored }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - id: set-validation-profile
+        name: Set Validation Profile
+        run: |
+          #!/usr/bin/env bash
+
+          profile() {
+            # compute the CI profile based on PR state and labels
+
+            local result=none
+            local is_draft=${{ github.event.pull_request.draft }}
+            local label_none=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
+            local label_fast=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
+            local label_full=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+
+            while [[ $# -gt 0 ]]
+            do
+              case $1 in
+                +ci:none) label_none=true;;
+                +ci:fast) label_fast=true;;
+                +ci:full) label_full=true;;
+                -ci:none) label_none=false;;
+                -ci:fast) label_fast=false;;
+                -ci:full) label_full=false;;
+                +draft) is_draft=true;;
+                -draft) is_draft=false;;
+              esac
+              shift
+            done
+
+            # set default profile
+            result=none
+            [[ ${is_draft} == true  ]] && result=fast
+            [[ ${is_draft} == false ]] && result=full
+
+            # override profile based on PR labels
+            [[ ${label_none} == true ]] && result=none
+            [[ ${label_fast} == true ]] && result=fast
+            [[ ${label_full} == true ]] && result=full
+
+            printf '%s\n' "${result}"
+          }
+
+          # compute previous profile to see if re-run is needed
+          PREVIOUS=none
+          case '${{ github.event.action }}' in
+              ready_for_review)
+                PREVIOUS="$(profile +draft)"
+                ;;
+              labeled)
+                case '${{ github.event.label }}' in
+                  ci:full) PREVIOUS=$(profile -ci:full);;
+                  ci:fast) PREVIOUS=$(profile -ci:fast);;
+                  ci:none) PREVIOUS=$(profile -ci:none);;
+                esac
+                ;;
+              unlabeled)
+                case '${{ github.event.label }}' in
+                  ci:full) PREVIOUS=$(profile +ci:full);;
+                  ci:fast) PREVIOUS=$(profile +ci:fast);;
+                  ci:none) PREVIOUS=$(profile +ci:none);;
+                esac
+                ;;
+          esac
+
+          IGNORE_TRIGGER=false
+          case "$(profile)" in
+            full) [[ ${PREVIOUS} =~ ^(full)$ ]] && IGNORE_TRIGGER=true;;
+            fast) [[ ${PREVIOUS} =~ ^(fast|full)$ ]] && IGNORE_TRIGGER=true;;
+            none) [[ ${PREVIOUS} =~ ^(none|fast|full)$ ]] && IGNORE_TRIGGER=true;;
+          esac
+
+          printf 'ignored=%s\n' "${IGNORE_TRIGGER}" >> "${GITHUB_OUTPUT}"
+          printf 'profile=%s\n' "$(profile)" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: Display Selected Profile
+        run: |
+          #!/usr/bin/env bash
+          printf 'Finished configuration job:\n'
+          printf '- selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
+          printf '- can skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
+          printf '- triggering event (full):\n'
+          cat "${GITHUB_EVENT_PATH}"
+
+  validation:
+    needs: [configure]
+    name: Validation (${{ needs.configure.outputs.profile }})
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: ${{ needs.configure.outputs.profile }}
+    if: ${{ needs.configure.outputs.ignored == 'false' }}
+
+  can-merge:
+    needs: [configure, validation]
+    name: PR is ready to merge
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: |
+          #!/usr/bin/env bash
+
+          printf 'checking all conditions for merge:\n'
+
+          printf '- ran validation profile `full`... '
+          if [[ ${{ needs.configure.outputs.profile }} == full ]]; then
+            printf 'success\n'
+          else
+            printf 'failure (try adding the PR label `ci:full` or mark the PR ready for review)\n'
+          fi

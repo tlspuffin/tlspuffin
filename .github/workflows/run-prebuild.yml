@@ -1,0 +1,135 @@
+name: run-prebuild
+
+on:
+  workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+  prebuild:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - vendor: openssl
+            preset: openssl111k
+            options: sancov
+          - vendor: openssl
+            preset: openssl111j
+            options: sancov
+          - vendor: openssl
+            preset: openssl101f
+            options: sancov,asan
+            features: asan
+          - vendor: openssl
+            preset: openssl102u
+            options: sancov
+          - vendor: libressl
+            preset: libressl
+            options: sancov
+          - vendor: wolfssl
+            preset: wolfssl430
+            options: sancov
+          - vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
+          - name: wolfssl510
+            vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
+            features: fix-CVE-2022-25640,fix-CVE-2022-39173
+          - name: wolfssl510-skip
+            vendor: wolfssl
+            preset: wolfssl510
+            options: sancov
+            features: fix-CVE-2022-25638,fix-CVE-2022-39173
+          - vendor: wolfssl
+            preset: wolfssl520
+            options: sancov
+          - vendor: wolfssl
+            preset: wolfssl520
+            options: sancov,asan
+            features: asan
+          - vendor: wolfssl
+            preset: wolfssl530
+            options: sancov
+          - vendor: wolfssl
+            preset: wolfssl530
+            options: sancov,asan
+            features: asan
+          - vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+          - name: wolfssl540-sdos2
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: wolfssl-disable-postauth,fix-CVE-2022-39173
+          - name: wolfssl530-cdos
+            vendor: wolfssl
+            preset: wolfssl530,
+            options: sancov
+            features: fix-CVE-2022-39173
+          - vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan
+          - name: wolfssl540-buf
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: fix-CVE-2022-42905
+          - name: wolfssl540-heap
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan,fix-CVE-2022-39173
+          - name: wolfssl540_asan-perf
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov,asan
+            features: asan,fix-CVE-2022-39173,fix-CVE-2022-42905
+          - name: wolfssl540-perf
+            vendor: wolfssl
+            preset: wolfssl540
+            options: sancov
+            features: fix-CVE-2022-39173,fix-CVE-2022-42905
+          - vendor: boringssl
+            preset: boringssl202403
+            options: sancov
+          - vendor: boringssl
+            preset: boringssl202403
+            options: sancov,asan
+            features: asan
+
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+        with:
+          key: ${{ matrix.vendor }}-${{ matrix.preset }}-${{ matrix.features }}
+      - name: build vendor library
+        if: ${{ contains(fromJson('["openssl"]'), matrix.vendor) }}
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "${{ matrix.vendor }}"
+          preset: "${{ matrix.preset }}"
+          name: "${{ matrix.preset }}-${{ join(fromJson(format('[{0}]', matrix.options)), '-') }}"
+          options: "${{ matrix.options }}"
+      - name: build
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.preset }},${{ matrix.features }}" "--timings"
+      - name: Upload Build Timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-timings-${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
+          path: target/cargo-timings/cargo-timing.html
+      - name: upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlspuffin-${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
+          path: target/x86_64-unknown-linux-gnu/release/tlspuffin

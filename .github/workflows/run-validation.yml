@@ -1,74 +1,50 @@
-name: Build & Deploy
+name: run-validation
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-      - trailofbits
-  pull_request:
+  workflow_call:
+    inputs:
+      profile: # one of ['none', 'fast', 'full']
+        type: string
+        required: true
 
 permissions:
-  pull-requests: read # needed for label-based CI/CD configuration
-  contents: write     # needed for deployment jobs
+    contents: read
 
 jobs:
   configure:
     runs-on: ubuntu-22.04
     outputs:
-      checks: ${{ steps.set-checks-profiles.outputs.checks }}
-      deploy: ${{ steps.set-deploy-profiles.outputs.deploy }}
+      checks: ${{ steps.configure-checks.outputs.checks }}
     defaults:
       run:
         shell: bash
     steps:
-      - id: set-checks-profiles
-        name: Set CI profiles
+      - id: configure-checks
+        name: Configure Validation
         run: |
           #!/usr/bin/env bash
-          CI_CHECKS=()
-          HAS_LABEL_CI_NONE=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
-          HAS_LABEL_CI_FAST=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
-          HAS_LABEL_CI_FULL=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
-
-          # set defaults
-          case "${{ github.event_name == 'pull_request' }}" in
-            true)  CI_CHECKS=( check smoke docs );;
-            false) CI_CHECKS=( check smoke docs base extra );;
+          case "${{ inputs.profile }}" in
+            none) CI_CHECKS=();;
+            fast) CI_CHECKS=( check smoke docs base );;
+            full) CI_CHECKS=( check smoke docs base extra );;
+            *)
+              printf "error: unknown validation profile '%s'\n" "${{ inputs.profile }}""
+              exit 1
+              ;;
           esac
-
-          [[ ${HAS_LABEL_CI_NONE} == true ]] && CI_CHECKS=()
-          [[ ${HAS_LABEL_CI_FAST} == true ]] && CI_CHECKS=( check smoke docs )
-          [[ ${HAS_LABEL_CI_FULL} == true ]] && CI_CHECKS=( check smoke docs base extra )
 
           json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
           json_result="[${json_result:6}]"
 
           printf 'checks=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
 
-      - id: set-deploy-profiles
-        name: Set CD profiles
-        run: |
-          #!/usr/bin/env bash
-          CD_DEPLOYEMENTS=()
-
-          if [[ ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main') }} == true ]]; then
-            CD_DEPLOYEMENTS+=( docs )
-          fi
-
-          json_result=$(printf ', "%s"' "x" "${CD_DEPLOYEMENTS[@]}")
-          json_result="[${json_result:6}]"
-
-          printf 'deploy=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
-
       - id: print-configuration
-        name: print CI/CD profiles
+        name: Display Configuration
         run: |
           #!/usr/bin/env bash
-          printf 'selected CI profiles: %s\n' '${{ steps.set-checks-profiles.outputs.checks }}'
-          printf 'selected CD profiles: %s\n' '${{ steps.set-deploy-profiles.outputs.deploy }}'
-          printf 'triggering event:\n'
-          cat "${GITHUB_EVENT_PATH}"
+          printf 'Finished configuration job:\n'
+          printf '- received validation profile: %s\n' '${{ inputs.profile }}'
+          printf '- selected validation checks: %s\n' '${{ steps.configure-checks.outputs.checks }}'
 
   check:
     needs: [configure]
@@ -219,8 +195,3 @@ jobs:
       options: ${{ matrix.options }}
       features: ${{ matrix.features }}
       if: ${{ matrix.if }}
-
-  deploy-docs:
-    needs: [configure, docs]
-    if: ${{ contains(fromJson(needs.configure.outputs.deploy), 'docs') }}
-    uses: ./.github/workflows/deploy-docs.yml
