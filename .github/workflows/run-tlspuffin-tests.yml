@@ -50,17 +50,5 @@ jobs:
           preset: "${{ inputs.preset }}"
           name: "${{ inputs.preset }}-${{ join(fromJson(format('[{0}]', inputs.options)), '-') }}"
           options: "${{ inputs.options }}"
-      - name: build
-        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" "--timings"
-      - name: Upload Build Timings
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-timings-${{ inputs.name }}
-          path: target/cargo-timings/cargo-timing.html
-      - name: upload Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: tlspuffin-${{ inputs.name }}
-          path: target/x86_64-unknown-linux-gnu/release/tlspuffin
       - name: test
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" ""
