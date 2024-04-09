@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
+  contents: read
   pull-requests: read # needed for label-based CI configuration
 
 jobs:
