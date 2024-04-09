@@ -2,7 +2,7 @@ name: on-pr-changed
 
 on:
   pull_request:
-    types: [synchronize, ready_for_review, labeled, unlabeled]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
 permissions:
   pull-requests: read # needed for label-based CI configuration
