@@ -19,18 +19,16 @@ inputs:
 
 runs:
   using: "composite"
-  defaults:
-    run:
-      shell: bash
   steps:
     - uses: actions/cache@v4
       id: library-cache
-      path: |
-        vendor/${{ inputs.name }}
       with:
         key: mk_vendor_cache-${{ runner.os }}-${{ hashFiles(format('puts/vendor/configs/{0}.toml','inputs.vendor'), format('puts/vendor/scripts/{0}/**','inputs.vendor'), format('puts/harness/**')) }}-${{ inputs.vendor }}-${{ inputs.name || inputs.preset }}-${{ inputs.options || 'default' }}
+        path: |
+          vendor/${{ inputs.name }}
 
     - name: run mk_vendor
       id: library-build
       if: steps.library-cache.outputs.cache-hit != 'true'
+      shell: bash
       run: just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}"

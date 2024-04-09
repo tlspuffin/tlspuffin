@@ -97,14 +97,14 @@ jobs:
         run: |
           #!/usr/bin/env bash
           printf 'Finished configuration job:\n'
-          printf '- selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
-          printf '- can skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
-          printf '- triggering event (full):\n'
+          printf '  - selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
+          printf '  - can skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
+          printf '  - triggering event (full):\n'
           cat "${GITHUB_EVENT_PATH}"
 
   validation:
     needs: [configure]
-    name: Validation (${{ needs.configure.outputs.profile }})
+    name: validation (${{ needs.configure.outputs.profile }})
     uses: ./.github/workflows/run-validation.yml
     with:
       profile: ${{ needs.configure.outputs.profile }}
@@ -123,7 +123,7 @@ jobs:
 
           printf 'checking all conditions for merge:\n'
 
-          printf '- ran validation profile `full`... '
+          printf '  - ran validation profile `full`... '
           if [[ ${{ needs.configure.outputs.profile }} == full ]]; then
             printf 'success\n'
           else

@@ -28,7 +28,7 @@ jobs:
             fast) CI_CHECKS=( check smoke docs base );;
             full) CI_CHECKS=( check smoke docs base extra );;
             *)
-              printf "error: unknown validation profile '%s'\n" "${{ inputs.profile }}""
+              printf "error: unknown validation profile '%s'\n" "${{ inputs.profile }}"
               exit 1
               ;;
           esac
@@ -43,8 +43,8 @@ jobs:
         run: |
           #!/usr/bin/env bash
           printf 'Finished configuration job:\n'
-          printf '- received validation profile: %s\n' '${{ inputs.profile }}'
-          printf '- selected validation checks: %s\n' '${{ steps.configure-checks.outputs.checks }}'
+          printf '  - received validation profile: %s\n' '${{ inputs.profile }}'
+          printf '  - selected validation checks: %s\n' '${{ steps.configure-checks.outputs.checks }}'
 
   check:
     needs: [configure]
@@ -72,36 +72,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - vendor: openssl
+          - name: openssl111k
+            vendor: openssl
             preset: openssl111k
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: openssl
+          - name: openssl111j
+            vendor: openssl
             preset: openssl111j
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: openssl
+          - name: openssl101f-asan
+            vendor: openssl
             preset: openssl101f
             options: sancov,asan
             features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: openssl
+          - name: openssl102
+            vendor: openssl
             preset: openssl102u
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: libressl
+          - name: libressl
+            vendor: libressl
             preset: libressl
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: wolfssl
+          - name: wolfssl430
+            vendor: wolfssl
             preset: wolfssl430
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: wolfssl
+          - nae: wolfssl510
+            vendor: wolfssl
             preset: wolfssl510
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl510
+          - name: wolfssl510-sig
             vendor: wolfssl
             preset: wolfssl510
             options: sancov
@@ -113,25 +120,30 @@ jobs:
             options: sancov
             features: fix-CVE-2022-25638,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: wolfssl
+          - name: wolfssl520
+            vendor: wolfssl
             preset: wolfssl520
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: wolfssl
+          - name: wolfssl520-asan
+            vendor: wolfssl
             preset: wolfssl520
             options: sancov,asan
             features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: wolfssl
+          - name: wolfssl530
+            vendor: wolfssl
             preset: wolfssl530
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: wolfssl
+          - name: wolfssl530-asan
+            vendor: wolfssl
             preset: wolfssl530
             options: sancov,asan
             features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - vendor: wolfssl
+          - name: wolfssl540
+            vendor: wolfssl
             preset: wolfssl540
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
@@ -147,7 +159,8 @@ jobs:
             options: sancov
             features: fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: wolfssl
+          - name: wolfssl540-asan
+            vendor: wolfssl
             preset: wolfssl540
             options: sancov,asan
             features: asan
@@ -164,7 +177,7 @@ jobs:
             options: sancov,asan
             features: asan,fix-CVE-2022-39173
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540_asan-perf
+          - name: wolfssl540-asan-perf
             vendor: wolfssl
             preset: wolfssl540
             options: sancov,asan
@@ -176,19 +189,21 @@ jobs:
             options: sancov
             features: fix-CVE-2022-39173,fix-CVE-2022-42905
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: boringssl
+          - name: boringssl202403
+            vendor: boringssl
             preset: boringssl202403
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - vendor: boringssl
+          - name: boringssl202403-asan
+            vendor: boringssl
             preset: boringssl202403
             options: sancov,asan
             features: asan
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
 
     uses: ./.github/workflows/run-tlspuffin-tests.yml
-    name: tlspuffin ${{ matrix.name || format('{0}:{1}-{2}-{3}', matrix.vendor, matrix.preset, matrix.options, matrix.features) }}
     with:
+      name: ${{ matrix.name }}
       vendor: ${{ matrix.vendor }}
       preset: ${{ matrix.preset }}
       options: ${{ matrix.options }}

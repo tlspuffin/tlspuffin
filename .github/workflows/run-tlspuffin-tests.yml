@@ -3,6 +3,9 @@ name: run-tlspuffin-tests
 on:
   workflow_call:
     inputs:
+      name:
+        required: true
+        type: string
       vendor:
         required: true
         type: string
@@ -27,7 +30,7 @@ permissions:
 
 jobs:
   tlspuffin-tests:
-    name: cargo test
+    name: test tlspuffin (${{ inputs.name }})
     runs-on: ubuntu-22.04
     if: ${{ inputs.if }}
     defaults:
@@ -39,13 +42,24 @@ jobs:
         uses: ./.github/actions/setup
         with:
           key: ${{ inputs.vendor }}-${{ inputs.preset }}-${{ inputs.features }}
+      - name: compute vendor library shortname
+        id: compute-lib-shortname
+        run: |
+          #!/usr/bin/env bash
+          if [[ -z "${{ inputs.options }}" ]]; then
+            OPTIONS=""
+          else
+            OPTIONS="-$(printf '%s\n' "${{ inputs.options }}" | tr , -)"
+          fi
+
+          printf 'shortname=%s%s\n' "${{ inputs.preset }}" "${OPTIONS}" >> "${GITHUB_OUTPUT}"
       - name: build vendor library
         if: ${{ contains(fromJson('["openssl"]'), inputs.vendor) }}
         uses: ./.github/actions/mk_vendor
         with:
           vendor: "${{ inputs.vendor }}"
           preset: "${{ inputs.preset }}"
-          name: "${{ inputs.preset }}-${{ join(fromJson(format('[{0}]', inputs.options)), '-') }}"
+          name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
           options: "${{ inputs.options }}"
       - name: test
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" ""
