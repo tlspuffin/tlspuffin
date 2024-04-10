@@ -257,6 +257,12 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 /// - try_new_path_window = path_to_search[0..try_new_depth_path_window]
 /// Therefore: to_search can be found in the whole bitstring (eval_tree[vec![]].encode.unwrap())
 /// at pos `shift_window + pos_in_window`.
+/// This is the base heuristic. This will fail in some cases (empty `to_search`, `to_search` is also found in
+/// sibling nodes). We then fall back to alternative heuristics:
+/// Heuristic 2: we locate `to_search` relatively to its parent term evaluation by computing the length
+///   of all its sibling on the right.
+/// Heuristic 3: we find a sibling whose evaluation is contiguous to `to_search` at `path_to_search`
+///   we locate the sibling and then locate `to_search` relatively to this sibling.
 pub fn find_unique_match_rec<'a, M, PB>(
     mut st: StatusSearch<M>,
     ctx: &TraceContext<PB>,
@@ -332,8 +338,8 @@ where
             // Strategy: we compute the length of the evaluations of all siblings on the right and locate
             // to_search in the window of the parent term evaluation, shifting from the right by this
             // quantity.
-            warn!("[find_unique_match_rec] Trying heuristic based on shift from the end of window\n {st:?}.\n Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
-            debug!("Whole_term {}", st.whole_term);
+            warn!("[find_unique_match_rec] Trying heuristic 2 based on shift from the end of window\n {st:?}.\n Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
+            debug!("                       Whole_term {}", st.whole_term);
             if let Some(t_parent) = find_term_by_term_path(
                 st.whole_term,
                 &st.path_to_search[0..st.path_to_search.len() - 1],
@@ -342,6 +348,7 @@ where
                     let arg_num = st.path_to_search[st.path_to_search.len() - 1];
                     let mut acc = 0;
                     let mut p = st.path_to_search.to_vec();
+                    let mut failed = false;
                     for i in (arg_num..args.len()).rev() {
                         p[st.path_to_search.len() - 1] = i;
                         if let Ok(res) = eval_or_compute(&p, st.eval_tree, st.whole_term, ctx) {
@@ -355,16 +362,16 @@ where
                             debug!(
                                 "[find_unique_match_rec] Unable to eval_or_compute for arg {i}..."
                             );
-                            fallback_empty = true; // some failure happened, fallback to the final heuristic
+                            failed = true; // some failure happened, fallback to the final heuristic
                             break;
                         }
                     }
-                    if !fallback_empty {
+                    if !failed && false {
+                        debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
                         st.found_match = true;
                         st.unique_match = true;
-                        debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
                         st.pos_in_window = st.window.len() - acc;
-                    } else {
+                    } else { // continue while loop but fallback_empty = true now
                         continue;
                     }
                 } else {
@@ -383,7 +390,7 @@ where
 
         // Second fallback heuristic: locate a sibling
         if st.to_search.is_empty() || fallback_empty {
-            warn!("[replace_payloads] Empty to_search or fallback mode, looking for a relative!");
+            warn!("[replace_payloads] Trying heuristic 3: Empty to_search or fallback mode, looking for a relative sibling term!");
             // to_search is empty, there is no way to locate it directly.
             // Instead, we compute and locate the closest sibling having a non-empty evaluation
             // and locate to_search relatively to the latter.
@@ -406,9 +413,11 @@ where
             let pos_relative_in_root = find_unique_match_rec(st2, ctx)?;
 
             return if relative_on_left {
+                // eval_relative | to_search
                 Ok(pos_relative_in_root + eval_relative.len())
             } else {
-                Ok(pos_relative_in_root)
+                // to_search | eval_relative
+                Ok(pos_relative_in_root - st.to_search.len())
             };
         }
 
@@ -702,7 +711,7 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             error!("{}", ft);
             return Err(Error::Term(ft));
         }
-        debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift}\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
+        debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
                 to_modify.len(), &to_modify[start..end]);
         // TODO: SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
         if !(to_modify[start..end] == *old_bitstring) {
