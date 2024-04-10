@@ -366,12 +366,13 @@ where
                             break;
                         }
                     }
-                    if !failed && false {
+                    if !failed {
                         debug!("[replace_payloads] [find_unique_match_rec] Found a shift of {acc} for arg number {arg_num} in\n {t_parent}");
                         st.found_match = true;
                         st.unique_match = true;
                         st.pos_in_window = st.window.len() - acc;
-                    } else { // continue while loop but fallback_empty = true now
+                    } else {
+                        // continue while loop but fallback_empty = true now
                         continue;
                     }
                 } else {
