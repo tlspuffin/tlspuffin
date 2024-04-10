@@ -103,7 +103,7 @@ jobs:
             preset: wolfssl430
             options: sancov
             if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - nae: wolfssl510
+          - name: wolfssl510
             vendor: wolfssl
             preset: wolfssl510
             options: sancov

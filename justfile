@@ -48,14 +48,14 @@ build PROJECT ARCH FEATURES CARGO_FLAGS="":
   cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
 # build a vendor library (examples: `just mk_vendor openssl openssl111k`)
-mk_vendor VENDOR PRESET NAME="" OPTIONS="":
+mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="":
   #!/usr/bin/env bash
   args=( make "{{VENDOR}}:{{PRESET}}" )
 
   [[ -n "{{OPTIONS}}" ]] && args+=( --options="{{OPTIONS}}" )
   [[ -n "{{NAME}}" ]] && args+=( --name="{{NAME}}" )
 
-  {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}"
+  {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 
 benchmark:
   cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111k"

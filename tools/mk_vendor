@@ -48,8 +48,9 @@ Library Options:
     --options=STRING,...   override the build options
 
 Other Options:
-    -h, --help  display help and exit
-    --dry-run   stop after reading the configuration file
+    -h, --help   display help and exit
+    -q, --quiet  only print the configuration id
+    --dry-run    stop after reading the configuration file
 
 Examples:
     build the default version of OpenSSL:
@@ -786,9 +787,14 @@ run_cmd_locate() {
 }
 
 run_cmd_make() {
-    local extra_opts=( "switch:DRY_RUN:dry-run:" )
+    local extra_opts=( "switch:DRY_RUN:dry-run:" "switch:QUIET:quiet:q" )
 
     read_configuration "$@"
+
+    if [[ ${QUIET-FALSE} = TRUE ]]; then
+        printf '%s\n' "${CONFUID}"
+        exec 1>/dev/null
+    fi
 
     display_configuration
 

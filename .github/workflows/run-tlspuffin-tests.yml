@@ -32,7 +32,6 @@ jobs:
   tlspuffin-tests:
     name: test tlspuffin (${{ inputs.name }})
     runs-on: ubuntu-22.04
-    if: ${{ inputs.if }}
     defaults:
       run:
         shell: bash
@@ -63,3 +62,4 @@ jobs:
           options: "${{ inputs.options }}"
       - name: test
         run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" ""
+    if: ${{ inputs.if }}
