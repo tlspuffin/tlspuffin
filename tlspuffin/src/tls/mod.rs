@@ -98,6 +98,7 @@ define_signature!(
     fn_heartbeat_fake_length
     fn_hello_request
     fn_hello_retry_request
+    fn_hello_retry_request_random
     fn_key_update
     fn_key_update_not_requested
     fn_message_hash

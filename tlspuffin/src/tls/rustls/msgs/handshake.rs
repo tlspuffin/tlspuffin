@@ -99,11 +99,6 @@ declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Random(pub [u8; 32]);
 
-static HELLO_RETRY_REQUEST_RANDOM: Random = Random([
-    0xcf, 0x21, 0xad, 0x74, 0xe5, 0x9a, 0x61, 0x11, 0xbe, 0x1d, 0x8c, 0x02, 0x1e, 0x65, 0xb8, 0x91,
-    0xc2, 0xa2, 0x11, 0x16, 0x7a, 0xbb, 0x8c, 0x5e, 0x07, 0x9e, 0x09, 0xe2, 0xc8, 0xa8, 0x33, 0x9c,
-]);
-
 static ZERO_RANDOM: Random = Random([0u8; 32]);
 
 impl Codec for Random {
@@ -1165,18 +1160,21 @@ declare_u16_vec!(HelloRetryExtensions, HelloRetryExtension);
 #[derive(Debug, Clone)]
 pub struct HelloRetryRequest {
     pub legacy_version: ProtocolVersion,
+    pub random: Random,
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
+    pub compression_methods: Compressions,
     pub extensions: HelloRetryExtensions,
 }
 
 impl Codec for HelloRetryRequest {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.legacy_version.encode(bytes);
-        HELLO_RETRY_REQUEST_RANDOM.encode(bytes);
+        self.random.encode(bytes);
         self.session_id.encode(bytes);
         self.cipher_suite.encode(bytes);
-        Compression::Null.encode(bytes);
+        self.compression_methods.encode(bytes);
+        // Compression::Null.encode(bytes);
         // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty =
         //         // lists of extensions, as for CLientHello ClientExtensions?
         self.extensions.encode(bytes);
@@ -1184,18 +1182,22 @@ impl Codec for HelloRetryRequest {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
+        let legacy_version = ProtocolVersion::read(r)?;
+        let random = Random::read(r)?;
         let session_id = SessionID::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
-        let compression = Compression::read(r)?;
+        let compression_methods = Compressions::read(r)?;
         let extensions = HelloRetryExtensions::read(r)?;
-        if compression != Compression::Null {
+        if compression_methods.0 != vec![Compression::Null] {
             return None;
         }
 
         Some(Self {
-            legacy_version: ProtocolVersion::Unknown(0),
+            legacy_version, //: ProtocolVersion::Unknown(0),
+            random,
             session_id,
             cipher_suite,
+            compression_methods,
             extensions,
         })
     }
@@ -2275,7 +2277,7 @@ impl HandshakeMessagePayload {
                 let version = ProtocolVersion::read(&mut sub)?;
                 let random = Random::read(&mut sub)?;
 
-                if random == HELLO_RETRY_REQUEST_RANDOM {
+                if Ok(random) == fn_hello_retry_request_random() {
                     let mut hrr = HelloRetryRequest::read(&mut sub)?;
                     hrr.legacy_version = version;
                     typ = HandshakeType::HelloRetryRequest;
