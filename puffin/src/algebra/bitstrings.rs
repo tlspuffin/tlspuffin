@@ -322,7 +322,7 @@ where
             warn!("[find_unique_match_rec] HIGH NUMBER OF ATTEMPTS!");
         }
 
-        // First fallback heuristic: compute right-shift with respect to the parent term evaluation
+        // Heuritstic 2: First fallback heuristic: compute right-shift with respect to the parent term evaluation
         if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
             fallback_empty = true;
             if st.path_window.len() != st.path_to_search.len() - 1 {
@@ -360,7 +360,7 @@ where
                             continue;
                         } else {
                             debug!(
-                                "[find_unique_match_rec] Unable to eval_or_compute for arg {i}..."
+                                "[find_unique_match_rec] Unable to eval_or_compute for arg {i}... Heuristic 2 failed."
                             );
                             failed = true; // some failure happened, fallback to the final heuristic
                             break;
@@ -389,15 +389,15 @@ where
             }
         }
 
-        // Second fallback heuristic: locate a sibling
+        // Heuristic 3: second fallback heuristic: locate a sibling
         if st.to_search.is_empty() || fallback_empty {
             warn!("[replace_payloads] Trying heuristic 3: Empty to_search or fallback mode, looking for a relative sibling term!");
             // to_search is empty, there is no way to locate it directly.
             // Instead, we compute and locate the closest sibling having a non-empty evaluation
             // and locate to_search relatively to the latter.
             // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the left or on the right)
-            let (path_relative, eval_relative_, relative_on_left) =
-                find_relative_node(st.path_to_search, st.eval_tree, st.whole_term, ctx)?;
+            let (path_relative, eval_relative_, relative_on_left, shift_ancestor_to_search) =
+                find_relative_node(st.to_search, st.path_to_search, 0, st.eval_tree, st.whole_term, ctx)?;
             let eval_relative = eval_relative_.deref();
             warn!("[replace_payloads] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
@@ -414,8 +414,9 @@ where
             let pos_relative_in_root = find_unique_match_rec(st2, ctx)?;
 
             return if relative_on_left {
-                // eval_relative | to_search
-                Ok(pos_relative_in_root + eval_relative.len())
+                // eval_relative | to_search    or    eval_relative | ancestor_of_to_search
+                // in the latter case, shift is the position of to_search in ancestor_of_to_search
+                Ok(pos_relative_in_root + eval_relative.len() + shift_ancestor_to_search)
             } else {
                 // to_search | eval_relative
                 Ok(pos_relative_in_root - st.to_search.len())
@@ -520,15 +521,22 @@ where
 /// has an empty encoding.
 /// For example: if p is the closest cousin on the left, then all siblings on the left of path_to_search must have an empty
 /// encoding.
-/// Returns p, and whether the encoding of path_to_search comes after the one of p (true) or before (false).
+/// - Returns p, and whether `relative_on_left`, which is true when the encoding of path_to_search comes after the one of p (true) or before (false).
 /// For instance, if p is an ancestor of path_to_search then it will be false.
 /// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of path_to_search.
+/// - Returns `shift_ancestor_to_search:usize`: this can be non-zero when p is not a sibling but a sibling of an ancestor of to_search.
+/// It then corresponds to the position of `to_search` relatively to the evaluation of this ancestor.
+/// This can happen for example for append(f, fn_support_group_extension(to_search)) when relative node is f
+/// and fn_support_group_extension add some headers in front of to_search. shift_ancestor_to_search will be
+/// the length of this header.
 pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+    to_search: &[u8],
     path_to_search: &[usize],
+    shift_ancestor_to_search: usize, // initially called with 0 here
     eval_tree: &'a EvalTree,
     whole_term: &TermEval<M>,
     ctx: &TraceContext<PB>,
-) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool), Error> {
+) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool, usize), Error> {
     if path_to_search.is_empty() {
         let ft = format!(
             "[find_relative_node] Empty path_to_search!! Error!\n - whole_term: {whole_term}"
@@ -555,7 +563,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
             if !eval_sib.deref().is_empty() {
                 assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, true)); // on the left of path_to_search
+                return Ok((path_sib, eval_sib, true, shift_ancestor_to_search)); // on the left of path_to_search
             } else {
                 sib_left -= 1;
             }
@@ -575,18 +583,21 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
                 let mut path_sib = path_parent.to_vec();
                 path_sib.push(sib_right);
                 assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, false)); // on the right of path_to_search
+                return Ok((path_sib, eval_sib, false, shift_ancestor_to_search)); // on the right of path_to_search
             } else {
                 sib_right += 1;
             }
         }
     } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
     debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
+    let eval_parent = eval_or_compute(&path_parent, eval_tree, whole_term, ctx)?;
+    let shift_ancestor_to_search_new = shift_ancestor_to_search + (eval_parent.len() - to_search.len());
     if path_parent.is_empty() {
-        return Ok((vec![], Borrowed(eval_tree.encode.as_ref().unwrap()), true));
+        return Ok((vec![], Borrowed(eval_tree.encode.as_ref().unwrap()), true, shift_ancestor_to_search_new));
     // TODO: additional checks?
     } else if path_parent.len() < path_to_search.len() {
-        return find_relative_node(path_parent, eval_tree, whole_term, ctx);
+
+        return find_relative_node(eval_parent.deref(), path_parent, shift_ancestor_to_search_new, eval_tree, whole_term, ctx);
     } else {
         panic!("[find_relative_node] should never happen, new path is not shorter!");
     }
