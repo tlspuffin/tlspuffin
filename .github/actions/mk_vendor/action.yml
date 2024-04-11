@@ -30,6 +30,9 @@ runs:
 
         printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"
+        printf '===\n'
+        cat "${GITHUB_OUTPUT}"
+        printf '===\n'
 
     - uses: actions/cache@v4
       id: library-cache

@@ -134,7 +134,7 @@ read_configuration() {
             -h|--help)
                 local usage_var
                 usage_var=$(to_upper "${CMD_NAME}")_USAGE
-                echo "${!usage_var}"
+                printf '%s\n' "${!usage_var}"
                 exit 0
                 ;;
             -n|--name)
@@ -262,7 +262,7 @@ read_configuration() {
     if ! command -v toml > /dev/null 2>&1; then
         need_cmd cargo
         printf '%s: installing dependency: toml-cli\n' "${NAME}" >&2
-        cargo install toml-cli --version "0.2.3"
+        cargo install toml-cli --version "0.2.3" >&2
     fi
 
     need_cmd toml

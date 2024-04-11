@@ -5,27 +5,50 @@
 set shell := ["bash", "-c"]
 set positional-arguments := true
 
+export DEFAULT_TOOLCHAIN := env("RUSTUP_TOOLCHAIN", "1.68.2")
 export NIGHTLY_TOOLCHAIN := "nightly-2023-04-18"
+export RUSTUP_TOOLCHAIN := DEFAULT_TOOLCHAIN
 export CARGO_TERM_COLOR := "always"
 export RUST_BACKTRACE := "1"
 export CC := "clang"
+export CXX := "clang++"
 
 default:
   @just --justfile {{ justfile() }} --list
 
-nightly-toolchain:
-  rustup install $NIGHTLY_TOOLCHAIN
-  rustup component add rust-src --toolchain $NIGHTLY_TOOLCHAIN
+install-rust-toolchain TOOLCHAIN=DEFAULT_TOOLCHAIN:
+  #!/usr/bin/env bash
+  exec 1>&2
 
-install-clippy:
-  rustup component add clippy
+  # install toolchain
+  rustup install --no-self-update '{{ TOOLCHAIN }}'
+
+  # install toolchain components
+  rustup component add --toolchain '{{ TOOLCHAIN }}' \
+    cargo        \
+    clippy       \
+    rust-docs    \
+    rust-std     \
+    rustc        \
+    rustfmt      \
+    rust-src
+
+# install additional rust dependencies
+install-rust-dependencies TOOLCHAIN=DEFAULT_TOOLCHAIN:
+  #!/usr/bin/env bash
+  exec 1>&2
+  RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install toml-cli --locked --version "0.2.3" # mk_vendor
+  RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install mdbook --locked --version "0.4.35"  # docs
+
+install-rust-toolchain-default: (install-rust-toolchain DEFAULT_TOOLCHAIN)
+install-rust-toolchain-nightly: (install-rust-toolchain NIGHTLY_TOOLCHAIN)
 
 # run clippy on all workspace members
-check-workspace: install-clippy
+check-workspace: install-rust-toolchain
   cargo clippy
 
 # run clippy on a vendored crate (e.g. libressl-src)
-check-crate NAME FEATURES: install-clippy
+check-crate NAME FEATURES: install-rust-toolchain
   #!/usr/bin/env bash
   cleanup() {
     find {{ justfile_directory() / "crates" }} -name Cargo.lock -exec rm -f '{}' +
@@ -35,20 +58,26 @@ check-crate NAME FEATURES: install-clippy
   export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"{{ justfile_directory() / "target" }}"}
   cp Cargo.lock crates/{{ NAME }} && cd crates/{{ NAME }} && cargo clippy --features={{ FEATURES }}
 
-check PROJECT ARCH FEATURES CARGO_FLAGS="": install-clippy
+check PROJECT ARCH FEATURES CARGO_FLAGS="": install-rust-toolchain
   cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
-fix PROJECT ARCH FEATURES CARGO_FLAGS="": install-clippy
+fix PROJECT ARCH FEATURES CARGO_FLAGS="": install-rust-toolchain
   cargo clippy --no-deps -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}} --fix
 
-test PROJECT ARCH FEATURES CARGO_FLAGS="":
+test PROJECT ARCH FEATURES CARGO_FLAGS="": install-rust-toolchain
   cargo test -p {{PROJECT}} --target {{ARCH}} --features "{{FEATURES}}" {{CARGO_FLAGS}}
 
-build PROJECT ARCH FEATURES CARGO_FLAGS="":
-  cargo build -p {{PROJECT}} --target {{ARCH}} --release --features "{{FEATURES}}" {{CARGO_FLAGS}}
+build PROJECT ARCH FEATURES="" FLAGS="": install-rust-toolchain
+  cargo build -p {{PROJECT}} --target {{ARCH}} --profile=release --features "{{FEATURES}}" {{FLAGS}}
+
+# run an arbitrary command in the justfile environment
+[no-exit-message]
+run COMMAND *ARGS:
+  "{{COMMAND}}" {{ARGS}}
 
 # build a vendor library (examples: `just mk_vendor openssl openssl111k`)
-mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="":
+[no-exit-message]
+mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="": install-rust-toolchain
   #!/usr/bin/env bash
   args=( make "{{VENDOR}}:{{PRESET}}" )
 
@@ -57,17 +86,14 @@ mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="":
 
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 
-benchmark:
+benchmark: install-rust-toolchain
   cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111k"
 
-install-rustfmt: nightly-toolchain
-  rustup component add rustfmt --toolchain $NIGHTLY_TOOLCHAIN
+fmt-rust: (install-rust-toolchain NIGHTLY_TOOLCHAIN)
+  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt
 
-fmt-rust: install-rustfmt
-  export RUSTUP_TOOLCHAIN=$NIGHTLY_TOOLCHAIN && cargo fmt
-
-fmt-rust-check: install-rustfmt
-  export RUSTUP_TOOLCHAIN=$NIGHTLY_TOOLCHAIN && cargo fmt -- --check
+fmt-rust-check: (install-rust-toolchain NIGHTLY_TOOLCHAIN)
+  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt -- --check
 
 fmt-clang:
   #!/usr/bin/env bash
@@ -108,11 +134,7 @@ fmt-clang-check:
 fmt: fmt-rust fmt-clang
 fmt-check: fmt-rust-check fmt-clang
 
-default-toolchain:
-  # Setups the toolchain from rust-toolchain.toml
-  cargo --version > /dev/null
-
-book-serve:
+book-serve: install-rust-toolchain
   mdbook serve docs
 
 clear-gh-caches:

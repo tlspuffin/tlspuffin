@@ -112,7 +112,7 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
         with:
-          key: ${{ matrix.vendor }}-${{ matrix.preset }}-${{ matrix.features }}
+          key: tlspuffin-prebuild
       - name: build vendor library
         if: ${{ contains(fromJson('["openssl"]'), matrix.vendor) }}
         uses: ./.github/actions/mk_vendor

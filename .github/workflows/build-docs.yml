@@ -24,7 +24,7 @@ jobs:
         working-directory: docs
         run: mdbook build
       - name: build API documentation
-        run: cargo doc -p tlspuffin --target x86_64-unknown-linux-gnu --document-private-items
+        run: just run cargo doc -p tlspuffin --target x86_64-unknown-linux-gnu --document-private-items
       - uses: actions/upload-artifact@v4
         with:
           name: docs-api
