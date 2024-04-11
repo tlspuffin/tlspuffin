@@ -69,6 +69,7 @@ pub struct MutationConfig {
     /// smaller terms by having a mutation which removes all symbols in a single mutation.
     /// Above this term size we no longer mutate.
     pub term_constraints: TermConstraints,
+    pub with_bit_level: bool,
 }
 
 impl Default for MutationConfig {
@@ -79,6 +80,7 @@ impl Default for MutationConfig {
             max_trace_length: 15,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
+            with_bit_level: true,
         }
     }
 }
@@ -428,6 +430,7 @@ pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
                 max_trace_length,
                 min_trace_length,
                 term_constraints,
+                with_bit_level,
             },
         ..
     } = &config;
@@ -449,6 +452,7 @@ pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
                 *max_trace_length,
                 *term_constraints,
                 *fresh_zoo_after,
+                *with_bit_level,
                 PB::signature(),
                 put_registry,
             ))

@@ -24,6 +24,7 @@ pub fn trace_mutations<'a, S, M: Matcher, PB>(
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
+    with_bit_level: bool,
     signature: &'static Signature,
     put_registry: &'a PutRegistry<PB>,
 ) -> tuple_list_type!(
@@ -78,9 +79,9 @@ where
         RemoveAndLiftMutator::new(constraints),
         GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints),
-        MakeMessage::new(constraints, put_registry),
+        MakeMessage::new(constraints, put_registry, with_bit_level),
     )
-    .merge(havoc_mutations_DY())
+    .merge(havoc_mutations_dy(with_bit_level))
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -590,6 +591,7 @@ pub struct MakeMessage<'a, S, PB>
 where
     S: HasRand,
 {
+    with_bit_level: bool,
     constraints: TermConstraints,
     phantom_s: (std::marker::PhantomData<S>, std::marker::PhantomData<PB>),
     put_registry: &'a PutRegistry<PB>,
@@ -600,8 +602,13 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, put_registry: &'a PutRegistry<PB>) -> Self {
+    pub fn new(
+        constraints: TermConstraints,
+        put_registry: &'a PutRegistry<PB>,
+        with_bit_level: bool,
+    ) -> Self {
         Self {
+            with_bit_level,
             constraints,
             phantom_s: (std::marker::PhantomData, std::marker::PhantomData),
             put_registry,
@@ -652,6 +659,10 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_bit_level {
+            debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
+            return Ok(MutationResult::Skipped);
+        }
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
             must_be_symbolic: true, // we exclude non-symbolic terms, which were already mutated with MakeMessage

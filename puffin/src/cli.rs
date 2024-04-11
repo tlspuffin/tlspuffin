@@ -46,6 +46,7 @@ fn create_app() -> Command {
         .arg(arg!(--monitor "Use a monitor"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
+        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
@@ -105,6 +106,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
     let monitor = matches.get_flag("monitor");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
+    let without_bit_level = matches.get_flag("wo-bit");
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -373,7 +375,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             return ExitCode::FAILURE;
         }
 
-        let config = FuzzerConfig {
+        let mut config = FuzzerConfig {
             initial_corpus_dir: PathBuf::from("./seeds"),
             static_seed,
             max_iters,
@@ -390,6 +392,9 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             no_launcher,
         };
 
+        if without_bit_level {
+            config.mutation_config.with_bit_level = false;
+        }
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
