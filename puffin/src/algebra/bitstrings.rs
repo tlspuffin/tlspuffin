@@ -326,6 +326,7 @@ where
         if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
             fallback_empty = true;
             if st.path_window.len() != st.path_to_search.len() - 1 {
+                // TODO: accept the case where window is not the parent and compute shift instead
                 // this should be the case after a few iterations!
                 fallback_empty = true;
                 continue;
@@ -372,7 +373,8 @@ where
                         st.unique_match = true;
                         st.pos_in_window = st.window.len() - acc;
                     } else {
-                        // continue while loop but fallback_empty = true now
+                        // continue while loop with fallback_empty = true
+                        fallback_empty = true;
                         continue;
                     }
                 } else {
