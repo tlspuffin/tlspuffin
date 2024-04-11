@@ -6,5 +6,8 @@
     "rust-analyzer.procMacro.enable": false,
     "rust-analyzer.cargo.features": [
         "openssl111j"
-    ]
+    ],
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    }
 }

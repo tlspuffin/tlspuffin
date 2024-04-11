@@ -15,22 +15,18 @@ on:
       options:
         required: false
         type: string
-        default: ''
+        default: '[]'
       features:
         required: false
         type: string
-        default: ''
-      if:
-        required: false
-        default: true
-        type: boolean
+        default: '[]'
 
 permissions:
   contents: read
 
 jobs:
   tlspuffin-tests:
-    name: test tlspuffin (${{ inputs.name }})
+    name: ${{ inputs.name }}
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -40,15 +36,15 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
         with:
-          key: ${{ inputs.vendor }}-${{ inputs.preset }}-${{ inputs.features }}
+          key: ${{ inputs.vendor }}-${{ inputs.preset }}-${{ join(fromJson(inputs.features), '-') }}
       - name: compute vendor library shortname
         id: compute-lib-shortname
         run: |
           #!/usr/bin/env bash
-          if [[ -z "${{ inputs.options }}" ]]; then
+          if [[ -z '${{ join(fromJson(inputs.options), '-') }}' ]]; then
             OPTIONS=""
           else
-            OPTIONS="-$(printf '%s\n' "${{ inputs.options }}" | tr , -)"
+            OPTIONS="-$(printf '%s\n' '${{ join(fromJson(inputs.options), '-') }}')"
           fi
 
           printf 'shortname=%s%s\n' "${{ inputs.preset }}" "${OPTIONS}" >> "${GITHUB_OUTPUT}"
@@ -59,7 +55,6 @@ jobs:
           vendor: "${{ inputs.vendor }}"
           preset: "${{ inputs.preset }}"
           name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
-          options: "${{ inputs.options }}"
+          options: "${{ join(fromJson(inputs.options), ',') }}"
       - name: test
-        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ inputs.features }}" ""
-    if: ${{ inputs.if }}
+        run: just test tlspuffin x86_64-unknown-linux-gnu "${{ inputs.preset }},${{ join(fromJson(inputs.features), ',') }}" ""

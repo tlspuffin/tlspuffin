@@ -26,15 +26,15 @@ runs:
       run: |
         #!/usr/bin/env bash
         SCRIPTS=${{ hashFiles(format('puts/vendor/configs/{0}.toml',inputs.vendor), format('puts/vendor/scripts/{0}/**',inputs.vendor), format('puts/harness/**')) }}
-        CONFUID=$(just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "--quiet --dry-run" )
+        CONFUID=$(just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "--quiet --dry-run")
 
-        printf 'scripts_hash=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
+        printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"
 
     - uses: actions/cache@v4
       id: library-cache
       with:
-        key: mk_vendor_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts_hash }}-${{ steps.compute-hash.outputs.confuid }}
+        key: mk_vendor_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts }}-${{ steps.compute-hash.outputs.confuid }}
         path: |
           vendor/${{ inputs.name }}
 

@@ -15,28 +15,37 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       checks: ${{ steps.configure-checks.outputs.checks }}
+      matrix: ${{ steps.configure-checks.outputs.matrix }}
     defaults:
       run:
         shell: bash
     steps:
+      - uses: actions/checkout@v4
       - id: configure-checks
         name: Configure Validation
         run: |
           #!/usr/bin/env bash
           case "${{ inputs.profile }}" in
-            none) CI_CHECKS=();;
-            fast) CI_CHECKS=( check smoke docs base );;
-            full) CI_CHECKS=( check smoke docs base extra );;
+            none)
+              CI_CHECKS=()
+              CI_MATRIX="[]"
+              ;;
+            fast)
+              CI_CHECKS=$(jq -c -n '[ "check", "smoke", "docs", "test" ]')
+              CI_MATRIX=$(jq -c 'map(select( .labels[] | contains("fast") ))' .github/tlspuffin.matrix.json)
+              ;;
+            full)
+              CI_CHECKS=$(jq -c -n '[ "check", "smoke", "docs", "test", "benchmark" ]')
+              CI_MATRIX=$(jq -c '.' .github/tlspuffin.matrix.json)
+              ;;
             *)
               printf "error: unknown validation profile '%s'\n" "${{ inputs.profile }}"
               exit 1
               ;;
           esac
 
-          json_result=$(printf ', "%s"' "x" "${CI_CHECKS[@]}")
-          json_result="[${json_result:6}]"
-
-          printf 'checks=%s\n' "${json_result}" >> "${GITHUB_OUTPUT}"
+          printf 'checks=%s\n' "${CI_CHECKS}" >> "${GITHUB_OUTPUT}"
+          printf 'matrix=%s\n' "${CI_MATRIX}" >> "${GITHUB_OUTPUT}"
 
       - id: print-configuration
         name: Display Configuration
@@ -44,7 +53,14 @@ jobs:
           #!/usr/bin/env bash
           printf 'Finished configuration job:\n'
           printf '  - received validation profile: %s\n' '${{ inputs.profile }}'
-          printf '  - selected validation checks: %s\n' '${{ steps.configure-checks.outputs.checks }}'
+          printf '  - selected validation checks:\n'
+          for check in $(jq -r '.[] | @sh' <(printf "%s" '${{ steps.configure-checks.outputs.checks }}') | tr -d \'\"); do
+            printf '    - %s\n' "${check}"
+          done
+          printf '  - selected test configurations:\n'
+          for conf in $(jq -r '.[].name | @sh' <(printf "%s" '${{ steps.configure-checks.outputs.matrix }}') | tr -d \'\"); do
+            printf '    - %s\n' "${conf}"
+          done
 
   check:
     needs: [configure]
@@ -61,151 +77,23 @@ jobs:
     if: ${{ contains(fromJson(needs.configure.outputs.checks), 'docs') }}
     uses: ./.github/workflows/build-docs.yml
 
-  run-benchmarks:
+  benchmark:
     needs: [configure, smoke-test]
-    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'benchmark') }}
     uses: ./.github/workflows/run-benchmarks.yml
 
   test-tlspuffin:
     needs: [configure, smoke-test]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: openssl111k
-            vendor: openssl
-            preset: openssl111k
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: openssl111j
-            vendor: openssl
-            preset: openssl111j
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: openssl101f-asan
-            vendor: openssl
-            preset: openssl101f
-            options: sancov,asan
-            features: asan
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: openssl102
-            vendor: openssl
-            preset: openssl102u
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: libressl
-            vendor: libressl
-            preset: libressl
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl430
-            vendor: wolfssl
-            preset: wolfssl430
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl510
-            vendor: wolfssl
-            preset: wolfssl510
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl510-sig
-            vendor: wolfssl
-            preset: wolfssl510
-            options: sancov
-            features: fix-CVE-2022-25640,fix-CVE-2022-39173
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl510-skip
-            vendor: wolfssl
-            preset: wolfssl510
-            options: sancov
-            features: fix-CVE-2022-25638,fix-CVE-2022-39173
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl520
-            vendor: wolfssl
-            preset: wolfssl520
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl520-asan
-            vendor: wolfssl
-            preset: wolfssl520
-            options: sancov,asan
-            features: asan
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl530
-            vendor: wolfssl
-            preset: wolfssl530
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl530-asan
-            vendor: wolfssl
-            preset: wolfssl530
-            options: sancov,asan
-            features: asan
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl540
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
-          - name: wolfssl540-sdos2
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov
-            features: wolfssl-disable-postauth,fix-CVE-2022-39173
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl530-cdos
-            vendor: wolfssl
-            preset: wolfssl530,
-            options: sancov
-            features: fix-CVE-2022-39173
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540-asan
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov,asan
-            features: asan
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540-buf
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov
-            features: fix-CVE-2022-42905
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540-heap
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov,asan
-            features: asan,fix-CVE-2022-39173
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540-asan-perf
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov,asan
-            features: asan,fix-CVE-2022-39173,fix-CVE-2022-42905
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: wolfssl540-perf
-            vendor: wolfssl
-            preset: wolfssl540
-            options: sancov
-            features: fix-CVE-2022-39173,fix-CVE-2022-42905
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: boringssl202403
-            vendor: boringssl
-            preset: boringssl202403
-            options: sancov
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'extra') }}
-          - name: boringssl202403-asan
-            vendor: boringssl
-            preset: boringssl202403
-            options: sancov,asan
-            features: asan
-            if: ${{ contains(fromJson(needs.configure.outputs.checks), 'base') }}
+        include: ${{ fromJson(needs.configure.outputs.matrix) }}
 
     uses: ./.github/workflows/run-tlspuffin-tests.yml
     with:
       name: ${{ matrix.name }}
       vendor: ${{ matrix.vendor }}
       preset: ${{ matrix.preset }}
-      options: ${{ matrix.options }}
-      features: ${{ matrix.features }}
-      if: ${{ matrix.if }}
+      options: ${{ toJson(matrix.options) }}
+      features: ${{ toJson(matrix.features) }}
