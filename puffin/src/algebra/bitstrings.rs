@@ -397,7 +397,14 @@ where
             // and locate to_search relatively to the latter.
             // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the left or on the right)
             let (path_relative, eval_relative_, relative_on_left, shift_ancestor_to_search) =
-                find_relative_node(st.to_search, st.path_to_search, 0, st.eval_tree, st.whole_term, ctx)?;
+                find_relative_node(
+                    st.to_search,
+                    st.path_to_search,
+                    0,
+                    st.eval_tree,
+                    st.whole_term,
+                    ctx,
+                )?;
             let eval_relative = eval_relative_.deref();
             warn!("[replace_payloads] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
@@ -563,7 +570,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
             if !eval_sib.deref().is_empty() {
                 assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, true, shift_ancestor_to_search)); // on the left of path_to_search
+                // on the left of path_to_search
+                return Ok((path_sib, eval_sib, true, shift_ancestor_to_search));
             } else {
                 sib_left -= 1;
             }
@@ -583,7 +591,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
                 let mut path_sib = path_parent.to_vec();
                 path_sib.push(sib_right);
                 assert!(path_sib != path_to_search);
-                return Ok((path_sib, eval_sib, false, shift_ancestor_to_search)); // on the right of path_to_search
+                // on the right of path_to_search
+                return Ok((path_sib, eval_sib, false, shift_ancestor_to_search));
             } else {
                 sib_right += 1;
             }
@@ -591,13 +600,25 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
     debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
     let eval_parent = eval_or_compute(&path_parent, eval_tree, whole_term, ctx)?;
-    let shift_ancestor_to_search_new = shift_ancestor_to_search + (eval_parent.len() - to_search.len());
+    let shift_ancestor_to_search_new =
+        shift_ancestor_to_search + (eval_parent.len() - to_search.len());
     if path_parent.is_empty() {
-        return Ok((vec![], Borrowed(eval_tree.encode.as_ref().unwrap()), true, shift_ancestor_to_search_new));
+        return Ok((
+            vec![],
+            Borrowed(eval_tree.encode.as_ref().unwrap()),
+            true,
+            shift_ancestor_to_search_new,
+        ));
     // TODO: additional checks?
     } else if path_parent.len() < path_to_search.len() {
-
-        return find_relative_node(eval_parent.deref(), path_parent, shift_ancestor_to_search_new, eval_tree, whole_term, ctx);
+        return find_relative_node(
+            eval_parent.deref(),
+            path_parent,
+            shift_ancestor_to_search_new,
+            eval_tree,
+            whole_term,
+            ctx,
+        );
     } else {
         panic!("[find_relative_node] should never happen, new path is not shorter!");
     }

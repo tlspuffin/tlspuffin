@@ -66,6 +66,7 @@ fn benchmark_mutations(c: &mut Criterion) {
             no_payload_in_subterm: false,
             not_inside_list: false,
             weighted_depth: false,
+            ..TermConstraints::default()
         });
         let mut trace = seed_client_attacker12.build_trace();
 

@@ -13,6 +13,7 @@ use crate::{
 pub struct TermConstraints {
     pub min_term_size: usize,
     pub max_term_size: usize,
+    pub must_be_symbolic: bool,
     // [NO LONGER USED! Can be removed!]
     // when true: only look for terms with no payload in sub-terms (for bit-le
     // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with paylaods)
@@ -30,6 +31,7 @@ impl Default for TermConstraints {
         Self {
             min_term_size: 0,
             max_term_size: 300, // was 9000 but we were rewriting this to 300 anyway when instantiating the fuzzer
+            must_be_symbolic: false,
             no_payload_in_subterm: false,
             not_inside_list: false,
             weighted_depth: false,
@@ -96,9 +98,9 @@ pub type StepIndex = usize;
 pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
-/// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
 // RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not is_symbolic() term
 // Indeed, this latter term is considered atomic/leaf and is treated as a bitstring.
+/// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
 fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
     trace: &'a Trace<M>,
     filter: P,
@@ -172,6 +174,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
                     // sample
                     if filter(term)
+                        && (!constraints.must_be_symbolic || term.is_symbolic())
                         && (!constraints.no_payload_in_subterm // TODO: currently not used!
                             || (term.is_symbolic() && term.payloads_to_replace().is_empty())
                             || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))

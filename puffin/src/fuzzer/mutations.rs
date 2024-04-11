@@ -654,6 +654,7 @@ where
     ) -> Result<MutationResult, Error> {
         let rand = state.rand_mut();
         let constraints_make_message = TermConstraints {
+            must_be_symbolic: true, // we exclude non-symbolic terms, which were already mutated with MakeMessage
             no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
             // Currently sets to false, we would need to measure efficiency improvement before setting to true TODO
             not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
