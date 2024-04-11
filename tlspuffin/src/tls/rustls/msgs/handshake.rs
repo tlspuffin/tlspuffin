@@ -1185,8 +1185,6 @@ impl Codec for HelloRetryRequest {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let legacy_version = ProtocolVersion::read(r)?;
-        let random = Random::read(r)?;
         let session_id = SessionID::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
         let compression_methods = Compressions::read(r)?;
@@ -1196,8 +1194,8 @@ impl Codec for HelloRetryRequest {
         }
 
         Some(Self {
-            legacy_version, //: ProtocolVersion::Unknown(0),
-            random,
+            legacy_version: ProtocolVersion::Unknown(0), // will be stored by the HandShake message wrapping this payload
+            random: fn_hello_retry_request_random().unwrap(), //s ame
             session_id,
             cipher_suite,
             compression_methods,
@@ -2283,6 +2281,7 @@ impl HandshakeMessagePayload {
                 if Ok(random) == fn_hello_retry_request_random() {
                     let mut hrr = HelloRetryRequest::read(&mut sub)?;
                     hrr.legacy_version = version;
+                    hrr.random = random;
                     typ = HandshakeType::HelloRetryRequest;
                     HandshakePayload::HelloRetryRequest(hrr)
                 } else {
