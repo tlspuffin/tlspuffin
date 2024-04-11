@@ -6,7 +6,7 @@ use super::{
     enums::*,
     handshake::*,
 };
-use crate::tls::rustls::key::Certificate;
+use crate::tls::{fn_impl::fn_hello_retry_request_random, rustls::key::Certificate};
 
 #[test]
 fn rejects_short_random() {
@@ -791,8 +791,10 @@ fn can_clone_all_serverextensions() {
 fn get_sample_helloretryrequest() -> HelloRetryRequest {
     HelloRetryRequest {
         legacy_version: ProtocolVersion::TLSv1_2,
+        random: fn_hello_retry_request_random().unwrap(),
         session_id: SessionID::empty(),
         cipher_suite: CipherSuite::TLS_NULL_WITH_NULL_NULL,
+        compression_methods: Compressions(vec![Compression::Null]),
         extensions: HelloRetryExtensions(vec![
             HelloRetryExtension::KeyShare(NamedGroup::X25519),
             HelloRetryExtension::Cookie(PayloadU16(vec![0])),
