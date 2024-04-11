@@ -5,18 +5,21 @@ use puffin::{
     codec::{Codec, Reader},
 };
 
-use crate::tls::rustls::{
-    key,
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::{
-            CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
-            ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest,
-            NamedGroup, PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm,
-            SignatureScheme,
+use crate::tls::{
+    fn_impl::fn_hello_retry_request_random,
+    rustls::{
+        key,
+        msgs::{
+            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+            enums::{
+                CertificateStatusType, CipherSuite, ClientCertificateType, Compression,
+                ECCurveType, ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm,
+                KeyUpdateRequest, NamedGroup, PSKKeyExchangeMode, ProtocolVersion, ServerNameType,
+                SignatureAlgorithm, SignatureScheme,
+            },
         },
+        rand,
     },
-    rand,
 };
 
 macro_rules! declare_u8_vec (
