@@ -19,7 +19,7 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
       - name: setup mdBook
-        uses: peaceiris/actions-mdbook@v1
+        uses: peaceiris/actions-mdbook@v2
       - name: build mdbook
         working-directory: docs
         run: mdbook build
