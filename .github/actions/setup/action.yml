@@ -12,6 +12,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: remove dotnet to have more disk space available
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet
+
     - name: install Just
       uses: extractions/setup-just@v2
 
@@ -71,12 +75,12 @@ runs:
         #!/usr/bin/env bash
         just install-rust-toolchain-nightly
         just install-rust-toolchain-default
-        just install-rust-dependencies
-
-    - name: remove dotnet to have more disk space available
-      shell: bash
-      run: sudo rm -rf /usr/share/dotnet
 
     - uses: Swatinem/rust-cache@v2
       with:
         shared-key: ${{ inputs.rust-cachekey }}
+        cache-all-crates: "true" # include tooling dependencies
+
+    - name: install Rust tooling dependencies
+      shell: bash
+      run: just install-rust-dependencies
