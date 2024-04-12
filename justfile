@@ -5,7 +5,7 @@
 set shell := ["bash", "-c"]
 set positional-arguments := true
 
-export DEFAULT_TOOLCHAIN := env("RUSTUP_TOOLCHAIN", "1.68.2")
+export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", "1.68.2")
 export NIGHTLY_TOOLCHAIN := "nightly-2023-04-18"
 export RUSTUP_TOOLCHAIN := DEFAULT_TOOLCHAIN
 export CARGO_TERM_COLOR := "always"
