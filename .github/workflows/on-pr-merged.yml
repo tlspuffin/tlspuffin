@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   validation:
-    name: Validation (fast) 
     uses: ./.github/workflows/run-validation.yml
     with:
       profile: fast

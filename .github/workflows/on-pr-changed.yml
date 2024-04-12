@@ -104,7 +104,6 @@ jobs:
 
   validation:
     needs: [configure]
-    name: validation (${{ needs.configure.outputs.profile }})
     uses: ./.github/workflows/run-validation.yml
     with:
       profile: ${{ needs.configure.outputs.profile }}
@@ -112,7 +111,7 @@ jobs:
 
   can-merge:
     needs: [configure, validation]
-    name: PR is ready to merge
+    name: PR is ready for a merge
     runs-on: ubuntu-22.04
     if: always()
     defaults:

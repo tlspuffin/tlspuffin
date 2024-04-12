@@ -1,7 +1,6 @@
 name: run-smoke-test
 
 on:
-  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -27,8 +26,7 @@ jobs:
       - name: unit test `sshpuffin`
         run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
 
-  smoke-test-tlspuffin:
-    name: smoke test `tlspuffin`
+  tlspuffin:
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -53,8 +51,7 @@ jobs:
       - name: run `tlspuffin execute` on seeds
         run: just run cargo run --profile=release --features=openssl111j --bin tlspuffin -- execute-traces ./seeds
 
-  smoke-test-sshpuffin:
-    name: smoke test `sshpuffin`
+  sshpuffin:
     runs-on: ubuntu-22.04
     defaults:
       run:

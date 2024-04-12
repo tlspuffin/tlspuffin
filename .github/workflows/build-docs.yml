@@ -1,7 +1,6 @@
 name: build-docs
 
 on:
-  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -9,7 +8,7 @@ permissions:
 
 jobs:
   build-docs:
-    name: build docs
+    name: build
     runs-on: ubuntu-22.04
     defaults:
       run:

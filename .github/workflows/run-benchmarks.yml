@@ -1,7 +1,6 @@
 name: run-benchmarks
 
 on:
-  workflow_dispatch:
   workflow_call:
 
 permissions:
@@ -9,12 +8,12 @@ permissions:
 
 jobs:
   run-benchmarks:
-    name: benchmark
+    name: cargo bench
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: setup
         uses: ./.github/actions/setup
-      - name: Benchmark
+      - name: benchmark
         shell: bash
         run: just benchmark
