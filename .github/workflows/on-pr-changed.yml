@@ -114,18 +114,28 @@ jobs:
     needs: [configure, validation]
     name: PR is ready to merge
     runs-on: ubuntu-22.04
+    if: always()
     defaults:
       run:
         shell: bash
     steps:
-      - run: |
+      - name: validation profile is `full`
+        run: |
           #!/usr/bin/env bash
-
-          printf 'checking all conditions for merge:\n'
-
-          printf '  - ran validation profile `full`... '
-          if [[ ${{ needs.configure.outputs.profile }} == full ]]; then
-            printf 'success\n'
-          else
-            printf 'failure (try adding the PR label `ci:full` or mark the PR ready for review)\n'
+          printf 'validation profile: %s\n' '${{ needs.configure.outputs.profile }}'
+          if [[ '${{ needs.configure.outputs.profile }}' != full ]]; then
+            printf 'failure: full validation needed (try adding the PR label "ci:full" or mark the PR ready for review)\n'
+            exit 1
           fi
+        if: always()
+
+      - name: validation was successful
+        run: |
+          #!/usr/bin/env bash
+          printf 'validation status: %s\n' '${{ needs.validation.result }}'
+          if [[ '${{ needs.validation.result }}' != success ]]; then
+            printf 'failure: validation job failed'
+            exit 1
+          fi
+        if: always()
+
