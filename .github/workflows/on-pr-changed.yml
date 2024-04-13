@@ -139,7 +139,7 @@ jobs:
     needs: [configure, docs, validation, benchmark]
     name: PR is ready for a merge
     runs-on: ubuntu-22.04
-    if: always()
+    if: ${{ needs.configure.outputs.ignored == 'false' && needs.configure.outputs.profile == 'full' }}
     defaults:
       run:
         shell: bash
