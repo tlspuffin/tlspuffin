@@ -1,6 +1,4 @@
 use puffin::{put::PutName, put_registry::PutRegistry};
-#[cfg(feature = "cputs")]
-use tls_harness::C_PUT_TYPE;
 
 use crate::protocol::TLSProtocolBehavior;
 
@@ -11,16 +9,11 @@ pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     #[cfg(feature = "cputs")]
-    extern "C" fn callback(put: *const C_PUT_TYPE) {
-        if put.is_null() {
-            return;
-        }
-
-        println!("registering C put")
-    }
-
-    #[cfg(feature = "cputs")]
-    tls_harness::register(callback);
+    tls_harness::register(|put| {
+        println!("registering put {}", unsafe {
+            std::ffi::CStr::from_ptr((*put).harness.name).to_string_lossy()
+        })
+    });
 
     let default = {
         cfg_if::cfg_if! {

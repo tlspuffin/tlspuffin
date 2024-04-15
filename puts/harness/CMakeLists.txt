@@ -62,19 +62,31 @@ file(WRITE ${CMAKE_BINARY_DIR}/empty.c "")
 add_library(puts-bundle STATIC ${CMAKE_BINARY_DIR}/empty.c ${BUNDLE_OBJECTS})
 set_target_properties(puts-bundle PROPERTIES LINKER_LANGUAGE C)
 
-# create Rust init file
+# generate Rust init file defining the `register` function
+#
+# ```
+# pub fn register<F>(callback: F)
+# where
+#     F: FnMut(*const C_PUT_TYPE),
+# {
+#     do_register(register_1ab23c, callback);
+#     do_register(register_4ef567, callback);
+# }
+# ```
 set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/init.rs)
 set(RUST_INIT_DECL "")
 set(RUST_INIT_CALL "")
 foreach(put_id IN LISTS PUTS)
-    string(APPEND RUST_INIT_DECL "    fn register_${put_id}(callback: FnRegister);\n")
-    string(APPEND RUST_INIT_CALL "        unsafe { register_${put_id}(callback); };\n")
+    string(APPEND RUST_INIT_DECL "    fn register_${put_id}(data: *mut libc::c_void, callback: FnRegister);\n")
+    string(APPEND RUST_INIT_CALL "    do_register(register_${put_id}, callback);\n")
 endforeach()
 
+
 if(NOT RUST_INIT_DECL)
-    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\npub fn register(_callback: FnRegister) {}\n")
+    file(WRITE ${RUST_INIT_FILE} "pub fn register<F>(_callback: F) where F: FnMut(*const C_PUT_TYPE) {}\n")
 else()
-    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\nextern {\n${RUST_INIT_DECL}}\n\npub fn register(callback: FnRegister) {\n    ${RUST_INIT_CALL}\n}\n")
+    file(WRITE ${RUST_INIT_FILE} "extern {\n${RUST_INIT_DECL}}\n\n")
+    file(APPEND ${RUST_INIT_FILE} "pub fn register<F>(callback: F) where F: FnMut(*const C_PUT_TYPE) {\n${RUST_INIT_CALL}}\n")
 endif()
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")

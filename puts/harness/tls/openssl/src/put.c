@@ -40,7 +40,7 @@ static const C_PUT_TYPE OPENSSL_PUT = {
     .take_outbound = NULL,
 };
 
-void REGISTER(void (*const register_put)(const C_PUT_TYPE *))
+void REGISTER(void *data, void (*const register_put)(void *, const C_PUT_TYPE *))
 {
-    register_put(&OPENSSL_PUT);
+    register_put(data, &OPENSSL_PUT);
 }

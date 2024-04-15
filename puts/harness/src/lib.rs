@@ -11,6 +11,33 @@ mod bindings {
 pub use bindings::*;
 
 mod init {
+    use crate::C_PUT_TYPE;
+
+    #[allow(unused)]
+    type FnRegister = unsafe extern "C" fn(data: *mut libc::c_void, cput: *const C_PUT_TYPE) -> ();
+
+    #[allow(unused)]
+    fn do_register<F>(
+        registration: unsafe extern "C" fn(data: *mut libc::c_void, cb: FnRegister),
+        callback: F,
+    ) where
+        F: FnMut(*const C_PUT_TYPE),
+    {
+        let data = Box::into_raw(Box::new(callback));
+        unsafe {
+            registration(data as *mut _, do_call::<F>);
+        }
+    }
+
+    unsafe extern "C" fn do_call<F>(data: *mut libc::c_void, put: *const C_PUT_TYPE)
+    where
+        F: FnMut(*const C_PUT_TYPE),
+    {
+        let callback_ptr = data as *mut F;
+        let callback = &mut *callback_ptr;
+        callback(put)
+    }
+
     include!(env!("RUST_PUTS_INIT_FILE"));
 }
 use std::io;
@@ -18,8 +45,6 @@ use std::io;
 pub use init::*;
 use libc::{c_char, c_void};
 use puffin::error::Error;
-
-pub type FnRegister = extern "C" fn(put: *const C_PUT_TYPE) -> ();
 
 macro_rules! define_extern_c_log {
     ( $level:ident, $name:ident ) => {
