@@ -670,10 +670,12 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate_verify = term! {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
-            (fn_rsa_sign_server(
-                (@certificate_transcript),
-                fn_alice_key,
-                fn_rsa_pss_signature_algorithm
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
             ))
         )
     };
@@ -852,10 +854,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate_verify = term! {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
-            (fn_rsa_sign_client(
-                (fn_certificate_transcript(((server, 0)))),
-                fn_bob_key,
-                fn_rsa_pss_signature_algorithm
+            (fn_payload_u16(
+                (fn_rsa_sign_client(
+                    (fn_certificate_transcript(((server, 0)))),
+                    fn_bob_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
             ))
         )
     };
@@ -1002,10 +1006,12 @@ pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatc
     let certificate_verify = term! {
         fn_certificate_verify(
             fn_rsa_pss_signature_algorithm,
-            (fn_rsa_sign_client(
-                (fn_certificate_transcript(((server, 0)))),
-                fn_bob_key,
-                fn_rsa_pss_signature_algorithm
+            (fn_payload_u16(
+                (fn_rsa_sign_client(
+                    (fn_certificate_transcript(((server, 0)))),
+                    fn_bob_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
             ))
         )
     };

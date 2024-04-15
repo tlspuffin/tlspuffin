@@ -209,13 +209,14 @@ mod tests {
                 // for speeding up things
                 continue;
             }
+
             if true
-                || term.name().to_string()
-                    == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
+            // || term.name().to_string()
+            //     == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
             {
                 match term.evaluate(&ctx) {
                     Ok(eval) => {
-                        // debug!("OKAY");
+                        debug!("OKAY for {}", term.name().to_string().to_owned());
                         successfully_built_functions.push(term.name().to_string().to_owned());
                         eval_count += 1;
 
@@ -225,9 +226,13 @@ mod tests {
                         // );
                     }
                     Err(e) => {
+                        debug!(
+                            "Error for {}, so we're trying lazy eval!!",
+                            term.name().to_string().to_owned()
+                        );
                         let t1 = evaluate_lazy_test(&term, &ctx);
                         if t1.is_err() {
-                            // debug!("LAZY failed!");
+                            debug!("LAZY failed!");
                             count_lazy_fail += 1;
                         } else {
                             count_any_encode_fail += 1;

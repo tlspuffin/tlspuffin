@@ -242,6 +242,7 @@ define_signature!(
     fn_append_certificate_entry
     fn_named_group_secp384r1
     fn_named_group_x25519
+    fn_payload_u16
     // transcript functions
     fn_server_hello_transcript
     fn_client_finished_transcript

@@ -324,7 +324,6 @@ where
 
         // Heuritstic 2: First fallback heuristic: compute right-shift with respect to the parent term evaluation
         if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
-            fallback_empty = true;
             if st.path_window.len() != st.path_to_search.len() - 1 {
                 // TODO: accept the case where window is not the parent and compute shift instead
                 // this should be the case after a few iterations!
@@ -358,7 +357,6 @@ where
                                 res.deref().len()
                             );
                             acc += res.deref().len();
-                            continue;
                         } else {
                             debug!(
                                 "[find_unique_match_rec] Unable to eval_or_compute for arg {i}... Heuristic 2 failed."

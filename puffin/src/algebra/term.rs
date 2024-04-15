@@ -213,10 +213,9 @@ impl<M: Matcher> TermEval<M> {
         if is_subterm {
             self.payloads = None;
         }
-        let is_opaque = self.is_opaque();
         match &mut self.term {
             Term::Variable(_) => {}
-            Term::Application(fd, args) => {
+            Term::Application(_, args) => {
                 // Not true anymore: if opaque, we keep payloads in strict sub-terms
                 for t in args {
                     t.erase_payloads_subterms(true);
@@ -409,6 +408,10 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
                 trace!("        / We successfully evaluated the root term into: {eval:?}");
                 return Ok(eval);
             } else {
+                error!(
+                    "Error with any_get_encoding: {:?}",
+                    PB::any_get_encoding(&m)
+                );
                 return (Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
                         .map_err(|e| {
                             error!("[evaluate_config] Err: {}", e);

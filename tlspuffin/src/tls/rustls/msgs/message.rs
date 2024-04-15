@@ -20,7 +20,7 @@ use crate::tls::{
         key::{Certificate, PrivateKey},
         msgs::{
             alert::AlertMessagePayload,
-            base::Payload,
+            base::{Payload, PayloadU16},
             ccs::ChangeCipherSpecPayload,
             enums::{
                 AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ExtensionType,
@@ -482,6 +482,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // u8, // OK
         // Vec<u64>, // OK
         ProtocolVersion,  // 400
+        PayloadU16,
         Vec<u8>,         // 2385 Fail
         Vec<Vec<u8>>,    // Fail 332
         Option<Vec<u8>>, // Fail 542
@@ -593,6 +594,7 @@ pub fn try_read_bytes(
             u64,
             // u8,
             // Vec<u64>,
+            PayloadU16,
             Vec<u8>,
             Vec<Vec<u8>>,
             // Option<Vec<Vec<u8>>>,

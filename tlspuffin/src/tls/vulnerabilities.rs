@@ -75,7 +75,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
             // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
             //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
-            fn_eve_pkcs1_signature
+            (fn_payload_u16(fn_eve_pkcs1_signature))
             // Option 3 (for testing):
             /* (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
