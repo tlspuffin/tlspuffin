@@ -14,7 +14,7 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
-cputs = ["tls-harness"]
+cputs = []
 
 openssl-default = [
     "tls12",
@@ -303,7 +303,7 @@ wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
 
-tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"], optional = true }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]

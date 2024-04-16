@@ -38,32 +38,32 @@
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
-//!                                     client,  
+//!                                     client,
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
@@ -104,6 +104,7 @@
 #[cfg(feature = "boringssl-binding")]
 pub mod boringssl;
 pub mod claims;
+pub mod cput;
 pub mod debug;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;

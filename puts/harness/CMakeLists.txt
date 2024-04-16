@@ -22,33 +22,49 @@ set(PUT_LIBS "")
 
 string(REPLACE "," ";" LIBRARIES "${LIBRARIES}")
 foreach(library_path IN LISTS LIBRARIES)
+
+    # TODO retrieve or compute the following PUT info
     set(PROTOCOL "tls")
-    set(HARNESS "openssl")
+    set(HARNESS_NAME "openssl")
+    set(HARNESS_VERSION "tlspuffin-harness-sys ${CMAKE_PROJECT_VERSION}")
+    set(LIBRARY_NAME "openssl")
+    set(LIBRARY_VERSION "<placeholder library version>")
+    set(CONFIG_HASH "<placeholder library config hash>")
+    get_filename_component(CONFIG_NAME ${library_path} NAME)
 
-    # FIXME retrieve mk_vendor config uid if available
-    string(SHA256 LIBRARY_HASH "${PROTOCOL}/${HARNESS}/${library_path}")
-    string(SUBSTRING ${LIBRARY_HASH} 0 16 LIBRARY_HASH)
+    # FIXME use mk_vendor config uid if available rather than library_path
+    # FIXME use a harness uid rather than name (e.g. id = name + hash(version))
+    string(SHA256 PUT_HASH "${PROTOCOL}/${HARNESS_NAME}/${library_path}")
+    string(SUBSTRING ${PUT_HASH} 0 16 PUT_HASH)
 
-    set(PUT_ID "${LIBRARY_HASH}")
+    set(PUT_ID "${HARNESS_NAME}${PUT_HASH}")
 
-    add_library(put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT ${PROTOCOL}/${HARNESS}/src/put.c)
-    set_property(TARGET put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
-    target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${HARNESS}_${PUT_ID})
-    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
-    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${library_path}/include")
+    add_library(put-${PROTOCOL}-${PUT_ID} OBJECT ${PROTOCOL}/${HARNESS_NAME}/src/put.c)
+    set_property(TARGET put-${PROTOCOL}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
+    target_include_directories(put-${PROTOCOL}-${PUT_ID} PRIVATE "include")
+    target_include_directories(put-${PROTOCOL}-${PUT_ID} PRIVATE "${library_path}/include")
+    target_compile_definitions(put-${PROTOCOL}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${PUT_ID})
 
     add_custom_command(
-        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
-        COMMENT "relocation for put-${PROTOCOL}-${HARNESS}-${PUT_ID}" VERBATIM)
+        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o
+        OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o
+        DEPENDS put-${PROTOCOL}-${PUT_ID} $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}>
+        COMMENT "relocation for put-${PROTOCOL}-${PUT_ID}" VERBATIM)
 
-    add_custom_target(relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID} ALL DEPENDS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
+    add_custom_target(relocate-put-${PROTOCOL}-${PUT_ID} ALL DEPENDS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o)
 
-    add_library(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT IMPORTED)
-    set_property(TARGET relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY IMPORTED_OBJECTS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
-    add_dependencies(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
+    add_library(relocated-put-${PROTOCOL}-${PUT_ID} OBJECT IMPORTED)
+    set_property(TARGET relocated-put-${PROTOCOL}-${PUT_ID} PROPERTY IMPORTED_OBJECTS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o)
+    add_dependencies(relocated-put-${PROTOCOL}-${PUT_ID} relocate-put-${PROTOCOL}-${PUT_ID})
 
-    list(APPEND PUTS "${HARNESS}_${PUT_ID}")
-    list(APPEND PUT_LIBS relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
+    list(APPEND PUTS "${PUT_ID}")
+    list(APPEND PUT_LIBS relocated-put-${PROTOCOL}-${PUT_ID})
+
+    configure_file(
+        ${CMAKE_CURRENT_LIST_DIR}/cmake/put_init_decl.rs.in
+        ${CMAKE_BINARY_DIR}/put_init_decl_${PUT_ID}.rs
+        ESCAPE_QUOTES
+        @ONLY)
 endforeach()
 
 set(BUNDLE_OBJECTS "")
@@ -65,28 +81,27 @@ set_target_properties(puts-bundle PROPERTIES LINKER_LANGUAGE C)
 # generate Rust init file defining the `register` function
 #
 # ```
-# pub fn register<F>(callback: F)
+# pub fn register<F>(mut callback: F)
 # where
-#     F: FnMut(*const C_PUT_TYPE),
+#     F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE),
 # {
-#     do_register(register_1ab23c, callback);
-#     do_register(register_4ef567, callback);
+#     on_register_openssl1ab23c(&mut callback);
+#     on_register_openssl4ef567(&mut callback);
 # }
 # ```
 set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/init.rs)
-set(RUST_INIT_DECL "")
-set(RUST_INIT_CALL "")
+set(RUST_INIT_INCLUDES "")
+set(RUST_INIT_REGISTER "")
 foreach(put_id IN LISTS PUTS)
-    string(APPEND RUST_INIT_DECL "    fn register_${put_id}(data: *mut libc::c_void, callback: FnRegister);\n")
-    string(APPEND RUST_INIT_CALL "    do_register(register_${put_id}, callback);\n")
+    string(APPEND RUST_INIT_INCLUDES "include!(\"${CMAKE_BINARY_DIR}/put_init_decl_${put_id}.rs\");\n")
+    string(APPEND RUST_INIT_REGISTER "    on_register_${put_id}(&mut callback);\n")
 endforeach()
 
-
-if(NOT RUST_INIT_DECL)
-    file(WRITE ${RUST_INIT_FILE} "pub fn register<F>(_callback: F) where F: FnMut(*const C_PUT_TYPE) {}\n")
+file(WRITE ${RUST_INIT_FILE} "${RUST_INIT_INCLUDES}")
+if(NOT RUST_INIT_REGISTER)
+    file(APPEND ${RUST_INIT_FILE} "pub fn register<F>(mut _callback: F) where F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE) {}\n")
 else()
-    file(WRITE ${RUST_INIT_FILE} "extern {\n${RUST_INIT_DECL}}\n\n")
-    file(APPEND ${RUST_INIT_FILE} "pub fn register<F>(callback: F) where F: FnMut(*const C_PUT_TYPE) {\n${RUST_INIT_CALL}}\n")
+    file(APPEND ${RUST_INIT_FILE} "pub fn register<F>(mut callback: F) where F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE) {\n${RUST_INIT_REGISTER}}\n")
 endif()
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")
