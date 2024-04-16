@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 // TODO re-design to remove TLS-specific constructs
@@ -66,26 +67,8 @@ typedef struct
     const size_t store_length;
 } AGENT_DESCRIPTOR;
 
-typedef struct C_HARNESS_TYPE
-{
-    const char *name;    // openssl
-    const char *version; // tlspuffin v0.1.0 (commit f80370)
-} C_HARNESS_TYPE;
-
-typedef struct C_LIBRARY_TYPE
-{
-    const char *vendor_name;    // openssl
-    const char *vendor_version; // OpenSSL 1.1.1j 16 Feb 2021
-
-    const char *config_name; // openssl111j
-    const char *config_hash; // da39e788eca8dabb
-} C_LIBRARY_TYPE;
-
 typedef struct C_PUT_TYPE
 {
-    C_HARNESS_TYPE harness;
-    C_LIBRARY_TYPE library;
-
     /*
      * Creates a new agent following the specification in the <descriptor>.
      *
@@ -104,12 +87,17 @@ typedef struct C_PUT_TYPE
      */
     void (*const destroy)(void *agent);
 
+    /*
+     * [optional] CAPABILITY: deterministic
+     */
+    void (*const deterministic_rng_set)(void);
+    void (*const deterministic_rng_reseed)(const uint8_t *buffer, size_t length);
+
     RESULT (*const progress)(void *agent);
     RESULT (*const reset)(void *agent);
     void (*const rename)(void *agent, uint8_t agent_name);
     const char *(*const describe_state)(void *agent);
     bool (*const is_state_successful)(void *agent);
-    void (*const set_deterministic)(void *agent);
     const char *(*const shutdown)(void *agent);
 
     /*
@@ -131,7 +119,7 @@ typedef struct C_PUT_TYPE
     RESULT (*const take_outbound)(void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 } C_PUT_TYPE;
 
-typedef struct
+typedef struct C_TLSPUFFIN
 {
     void (*const error)(const char *message);
     void (*const warn)(const char *message);

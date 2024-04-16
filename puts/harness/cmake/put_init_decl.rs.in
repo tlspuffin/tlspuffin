@@ -1,0 +1,23 @@
+extern "C" {
+    fn register_@PUT_ID@(data: *mut libc::c_void, callback: FnRegister);
+}
+
+fn on_register_@PUT_ID@<F>(callback: &mut F)
+where
+    F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE),
+{
+    let harness: CPutHarness = CPutHarness {
+        name: std::borrow::Cow::Borrowed("@HARNESS_NAME@"),
+        version: std::borrow::Cow::Borrowed("@HARNESS_VERSION@"),
+    };
+
+    let library: CPutLibrary = CPutLibrary {
+        name: std::borrow::Cow::Borrowed("@LIBRARY_NAME@"),
+        version: std::borrow::Cow::Borrowed("@LIBRARY_VERSION@"),
+
+        config_name: std::borrow::Cow::Borrowed("@CONFIG_NAME@"),
+        config_hash: std::borrow::Cow::Borrowed("@CONFIG_HASH@"),
+    };
+
+    do_register(harness, library, register_@PUT_ID@, callback);
+}
