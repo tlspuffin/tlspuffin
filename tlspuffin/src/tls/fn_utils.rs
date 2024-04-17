@@ -9,24 +9,28 @@ use puffin::{
     variable_data::VariableData,
 };
 
-use crate::tls::{
-    key_exchange::{tls12_key_exchange, tls12_new_secrets},
-    key_schedule::*,
-    rustls::{
-        conn::Side,
-        hash_hs::HandshakeHash,
-        key::Certificate,
-        msgs::{
-            base::PayloadU8,
-            enums::{HandshakeType, NamedGroup},
-            handshake::{
-                CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
-                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+use crate::{
+    static_certs::BOB_CERT,
+    tls::{
+        key_exchange::{tls12_key_exchange, tls12_new_secrets},
+        key_schedule::*,
+        rustls::{
+            conn::Side,
+            hash_hs::HandshakeHash,
+            key::Certificate,
+            msgs::{
+                base::PayloadU8,
+                enums::{HandshakeType, NamedGroup},
+                handshake::{
+                    CertificateEntries, CertificateEntry, CertificateExtension,
+                    CertificateExtensions, HandshakeMessagePayload, HandshakePayload, Random,
+                    ServerECDHParams,
+                },
+                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },
-            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+            tls12,
+            tls13::key_schedule::KeyScheduleEarly,
         },
-        tls12,
-        tls13::key_schedule::KeyScheduleEarly,
     },
 };
 
@@ -416,9 +420,9 @@ pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
     Ok(Vec::from(kx.pubkey.as_ref()))
 }
 
-pub fn fn_encode_ec_pubkey12(pubkey: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+pub fn fn_encode_ec_pubkey12(pubkey: &PayloadU8) -> Result<Vec<u8>, FnError> {
     let mut buf = Vec::new();
-    let ecpoint = PayloadU8::new(pubkey.clone());
+    let ecpoint = pubkey.clone();
     ecpoint.encode(&mut buf);
 
     Ok(buf)

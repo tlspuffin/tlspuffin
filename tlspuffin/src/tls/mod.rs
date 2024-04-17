@@ -181,6 +181,7 @@ define_signature!(
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
+    fn_new_session_ticket_extensions
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
@@ -242,7 +243,15 @@ define_signature!(
     fn_append_certificate_entry
     fn_named_group_secp384r1
     fn_named_group_x25519
+    fn_payload_u8
     fn_payload_u16
+    fn_payload_u24
+    fn_make_payload_u16_vec_u16
+    fn_empty_payload_u16_vec
+    fn_append_payload_u16_vec
+    fn_make_payload_u8_vec_u16
+    fn_empty_payload_u8_vec
+    fn_append_payload_u8_vec
     // transcript functions
     fn_server_hello_transcript
     fn_client_finished_transcript

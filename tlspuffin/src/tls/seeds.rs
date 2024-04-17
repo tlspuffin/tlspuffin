@@ -387,7 +387,7 @@ pub fn seed_successful12_with_tickets(
                 recipe: term! {
                     fn_new_session_ticket(
                         ((server, 0)/u64),
-                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
+                        (fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)))
                     )
                 },
             }),
@@ -642,7 +642,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
 
     let certificate = term! {
         fn_certificate13(
-            (fn_empty_bytes_vec),
+            (fn_payload_u8((fn_empty_bytes_vec))),
             (fn_certificate_entries_make(
                 (fn_append_certificate_entry(
                 (fn_certificate_entry(
@@ -840,7 +840,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let certificate = term! {
         fn_certificate13(
-            (fn_get_context((@certificate_request_message))),
+            (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_certificate_entries_make(
                 (fn_append_certificate_entry(
                 (fn_certificate_entry(
@@ -993,7 +993,7 @@ pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatc
 
     let certificate = term! {
         fn_certificate13(
-            (fn_get_context((@certificate_request_message))),
+            (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_bob_cert
@@ -1208,7 +1208,7 @@ pub fn _seed_client_attacker12(
                         fn_signed_certificate_timestamp_extension
                     )),
                      // Enable Renegotiation
-                    (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
                 )),
                 // Add signature cert extension
                 fn_signature_algorithm_cert_extension
@@ -1250,7 +1250,7 @@ pub fn _seed_client_attacker12(
     let client_key_exchange = term! {
         fn_client_key_exchange(
             (fn_encode_ec_pubkey12(
-                (fn_new_pubkey12(fn_named_group_secp384r1))
+                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
             ))
         )
     };

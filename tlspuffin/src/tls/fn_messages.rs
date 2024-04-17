@@ -111,19 +111,22 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u64) -> Result<Message, FnError> {
+pub fn fn_heartbeat_fake_length(
+    payload: &PayloadU16,
+    fake_length: &u64,
+) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
-            payload: PayloadU16::new(payload.clone()),
+            payload: payload.clone(),
             fake_length: Some(*fake_length as u16),
         }),
     })
 }
 
-pub fn fn_heartbeat(payload: &Vec<u8>) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.len() as u64))
+pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
+    fn_heartbeat_fake_length(payload, &(payload.0.len() as u64))
 }
 
 // ----
@@ -192,7 +195,7 @@ nyi_fn! {
     /// hello_verify_request_RESERVED => 0x03,
 }
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &PayloadU16) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
@@ -201,15 +204,22 @@ pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Me
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
                 lifetime_hint: *lifetime_hint as u32,
-                ticket: PayloadU16::new(ticket.clone()),
+                ticket: ticket.clone(),
             }),
         }),
     })
 }
-pub fn fn_new_session_ticket13(
-    nonce: &Vec<u8>,
-    ticket: &Vec<u8>,
+
+pub fn fn_new_session_ticket_extensions(
     extensions: &Vec<NewSessionTicketExtension>,
+) -> Result<NewSessionTicketExtensions, FnError> {
+    Ok(NewSessionTicketExtensions(extensions.clone()))
+}
+
+pub fn fn_new_session_ticket13(
+    nonce: &PayloadU8,
+    ticket: &PayloadU16,
+    extensions: &NewSessionTicketExtensions,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
@@ -220,9 +230,9 @@ pub fn fn_new_session_ticket13(
             payload: HandshakePayload::NewSessionTicketTLS13(NewSessionTicketPayloadTLS13 {
                 lifetime: 10,
                 age_add: 12,
-                nonce: PayloadU8::new(nonce.clone()),
-                ticket: PayloadU16::new(ticket.clone()),
-                exts: NewSessionTicketExtensions(extensions.clone()),
+                nonce: nonce.clone(),
+                ticket: ticket.clone(),
+                exts: extensions.clone(),
             }),
         }),
     })
@@ -295,7 +305,7 @@ pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError>
     })
 }
 pub fn fn_certificate13(
-    context: &Vec<u8>,
+    context: &PayloadU8,
     entries: &CertificateEntries,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
@@ -306,7 +316,7 @@ pub fn fn_certificate13(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Certificate,
             payload: HandshakePayload::CertificateTLS13(CertificatePayloadTLS13 {
-                context: PayloadU8::new(context.clone()),
+                context: context.clone(),
                 entries: entries.clone(),
             }),
         }),
@@ -343,7 +353,7 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
     })
 }
 pub fn fn_certificate_request13(
-    context: &Vec<u8>,
+    context: &PayloadU8,
     extensions: &Vec<CertReqExtension>,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
@@ -354,7 +364,7 @@ pub fn fn_certificate_request13(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequestTLS13(CertificateRequestPayloadTLS13 {
-                context: PayloadU8::new(context.clone()),
+                context: context.clone(),
                 extensions: CertReqExtensions(extensions.clone()),
             }),
         }),
@@ -371,8 +381,50 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
     })
 }
 
+pub fn fn_payload_u8(vec: &Vec<u8>) -> Result<PayloadU8, FnError> {
+    Ok(PayloadU8::new(vec.clone()))
+}
+
 pub fn fn_payload_u16(vec: &Vec<u8>) -> Result<PayloadU16, FnError> {
     Ok(PayloadU16::new(vec.clone()))
+}
+
+pub fn fn_payload_u24(vec: &Vec<u8>) -> Result<PayloadU24, FnError> {
+    Ok(PayloadU24::new(vec.clone()))
+}
+
+pub fn fn_empty_payload_u16_vec() -> Result<Vec<PayloadU16>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_append_payload_u16_vec(
+    p: &PayloadU16,
+    vec: &Vec<PayloadU16>,
+) -> Result<Vec<PayloadU16>, FnError> {
+    let mut vec = vec.clone();
+    vec.push(p.clone());
+    Ok(vec)
+}
+
+pub fn fn_make_payload_u16_vec_u16(vec: &Vec<PayloadU16>) -> Result<VecU16OfPayloadU16, FnError> {
+    Ok(VecU16OfPayloadU16(vec.clone()))
+}
+
+pub fn fn_empty_payload_u8_vec() -> Result<Vec<PayloadU8>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_append_payload_u8_vec(
+    p: &PayloadU8,
+    vec: &Vec<PayloadU8>,
+) -> Result<Vec<PayloadU8>, FnError> {
+    let mut vec = vec.clone();
+    vec.push(p.clone());
+    Ok(vec)
+}
+
+pub fn fn_make_payload_u8_vec_u16(vec: &Vec<PayloadU8>) -> Result<VecU16OfPayloadU8, FnError> {
+    Ok(VecU16OfPayloadU8(vec.clone()))
 }
 
 /// CertificateVerify => 0x0f,
@@ -417,13 +469,13 @@ nyi_fn! {
     /// CertificateURL => 0x15,
 }
 /// CertificateStatus => 0x16,
-pub fn fn_certificate_status(ocsp_response: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_certificate_status(ocsp_response: &PayloadU24) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateStatus,
             payload: HandshakePayload::CertificateStatus(CertificateStatus {
-                ocsp_response: PayloadU24::new(ocsp_response.clone()),
+                ocsp_response: ocsp_response.clone(),
             }),
         }),
     })

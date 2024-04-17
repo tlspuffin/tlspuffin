@@ -107,7 +107,7 @@ fn benchmark_trace(c: &mut Criterion) {
                             fn_signed_certificate_timestamp_extension
                         )),
                          // Enable Renegotiation
-                        (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                        (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
                     )),
                     // Add signature cert extension
                     fn_signature_algorithm_cert_extension
