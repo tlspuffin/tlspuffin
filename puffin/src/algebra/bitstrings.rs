@@ -318,17 +318,28 @@ where
             st.eval_tree
         );
         attempts += 1;
-        if attempts > 3 {
+        if attempts > 5 {
             warn!("[find_unique_match_rec] HIGH NUMBER OF ATTEMPTS!");
         }
 
         // Heuritstic 2: First fallback heuristic: compute right-shift with respect to the parent term evaluation
         if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
-            if st.path_window.len() != st.path_to_search.len() - 1 {
-                // TODO: accept the case where window is not the parent and compute shift instead
-                // this should be the case after a few iterations!
-                fallback_empty = true;
-                continue;
+            let parent_path_depth = st.path_to_search.len() - 1;
+            // Heuristic only applied when st.path_to_search = parent_path
+            if st.path_window.len() != parent_path_depth {
+                // we never looked for the parent window, last chance!
+                if !st.tried_depth_path[parent_path_depth] {
+                    debug!("Trying heuristic 2 but window != parent window. First trying to fidn this window.");
+                    try_new_depth_path_window = parent_path_depth;
+                    try_new_path_window = &st.path_to_search[0..try_new_depth_path_window];
+                    fallback_end_parent = false;
+                    st.found_window = false;
+                    continue;
+                } else {
+                    debug!("Trying heuristic 2 but window != parent window and the latter has already been reached --> Fallback to Heuristic 3.");
+                    fallback_empty = true;
+                    continue;
+                }
             }
             // We should address failing cases such as:
             // - to_search is included in header of parent term encoding (e.g., compression method is in header of ClientHello)
