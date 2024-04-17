@@ -145,6 +145,7 @@ impl Function {
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
         // Compute a deterministic key share... (TODO: WHY IS THAT?)
             || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_extension"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_server_extension"
         // TODO:
         // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
     }
