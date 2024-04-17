@@ -3,7 +3,7 @@ use std::{
     convert::TryFrom,
 };
 
-use log::{debug, error};
+use log::{debug, error, trace};
 use puffin::{
     algebra::{error::FnError, ConcreteMessage},
     codec,
@@ -12,28 +12,32 @@ use puffin::{
     protocol::ProtocolMessage,
 };
 
-use crate::tls::{
-    fn_impl::*,
-    rustls::{
-        error::Error,
-        hash_hs::HandshakeHash,
-        key::{Certificate, PrivateKey},
-        msgs::{
-            alert::AlertMessagePayload,
-            base::{Payload, PayloadU16},
-            ccs::ChangeCipherSpecPayload,
-            enums::{
-                AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ExtensionType,
-                HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
+use crate::{
+    tls,
+    tls::{
+        fn_impl::*,
+        rustls::{
+            error::Error,
+            hash_hs::HandshakeHash,
+            key::{Certificate, PrivateKey},
+            msgs::{
+                alert::AlertMessagePayload,
+                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
+                ccs::ChangeCipherSpecPayload,
+                enums::{
+                    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType,
+                    ExtensionType, HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
+                },
+                handshake::{
+                    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
+                    CipherSuites, ClientExtension, ClientExtensions, Compressions,
+                    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
+                    NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity,
+                    Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
+                    VecU16OfPayloadU8,
+                },
+                heartbeat::HeartbeatPayload,
             },
-            handshake::{
-                CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
-                CipherSuites, ClientExtension, ClientExtensions, Compressions,
-                HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
-                NewSessionTicketExtension, PresharedKeyIdentity, Random, ServerExtension,
-                ServerExtensions, SessionID,
-            },
-            heartbeat::HeartbeatPayload,
         },
     },
 };
@@ -376,9 +380,9 @@ macro_rules! try_downcast {
         $message
         .downcast_ref::<$T>()
         .map(|b| {
-            // println!("\n--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
+            trace!("\n--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
             let b = codec::Encode::get_encoding(b);
-            // println!("====>> Successfully encoded\n");
+            trace!("====>> Successfully encoded\n");
             b
         })
         .or_else(|| {
@@ -391,16 +395,39 @@ macro_rules! try_downcast {
         .downcast_ref::<$T>()
         .map(|b| codec::Encode::get_encoding(b))
          .or_else(|| {
-                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
+                trace!("Failed to downcast from {:?}", std::any::type_name::<$T>());
                 $message
                 .downcast_ref::<Message>()
                 .map(|b| {
-                      // println!("\n--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
+                      trace!("\n--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
                       let b = codec::Encode::get_encoding(&b.create_opaque());
-                      // println!("====>> Successfully encoded\n");
+                      trace!("====>> Successfully encoded\n");
                       b
                 })
         })
+  };
+}
+
+#[macro_export]
+macro_rules! try_downcast_two {
+  ($message:expr, $T:ty, $($Ts:ty),+) => {
+        $message
+        .downcast_ref::<$T>()
+        .map(|b| {
+            error!("\n--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
+            let b = tls::rustls::msgs::base::Codec2::get_encoding2(b);
+            error!("====>> Successfully encoded\n");
+            b
+        })
+        .or_else(|| {
+                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
+                try_downcast_two!($message,$($Ts),+)
+        })
+  };
+    ($message:expr, $T:ty ) => {
+        $message
+        .downcast_ref::<$T>()
+        .map(|b| tls::rustls::msgs::base::Codec2::get_encoding2(b))
   };
 }
 
@@ -432,11 +459,13 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
     message // We first try to downcast to Message, then OpaqueMessage
         .downcast_ref::<Message>()
         .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
-        .or_else(||
+        .or_else(|| {
+            trace!("Failed to downcast from Message");
             message
                 .downcast_ref::<OpaqueMessage>()
                 .map(|b| codec::Encode::get_encoding(b))
-                .or_else(||
+                .or_else(|| {
+                    trace!("Failed to downcast from OpaqueMessage");
                     try_downcast!(
         message,
         // We list all the types that have the Encode trait and that can be the type of a rustls message
@@ -473,6 +502,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         CertificateExtension,
         NewSessionTicketExtension,
         Vec<NewSessionTicketExtension>,
+        NewSessionTicketExtensions,
         Compressions,
         Compression,
         Vec<Compression>,
@@ -482,7 +512,11 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // u8, // OK
         // Vec<u64>, // OK
         ProtocolVersion,  // 400
+        PayloadU24,
         PayloadU16,
+        PayloadU8,
+        VecU16OfPayloadU16,
+        VecU16OfPayloadU8,
         Vec<u8>,         // 2385 Fail
         Vec<Vec<u8>>,    // Fail 332
         Option<Vec<u8>>, // Fail 542
@@ -498,7 +532,15 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // Result<Message, FnError>,
         // MessagePayload,
         // ExtensionType,
-    )))
+    )
+                })
+        })
+        .or_else(|| try_downcast_two!(
+                    message,
+                    // We list all the types having custom Codec2 now
+                    Vec<PayloadU24>,
+                    Vec<PayloadU16>,
+                    Vec<PayloadU8>))
         .ok_or(
             Term(format!(
                 "[any_get_encoding] Failed to downcast to any of the type listed in rustls/msgs/messages.rs and then any_encode::get_encoding message {:?}",
