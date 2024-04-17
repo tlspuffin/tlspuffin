@@ -543,10 +543,8 @@ macro_rules! try_read {
   };
 }
 
-pub fn try_read_bytes(
-    bitstring: ConcreteMessage,
-    ty: TypeId,
-) -> Result<Box<dyn Any>, puffin::error::Error> {
+pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puffin::error::Error> {
+    debug!("Trying read...");
     if ty == TypeId::of::<Message>() {
         <OpaqueMessage>::read_bytes(& bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type OpaqueMessage (ty was Message though) the bitstring {:?}",

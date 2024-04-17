@@ -512,7 +512,7 @@ pub mod test_signature {
             Err(Error::Term("any_get_encoding not implemented".to_owned()))
         }
 
-        fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
+        fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error> {
             Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
     }

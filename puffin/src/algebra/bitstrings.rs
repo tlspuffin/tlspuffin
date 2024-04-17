@@ -813,10 +813,10 @@ impl<M: Matcher> TermEval<M> {
     {
         debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {
+            // TODO: what if we change the actual encoding because of queries and mutations in previous messages ?
+            // Plus: this supposes read_bytes is "perfect" (commute with get_any_encoding), which does not seem to be the case...
             trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
-            if let Ok(di) =
-                PB::try_read_bytes(payload.payload_0.clone().into(), (*type_term).into())
-            {
+            if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), (*type_term).into()) {
                 let p_c = vec![PayloadContext {
                     of_term: self,
                     payloads: &payload,
@@ -884,7 +884,7 @@ impl<M: Matcher> TermEval<M> {
                         trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let typei = func.shape().argument_types[i];
-                        let di = PB::try_read_bytes(bi, typei.into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
+                        let di = PB::try_read_bytes(&bi, typei.into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .with_context(||
                                 format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
                                         typei, TypeId::from(typei), &self))

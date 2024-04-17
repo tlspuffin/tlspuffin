@@ -54,7 +54,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
         }
     }
 
-    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error> {
         todo!()
     }
 }

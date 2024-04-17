@@ -210,7 +210,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         any_get_encoding(message)
     }
 
-    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error> {
-        Ok(try_read_bytes(bitstring, ty)?)
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error> {
+        try_read_bytes(bitstring, ty)
     }
 }

@@ -68,7 +68,7 @@ pub trait ProtocolBehavior: 'static {
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
     /// This is expected to fail for many types of messages!
-    fn try_read_bytes(bitstring: ConcreteMessage, ty: TypeId) -> Result<Box<dyn Any>, Error>;
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
