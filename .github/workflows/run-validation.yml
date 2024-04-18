@@ -31,11 +31,11 @@ jobs:
               CI_MATRIX="[]"
               ;;
             fast)
-              CI_CHECKS=$(jq -c -n '[ "check", "smoke", "docs", "test" ]')
+              CI_CHECKS=$(jq -c -n '[ "check", "unit", "cli", "docs", "test" ]')
               CI_MATRIX=$(jq -c 'map(select( .labels[] | contains("fast") ))' .github/tlspuffin.matrix.json)
               ;;
             full)
-              CI_CHECKS=$(jq -c -n '[ "check", "smoke", "docs", "test", "benchmark" ]')
+              CI_CHECKS=$(jq -c -n '[ "check", "unit", "cli", "docs", "test", "benchmark" ]')
               CI_MATRIX=$(jq -c '.' .github/tlspuffin.matrix.json)
               ;;
             *)
@@ -67,23 +67,76 @@ jobs:
     if: ${{ contains(fromJson(needs.configure.outputs.checks), 'check') }}
     uses: ./.github/workflows/run-checks.yml
 
-  smoke-test:
+  unit-tests:
     needs: [configure]
-    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'smoke') }}
-    uses: ./.github/workflows/run-smoke-test.yml
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'unit') }}
+    name: unit tests
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: unit test `puffin`
+        run: just test puffin x86_64-unknown-linux-gnu "" ""
+      - name: unit test `security-claims`
+        run: just test security-claims x86_64-unknown-linux-gnu "" ""
+      - name: unit test `tlspuffin`
+        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
+      - name: unit test `sshpuffin`
+        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
 
-  docs:
+  cli-tlspuffin:
     needs: [configure]
-    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'docs') }}
-    uses: ./.github/workflows/build-docs.yml
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'cli') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build OpenSSL dependency
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "openssl"
+          preset: "openssl111j"
+          name: "openssl111j-sancov"
+          options: "sancov"
+      - name: build `tlspuffin`
+        run: just build tlspuffin x86_64-unknown-linux-gnu "openssl111j"
+      - name: run `tlspuffin help`
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- help
+      - name: run `tlspuffin seed`
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- seed && [[ -d ./seeds ]]
+      - name: run `tlspuffin execute` on seeds
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- execute-traces ./seeds
 
-  benchmark:
-    needs: [configure, smoke-test]
-    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'benchmark') }}
-    uses: ./.github/workflows/run-benchmarks.yml
+  cli-sshpuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'cli') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build `sshpuffin`
+        run: just build sshpuffin x86_64-unknown-linux-gnu
+      - name: run `sshpuffin help`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- help
+      - name: run `sshpuffin seed`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- seed && [[ -d ./seeds ]]
+      - name: run `sshpuffin execute` on seeds
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- execute-traces ./seeds
 
   test-tlspuffin:
-    needs: [configure, smoke-test]
+    needs: [configure]
     if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
     strategy:
       fail-fast: false

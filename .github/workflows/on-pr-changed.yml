@@ -102,6 +102,11 @@ jobs:
           printf '  - triggering event (full):\n'
           cat "${GITHUB_EVENT_PATH}"
 
+  docs:
+    needs: [configure]
+    uses: ./.github/workflows/build-docs.yml
+    if: ${{ needs.configure.outputs.ignored == 'false' }}
+
   validation:
     needs: [configure]
     uses: ./.github/workflows/run-validation.yml
@@ -109,8 +114,13 @@ jobs:
       profile: ${{ needs.configure.outputs.profile }}
     if: ${{ needs.configure.outputs.ignored == 'false' }}
 
-  can-merge:
+  benchmark:
     needs: [configure, validation]
+    uses: ./.github/workflows/run-benchmarks.yml
+    if: ${{ needs.configure.outputs.ignored == 'false' && needs.configure.outputs.profile == 'full' }}
+
+  can-merge:
+    needs: [configure, docs, validation, benchmark]
     name: PR is ready for a merge
     runs-on: ubuntu-22.04
     if: always()
@@ -134,6 +144,26 @@ jobs:
           printf 'validation status: %s\n' '${{ needs.validation.result }}'
           if [[ '${{ needs.validation.result }}' != success ]]; then
             printf 'failure: validation job failed'
+            exit 1
+          fi
+        if: always()
+
+      - name: docs built successfully
+        run: |
+          #!/usr/bin/env bash
+          printf 'docs status: %s\n' '${{ needs.docs.result }}'
+          if [[ '${{ needs.docs.result }}' != success ]]; then
+            printf 'failure: error while building docs'
+            exit 1
+          fi
+        if: always()
+
+      - name: ran benchmark
+        run: |
+          #!/usr/bin/env bash
+          printf 'benchmark status: %s\n' '${{ needs.benchmark.result }}'
+          if [[ '${{ needs.benchmark.result }}' != success ]]; then
+            printf 'failure: error while running benchmark'
             exit 1
           fi
         if: always()

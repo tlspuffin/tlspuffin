@@ -19,7 +19,13 @@ jobs:
     name: Pre-build tlspuffin Binaries
     uses: ./.github/workflows/run-prebuild.yml
 
+  benchmark:
+    uses: ./.github/workflows/run-benchmarks.yml
+
+  docs:
+    uses: ./.github/workflows/build-docs.yml
+
   deploy-docs:
-    needs: [validation]
+    needs: [validation, docs]
     name: Deploy dev Documentation
     uses: ./.github/workflows/deploy-docs.yml
