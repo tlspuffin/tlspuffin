@@ -2,9 +2,7 @@ extern crate cc;
 
 use std::{
     env,
-    io,
-    fs::{self, canonicalize, File},
-    io::Write,
+    fs::canonicalize,
     path::{Path, PathBuf},
     process::{Command, Output},
 };

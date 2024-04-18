@@ -1182,7 +1182,7 @@ impl Codec for HelloRetryRequest {
         self.cipher_suite.encode(bytes);
         self.compression_methods.encode(bytes);
         // Compression::Null.encode(bytes);
-        // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty =
+        // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty ones?
         //         // lists of extensions, as for CLientHello ClientExtensions?
         self.extensions.encode(bytes);
         // }

@@ -189,7 +189,7 @@ define_signature!(
     fn_new_session_id
     fn_empty_session_id
     fn_new_random
-    // once fn_compression_append is added, we should then also add fn_compression_make
+    // TODO: once fn_compression_append is added, we should then also add fn_compression_make
     fn_compressions
     fn_compression
     fn_no_key_share

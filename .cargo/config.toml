@@ -5,9 +5,9 @@
 
 rustflags = [
    # Required for LLVM ASAN
-   "-C", "linker=clang++",
-   "-C", "default-linker-libraries"
+   "-C", "linker=clang",
 ]
+
 rustdocflags = [
    # Required for LLVM ASAN
    "-C", "linker=clang",

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
-use log::{debug, info, warn};
+use log::debug;
 use openssl::{
     error::ErrorStack,
     ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode},

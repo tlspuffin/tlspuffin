@@ -7,7 +7,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use log::error;
 use rand::random;
 use serde::{Deserialize, Serialize};
 

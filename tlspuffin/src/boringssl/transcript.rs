@@ -1,5 +1,3 @@
-use core::ffi::{c_char, CStr};
-
 use boring::ssl::SslRef;
 use boringssl_sys as boringssl;
 use foreign_types::ForeignTypeRef;
