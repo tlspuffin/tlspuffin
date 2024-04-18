@@ -408,7 +408,6 @@ macro_rules! try_downcast {
         .downcast_ref::<$T>()
         .map(|b| codec::Encode::get_encoding(b))
          .or_else(|| {
-                trace!("Failed to downcast from {:?}", std::any::type_name::<$T>());
                 $message
                 .downcast_ref::<Message>()
                 .map(|b| {
@@ -567,9 +566,8 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
 macro_rules! try_read {
   ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
       {
-      trace!("Trying with type TypeID {:?}...!", core::any::type_name::<$T>());
       if $ti == TypeId::of::<$T>() {
-        trace!("Yes type match TypeID {:?}...!", core::any::type_name::<$T>());
+        trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
         <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -582,9 +580,8 @@ macro_rules! try_read {
   };
     ($bitstring:expr, $ti:expr, $T:ty ) => {
       {
-        trace!("Trying with type TypeID {:?}...!", core::any::type_name::<$T>());
         if $ti == TypeId::of::<$T>() {
-            trace!("Yes type match TypeID {:?}...!", core::any::type_name::<$T>());
+            trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
             <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -608,9 +605,8 @@ macro_rules! try_read {
 macro_rules! try_read_two {
   ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
       {
-      trace!("[2] Trying with type TypeID {:?}...!", core::any::type_name::<$T>());
       if $ti == TypeId::of::<$T>() {
-        trace!("Yes type match TypeID {:?}...!", core::any::type_name::<$T>());
+        trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
         <$T>::read_bytes2($bitstring).ok_or(Term(format!(
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -623,9 +619,8 @@ macro_rules! try_read_two {
   };
     ($bitstring:expr, $ti:expr, $T:ty ) => {
       {
-        trace!("[2] Trying with type TypeID {:?}...!", core::any::type_name::<$T>());
         if $ti == TypeId::of::<$T>() {
-            trace!("Yes type match TypeID {:?}...!", core::any::type_name::<$T>());
+            trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
             <$T>::read_bytes2($bitstring).ok_or(Term(format!(
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -651,7 +646,7 @@ pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puff
     let a = <Vec<PayloadU24>>::read_bytes2(bitstring);
     trace!("Trying read...");
     if ty == TypeId::of::<Message>() {
-        trace!("Trying to read a message as OpaqueMessage and then try_from...");
+        trace!("Type match TypeId Message. Trying to read a message as OpaqueMessage and then try_from...");
         let op = <OpaqueMessage>::read_bytes(bitstring)
             .ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type OpaqueMessage (ty was Message though) the bitstring {:?}",

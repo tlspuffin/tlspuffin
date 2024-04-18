@@ -486,6 +486,12 @@ mod tests {
                 // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
                 //     continue;
                 // }
+
+                if let Err(_) = term.evaluate(&ctx) {
+                    // not a candidate for adding a payload as it is already not executable
+                    continue;
+                }
+
                 let mut term_with_payloads = term.clone();
 
                 add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
@@ -507,6 +513,7 @@ mod tests {
                         eval_count += 1;
                     }
                     Err(e) => {
+                        error!("Eval FAILED with payloads.");
                         match &term_with_payloads.clone().evaluate_symbolic(&ctx) {
                             Ok(_) => {
                                 error!("Eval FAILED with payloads but succeeded without payloads!");
@@ -702,52 +709,7 @@ mod tests {
                                     Err(e) => {
                                         error!("[FAIL] Failed to re-encode read term {}!\n  -Encoding1: {:?}\n Read message {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, message_back, term.get_type_shape(), type_id);
                                         error!("Error: {}", e);
-                                        error!(
-                                            "Try to downcast to Message: {:?}",
-                                            message_back.as_ref().downcast_ref::<Message>()
-                                        );
-                                        error!(
-                                            "Try to downcast to OpaqueMessage: {:?}",
-                                            message_back.as_ref().downcast_ref::<OpaqueMessage>()
-                                        );
-                                        // We re-do read manually
-                                        let read2 = <OpaqueMessage>::read_bytes(eval).unwrap();
-                                        let mess2 = Message::try_from(read2.clone()).unwrap();
-                                        let box2 = Box::new(mess2.clone()) as Box<dyn Any>;
-                                        let mess2_mes = box2.downcast_ref::<Message>();
-                                        let mess2_op = box2.downcast_ref::<OpaqueMessage>();
-                                        let eval2 = TLSProtocolBehavior::any_get_encoding(&box2);
-                                        error!("term:{term:?}\neval:{eval:?}\nread2:{:?}\nmess2: {:?}\nbox2:{:?}\nmess2_mes:{:?}\nmess2_op:{:?}\neval2:{:?}",
-                                        read2, mess2, box2, mess2_mes, mess2_op, eval2);
-                                        // downcast and encode from first read
-                                        let mess3_op = message_back.downcast_ref::<OpaqueMessage>();
-                                        let mess3_mess =
-                                            message_back.downcast_ref::<OpaqueMessage>();
-                                        error!("mess3_op:{mess3_op:?}\n mess3_mess:{mess3_mess:?}");
-
-                                        let eval3 =
-                                            Encode::get_encoding(&mess3_op.unwrap().clone());
-                                        let eval3_2 = TLSProtocolBehavior::any_get_encoding(&box2);
-                                        error!("mess3_op:{mess3_op:?}\n eval3:{eval3:?}\neval3_2:{eval3_2:?}");
-                                        // OK: OpaqueMess::read(eval) --TryFromMessage --> mess2   COOL
-                                        //: NOT: OpaqueMess::read(eval) --TryFromMEssage --Box::new<> --> box3 --> any encode : NOT OK
-                                        let box2 = evaluate_lazy_test(&term, &ctx).unwrap();
-                                        let mess_old = box2.downcast_ref::<Message>();
-                                        let box3 = Box::new(Message::try_from(read2.clone()))
-                                            as Box<dyn Any>;
-                                        error!(
-                                            "And re-test encode: {:?}",
-                                            TLSProtocolBehavior::any_get_encoding(&box3)
-                                        );
-                                        error!(
-                                            "And re-test dwoncats: {:?}",
-                                            box3.as_ref().downcast_ref::<Message>()
-                                        );
-                                        error!("And re-test as ref: {:?}", box3.as_ref());
-
-                                        error!("Try to re-read as OpaqueMessage : Read: {read2:?}\n New Term: {mess2:?}\n OldTerm: {mess_old:?}\n Encode2: {eval2:?}");
                                         read_wrong += 1;
-                                        panic!("A");
                                     }
                                 }
                             }
