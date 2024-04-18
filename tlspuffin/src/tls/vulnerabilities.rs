@@ -980,7 +980,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
     let new_ticket_message = term! {
         fn_new_session_ticket13(  // DUMMY resumption ticket
             (fn_payload_u8(fn_alice_cert)),
-            (fn_payload_u8(fn_alice_cert)),
+            (fn_payload_u16(fn_alice_cert)),
             (fn_new_session_ticket_extensions(fn_new_session_ticket_extensions_new))
         )
         // WAS:
