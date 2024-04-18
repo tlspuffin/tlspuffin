@@ -19,16 +19,12 @@ use crate::{
             base::{Payload, PayloadU16, PayloadU24, PayloadU8},
             ccs::ChangeCipherSpecPayload,
             enums::*,
-            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
+            handshake::{CertificateStatus, *},
             heartbeat::HeartbeatPayload,
             message::{Message, MessagePayload, OpaqueMessage},
         },
     },
 };
-
-pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
-    Ok(message.clone())
-}
 
 pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
     Ok(OpaqueMessage {

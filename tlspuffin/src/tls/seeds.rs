@@ -4,19 +4,20 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::{Term, TermEval},
+    algebra::{dynamic_function::TypeShape, Term, TermEval},
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
-use super::rustls::msgs::handshake::{EncryptedExtensions, ServerExtensions};
+use super::rustls::msgs::handshake::ServerExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
         rustls::msgs::{
             enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-            handshake::{Random, ServerExtension, SessionID},
+            handshake::{Random, SessionID},
+            message::OpaqueMessage,
         },
     },
 };
@@ -398,9 +399,7 @@ pub fn seed_successful12_with_tickets(
         agent: client,
         action: Action::Input(InputAction {
             recipe: term! {
-                fn_opaque_message(
-                    ((server, 6)[None])
-                )
+                    (server, 6)[None]> TypeShape::of::<OpaqueMessage>()
             },
         }),
     };
@@ -504,9 +503,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_opaque_message(
-                            ((client, 3)[None])
-                        )
+                        (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
                     },
                 }),
             },
@@ -524,9 +521,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_opaque_message(
-                            ((server, 5)[None])
-                        )
+                        (server, 5)[None] > TypeShape::of::<OpaqueMessage>()
                     },
                 }),
             },

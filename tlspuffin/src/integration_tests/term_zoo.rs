@@ -1,9 +1,17 @@
+use puffin::algebra::TermType;
+
 /// Test the function symbols that can be generated, evaluated, encoded
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    use std::{any::Any, cmp::max, collections::HashSet, fmt::Debug};
+    use std::{
+        any::{Any, TypeId},
+        cmp::max,
+        collections::HashSet,
+        fmt::Debug,
+    };
 
+    use hex::encode;
     use itertools::Itertools;
     use log::{debug, error, warn};
     use puffin::{
@@ -13,7 +21,7 @@ mod tests {
             signature::FunctionDefinition, ConcreteMessage, Matcher, Term, TermEval, TermType,
         },
         codec,
-        codec::Encode,
+        codec::{Codec, Encode},
         error::Error,
         fuzzer::{
             term_zoo::TermZoo,
@@ -52,6 +60,47 @@ mod tests {
         try_downcast,
     };
 
+    pub fn ignore_gen() -> HashSet<String> {
+        [
+            fn_server_finished_transcript.name(),
+            fn_client_finished_transcript.name(),
+            fn_server_hello_transcript.name(),
+            fn_certificate_transcript.name(),
+            // OLD STUFF, NOT NEEDED:
+            //  fn_decrypt_application.name(), // FIXME: why ignore this?
+            //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
+            //  fn_rsa_sign_server.name(),
+            // // transcript functions -> ClaimList is usually available as Variable
+        ]
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>()
+    }
+
+    pub fn ignore_lazy() -> HashSet<String> {
+        let mut ignore_gen = ignore_gen();
+        let ignore_lazy = [
+            // Those 4 are the function symbols for which we can generate a term but all fail to lazy execute!
+            fn_ecdsa_sign_server.name(),
+            fn_ecdsa_sign_client.name(),
+            fn_decrypt_handshake.name(),
+            fn_decrypt_application.name(),
+            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
+            fn_find_server_certificate_verify.name(),
+            fn_decrypt_multiple_handshake_messages.name(),
+            fn_find_encrypted_extensions.name(),
+            fn_find_server_certificate.name(),
+            fn_find_server_finished.name(),
+            fn_find_server_ticket.name(),              // new for boring
+            fn_find_server_certificate_request.name(), // new for boring
+        ]
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>();
+        ignore_gen.extend(ignore_lazy);
+        ignore_gen
+    }
+
     #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms
@@ -85,25 +134,15 @@ mod tests {
             .collect::<HashSet<String>>();
 
         // Those 4 are the function symbols for which we fail to generator a term!
-        let ignored_functions = [
-            fn_server_finished_transcript.name(),
-            fn_client_finished_transcript.name(),
-            fn_server_hello_transcript.name(),
-            fn_certificate_transcript.name(),
-            // OLD STUFF, NOT NEEDED:
-            //  fn_decrypt_application.name(), // FIXME: why ignore this?
-            //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
-            //  fn_rsa_sign_server.name(),
-            // // transcript functions -> ClaimList is usually available as Variable
-        ]
-        .iter()
-        .map(|fn_name| fn_name.to_string())
-        .collect::<HashSet<String>>();
+        let ignored_functions = ignore_gen();
 
-        successfully_built_functions.extend(ignored_functions);
+        let successfully_built_functions_0 = successfully_built_functions.clone();
+        successfully_built_functions.extend(ignored_functions.clone());
 
         let difference = all_functions.difference(&successfully_built_functions);
         debug!("Diff: {:?}\n", &difference);
+        let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
         // debug!("Successfully built: {:?}\n", &successfully_built_functions);
         debug!(
             "Successfully built: #{:?}",
@@ -111,6 +150,7 @@ mod tests {
         );
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
+        assert_eq!(difference_inverse.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with MAX_DEPTH=2000 and MAX_TRIES = 50000
         //debug!("{}", graph);
     }
@@ -149,42 +189,23 @@ mod tests {
             .map(|term| term.name().to_string())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = [
-            // "dsfsdfgsdf"
-            // Those 4 are the function symbols for which we fail to generator a term!
-            fn_server_finished_transcript.name(),
-            fn_client_finished_transcript.name(),
-            fn_server_hello_transcript.name(),
-            fn_certificate_transcript.name(),
-            // Those 4 are the function symbols for which we can generate a term but all fail to lazy execute!
-            fn_ecdsa_sign_server.name(),
-            fn_ecdsa_sign_client.name(),
-            fn_decrypt_handshake.name(),
-            fn_decrypt_application.name(),
-            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
-            fn_find_server_certificate_verify.name(),
-            fn_decrypt_multiple_handshake_messages.name(),
-            fn_find_encrypted_extensions.name(),
-            fn_find_server_certificate.name(),
-            fn_find_server_finished.name(),
-            fn_find_server_ticket.name(),              // new for boring
-            fn_find_server_certificate_request.name(), // new for boring
-        ]
-        .iter()
-        .map(|fn_name| fn_name.to_string())
-        .collect::<HashSet<String>>();
+        let ignored_functions = ignore_lazy();
 
-        successfully_built_functions.extend(ignored_functions);
+        let successfully_built_functions_0 = successfully_built_functions.clone();
+        successfully_built_functions.extend(ignored_functions.clone());
 
         let difference = all_functions.difference(&successfully_built_functions);
-        debug!("Successfully built: {:?}", &successfully_built_functions);
         debug!("Diff: {:?}\n", &difference);
+        let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+
         debug!(
             "Successfully built: #{:?}",
             &successfully_built_functions.len()
         );
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
+        assert_eq!(difference_inverse.count(), 0);
         // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with how_many = 10 000
         //debug!("{}", graph);
     }
@@ -278,40 +299,20 @@ mod tests {
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let mut successfully_built_functions_names = successfully_built_functions
+        let mut successfully_built_functions = successfully_built_functions
             .iter()
             .map(|s| s.to_owned())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = [
-            // Those 4 are the function symbols for which we fail to generator a term!
-            fn_server_finished_transcript.name(),
-            fn_client_finished_transcript.name(),
-            fn_server_hello_transcript.name(),
-            fn_certificate_transcript.name(),
-            // Those 4 are the function symbols for which we can generate a term but all fail to lazy execute!
-            fn_ecdsa_sign_server.name(),
-            fn_ecdsa_sign_client.name(),
-            fn_decrypt_handshake.name(),
-            fn_decrypt_application.name(), // All other terms can also be encoded (no additional exception for full eval :) !)
-            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
-            fn_find_server_certificate_verify.name(),
-            fn_decrypt_multiple_handshake_messages.name(),
-            fn_find_encrypted_extensions.name(),
-            fn_find_server_certificate.name(),
-            fn_find_server_finished.name(),
-            fn_find_server_ticket.name(),              // new for boring
-            fn_find_server_certificate_request.name(), // new for boring
-        ]
-        .iter()
-        .map(|fn_name| fn_name.to_string())
-        .collect::<HashSet<String>>();
+        let ignored_functions = ignore_lazy();
 
-        successfully_built_functions_names.extend(ignored_functions);
+        let successfully_built_functions_0 = successfully_built_functions.clone();
+        successfully_built_functions.extend(ignored_functions.clone());
 
-        let difference = all_functions.difference(&successfully_built_functions_names);
-
+        let difference = all_functions.difference(&successfully_built_functions);
         debug!("Diff: {:?}\n", &difference);
+        let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
         debug!(
             "Successfully built: #{:?}",
             &successfully_built_functions.len()
@@ -319,6 +320,7 @@ mod tests {
         debug!("All functions: #{:?}", &all_functions.len());
         debug!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
         assert_eq!(difference.count(), 0);
+        assert_eq!(difference_inverse.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
     }
 
@@ -558,8 +560,7 @@ mod tests {
                 }
             }
         }
-
-        // TODO:
+        // DONE
         // Understand warning and errors, try also without limiting to once a function
         // Issues to address:
         //       A. cycling between:  [FIXED WITH tried_depth_path]
@@ -570,51 +571,29 @@ mod tests {
         //           there won't be a suitable window then!
         //           Also always fail when the payload is at pos p and a sibling encoding contains the same encoding [ALSO FIXED]
         //       C.  Read_bytes fail because of MakeMessage but even without adding a != payload for: HandshakeHash, Vec<ClientExtension>, Vec<ServerExtension>
-        //           Could add a test that encode and read many different types, as in this test
-        //       E. Other failures when running this with DEBUG level=warn
+        //           Could add a test that encode and read many different types, as in this test FIXED
+        //       E. Other failures when running this with DEBUG level=warn  MOST OF THEM FIXED
         // TODO: run fuzzing campaign, measure failure rates, measure efficiency (execs/s)
-        let mut successfully_built_functions_names = successfully_built_functions
-            .iter()
-            .map(|s| s.to_owned())
-            .collect::<HashSet<String>>();
-
-        let ignored_functions = [
-            // Those 4 are the function symbols for which we fail to generator a term!
-            fn_server_finished_transcript.name(),
-            fn_client_finished_transcript.name(),
-            fn_server_hello_transcript.name(),
-            fn_certificate_transcript.name(),
-            // Those 4 are the function symbols for which we can generate a term but all fail to lazy execute!
-            fn_ecdsa_sign_server.name(),
-            fn_ecdsa_sign_client.name(),
-            fn_decrypt_handshake.name(),
-            fn_decrypt_application.name(), // All other terms can also be encoded (no additional exception for full eval :) !)
-            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
-            fn_find_server_certificate_verify.name(),
-            fn_decrypt_multiple_handshake_messages.name(),
-            fn_find_encrypted_extensions.name(),
-            fn_find_server_certificate.name(),
-            fn_find_server_finished.name(),
-            fn_find_server_ticket.name(),              // new for boring
-            fn_find_server_certificate_request.name(), // new for boring
-            // // Unable to add a payload and evaluate correctly, TODO: investigate why
-            fn_derive_psk.name(),
-            fn_get_ticket.name(),
-        ]
-        .iter()
-        .map(|fn_name| fn_name.to_string())
-        .collect::<HashSet<String>>();
-
-        successfully_built_functions_names.extend(ignored_functions);
-
         let all_functions = TLS_SIGNATURE
             .functions
             .iter()
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
-        let difference = all_functions.difference(&successfully_built_functions_names);
 
-        error!("Diff: {:?}\n", &difference);
+        let mut successfully_built_functions = successfully_built_functions
+            .iter()
+            .map(|s| s.to_owned())
+            .collect::<HashSet<String>>();
+
+        let ignored_functions = ignore_lazy();
+
+        let successfully_built_functions_0 = successfully_built_functions.clone();
+        successfully_built_functions.extend(ignored_functions.clone());
+
+        let difference = all_functions.difference(&successfully_built_functions);
+        debug!("Diff: {:?}\n", &difference);
+        let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
         debug!(
             "Successfully built: #{:?}",
             &successfully_built_functions.len()
@@ -622,43 +601,243 @@ mod tests {
         debug!("All functions: #{:?}", &all_functions.len());
         error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
         assert_eq!(difference.count(), 0);
+        assert_eq!(difference_inverse.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
     }
+
+    /*
+    ## term_eval_lazy
+    ### for number = 1 --> 42 failing
+      ["tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application", "tlspuffin::tls::fn_impl::fn_messages::fn_server_key_exchange", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share", "tlspuffin::tls::fn_impl::fn_extensions::fn_renegotiation_info_extension", "tlspuffin::tls::fn_impl::fn_messages::fn_finished", "tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share", "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_hello_retry_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12", "tlspuffin::tls::fn_impl::fn_extensions::fn_support_group_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server", "tlspuffin::tls::fn_impl::fn_extensions::fn_preshared_keys_extension_empty_binder", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client", "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve", "tlspuffin::tls::fn_impl::fn_messages::fn_client_key_exchange", "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk", "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_server_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_draft_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript", "tlspuffin::tls::fn_impl::fn_cert::fn_certificate_entry", "tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data_server", "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12", "tlspuffin::tls::fn_impl::fn_messages::fn_application_data", "tlspuffin::tls::fn_impl::fn_cert::fn_get_context", "tlspuffin::tls::fn_impl::fn_messages::fn_certificate_request13", "tlspuffin::tls::fn_impl::fn_extensions::fn_server_extensions_append", "tlspuffin::tls::fn_impl::fn_extensions::fn_append_vec", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce", "tlspuffin::tls::fn_impl::fn_utils::fn_append_transcript", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"]
+    ### for number = 10 --> 16 failing
+      ["tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce", "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake", "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application", "tlspuffin::tls::fn_impl::fn_cert::fn_get_context", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"]
+    ### for number = 100 --> 6 failing
+      ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
+     "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client",
+     "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake",
+     "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server",
+     "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application",
+     "tlspuffin::tls::fn_impl::fn_extensions::fn_preshared_keys_extension_empty_binder"]
+     ### For number = 200 --> 4 failing (same for 10 000)
+                    fn_ecdsa_sign_server.name(),
+                fn_ecdsa_sign_client.name(),
+                fn_decrypt_handshake.name(),
+                fn_decrypt_application.name()
+
+    Hard to generate: Diff:
+        ["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
+        "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"]
+
+
+    ## term_eval
+    ### For number = 200 --> all success :) :)
+    Successfully built: #60563
+    All functions: #190
+    number_terms: 74800, eval_count: 60563, count_lazy_fail: 14237, count_any_encode_fail: 0
+
+    ### For number = 400 --> all success
+    Successfully built: #30258
+    All functions: #190
+    number_terms: 37400, eval_count: 30258, count_lazy_fail: 7142, count_any_encode_fail: 0
+
+     */
+
+    #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
+    #[test]
+    #[test_log::test]
+    // #[ignore]
+    /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
+    fn test_term_read_encode() {
+        let tls_registry = tls_registry();
+        let mut rand = StdRand::with_seed(101);
+        let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
+        let mut ctx = TraceContext::new(&tls_registry, Default::default());
+        let mut eval_count = 0;
+        let mut count_lazy_fail = 0;
+        let mut read_count = 0;
+        let mut read_wrong = 0;
+        let mut read_fail = 0;
+        let mut read_success = 0;
+        let mut count_any_encode_fail = 0;
+        let mut number_terms = 0;
+        let number_shapes = all_functions_shape.len();
+        let mut successfully_built_functions = vec![];
+
+        for f in all_functions_shape {
+            let zoo = TermZoo::<TlsQueryMatcher>::generate_many(
+                &TLS_SIGNATURE,
+                &mut rand,
+                1000,
+                Some(&f),
+            );
+            let terms = zoo.terms();
+            number_terms = number_terms + terms.len();
+
+            for term in terms.iter() {
+                if
+                //successfully_built_functions.contains(&term.name().to_string()) ||
+                term.name().to_string()
+                    == "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length"
+                {
+                    // for speeding up things
+                    continue;
+                }
+                match &term.evaluate(&ctx) {
+                    Ok(eval) => {
+                        debug!("Eval success!");
+                        eval_count += 1;
+                        let type_id: TypeId = (*term.get_type_shape()).into();
+                        match TLSProtocolBehavior::try_read_bytes(eval, type_id) {
+                            Ok(message_back) => {
+                                debug!("Read success!");
+                                read_count += 1;
+                                match TLSProtocolBehavior::any_get_encoding(&message_back) {
+                                    Ok(eval2) => {
+                                        if eval2 == *eval {
+                                            debug!("Consistent for term {term}");
+                                            successfully_built_functions
+                                                .push(term.name().to_string().to_owned());
+                                            read_success += 1;
+                                        } else {
+                                            error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, eval2, term.get_type_shape(), type_id);
+                                            read_wrong += 1;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        error!("[FAIL] Failed to re-encode read term {}!\n  -Encoding1: {:?}\n Read message {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, message_back, term.get_type_shape(), type_id);
+                                        error!("Error: {}", e);
+                                        error!(
+                                            "Try to downcast to Message: {:?}",
+                                            message_back.as_ref().downcast_ref::<Message>()
+                                        );
+                                        error!(
+                                            "Try to downcast to OpaqueMessage: {:?}",
+                                            message_back.as_ref().downcast_ref::<OpaqueMessage>()
+                                        );
+                                        // We re-do read manually
+                                        let read2 = <OpaqueMessage>::read_bytes(eval).unwrap();
+                                        let mess2 = Message::try_from(read2.clone()).unwrap();
+                                        let box2 = Box::new(mess2.clone()) as Box<dyn Any>;
+                                        let mess2_mes = box2.downcast_ref::<Message>();
+                                        let mess2_op = box2.downcast_ref::<OpaqueMessage>();
+                                        let eval2 = TLSProtocolBehavior::any_get_encoding(&box2);
+                                        error!("term:{term:?}\neval:{eval:?}\nread2:{:?}\nmess2: {:?}\nbox2:{:?}\nmess2_mes:{:?}\nmess2_op:{:?}\neval2:{:?}",
+                                        read2, mess2, box2, mess2_mes, mess2_op, eval2);
+                                        // downcast and encode from first read
+                                        let mess3_op = message_back.downcast_ref::<OpaqueMessage>();
+                                        let mess3_mess =
+                                            message_back.downcast_ref::<OpaqueMessage>();
+                                        error!("mess3_op:{mess3_op:?}\n mess3_mess:{mess3_mess:?}");
+
+                                        let eval3 =
+                                            Encode::get_encoding(&mess3_op.unwrap().clone());
+                                        let eval3_2 = TLSProtocolBehavior::any_get_encoding(&box2);
+                                        error!("mess3_op:{mess3_op:?}\n eval3:{eval3:?}\neval3_2:{eval3_2:?}");
+                                        // OK: OpaqueMess::read(eval) --TryFromMessage --> mess2   COOL
+                                        //: NOT: OpaqueMess::read(eval) --TryFromMEssage --Box::new<> --> box3 --> any encode : NOT OK
+                                        let box2 = evaluate_lazy_test(&term, &ctx).unwrap();
+                                        let mess_old = box2.downcast_ref::<Message>();
+                                        let box3 = Box::new(Message::try_from(read2.clone()))
+                                            as Box<dyn Any>;
+                                        error!(
+                                            "And re-test encode: {:?}",
+                                            TLSProtocolBehavior::any_get_encoding(&box3)
+                                        );
+                                        error!(
+                                            "And re-test dwoncats: {:?}",
+                                            box3.as_ref().downcast_ref::<Message>()
+                                        );
+                                        error!("And re-test as ref: {:?}", box3.as_ref());
+
+                                        error!("Try to re-read as OpaqueMessage : Read: {read2:?}\n New Term: {mess2:?}\n OldTerm: {mess_old:?}\n Encode2: {eval2:?}");
+                                        read_wrong += 1;
+                                        panic!("A");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("[FAIL] Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, term.get_type_shape(), type_id);
+                                error!("Error: {}", e);
+                                read_fail += 1;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let t1 = evaluate_lazy_test(&term, &ctx);
+                        if t1.is_err() {
+                            warn!("LAZY failed!");
+                            count_lazy_fail += 1;
+                        } else {
+                            count_any_encode_fail += 1;
+                            match e.clone() { // for debugging encoding failure only
+                                Error::Fn(FnError::Unknown(ee)) =>
+                                    error!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                                Error::Fn(FnError::Crypto(ee)) =>
+                                    error!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term),
+                                Error::Fn(FnError::Malformed(ee)) =>
+                                    error!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                                Error::Term(ee) => {
+                                    error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                },
+                                _ => {
+                                    // _ => {
+                                    error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                                    let t1 = evaluate_lazy_test(&term, &ctx);
+                                    if t1.is_ok() {
+                                        debug!("Evaluate_lazy success. ");
+                                        match t1.expect("NO").downcast_ref::<bool>() {
+                                            Some(downcast) => {
+                                                print!("Downcast succeeded: {downcast:?}. ");
+                                                // let bitstring = Encode::get_encoding(downcast);
+                                                // print!("Encoding succeeded:: {bitstring:?}. ");
+                                            },
+                                            _ => { error!("Downcast FAILED. ") },
+                                        }
+                                    } else {
+                                        error!("Evaluate_lazy FAILED. ");
+                                    }
+                                }
+                                _ => {},
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let all_functions = TLS_SIGNATURE
+            .functions
+            .iter()
+            .map(|(shape, _)| shape.name.to_string())
+            .collect::<HashSet<String>>();
+
+        let mut successfully_built_functions = successfully_built_functions
+            .iter()
+            .map(|s| s.to_owned())
+            .collect::<HashSet<String>>();
+
+        let ignored_functions = ignore_lazy();
+
+        let successfully_built_functions_0 = successfully_built_functions.clone();
+        successfully_built_functions.extend(ignored_functions.clone());
+
+        let difference = all_functions.difference(&successfully_built_functions);
+        debug!("Diff: {:?}\n", &difference);
+        let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+
+        debug!(
+            "Successfully built: #{:?}",
+            &successfully_built_functions.len()
+        );
+        debug!("All functions: #{:?}", &all_functions.len());
+        error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
+        error!("Read stats: read_count: {read_count}, read_success: {read_success}, read_fail: {read_fail}, read_wrong: {read_wrong}");
+        assert_eq!(difference.count(), 0);
+        assert_eq!(difference_inverse.count(), 0);
+        assert_eq!(count_any_encode_fail, 0);
+        // Excluding fn_heartbleed_fake_length:
+        // Read stats: read_count: 163085, read_success: 162481, read_fail: 2963, read_wrong: 604 --> OKAY :)
+        // number_shapes: 213, number_terms: 209000, eval_count: 166048, count_lazy_fail: 41952, count_any_encode_fail: 0 --> TODO: address some of those
+    }
 }
-
-/*
-## term_eval_lazy
-### for number = 1 --> 42 failing
-  ["tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application", "tlspuffin::tls::fn_impl::fn_messages::fn_server_key_exchange", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share", "tlspuffin::tls::fn_impl::fn_extensions::fn_renegotiation_info_extension", "tlspuffin::tls::fn_impl::fn_messages::fn_finished", "tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share", "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_hello_retry_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_extension", "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_server_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12", "tlspuffin::tls::fn_impl::fn_extensions::fn_support_group_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server", "tlspuffin::tls::fn_impl::fn_extensions::fn_preshared_keys_extension_empty_binder", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client", "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve", "tlspuffin::tls::fn_impl::fn_messages::fn_client_key_exchange", "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk", "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_server_extension", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server", "tlspuffin::tls::fn_impl::fn_extensions::fn_transport_parameters_draft_extension", "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript", "tlspuffin::tls::fn_impl::fn_cert::fn_certificate_entry", "tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data_server", "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12", "tlspuffin::tls::fn_impl::fn_messages::fn_application_data", "tlspuffin::tls::fn_impl::fn_cert::fn_get_context", "tlspuffin::tls::fn_impl::fn_messages::fn_certificate_request13", "tlspuffin::tls::fn_impl::fn_extensions::fn_server_extensions_append", "tlspuffin::tls::fn_impl::fn_extensions::fn_append_vec", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce", "tlspuffin::tls::fn_impl::fn_utils::fn_append_transcript", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"]
-### for number = 10 --> 16 failing
-  ["tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce", "tlspuffin::tls::fn_impl::fn_fields::fn_sign_transcript", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake", "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application", "tlspuffin::tls::fn_impl::fn_cert::fn_get_context", "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client", "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application", "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket", "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12", "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server", "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"]
-### for number = 100 --> 6 failing
-  ["tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share",
- "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_client",
- "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake",
- "tlspuffin::tls::fn_impl::fn_cert::fn_ecdsa_sign_server",
- "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application",
- "tlspuffin::tls::fn_impl::fn_extensions::fn_preshared_keys_extension_empty_binder"]
- ### For number = 200 --> 4 failing (same for 10 000)
-                fn_ecdsa_sign_server.name(),
-            fn_ecdsa_sign_client.name(),
-            fn_decrypt_handshake.name(),
-            fn_decrypt_application.name()
-
-Hard to generate: Diff:
-    ["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk",
-    "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"]
-
-
-## term_eval
-### For number = 200 --> all success :) :)
-Successfully built: #60563
-All functions: #190
-number_terms: 74800, eval_count: 60563, count_lazy_fail: 14237, count_any_encode_fail: 0
-
-### For number = 400 --> all success
-Successfully built: #30258
-All functions: #190
-number_terms: 37400, eval_count: 30258, count_lazy_fail: 7142, count_any_encode_fail: 0
-
- */

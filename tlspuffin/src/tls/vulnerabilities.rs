@@ -2,13 +2,18 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    algebra::dynamic_function::TypeShape,
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
 use crate::{
     query::TlsQueryMatcher,
-    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
+    tls::{
+        fn_impl::*,
+        rustls::msgs::{enums::HandshakeType, message::OpaqueMessage},
+        seeds::*,
+    },
 };
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
@@ -692,9 +697,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQue
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_opaque_message(
-                            ((client, 3)[None])
-                        )
+                            (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
                     },
                 }),
             },

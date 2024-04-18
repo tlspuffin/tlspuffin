@@ -722,7 +722,11 @@ impl Codec for ClientExtension {
                 Self::TransportParametersDraft(sub.rest().to_vec())
             }
             ExtensionType::RenegotiationInfo => {
-                Self::RenegotiationInfo(PayloadU8::new(sub.rest().to_vec()))
+                let mut content_without_size = sub.rest().to_vec();
+                if !content_without_size.is_empty() {
+                    content_without_size = content_without_size[1..].to_vec() // because PayloadU8::new adds one byte for the length already
+                }
+                Self::RenegotiationInfo(PayloadU8::new(content_without_size))
             }
             ExtensionType::SignatureAlgorithmsCert => {
                 let schemes = SupportedSignatureSchemes::read(&mut sub)?;

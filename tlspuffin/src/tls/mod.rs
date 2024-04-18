@@ -104,7 +104,6 @@ define_signature!(
     fn_message_hash
     fn_new_session_ticket
     fn_new_session_ticket13
-    fn_opaque_message
     fn_server_hello
     fn_server_hello_done
     fn_server_key_exchange

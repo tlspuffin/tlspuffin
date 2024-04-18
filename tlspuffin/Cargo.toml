@@ -272,6 +272,9 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+# Enable rustls guards rejecting ill-formed messages, those were disabled by default to allow the fuzzer to explore more messages
+enable-guards = []
+
 [dependencies]
 
 puffin = { path = "../puffin" }

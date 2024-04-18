@@ -213,3 +213,20 @@ impl Codec2 for Vec<PayloadU24> {
         Some(ret)
     }
 }
+
+impl Codec2 for Option<Vec<u8>> {
+    fn encode2(&self, bytes: &mut Vec<u8>) {
+        match self {
+            None => {}
+            Some(v) => v.encode(bytes),
+        }
+    }
+
+    fn read2(r: &mut Reader) -> Option<Option<Vec<u8>>> {
+        if !r.any_left() {
+            return Some(None);
+        } else {
+            return Some(<Vec<u8>>::read(r));
+        }
+    }
+}
