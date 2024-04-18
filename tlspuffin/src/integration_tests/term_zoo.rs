@@ -674,11 +674,7 @@ mod tests {
             number_terms = number_terms + terms.len();
 
             for term in terms.iter() {
-                if
-                //successfully_built_functions.contains(&term.name().to_string()) ||
-                term.name().to_string()
-                    == "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length"
-                {
+                if successfully_built_functions.contains(&term.name().to_string()) {
                     // for speeding up things
                     continue;
                 }
