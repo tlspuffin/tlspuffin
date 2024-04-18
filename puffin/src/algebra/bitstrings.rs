@@ -757,7 +757,8 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
         }
         debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
                 to_modify.len(), &to_modify[start..end]);
-        // TODO: SANITY CHECK TO REMOVE IN PRODUCTION ! as it is costly!
+
+        #[cfg(debug_assertions)]
         if !(to_modify[start..end] == *old_bitstring) {
             let ft = format!(
                 "[replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
