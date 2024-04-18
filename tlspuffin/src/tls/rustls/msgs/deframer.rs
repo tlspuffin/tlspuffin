@@ -378,6 +378,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "enable-guards")]
     fn test_invalid_length_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
