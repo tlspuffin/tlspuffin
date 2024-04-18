@@ -177,14 +177,12 @@ impl OpaqueMessage {
         let typ = ContentType::read(r).unwrap_or(ApplicationData);
         #[cfg(not(feature = "enable-guards"))]
         let version = ProtocolVersion::read(r).unwrap_or(TLSv1_3);
-        #[cfg(not(feature = "enable-guards"))]
-        let len = u16::read(r).unwrap_or(0);
 
         #[cfg(feature = "enable-guards")]
         let typ = ContentType::read(r).ok_or(MessageError::TooShortForHeader)?;
         #[cfg(feature = "enable-guards")]
         let version = ProtocolVersion::read(r).ok_or(MessageError::TooShortForHeader)?;
-        #[cfg(feature = "enable-guards")]
+
         let len = u16::read(r).ok_or(MessageError::TooShortForHeader)?;
 
         #[cfg(feature = "enable-guards")]
