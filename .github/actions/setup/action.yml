@@ -73,8 +73,8 @@ runs:
       shell: bash
       run: |
         #!/usr/bin/env bash
-        just install-rust-toolchain-nightly
-        just install-rust-toolchain-default
+        just install-rust-toolchain ${{ steps.toolchains-config.outputs.default }}
+        just install-rust-toolchain ${{ steps.toolchains-config.outputs.nightly }}
 
     - uses: Swatinem/rust-cache@v2
       with:
@@ -83,4 +83,4 @@ runs:
 
     - name: install Rust tooling dependencies
       shell: bash
-      run: just install-rust-dependencies
+      run: just install-rust-tooling ${{ steps.toolchains-config.outputs.default }}
