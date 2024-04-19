@@ -23,6 +23,8 @@ pub struct TermConstraints {
     pub not_inside_list: bool,
     // choose term giving higher probability to deeper term
     pub weighted_depth: bool,
+    // only select root terms
+    pub must_be_root: bool,
 }
 
 /// Default values which represent no constraint
@@ -35,6 +37,7 @@ impl Default for TermConstraints {
             no_payload_in_subterm: false,
             not_inside_list: false,
             weighted_depth: false,
+            must_be_root: false,
         }
     }
 }
@@ -153,7 +156,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                 while let Some((term, path, is_inside_list, depth)) = stack.pop() {
                     // push next terms onto stack
 
-                    if term.is_symbolic() {
+                    if term.is_symbolic() && !constraints.must_be_root {
                         // if not, we reached a leaf (real leaf or a term with payloads)
                         match &term.term {
                             Term::Variable(_) => {

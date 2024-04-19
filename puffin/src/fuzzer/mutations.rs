@@ -71,6 +71,7 @@ pub fn trace_mutations<'harness, S, M: Matcher, PB>(
     constraints: TermConstraints,
     fresh_zoo_after: u64,
     with_bit_level: bool,
+    with_dy: bool,
     signature: &'static Signature,
     put_registry: &'harness PutRegistry<PB>,
 ) -> DyMutations<'harness, M, PB, S>
@@ -80,14 +81,14 @@ where
     <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
 {
     tuple_list!(
-        RepeatMutator::new(max_trace_length),
-        SkipMutator::new(min_trace_length),
-        ReplaceReuseMutator::new(constraints),
-        ReplaceMatchMutator::new(constraints, signature),
-        RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints),
-        MakeMessage::new(constraints, put_registry, with_bit_level),
+        RepeatMutator::new(max_trace_length, with_dy),
+        SkipMutator::new(min_trace_length, with_dy),
+        ReplaceReuseMutator::new(constraints, with_dy),
+        ReplaceMatchMutator::new(constraints, signature, with_dy),
+        RemoveAndLiftMutator::new(constraints, with_dy),
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature, with_dy), // Refresh zoo after 100000M mutations
+        SwapMutator::new(constraints, with_dy),
+        MakeMessage::new(constraints, put_registry, with_bit_level, with_dy),
     )
     .merge(havoc_mutations_dy(with_bit_level))
 }
@@ -101,6 +102,7 @@ where
 {
     constraints: TermConstraints,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 
 impl<S> SwapMutator<S>
@@ -108,10 +110,11 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints) -> Self {
+    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -126,6 +129,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let a = BytesInsertMutator;
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
@@ -172,6 +178,7 @@ where
 {
     constraints: TermConstraints,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 
 impl<S> RemoveAndLiftMutator<S>
@@ -179,10 +186,11 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints) -> Self {
+    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -197,6 +205,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let rand = state.rand_mut();
         let filter = |term: &TermEval<M>| match &term.term {
             Term::Variable(_) => false,
@@ -266,6 +277,7 @@ where
     constraints: TermConstraints,
     signature: &'static Signature,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 
 impl<S> ReplaceMatchMutator<S>
@@ -273,11 +285,12 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, signature: &'static Signature) -> Self {
+    pub fn new(constraints: TermConstraints, signature: &'static Signature, with_dy: bool) -> Self {
         Self {
             constraints,
             signature,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -292,6 +305,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let rand = state.rand_mut();
         if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
@@ -351,6 +367,7 @@ where
 {
     constraints: TermConstraints,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 
 impl<S> ReplaceReuseMutator<S>
@@ -358,10 +375,11 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints) -> Self {
+    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -376,6 +394,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let rand = state.rand_mut();
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
@@ -413,6 +434,7 @@ where
 {
     min_trace_length: usize,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 
 impl<S> SkipMutator<S>
@@ -420,10 +442,11 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(min_trace_length: usize) -> Self {
+    pub fn new(min_trace_length: usize, with_dy: bool) -> Self {
         Self {
             min_trace_length,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -437,6 +460,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let steps = &mut trace.steps;
         let length = steps.len();
         if length <= self.min_trace_length {
@@ -467,16 +493,19 @@ where
 {
     max_trace_length: usize,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
+
 impl<S> RepeatMutator<S>
 where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(max_trace_length: usize) -> Self {
+    pub fn new(max_trace_length: usize, with_dy: bool) -> Self {
         Self {
             max_trace_length,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -490,6 +519,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let steps = &trace.steps;
         let length = steps.len();
         if length >= self.max_trace_length {
@@ -525,6 +557,7 @@ where
     zoo: Option<TermZoo<M>>,
     signature: &'static Signature,
     phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
 }
 impl<S, M: Matcher> GenerateMutator<S, M>
 where
@@ -537,6 +570,7 @@ where
         constraints: TermConstraints,
         zoo: Option<TermZoo<M>>,
         signature: &'static Signature,
+        with_dy: bool,
     ) -> Self {
         Self {
             mutation_counter,
@@ -545,6 +579,7 @@ where
             zoo,
             signature,
             phantom_s: std::marker::PhantomData,
+            with_dy,
         }
     }
 }
@@ -558,6 +593,9 @@ where
         trace: &mut Trace<M>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
@@ -603,6 +641,7 @@ where
     constraints: TermConstraints,
     phantom_s: (std::marker::PhantomData<S>, std::marker::PhantomData<PB>),
     put_registry: &'a PutRegistry<PB>,
+    with_dy: bool,
 }
 
 impl<'a, S, PB> MakeMessage<'a, S, PB>
@@ -614,12 +653,14 @@ where
         constraints: TermConstraints,
         put_registry: &'a PutRegistry<PB>,
         with_bit_level: bool,
+        with_dy: bool,
     ) -> Self {
         Self {
             with_bit_level,
             constraints,
             phantom_s: (std::marker::PhantomData, std::marker::PhantomData),
             put_registry,
+            with_dy,
         }
     }
 }
@@ -672,7 +713,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let constraints_make_message = TermConstraints {
+        let mut constraints_make_message = TermConstraints {
             must_be_symbolic: true, // we exclude non-symbolic terms, which were already mutated with MakeMessage
             no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
             // Currently sets to false, we would need to measure efficiency improvement before setting to true TODO
@@ -683,6 +724,9 @@ where
             // this to true (as well as in integration_test/term_zoo.rs)
             ..self.constraints
         };
+        if !self.with_dy {
+            constraints_make_message.must_be_root = true;
+        }
         // choose a random sub term
         if let Some((chosen_term, (step_index, term_path))) =
             choose(trace, constraints_make_message, rand)
@@ -757,7 +801,7 @@ mod tests {
     fn test_repeat_mutator() {
         let mut state = create_state();
 
-        let mut mutator = RepeatMutator::new(15);
+        let mut mutator = RepeatMutator::new(15, true);
 
         fn check_is_encrypt12(step: &Step<AnyMatcher>) -> bool {
             if let Action::Input(input) = &step.action {
@@ -789,7 +833,8 @@ mod tests {
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
-        let mut mutator = ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE);
+        let mut mutator =
+            ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE, true);
 
         loop {
             let mut trace = setup_simple_trace();
@@ -818,7 +863,7 @@ mod tests {
         // Should remove an extension
         let mut state = create_state();
         let _server = AgentName::first();
-        let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default());
+        let mut mutator = RemoveAndLiftMutator::new(TermConstraints::default(), true);
 
         // Returns the amount of extensions in the trace
         fn sum_extension_appends(trace: &TestTrace) -> usize {
@@ -844,7 +889,7 @@ mod tests {
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
-        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default());
+        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default(), true);
 
         fn count_client_hello(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_client_hello.name())
@@ -873,7 +918,7 @@ mod tests {
     fn test_skip_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
-        let mut mutator = SkipMutator::new(2);
+        let mut mutator = SkipMutator::new(2, true);
 
         loop {
             let mut trace = setup_simple_trace();
@@ -889,7 +934,7 @@ mod tests {
     #[test]
     fn test_swap_mutator() {
         let mut state = create_state();
-        let mut mutator = SwapMutator::new(TermConstraints::default());
+        let mut mutator = SwapMutator::new(TermConstraints::default(), true);
 
         loop {
             let mut trace = setup_simple_trace();

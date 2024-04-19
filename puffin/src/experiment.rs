@@ -6,10 +6,36 @@ use itertools::Itertools;
 
 use crate::{protocol::ProtocolBehavior, put_registry::PutRegistry, GIT_MSG, GIT_REF};
 
-pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
-    let date = Local::now().format("%Y-%m-%d-%H%M%S");
+pub fn format_title<PB: ProtocolBehavior>(
+    title: Option<&str>,
+    index: Option<usize>,
+    put_registry: &PutRegistry<PB>,
+    without_bit_level: bool,
+    without_dy_mutations: bool,
+    put_use_clear: bool,
+    minimizer: bool,
+    num_cores: usize,
+) -> String {
+    let date = Local::now().format("%Y-%m-%d");
+    let hour = Local::now().format("%H-%M-%S");
+    let asan = if cfg!(feature = "asan") { "_asan" } else { "" };
+    let without_bit_level = if without_bit_level { "_wo-bit" } else { "" };
+    let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
+    let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
+    let minimizer = if minimizer { "_minimizer" } else { "" };
+    let put: &str = &put_registry
+        .default()
+        .versions()
+        .clone()
+        .last()
+        .unwrap()
+        .1
+        .to_owned();
+    let put = put.split('(').collect::<Vec<&str>>()[0].trim();
     format!(
-        "{date}-{title}-{index}",
+        "{date}\
+        --{put}-{num_cores}c{asan}{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
+        {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(GIT_REF),
         index = index.unwrap_or(0)
@@ -22,6 +48,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     description_text: impl Display,
     put_registry: &PutRegistry<PB>,
     commands: &ArgMatches,
+    port: u16,
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\
@@ -30,6 +57,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
                 * Launched with: {command:?}\n\
+                * Port: {port}\n\
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
