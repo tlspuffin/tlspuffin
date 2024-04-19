@@ -26,6 +26,9 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     pkgs.yajl
     pkgs.python310Packages.pip
     pkgs.python310Packages.virtualenv
+
+    # docs / website
+    pkgs.pandoc
   ] ++
   pkgs.lib.optionals pkgs.stdenv.isDarwin [
     pkgs.darwin.apple_sdk.frameworks.Security

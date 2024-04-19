@@ -6,6 +6,7 @@ set shell := ["bash", "-c"]
 set positional-arguments := true
 
 export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", "1.68.2")
+export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")
 export NIGHTLY_TOOLCHAIN := "nightly-2023-04-18"
 export RUSTUP_TOOLCHAIN := DEFAULT_TOOLCHAIN
 export CARGO_TERM_COLOR := "always"
@@ -63,7 +64,6 @@ check-crate NAME FEATURES: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   }
   trap cleanup EXIT
 
-  export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"{{ justfile_directory() / "target" }}"}
   cp Cargo.lock crates/{{ NAME }} && cd crates/{{ NAME }} && cargo clippy --features={{ FEATURES }}
 
 check PROJECT ARCH FEATURES CARGO_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
@@ -142,8 +142,44 @@ fmt-clang-check:
 fmt: fmt-rust fmt-clang
 fmt-check: fmt-rust-check fmt-clang
 
-book-serve: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
-  mdbook serve docs
+# build the complete documentation
+docs: _docs-book _docs-api
+  #!/usr/bin/env bash
+  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs") }}'
+  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+
+  mkdir -p "${DEST_DIR}"
+  pandoc \
+    --to=html \
+    --template="${DOCS_DIR}/config/index.template.html" \
+    --output="${DEST_DIR}/index.html" \
+    "${DOCS_DIR}/index.md"
+
+  printf 'docs are now available at %s/index.html' "${DEST_DIR}"
+
+# build the tlspuffin book
+_docs-book: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
+  #!/usr/bin/env bash
+  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "book") }}'
+  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+
+  mkdir -p "${DEST_DIR}"
+  mdbook build --dest-dir="${DEST_DIR}" "${DOCS_DIR}/config"
+
+# build the api documentation
+_docs-api: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
+  #!/usr/bin/env bash
+  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "api") }}'
+
+  mkdir -p "${DEST_DIR}"
+  cargo doc --workspace --target x86_64-unknown-linux-gnu --document-private-items --no-deps
+  cp -r "${CARGO_TARGET_DIR}/x86_64-unknown-linux-gnu/doc" "${DEST_DIR}"
+
+_book-serve: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
+  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "book") }}'
+  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+
+  mdbook serve --dest-dir="${DEST_DIR}" "${DOCS_DIR}/config"
 
 clear-gh-caches:
     gh api --paginate -H "Accept: application/vnd.github+json" \
