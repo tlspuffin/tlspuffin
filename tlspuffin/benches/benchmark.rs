@@ -60,14 +60,17 @@ fn benchmark_mutations(c: &mut Criterion) {
 
     group.bench_function("ReplaceReuseMutator", |b| {
         let mut state = create_state();
-        let mut mutator = ReplaceReuseMutator::new(TermConstraints {
-            min_term_size: 0,
-            max_term_size: 200,
-            no_payload_in_subterm: false,
-            not_inside_list: false,
-            weighted_depth: false,
-            ..TermConstraints::default()
-        });
+        let mut mutator = ReplaceReuseMutator::new(
+            TermConstraints {
+                min_term_size: 0,
+                max_term_size: 200,
+                no_payload_in_subterm: false,
+                not_inside_list: false,
+                weighted_depth: false,
+                ..TermConstraints::default()
+            },
+            true,
+        );
         let mut trace = seed_client_attacker12.build_trace();
 
         b.iter(|| {
