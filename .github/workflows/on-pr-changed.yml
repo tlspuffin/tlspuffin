@@ -67,14 +67,14 @@ jobs:
                 PREVIOUS="$(profile +draft)"
                 ;;
               labeled)
-                case '${{ github.event.label }}' in
+                case '${{ github.event.label.name }}' in
                   ci:full) PREVIOUS=$(profile -ci:full);;
                   ci:fast) PREVIOUS=$(profile -ci:fast);;
                   ci:none) PREVIOUS=$(profile -ci:none);;
                 esac
                 ;;
               unlabeled)
-                case '${{ github.event.label }}' in
+                case '${{ github.event.label.name }}' in
                   ci:full) PREVIOUS=$(profile +ci:full);;
                   ci:fast) PREVIOUS=$(profile +ci:fast);;
                   ci:none) PREVIOUS=$(profile +ci:none);;
@@ -102,6 +102,13 @@ jobs:
           printf '  - triggering event (full):\n'
           cat "${GITHUB_EVENT_PATH}"
 
+  validation:
+    needs: [configure]
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: ${{ needs.configure.outputs.profile }}
+    if: ${{ needs.configure.outputs.ignored == 'false' }}
+
   docs:
     needs: [configure]
     runs-on: ubuntu-22.04
@@ -121,13 +128,6 @@ jobs:
 
       - name: build index page
         run: just docs
-    if: ${{ needs.configure.outputs.ignored == 'false' }}
-
-  validation:
-    needs: [configure]
-    uses: ./.github/workflows/run-validation.yml
-    with:
-      profile: ${{ needs.configure.outputs.profile }}
     if: ${{ needs.configure.outputs.ignored == 'false' }}
 
   benchmark:
