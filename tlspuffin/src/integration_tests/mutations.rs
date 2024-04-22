@@ -72,7 +72,7 @@ fn test_make_message() {
             InMemoryCorpus<Trace<TlsQueryMatcher>>,
         >,
         TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default(), &tls_registry, true);
+    > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
 
     let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
     ctx.set_deterministic(true);
@@ -122,6 +122,7 @@ fn test_byte_remove_payloads() {
             ..TermConstraints::default()
         },
         &tls_registry,
+        true,
         true,
     );
 
@@ -212,6 +213,7 @@ fn test_byte_simple() {
         },
         &tls_registry,
         true,
+        true,
     );
     let mut mutator_byte = ByteFlipMutatorDY::new(true);
 
@@ -298,6 +300,7 @@ fn test_byte_interesting() {
             ..TermConstraints::default()
         },
         &tls_registry,
+        true,
         true,
     );
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
