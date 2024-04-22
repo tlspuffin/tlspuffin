@@ -158,6 +158,12 @@ jobs:
         run: |
           #!/usr/bin/env bash
           printf 'validation status: %s\n' '${{ needs.validation.result }}'
+
+          if [[ '${{ needs.validation.result }}' == skipped ]]; then
+            printf 'failure: validation job was skipped'
+            exit 1
+          fi
+
           if [[ '${{ needs.validation.result }}' != success ]]; then
             printf 'failure: validation job failed'
             exit 1
@@ -168,6 +174,12 @@ jobs:
         run: |
           #!/usr/bin/env bash
           printf 'docs status: %s\n' '${{ needs.docs.result }}'
+
+          if [[ '${{ needs.docs.result }}' == skipped ]]; then
+            printf 'failure: docs build was skipped'
+            exit 1
+          fi
+
           if [[ '${{ needs.docs.result }}' != success ]]; then
             printf 'failure: error while building docs'
             exit 1
@@ -178,6 +190,12 @@ jobs:
         run: |
           #!/usr/bin/env bash
           printf 'benchmark status: %s\n' '${{ needs.benchmark.result }}'
+
+          if [[ '${{ needs.benchmark.result }}' == skipped ]]; then
+            printf 'failure: benchmark was skipped'
+            exit 1
+          fi
+
           if [[ '${{ needs.benchmark.result }}' != success ]]; then
             printf 'failure: error while running benchmark'
             exit 1
