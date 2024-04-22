@@ -107,7 +107,7 @@ jobs:
           name: "openssl111j-sancov"
           options: "sancov"
       - name: build `tlspuffin`
-        run: just build tlspuffin x86_64-unknown-linux-gnu "openssl111j"
+        run: just run cargo build --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j
       - name: run `tlspuffin help`
         run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- help
       - name: run `tlspuffin seed`
@@ -127,7 +127,7 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
       - name: build `sshpuffin`
-        run: just build sshpuffin x86_64-unknown-linux-gnu
+        run: just run cargo build --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release
       - name: run `sshpuffin help`
         run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- help
       - name: run `sshpuffin seed`
