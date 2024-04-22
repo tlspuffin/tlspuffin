@@ -104,7 +104,23 @@ jobs:
 
   docs:
     needs: [configure]
-    uses: ./.github/workflows/build-docs.yml
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: build tlspuffin book
+        run: just _docs-book
+
+      - name: build API documentation
+        run: just _docs-api
+
+      - name: build index page
+        run: just docs
     if: ${{ needs.configure.outputs.ignored == 'false' }}
 
   validation:
