@@ -401,7 +401,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Check if we can append another encrypted message
 
-                let mut mutator = RepeatMutator::new(15);
+                let mut mutator = RepeatMutator::new(15, true);
 
                 fn check_is_encrypt12(step: &Step<TlsQueryMatcher>) -> bool {
                     if let Action::Input(input) = &step.action {
@@ -435,7 +435,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 // Check if we have a client hello in last encrypted one
 
                 let constraints = TermConstraints::default();
-                let mut mutator = ReplaceReuseMutator::new(constraints);
+                let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
@@ -464,7 +464,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Test if we can replace the sequence number
 
-                let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+                let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
 
                 loop {
                     attempts += 1;
@@ -493,7 +493,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Remove sig algo
 
-                let mut mutator = RemoveAndLiftMutator::new(constraints);
+                let mut mutator = RemoveAndLiftMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
@@ -534,7 +534,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Sucessfully renegotiate
 
-                let mut mutator = ReplaceReuseMutator::new(constraints);
+                let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
