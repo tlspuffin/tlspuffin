@@ -133,7 +133,7 @@ jobs:
         run: just docs
 
   benchmark:
-    needs: [configure, validation]
+    needs: [configure]
     uses: ./.github/workflows/run-benchmarks.yml
     if: ${{ needs.configure.outputs.profile == 'full' }}
 
