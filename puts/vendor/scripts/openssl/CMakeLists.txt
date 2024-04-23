@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../cmake")
 
@@ -125,6 +125,7 @@ if(FETCH_METHOD STREQUAL "git")
         GIT_REPOSITORY ${FETCH_URL}
         GIT_TAG ${FETCH_REF}
         GIT_SHALLOW ${GIT_SHALLOW}
+        GIT_SUBMODULES ""
         UPDATE_DISCONNECTED TRUE
         PREFIX ${CMAKE_INSTALL_PREFIX}
         CONFIGURE_COMMAND ${CONFIGURE_COMMAND}

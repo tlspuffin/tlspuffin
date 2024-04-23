@@ -1,0 +1,206 @@
+name: on-pr-changed
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read # needed for label-based CI configuration
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      profile: ${{ steps.set-validation-profile.outputs.profile }}
+      ignored: ${{ steps.set-validation-profile.outputs.ignored }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - id: set-validation-profile
+        name: Set Validation Profile
+        run: |
+          #!/usr/bin/env bash
+
+          profile() {
+            # compute the CI profile based on PR state and labels
+
+            local result=none
+            local is_draft=${{ github.event.pull_request.draft }}
+            local label_none=${{ contains(github.event.pull_request.labels.*.name, 'ci:none') }}
+            local label_fast=${{ contains(github.event.pull_request.labels.*.name, 'ci:fast') }}
+            local label_full=${{ contains(github.event.pull_request.labels.*.name, 'ci:full') }}
+
+            while [[ $# -gt 0 ]]
+            do
+              case $1 in
+                +ci:none) label_none=true;;
+                +ci:fast) label_fast=true;;
+                +ci:full) label_full=true;;
+                -ci:none) label_none=false;;
+                -ci:fast) label_fast=false;;
+                -ci:full) label_full=false;;
+                +draft) is_draft=true;;
+                -draft) is_draft=false;;
+              esac
+              shift
+            done
+
+            # set default profile
+            result=none
+            [[ ${is_draft} == true  ]] && result=fast
+            [[ ${is_draft} == false ]] && result=full
+
+            # override profile based on PR labels
+            [[ ${label_none} == true ]] && result=none
+            [[ ${label_fast} == true ]] && result=fast
+            [[ ${label_full} == true ]] && result=full
+
+            printf '%s\n' "${result}"
+          }
+
+          # compute previous profile to see if re-run is needed
+          PREVIOUS=none
+          case '${{ github.event.action }}' in
+              ready_for_review)
+                PREVIOUS="$(profile +draft)"
+                ;;
+              labeled)
+                case '${{ github.event.label.name }}' in
+                  ci:full) PREVIOUS=$(profile -ci:full);;
+                  ci:fast) PREVIOUS=$(profile -ci:fast);;
+                  ci:none) PREVIOUS=$(profile -ci:none);;
+                esac
+                ;;
+              unlabeled)
+                case '${{ github.event.label.name }}' in
+                  ci:full) PREVIOUS=$(profile +ci:full);;
+                  ci:fast) PREVIOUS=$(profile +ci:fast);;
+                  ci:none) PREVIOUS=$(profile +ci:none);;
+                esac
+                ;;
+          esac
+
+          IGNORE_TRIGGER=false
+          case "$(profile)" in
+            full) [[ ${PREVIOUS} =~ ^(full)$ ]] && IGNORE_TRIGGER=true;;
+            fast) [[ ${PREVIOUS} =~ ^(fast|full)$ ]] && IGNORE_TRIGGER=true;;
+            none) [[ ${PREVIOUS} =~ ^(none|fast|full)$ ]] && IGNORE_TRIGGER=true;;
+          esac
+
+          printf 'ignored=%s\n' "${IGNORE_TRIGGER}" >> "${GITHUB_OUTPUT}"
+          printf 'profile=%s\n' "$(profile)" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: Display Selected Profile
+        run: |
+          #!/usr/bin/env bash
+          printf 'Finished configuration job:\n'
+          printf '  - selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
+          printf '  - could skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
+          printf '  - triggering event (full):\n'
+          cat "${GITHUB_EVENT_PATH}"
+
+  validation:
+    needs: [configure]
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: ${{ needs.configure.outputs.profile }}
+
+  docs:
+    needs: [configure]
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: build tlspuffin book
+        run: just _docs-book
+
+      - name: build API documentation
+        run: just _docs-api
+
+      - name: build index page
+        run: just docs
+
+  benchmark:
+    needs: [configure]
+    uses: ./.github/workflows/run-benchmarks.yml
+    if: ${{ needs.configure.outputs.profile == 'full' }}
+
+  can-merge:
+    needs: [configure, docs, validation, benchmark]
+    name: PR is ready for a merge
+    runs-on: ubuntu-22.04
+    if: ${{ needs.configure.outputs.profile == 'full' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: validation profile is `full`
+        run: |
+          #!/usr/bin/env bash
+          printf 'validation profile: %s\n' '${{ needs.configure.outputs.profile }}'
+          if [[ '${{ needs.configure.outputs.profile }}' != full ]]; then
+            printf 'failure: full validation needed (try adding the PR label "ci:full" or mark the PR ready for review)\n'
+            exit 1
+          fi
+        if: always()
+
+      - name: validation was successful
+        run: |
+          #!/usr/bin/env bash
+          printf 'validation status: %s\n' '${{ needs.validation.result }}'
+
+          if [[ '${{ needs.validation.result }}' == skipped ]]; then
+            printf 'failure: validation job was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.validation.result }}' != success ]]; then
+            printf 'failure: validation job failed'
+            exit 1
+          fi
+        if: always()
+
+      - name: docs built successfully
+        run: |
+          #!/usr/bin/env bash
+          printf 'docs status: %s\n' '${{ needs.docs.result }}'
+
+          if [[ '${{ needs.docs.result }}' == skipped ]]; then
+            printf 'failure: docs build was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.docs.result }}' != success ]]; then
+            printf 'failure: error while building docs'
+            exit 1
+          fi
+        if: always()
+
+      - name: ran benchmark
+        run: |
+          #!/usr/bin/env bash
+          printf 'benchmark status: %s\n' '${{ needs.benchmark.result }}'
+
+          if [[ '${{ needs.benchmark.result }}' == skipped ]]; then
+            printf 'failure: benchmark was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.benchmark.result }}' != success ]]; then
+            printf 'failure: error while running benchmark'
+            exit 1
+          fi
+        if: always()
+

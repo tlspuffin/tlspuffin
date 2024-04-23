@@ -2,17 +2,30 @@ name: setup
 description: Setup toolchains and tools
 
 inputs:
-  key:
-    description: 'Additional key for caching'
+  rust-toolchain:
+    description: 'The Rust toolchain to setup'
     required: false
-  save-cache:
-    description: 'If the cache is saved'
-    default: "true"
+  rust-cachekey:
+    description: 'A cache key for Rust dependencies'
     required: false
 
 runs:
   using: "composite"
   steps:
+    - name: remove dotnet to have more disk space available
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet
+
+    - name: install Just
+      uses: extractions/setup-just@v2
+
+    - name: setup Git
+      shell: bash
+      run: |
+        git config --global user.email "tlspuffin@tlspuffin"
+        git config --global user.name "tlspuffin"
+        git config --global advice.detachedHead false
+
     - name: setup CI env
       shell: bash
       run: |
@@ -28,20 +41,46 @@ runs:
         export_env CLANG_PATH "$(clang -print-prog-name=clang)"
         export_env LIBCLANG_PATH "$(llvm-config-"$(clang -dumpversion | cut -d '.' -f1)" --libdir)"
         export_env BINDGEN_EXTRA_CLANG_ARGS "-v"
-    - name: setup Git
+
+    - name: toolchains configuration
+      id: toolchains-config
       shell: bash
       run: |
-        git config --global user.email "tlspuffin@tlspuffin"
-        git config --global user.name "tlspuffin"
-        git config --global advice.detachedHead false
-    - uses: extractions/setup-just@v2
-    - name: install Rust toolchain
+        #!/usr/bin/env bash
+        if [[ -n '${{ inputs.rust-toolchain }}' ]]; then
+          export RUSTUP_TOOLCHAIN=${{ inputs.rust-toolchain }}
+        fi
+
+        DEFAULT_TOOLCHAIN=$(just run printf '%s\\n' "\${DEFAULT_TOOLCHAIN}")
+        NIGHTLY_TOOLCHAIN=$(just run printf '%s\\n' "\${NIGHTLY_TOOLCHAIN}")
+        printf 'RUSTUP_TOOLCHAIN=%s\n' "${DEFAULT_TOOLCHAIN}" >> "${GITHUB_ENV}"
+
+        printf 'default=%s\n' "${DEFAULT_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
+        printf 'nightly=%s\n' "${NIGHTLY_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
+        printf 'rustup-home=%s\n' "$(just run rustup show home)" >> "${GITHUB_OUTPUT}"
+
+    - uses: actions/cache@v4
+      id: rustup-cache
+      with:
+        key: rustup_cache-${{ runner.os }}-${{ steps.toolchains-config.outputs.default }}-${{ steps.toolchains-config.outputs.nightly }}
+        restore-keys: |
+          rustup_cache-${{ runner.os }}-${{ steps.toolchains-config.outputs.default }}
+          rustup_cache-${{ runner.os }}
+        path: |
+          ${{ steps.toolchains-config.outputs.rustup-home }}
+
+    - name: install Rust toolchains
       shell: bash
-      run: just default-toolchain
-    - name: remove dotnet to have more disk space available
-      shell: bash
-      run: sudo rm -rf /usr/share/dotnet
+      run: |
+        #!/usr/bin/env bash
+        just install-rust-toolchain ${{ steps.toolchains-config.outputs.default }}
+        just install-rust-toolchain ${{ steps.toolchains-config.outputs.nightly }}
+
     - uses: Swatinem/rust-cache@v2
       with:
-        shared-key: ${{ inputs.key }}
-        save-if: ${{ inputs.save-cache }}
+        shared-key: ${{ inputs.rust-cachekey }}
+        cache-all-crates: "true" # include tooling dependencies
+
+    - name: install Rust tooling dependencies
+      shell: bash
+      run: just install-rust-tooling ${{ steps.toolchains-config.outputs.default }}
