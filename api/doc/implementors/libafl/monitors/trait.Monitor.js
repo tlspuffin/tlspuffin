@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"puffin":[["impl&lt;F&gt; Monitor for <a class=\"struct\" href=\"puffin/fuzzer/stats_monitor/struct.StatsMonitor.html\" title=\"struct puffin::fuzzer::stats_monitor::StatsMonitor\">StatsMonitor</a>&lt;F&gt;<span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.68.2/core/ops/function/trait.FnMut.html\" title=\"trait core::ops::function::FnMut\">FnMut</a>(<a class=\"struct\" href=\"https://doc.rust-lang.org/1.68.2/alloc/string/struct.String.html\" title=\"struct alloc::string::String\">String</a>),</span>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

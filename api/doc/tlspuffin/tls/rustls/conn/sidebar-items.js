@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Side",""]],"struct":[["ConnectionRandoms",""]],"trait":[["SideData","Data specific to the peer’s side (client or server)."]]};

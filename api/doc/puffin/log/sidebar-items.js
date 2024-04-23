@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["create_config",""],["create_file_config",""],["create_stderr_config",""]]};

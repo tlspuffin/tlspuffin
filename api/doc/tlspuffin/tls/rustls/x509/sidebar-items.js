@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["wrap_in_asn1_len",""],["wrap_in_sequence","Prepend stuff to `bytes` to put it in a DER SEQUENCE."]]};

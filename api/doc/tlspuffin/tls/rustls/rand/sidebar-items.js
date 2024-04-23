@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["fill_random","Fill the whole slice with random material."],["random_u32","Return a uniformly random u32."],["random_vec","Make a Vec of the given size containing random material."]],"struct":[["GetRandomFailed",""]]};

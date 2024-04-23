@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Statistics",""]],"fn":[["get_number",""]],"struct":[["ClientStatistics",""],["CoverageStatistics",""],["ErrorStatistics",""],["GlobalStatistics",""],["IntrospectFeatures",""],["IntrospectStatistics",""],["StatsMonitor","Tracking stats during fuzzing and display both per-client and cumulative info."],["TraceStatistics",""]]};

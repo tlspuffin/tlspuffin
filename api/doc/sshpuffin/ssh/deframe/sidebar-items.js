@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["MAX_WIRE_SIZE",""]],"enum":[["BufferContents",""]],"struct":[["SshMessageDeframer","This deframer works to reconstruct SSH messages from arbitrary-sized reads, buffering as necessary. The input is `read()`, the output is the `frames` deque."]]};

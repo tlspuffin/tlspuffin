@@ -1,0 +1,4 @@
+(function() {var implementors = {
+"puffin":[],
+"tlspuffin":[["impl <a class=\"trait\" href=\"puffin/algebra/trait.Matcher.html\" title=\"trait puffin::algebra::Matcher\">Matcher</a> for <a class=\"enum\" href=\"tlspuffin/tls/rustls/msgs/enums/enum.HandshakeType.html\" title=\"enum tlspuffin::tls::rustls::msgs::enums::HandshakeType\">HandshakeType</a>"],["impl <a class=\"trait\" href=\"puffin/algebra/trait.Matcher.html\" title=\"trait puffin::algebra::Matcher\">Matcher</a> for <a class=\"enum\" href=\"tlspuffin/query/enum.TlsQueryMatcher.html\" title=\"enum tlspuffin::query::TlsQueryMatcher\">TlsQueryMatcher</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

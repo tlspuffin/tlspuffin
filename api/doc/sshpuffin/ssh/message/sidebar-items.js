@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["RawSshMessage",""],["SshMessage",""]],"macro":[["declare_name_list",""]],"struct":[["BinaryPacket",""],["CompressionAlgorithms",""],["EncryptionAlgorithms",""],["KexAlgorithms",""],["KexEcdhInitMessage",""],["KexEcdhReplyMessage",""],["KexInitMessage",""],["MacAlgorithms",""],["NameList",""],["OnWireData",""],["SignatureSchemes",""]]};

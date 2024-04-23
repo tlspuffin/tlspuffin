@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["create_static_signature",""]],"struct":[["Signature","Records a universe of functions. Signatures are containers for types and function symbols. They hold references to the concrete implementations of functions and the types of variables."]],"type":[["FunctionDefinition",""],["StaticSignature",""]]};

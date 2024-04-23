@@ -1,0 +1,92 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="TODO: Write intro: https://github.com/tlspuffin/tlspuffin/issues/94"><meta name="keywords" content="rust, rustlang, rust-lang, tlspuffin"><title>tlspuffin - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../tlspuffin/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../tlspuffin/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Crate tlspuffin</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 0.1.0</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">tlspuffin</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/tlspuffin/lib.rs.html#1-123">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>TODO: Write intro: https://github.com/tlspuffin/tlspuffin/issues/94</p>
+<h4 id="used-protocol-and-cryptographic-libraries"><a href="#used-protocol-and-cryptographic-libraries">Used protocol and cryptographic libraries</a></h4>
+<p>In order to easily implement concrete functions, we use several libraries which provide us with predefined encoders for TLS packets, cryptographic primitives, as well as higher level cryptographic operations specific for TLS.</p>
+<p>We forked the <a href="https://github.com/ctz/rustls">rustls</a> library for cryptographic operations like deriving secrets. We also use it to encode and decode TLS messages.</p>
+<p>The cryptographic library <a href="https://github.com/briansmith/ring">ring</a> allows us to use the derived secrets to encrypt and decrypt TLS messages.</p>
+<h2 id="example"><a href="#example">Example</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>puffin::agent::{AgentName, AgentDescriptor, TLSVersion::<span class="kw-2">*</span>};
+<span class="kw">use </span>puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
+<span class="kw">use </span>puffin::algebra::{Term, signature::Signature};
+<span class="kw">use </span>tlspuffin::tls::fn_impl::fn_client_hello;
+<span class="kw">use </span>tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+<span class="kw">use </span>tlspuffin::tls::rustls::msgs::enums::{ProtocolVersion, CipherSuite, Compression, HandshakeType};
+<span class="kw">use </span>tlspuffin::query::TlsQueryMatcher;
+
+
+<span class="kw">let </span>client: AgentName = AgentName::first();
+<span class="kw">let </span>server: AgentName = client.next();
+
+<span class="kw">let </span>trace = Trace {
+    prior_traces: <span class="macro">vec!</span>[],
+    descriptors: <span class="macro">vec!</span>[
+        AgentDescriptor::new_client(client, V1_3),
+        AgentDescriptor::new_server(server, V1_3),
+    ],
+    steps: <span class="macro">vec!</span>[
+            OutputAction::new_step(client),
+            <span class="comment">// Client: Hello Client -&gt; Server
+            </span>Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: Term::Application(
+                        Signature::new_function(<span class="kw-2">&amp;</span>fn_client_hello),
+                        <span class="macro">vec!</span>[
+                            Term::Variable(Signature::new_var_with_type::&lt;ProtocolVersion, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                            Term::Variable(Signature::new_var_with_type::&lt;Random, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                            Term::Variable(Signature::new_var_with_type::&lt;SessionID, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                            Term::Variable(Signature::new_var_with_type::&lt;Vec&lt;CipherSuite&gt;, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                            Term::Variable(Signature::new_var_with_type::&lt;Vec&lt;Compression&gt;, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                            Term::Variable(Signature::new_var_with_type::&lt;Vec&lt;ClientExtension&gt;, <span class="kw">_</span>&gt;(
+                                    client,  
+                                    <span class="prelude-val">Some</span>(TlsQueryMatcher::Handshake(<span class="prelude-val">Some</span>(HandshakeType::ClientHello))),
+                                    <span class="number">0
+                            </span>)),
+                        ],
+                    ),
+                }),
+            },
+    <span class="comment">// further steps here
+    </span>]
+};</code></pre></div>
+<h2 id="example-with-term-macro"><a href="#example-with-term-macro">Example with <code>term!</code> macro</a></h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>puffin::agent::AgentName;
+<span class="kw">use </span>puffin::term;
+<span class="kw">use </span>tlspuffin::tls::fn_impl::fn_client_hello;
+<span class="kw">use </span>tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
+<span class="kw">use </span>tlspuffin::tls::rustls::msgs::enums::{Compression, HandshakeType, ProtocolVersion, CipherSuite};
+<span class="kw">use </span>puffin::algebra::Term;
+<span class="kw">use </span>tlspuffin::query::TlsQueryMatcher;
+
+<span class="kw">let </span>client = AgentName::first();
+<span class="kw">let </span>term: Term&lt;TlsQueryMatcher&gt; = <span class="macro">term! </span>{
+    fn_client_hello(
+        ((client, <span class="number">0</span>)/ProtocolVersion),
+        ((client, <span class="number">0</span>)/Random),
+        ((client, <span class="number">0</span>)/SessionID),
+        ((client, <span class="number">0</span>)/Vec&lt;CipherSuite&gt;),
+        ((client, <span class="number">0</span>)/Vec&lt;Compression&gt;),
+        ((client, <span class="number">0</span>)/Vec&lt;ClientExtension&gt;)
+    )
+};</code></pre></div>
+</div></details><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="mod" href="claims/index.html" title="tlspuffin::claims mod">claims</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="debug/index.html" title="tlspuffin::debug mod">debug</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="protocol/index.html" title="tlspuffin::protocol mod">protocol</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="put/index.html" title="tlspuffin::put mod">put</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="put_registry/index.html" title="tlspuffin::put_registry mod">put_registry</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="query/index.html" title="tlspuffin::query mod">query</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="static_certs/index.html" title="tlspuffin::static_certs mod">static_certs</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="tcp/index.html" title="tlspuffin::tcp mod">tcp</a></div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="tls/index.html" title="tlspuffin::tls mod">tls</a></div><div class="item-right docblock-short">The <em>tls</em> module provides concrete implementations for the functions used in the term.
+The module offers a variety of [<code>DynamicFunction</code>]s which can be used in the fuzzing.</div></div></div><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="macro" href="macro.nyi_fn.html" title="tlspuffin::nyi_fn macro">nyi_fn</a></div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="tlspuffin" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

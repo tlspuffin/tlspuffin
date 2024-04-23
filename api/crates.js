@@ -1,1 +1,0 @@
-window.ALL_CRATES = ["c2rust_bitfields_derive","ctor","derivative","libafl_derive","num_enum_derive","proc_macro2","quote","rustversion","serde_derive","serial_test_derive","syn","thiserror_impl","typed_builder","unicode_ident"];

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["ClaimList",""],["GlobalClaimList",""]],"trait":[["Claim",""],["SecurityViolationPolicy",""]]};

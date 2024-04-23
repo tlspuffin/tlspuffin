@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"puffin":[["impl&lt;'a, M:&nbsp;<a class=\"trait\" href=\"puffin/algebra/trait.Matcher.html\" title=\"trait puffin::algebra::Matcher\">Matcher</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.68.2/core/iter/traits/collect/trait.IntoIterator.html\" title=\"trait core::iter::traits::collect::IntoIterator\">IntoIterator</a> for &amp;'a <a class=\"enum\" href=\"puffin/algebra/term/enum.Term.html\" title=\"enum puffin::algebra::term::Term\">Term</a>&lt;M&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

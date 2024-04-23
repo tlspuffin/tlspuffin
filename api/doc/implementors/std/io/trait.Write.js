@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"puffin":[["impl&lt;D:&nbsp;<a class=\"trait\" href=\"puffin/protocol/trait.ProtocolMessageDeframer.html\" title=\"trait puffin::protocol::ProtocolMessageDeframer\">ProtocolMessageDeframer</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.68.2/std/io/trait.Write.html\" title=\"trait std::io::Write\">Write</a> for <a class=\"struct\" href=\"puffin/stream/struct.MemoryStream.html\" title=\"struct puffin::stream::MemoryStream\">MemoryStream</a>&lt;D&gt;"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"trait":[["ProducesTickets","A trait for the ability to encrypt and decrypt tickets."]]};

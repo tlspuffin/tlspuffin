@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"puffin":[["impl&lt;I, MT, S&gt; ComposedByMutations&lt;I, MT, S&gt; for <a class=\"struct\" href=\"puffin/fuzzer/stages/struct.PuffinScheduledMutator.html\" title=\"struct puffin::fuzzer::stages::PuffinScheduledMutator\">PuffinScheduledMutator</a>&lt;I, MT, S&gt;<span class=\"where fmt-newline\">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: Input,<br>&nbsp;&nbsp;&nbsp;&nbsp;MT: MutatorsTuple&lt;I, S&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;S: HasRand,</span>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

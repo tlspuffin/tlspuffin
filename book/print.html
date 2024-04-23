@@ -89,11 +89,9 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">2.</strong> Troubleshooting</a></li></ol>
             </div>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
-                <div class="sidebar-resize-indicator"></div>
-            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
         <!-- Track and set sidebar scroll position -->
@@ -176,6 +174,28 @@
                     <main>
                         <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
 <p>The API documentation can be found <a href="https://tlspuffin.github.io/tlspuffin/api/tlspuffin/">here</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h2 id="fuzzer-respawner-storing-state-in-crashed-fuzzer-instance-did-not-work-no-point-to-spawn-the-next-client-child-exited-with-25856"><a class="header" href="#fuzzer-respawner-storing-state-in-crashed-fuzzer-instance-did-not-work-no-point-to-spawn-the-next-client-child-exited-with-25856">Fuzzer-respawner: Storing state in crashed fuzzer instance did not work, no point to spawn the next client! (Child exited with: 25856)</a></h2>
+<p>Add <code>panic = &quot;abort&quot;</code> to your Cargo.toml:</p>
+<pre><code class="language-toml">[features]
+
+[profile.release]
+panic = &quot;abort&quot;
+lto = true
+codegen-units = 1
+opt-level = 3
+debug = true
+
+[profile.dev]
+panic = &quot;abort&quot;
+</code></pre>
+<h2 id="an-error-occurred-while-fuzzing-emptyno-entries-in-corpus"><a class="header" href="#an-error-occurred-while-fuzzing-emptyno-entries-in-corpus">An error occurred while fuzzing: Empty(&quot;No entries in corpus&quot;)</a></h2>
+<p>Either your corpus directory is empty or no testcase from <code>corpus</code> is interesting. You can try to add a TimeoutFeedback
+and return <code>ExitKind::Timeout</code> from the harness to make the testcase <code>is_interresting</code>.</p>
+<h2 id="fuzzing-is-very-slow"><a class="header" href="#fuzzing-is-very-slow">Fuzzing is very slow</a></h2>
+<ul>
+<li>Watch the size of your corpus. Is it exploding very fast? If yes, then maybe too many runs are &quot;interesting&quot;.
+This means that a lot of inputs will be added to the corpus, which increases for example the serialization overhead.</li>
+</ul>
 
                     </main>
 

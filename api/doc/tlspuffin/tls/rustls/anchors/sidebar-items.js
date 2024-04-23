@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["OwnedTrustAnchor","A trust anchor, commonly known as a “Root Certificate.”"],["RootCertStore","A container for root certificates able to provide a root-of-trust for connection authentication."]]};
