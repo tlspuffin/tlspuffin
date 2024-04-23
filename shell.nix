@@ -23,7 +23,7 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     pkgs.python310Packages.virtualenv
 
     # docs / website
-    pkgs.pandoc
+    pkgs.nodejs_20
   ] ++
   pkgs.lib.optionals pkgs.stdenv.isDarwin [
     pkgs.libiconv

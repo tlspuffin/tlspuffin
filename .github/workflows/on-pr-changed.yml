@@ -123,14 +123,11 @@ jobs:
       - name: setup
         uses: ./.github/actions/setup
 
-      - name: build tlspuffin book
-        run: just _docs-book
-
       - name: build API documentation
-        run: just _docs-api
+        run: just api-docs
 
-      - name: build index page
-        run: just docs
+      - name: build website
+        run: just website-pkg
 
   benchmark:
     needs: [configure]
