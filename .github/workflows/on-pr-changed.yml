@@ -98,7 +98,7 @@ jobs:
           #!/usr/bin/env bash
           printf 'Finished configuration job:\n'
           printf '  - selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
-          printf '  - can skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
+          printf '  - could skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
           printf '  - triggering event (full):\n'
           cat "${GITHUB_EVENT_PATH}"
 
@@ -107,7 +107,6 @@ jobs:
     uses: ./.github/workflows/run-validation.yml
     with:
       profile: ${{ needs.configure.outputs.profile }}
-    if: ${{ needs.configure.outputs.ignored == 'false' }}
 
   docs:
     needs: [configure]
@@ -128,18 +127,17 @@ jobs:
 
       - name: build index page
         run: just docs
-    if: ${{ needs.configure.outputs.ignored == 'false' }}
 
   benchmark:
     needs: [configure, validation]
     uses: ./.github/workflows/run-benchmarks.yml
-    if: ${{ needs.configure.outputs.ignored == 'false' && needs.configure.outputs.profile == 'full' }}
+    if: ${{ needs.configure.outputs.profile == 'full' }}
 
   can-merge:
     needs: [configure, docs, validation, benchmark]
     name: PR is ready for a merge
     runs-on: ubuntu-22.04
-    if: ${{ needs.configure.outputs.ignored == 'false' && needs.configure.outputs.profile == 'full' }}
+    if: ${{ needs.configure.outputs.profile == 'full' }}
     defaults:
       run:
         shell: bash
