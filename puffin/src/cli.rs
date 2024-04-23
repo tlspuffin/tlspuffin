@@ -9,7 +9,7 @@ use std::{
 use clap::{
     arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
 };
-use libafl::inputs::Input;
+use libafl::{inputs::Input, prelude::Cores};
 use log::{error, info, LevelFilter};
 
 use crate::{
@@ -28,6 +28,7 @@ use crate::{
     put::PutOptions,
     put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
+    GIT_REF,
 };
 
 fn create_app() -> Command {
@@ -46,11 +47,13 @@ fn create_app() -> Command {
         .arg(arg!(--monitor "Use a monitor"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
+        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
+                .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
@@ -98,6 +101,10 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
 
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
+    let num_cores = Cores::from_cmdline(core_definition.as_str())
+        .unwrap()
+        .ids
+        .len();
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
@@ -105,6 +112,8 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
     let monitor = matches.get_flag("monitor");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
+    let without_bit_level = matches.get_flag("wo-bit");
+    let without_dy_mutations = matches.get_flag("wo-dy");
 
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
@@ -153,6 +162,8 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+        let is_batch: bool = matches.get_one::<usize>("number").is_some();
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -316,17 +327,34 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
         return ExitCode::SUCCESS;
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title: &String = matches.get_one("title").unwrap();
-            let description: &String = matches.get_one("description").unwrap();
+            let git_ref = "_".to_string();
+            let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
             let experiments_root = PathBuf::new().join("experiments");
-            let experiment_path = experiments_root.join(format_title(Some(title), None));
+            let format_t = format_title(
+                Some(title),
+                None,
+                &put_registry,
+                without_bit_level,
+                without_dy_mutations,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
+            let experiment_path = experiments_root.join(format_t.clone());
             if experiment_path.as_path().exists() {
                 panic!("Experiment already exists. Consider creating a new experiment.")
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, &put_registry)
-            {
+            let base_dec = format_t;
+            let description: &String = matches.get_one("description").unwrap_or(&base_dec);
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                &put_registry,
+                &matches,
+                port,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -336,20 +364,43 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             let description = "No Description, because this is a quick experiment.";
             let experiments_root = PathBuf::from("experiments");
 
-            let title = format_title(None, None);
+            let title = format_title(
+                None,
+                None,
+                &put_registry,
+                without_bit_level,
+                without_dy_mutations,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
 
             let mut experiment_path = experiments_root.join(&title);
 
             let mut i = 1;
             while experiment_path.as_path().exists() {
-                let title = format_title(None, Some(i));
+                let title = format_title(
+                    None,
+                    Some(i),
+                    &put_registry,
+                    without_bit_level,
+                    without_dy_mutations,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
                 experiment_path = experiments_root.join(title);
                 i += 1;
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, &put_registry)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                &put_registry,
+                &matches,
+                port,
+            ) {
                 error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -363,7 +414,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             return ExitCode::FAILURE;
         }
 
-        let config = FuzzerConfig {
+        let mut config = FuzzerConfig {
             initial_corpus_dir: PathBuf::from("./seeds"),
             static_seed,
             max_iters,
@@ -379,6 +430,13 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             monitor,
             no_launcher,
         };
+
+        if without_bit_level {
+            config.mutation_config.with_bit_level = false;
+        }
+        if without_dy_mutations {
+            config.mutation_config.with_dy = false;
+        }
 
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
@@ -447,6 +505,7 @@ fn seed<PB: ProtocolBehavior>(
 
 use crate::{
     agent::AgentName,
+    algebra::TermType,
     put::{PutDescriptor, PutName},
 };
 
@@ -500,20 +559,9 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-                        let mut data: Vec<u8> = Vec::new();
-                        msg.create_opaque().encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else if let Some(opaque_message) = evaluated
-                        .as_ref()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
-                    {
-                        let mut data: Vec<u8> = Vec::new();
-                        opaque_message.encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else {
-                        error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
-                    }
+                    f.write_all(&evaluated).expect("Unable to write data");
+                } else {
+                    error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
                 }
             }
             Action::Output(_) => {}

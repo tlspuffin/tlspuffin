@@ -4,6 +4,7 @@ use crate::put_registry::tls_registry;
 mod determinism;
 mod mutations;
 mod term_zoo;
+mod terms;
 
 #[test]
 fn version_test() {

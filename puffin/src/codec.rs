@@ -56,14 +56,23 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// Things we can encode
+pub trait Encode: Debug + Sized {
+    /// Encode yourself by appending onto `bytes`.
+    fn encode(&self, bytes: &mut Vec<u8>);
+
+    /// Convenience function to get the results of `encode()`.
+    fn get_encoding(&self) -> Vec<u8> {
+        let mut ret = Vec::new();
+        self.encode(&mut ret);
+        ret
+    }
+}
+
 /// Things we can encode and read from a Reader.
 pub trait Codec: Debug + Sized {
     /// Encode yourself by appending onto `bytes`.
     fn encode(&self, bytes: &mut Vec<u8>);
-
-    /// Decode yourself by fiddling with the `Reader`.
-    /// Return Some if it worked, None if not.
-    fn read(_: &mut Reader) -> Option<Self>;
 
     /// Convenience function to get the results of `encode()`.
     fn get_encoding(&self) -> Vec<u8> {
@@ -72,11 +81,21 @@ pub trait Codec: Debug + Sized {
         ret
     }
 
+    /// Decode yourself by fiddling with the `Reader`.
+    /// Return Some if it worked, None if not.
+    fn read(_: &mut Reader) -> Option<Self>;
+
     /// Read one of these from the front of `bytes` and
     /// return it.
     fn read_bytes(bytes: &[u8]) -> Option<Self> {
         let mut rd = Reader::init(bytes);
         Self::read(&mut rd)
+    }
+}
+
+impl<T: Codec> Encode for T {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        Codec::encode(self, bytes)
     }
 }
 
@@ -182,7 +201,8 @@ impl Codec for u64 {
     }
 }
 
-pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
+/// encode a Vec whose length is encoded in 1 byte
+pub fn encode_vec_u8<T: Encode>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.push(0);
 
@@ -194,6 +214,56 @@ pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
+// We do not put the size of the vector for Vec<u8> as we consider it as plain data
+impl Codec for Vec<u8> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for i in self {
+            bytes.push(*i);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let mut ret: Vec<u8> = Vec::new();
+
+        while r.any_left() {
+            ret.push(u8::read(r)?);
+        }
+
+        Some(ret)
+    }
+}
+
+impl<T: Debug + Encode> Encode for Option<T> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if let Some(value) = self {
+            value.encode(bytes);
+        }
+    }
+}
+
+impl<T: Debug + Encode, E: Debug> Encode for Result<T, E> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if let Ok(value) = self {
+            value.encode(bytes);
+        }
+    }
+}
+
+impl Codec for bool {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if *self {
+            bytes.push(1)
+        } else {
+            bytes.push(0)
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        r.take(1).map(|b| b.len() == 1 && b[0] == 1)
+    }
+}
+
+/// encode a Vec whose length is encoded in 2 bytes
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0]);
@@ -207,6 +277,7 @@ pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     *out = u16::to_be_bytes(len.min(0xffff) as u16);
 }
 
+/// encode a Vec whose length is encoded in 3 bytes
 pub fn encode_vec_u24<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0, 0]);
@@ -259,4 +330,26 @@ pub fn read_vec_u24_limited<T: Codec>(r: &mut Reader, max_bytes: usize) -> Optio
     }
 
     Some(ret)
+}
+
+// Trait for data whose Vectors are encoded without length prefix
+pub trait VecCodecWoSize {}
+impl VecCodecWoSize for Vec<u8> {}
+
+impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for i in self {
+            i.encode(bytes);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let mut ret: Vec<T> = Vec::new();
+
+        while r.any_left() {
+            ret.push(T::read(r)?);
+        }
+
+        Some(ret)
+    }
 }

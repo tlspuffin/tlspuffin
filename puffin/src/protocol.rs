@@ -1,9 +1,12 @@
-use std::fmt::Debug;
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+};
 
 use crate::{
-    algebra::{signature::Signature, Matcher},
+    algebra::{signature::Signature, ConcreteMessage, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::Codec,
+    codec::{Codec, Encode, Reader},
     error::Error,
     trace::Trace,
     variable_data::VariableData,
@@ -49,7 +52,7 @@ pub trait ProtocolBehavior: 'static {
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
-    type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage + Codec;
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
@@ -59,6 +62,13 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+
+    /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal structure
+    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error>;
+
+    /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
+    /// This is expected to fail for many types of messages!
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);

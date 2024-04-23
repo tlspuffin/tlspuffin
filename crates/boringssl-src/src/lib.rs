@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    fs, io,
+    env, fs, io,
     io::ErrorKind,
     path::{Path, PathBuf},
     process::Command,
@@ -104,6 +104,13 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         .cxxflag("-g")
         .define("CMAKE_BUILD_TYPE", "Release")
         .define("OPENSSL_NO_BUF_FREELISTS", "1");
+
+    if env::var("TARGET") == Ok("aarch64-apple-darwin".into()) {
+        // We rely on llvm installed with homebrew on Mac OS X since Xcode does not ship llvm with libfuzzer!
+        boring_conf
+            .define("CMAKE_C_COMPILER", "/opt/homebrew/opt/llvm/bin/clang")
+            .define("CMAKE_CXX_COMPILER", "/opt/homebrew/opt/llvm/bin/clang++");
+    }
 
     if options.deterministic {
         // FUZZ flag will enable deterministic mode in BoringSSL along with

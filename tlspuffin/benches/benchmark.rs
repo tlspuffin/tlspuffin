@@ -2,8 +2,8 @@ use std::any::Any;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::{
-    algebra::{dynamic_function::make_dynamic, error::FnError, Term},
-    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
+    algebra::{dynamic_function::make_dynamic, error::FnError, Term, TermEval},
+    fuzzer::{mutations::ReplaceReuseMutator, utils::TermConstraints},
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
@@ -60,10 +60,17 @@ fn benchmark_mutations(c: &mut Criterion) {
 
     group.bench_function("ReplaceReuseMutator", |b| {
         let mut state = create_state();
-        let mut mutator = ReplaceReuseMutator::new(TermConstraints {
-            min_term_size: 0,
-            max_term_size: 200,
-        });
+        let mut mutator = ReplaceReuseMutator::new(
+            TermConstraints {
+                min_term_size: 0,
+                max_term_size: 200,
+                no_payload_in_subterm: false,
+                not_inside_list: false,
+                weighted_depth: false,
+                ..TermConstraints::default()
+            },
+            true,
+        );
         let mut trace = seed_client_attacker12.build_trace();
 
         b.iter(|| {
@@ -76,7 +83,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello: Term<TlsQueryMatcher> = term! {
+        let client_hello: TermEval<TlsQueryMatcher> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,
@@ -103,7 +110,7 @@ fn benchmark_trace(c: &mut Criterion) {
                             fn_signed_certificate_timestamp_extension
                         )),
                          // Enable Renegotiation
-                        (fn_renegotiation_info_extension(fn_empty_bytes_vec))
+                        (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
                     )),
                     // Add signature cert extension
                     fn_signature_algorithm_cert_extension

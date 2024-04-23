@@ -1,9 +1,10 @@
 use libafl::executors::ExitKind;
-use log::{info, trace, warn};
+use log::{debug, info, trace, warn};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 
 use crate::{
+    algebra::TermType,
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
@@ -31,6 +32,10 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
+    debug!(
+        "Harness is called on trace with #{} steps",
+        input.steps.len()
+    );
     let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     TRACE_LENGTH.update(input.steps.len());

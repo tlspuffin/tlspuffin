@@ -1,6 +1,12 @@
-use std::mem;
+use std::{
+    fmt::{Debug, Formatter},
+    mem,
+};
 
-use puffin::codec::Codec;
+use puffin::{
+    codec,
+    codec::{Codec, Reader},
+};
 use ring::digest;
 
 use crate::tls::rustls::msgs::{
@@ -85,6 +91,27 @@ pub struct HandshakeHash {
     client_auth: Option<Vec<u8>>,
 
     override_buffer: Option<Vec<u8>>,
+}
+
+impl Debug for HandshakeHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "HandshakeHash: {:?}", codec::Encode::get_encoding(self))
+    }
+}
+
+impl codec::Codec for HandshakeHash {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        // TODO-bitlevel: not sure this is the way this should be encoded!! (to test!)
+        let mut hash = self.get_current_hash_raw();
+        bytes.append(&mut hash)
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        Some(HandshakeHash::new_override(
+            r.rest().to_vec(),
+            &ring::digest::SHA256,
+        ))
+    }
 }
 
 impl HandshakeHash {

@@ -14,6 +14,7 @@ use std::{
 use log::{debug, error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    algebra::ConcreteMessage,
     error::Error,
     protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
@@ -49,7 +50,11 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
-                        Error::Agent(format!("{} // {:?}", "Unable to find args", put_descriptor))
+                        Error::Agent(format!(
+                            "{} // {:?}",
+                            "Unable to find args".to_string(),
+                            put_descriptor
+                        ))
                     })?
                     .to_owned();
                 let prog = options
@@ -279,9 +284,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(
@@ -292,9 +296,8 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(

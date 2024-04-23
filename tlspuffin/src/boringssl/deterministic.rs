@@ -12,12 +12,8 @@ mod tests {
     use puffin::{put::PutOptions, trace::TraceContext};
 
     use crate::{
-        boringssl::deterministic::reset_rand,
         put_registry::tls_registry,
-        tls::{
-            seeds::{create_corpus, seed_client_attacker_full_boring},
-            trace_helper::TraceHelper,
-        },
+        tls::{seeds::seed_client_attacker_full_boring, trace_helper::TraceHelper},
     };
 
     // TODO: This test only works in a single threaded cargo test execution

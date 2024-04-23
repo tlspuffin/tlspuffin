@@ -9,24 +9,28 @@ use puffin::{
     variable_data::VariableData,
 };
 
-use crate::tls::{
-    key_exchange::{tls12_key_exchange, tls12_new_secrets},
-    key_schedule::*,
-    rustls::{
-        conn::Side,
-        hash_hs::HandshakeHash,
-        key::Certificate,
-        msgs::{
-            base::PayloadU8,
-            enums::{HandshakeType, NamedGroup},
-            handshake::{
-                CertificateEntry, CertificateExtension, CertificateExtensions,
-                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+use crate::{
+    static_certs::BOB_CERT,
+    tls::{
+        key_exchange::{tls12_key_exchange, tls12_new_secrets},
+        key_schedule::*,
+        rustls::{
+            conn::Side,
+            hash_hs::HandshakeHash,
+            key::Certificate,
+            msgs::{
+                base::PayloadU8,
+                enums::{HandshakeType, NamedGroup},
+                handshake::{
+                    CertificateEntries, CertificateEntry, CertificateExtension,
+                    CertificateExtensions, HandshakeMessagePayload, HandshakePayload, Random,
+                    ServerECDHParams,
+                },
+                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },
-            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+            tls12,
+            tls13::key_schedule::KeyScheduleEarly,
         },
-        tls12,
-        tls13::key_schedule::KeyScheduleEarly,
     },
 };
 
@@ -351,7 +355,9 @@ pub fn fn_fill_binder(full_client_hello: &Message, binder: &Vec<u8>) -> Result<M
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_fill_binder] Could not find ticket in message".to_owned())
+    })
 }
 
 pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
@@ -362,7 +368,9 @@ pub fn fn_get_ticket(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_get_ticket] Could not find ticket in message".to_owned())
+    })
 }
 
 pub fn fn_get_ticket_age_add(new_ticket: &Message) -> Result<u64, FnError> {
@@ -373,7 +381,7 @@ pub fn fn_get_ticket_age_add(new_ticket: &Message) -> Result<u64, FnError> {
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+    .ok_or_else(|| FnError::Malformed("Could not find ticket in message".to_owned()))
 }
 
 pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
@@ -384,7 +392,9 @@ pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find ticket in message".to_owned()))
+    .ok_or_else(|| {
+        FnError::Malformed("[fn_get_ticket_nonce] Could not find ticket in message".to_owned())
+    })
 }
 
 // ----
@@ -410,9 +420,9 @@ pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
     Ok(Vec::from(kx.pubkey.as_ref()))
 }
 
-pub fn fn_encode_ec_pubkey12(pubkey: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+pub fn fn_encode_ec_pubkey12(pubkey: &PayloadU8) -> Result<Vec<u8>, FnError> {
     let mut buf = Vec::new();
-    let ecpoint = PayloadU8::new(pubkey.clone());
+    let ecpoint = pubkey.clone();
     ecpoint.encode(&mut buf);
 
     Ok(buf)
@@ -481,6 +491,12 @@ pub fn fn_append_certificate(
 
 pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
     Ok(vec![])
+}
+
+pub fn fn_certificate_entries_make(
+    entries: &Vec<CertificateEntry>,
+) -> Result<CertificateEntries, FnError> {
+    Ok(CertificateEntries(entries.clone()))
 }
 
 pub fn fn_append_certificate_entry(

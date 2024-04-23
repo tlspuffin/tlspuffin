@@ -109,6 +109,53 @@ impl Clone for Function {
 }
 
 impl Function {
+    /// Does the function symbol computes "opaque" message such as encryption, signature, MAC, AEAD, etc?
+    pub fn is_opaque(&self) -> bool {
+        // TODO: have protocol-dependent implementation for this
+        // debug!("Name: {}", self.fn_container.shape.name);
+        self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake" //TODO
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_application"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_application"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt12"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_binder"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"
+        || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decode_ecdh_pubkey"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_new_pubkey12"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_server"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_rsa_sign_client"
+
+            // Get functions: opaque as they do not yield a bitstring containing all the bitstrings of their arguments
+            // (however needed for computing shifts in `replace_payloads`) TODO: improve this in the future
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_server_key_share"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_client_key_share"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_get_any_client_curve"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_age_add"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_cert::fn_get_context"
+        // Uses hashes
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_append_transcript"
+        // arg is not present
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_messages::fn_heartbeat_fake_length"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_fill_binder"
+        // Use enc
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_fields::fn_verify_data_server"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_utils::fn_decrypt_handshake"
+        // Compute a deterministic key share... (TODO: WHY IS THAT?)
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_extension"
+            || self.fn_container.shape.name == "tlspuffin::tls::fn_impl::fn_extensions::fn_key_share_deterministic_server_extension"
+        // TODO:
+        // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
+    }
+
+    /// Does the function symbol computes a list such as fn_append_certificate?
+    pub fn is_list(&self) -> bool {
+        // TODO: have protocol-dependent implementation for this
+        // debug!("Name: {}", self.fn_container.shape.name);
+        self.fn_container.shape.name.contains("_append")
+    }
+
     pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
         Self {
             unique_id: random(),

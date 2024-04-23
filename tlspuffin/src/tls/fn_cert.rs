@@ -74,7 +74,7 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find context in message".to_owned()))
+    .ok_or_else(|| FnError::Malformed("Could not find context in message".to_owned()))
 }
 
 pub fn fn_eve_pkcs1_signature() -> Result<Vec<u8>, FnError> {

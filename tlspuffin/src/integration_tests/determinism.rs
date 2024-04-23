@@ -1,7 +1,7 @@
 #[test]
 #[cfg(all(
     feature = "deterministic",
-    feature = "boringssl-binding",
+feature = "boringssl-binding", // only fully deterministic PUT yet, openssl has still some timestamps
     feature = "tls13",
 ))]
 fn test_attacker_full_det_recreate() {
