@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# usage: install <source-dir> <build-dir> <install-prefix>
+
+SOURCE_DIR=${1}
+BUILD_DIR=${2}
+INSTALL_DIR=${3}
+
+mkdir -p "${INSTALL_DIR}/lib"
+mkdir -p "${INSTALL_DIR}/bin"
+
+cp ${BUILD_DIR}/ssl/*.a "${INSTALL_DIR}/lib" || exit 1
+cp ${BUILD_DIR}/crypto/*.a "${INSTALL_DIR}/lib" || exit 1
+cp -r "${SOURCE_DIR}/include" "${INSTALL_DIR}/" || exit 1

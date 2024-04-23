@@ -36,8 +36,10 @@ objective/
 *.profraw
 *.gcov
 coverage.csv
+stats.json.should-be-empty.log
+
 *.html
 *.css
-stats.json.should-be-empty.log
+!docs/**/*.template.html
 
 super-linter.log

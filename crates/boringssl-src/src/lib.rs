@@ -155,7 +155,19 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
             .cxxflag(format!("-Wl,-rpath={}/lib/linux/", clang));
     }
 
+    boring_conf.build_target("ssl;crypto");
     boring_conf.build();
+
+    Command::new(PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/scripts/install"
+    )))
+    .arg(PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("boringssl"))
+    .arg(PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("build"))
+    .arg(dest.as_ref().to_str().unwrap())
+    .status()
+    .expect("failed install step for boringssl");
+
     dest.as_ref().to_owned()
 }
 

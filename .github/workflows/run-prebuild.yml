@@ -1,0 +1,82 @@
+name: run-prebuild
+
+on:
+  workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.create-matrix.outputs.matrix }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - id: create-matrix
+        name: create configurations matrix
+        run: printf 'matrix=%s\n' "$(jq -c '.' .github/tlspuffin.matrix.json)" >> "${GITHUB_OUTPUT}"
+
+      - id: display-matrix
+        name: display configurations matrix
+        run: |
+          #!/usr/bin/env bash
+          printf 'selected configurations for prebuild:\n'
+          for conf in $(jq -r '.[].name | @sh' <(printf "%s" '${{ steps.create-matrix.outputs.matrix }}') | tr -d \'\"); do
+            printf '  - %s\n' "${conf}"
+          done
+
+  prebuild:
+    needs: [configure]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.configure.outputs.matrix) }}
+
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: compute vendor library shortname
+        id: compute-lib-shortname
+        run: |
+          #!/usr/bin/env bash
+          if [[ -z '${{ join(matrix.options, '-') }}' ]]; then
+            OPTIONS=""
+          else
+            OPTIONS="-$(printf '%s\n' '${{ join(matrix.options, '-') }}')"
+          fi
+
+          printf 'shortname=%s%s\n' "${{ matrix.preset }}" "${OPTIONS}" >> "${GITHUB_OUTPUT}"
+
+      - name: build vendor library
+        if: ${{ contains(fromJson('["openssl"]'), matrix.vendor) }}
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "${{ matrix.vendor }}"
+          preset: "${{ matrix.preset }}"
+          name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
+          options: "${{ join(matrix.options, ',') }}"
+
+      - name: build
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.preset }},${{ join(matrix.features, ',') }}" "--timings"
+
+      - name: upload build timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-timings-${{ steps.compute-lib-shortname.outputs.shortname }}
+          path: target/cargo-timings/cargo-timing.html
+
+      - name: upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: tlspuffin-${{ steps.compute-lib-shortname.outputs.shortname }}
+          path: target/x86_64-unknown-linux-gnu/release/tlspuffin

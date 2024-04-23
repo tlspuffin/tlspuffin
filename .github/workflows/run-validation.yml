@@ -1,0 +1,152 @@
+name: run-validation
+
+on:
+  workflow_call:
+    inputs:
+      profile: # one of ['none', 'fast', 'full']
+        type: string
+        required: true
+
+permissions:
+    contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      checks: ${{ steps.configure-checks.outputs.checks }}
+      matrix: ${{ steps.configure-checks.outputs.matrix }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - id: configure-checks
+        name: Configure Validation
+        run: |
+          #!/usr/bin/env bash
+          case "${{ inputs.profile }}" in
+            none)
+              CI_CHECKS=()
+              CI_MATRIX="[]"
+              ;;
+            fast)
+              CI_CHECKS=$(jq -c -n '[ "check", "unit", "cli", "docs", "test" ]')
+              CI_MATRIX=$(jq -c 'map(select( .labels[] | contains("fast") ))' .github/tlspuffin.matrix.json)
+              ;;
+            full)
+              CI_CHECKS=$(jq -c -n '[ "check", "unit", "cli", "docs", "test", "benchmark" ]')
+              CI_MATRIX=$(jq -c '.' .github/tlspuffin.matrix.json)
+              ;;
+            *)
+              printf "error: unknown validation profile '%s'\n" "${{ inputs.profile }}"
+              exit 1
+              ;;
+          esac
+
+          printf 'checks=%s\n' "${CI_CHECKS}" >> "${GITHUB_OUTPUT}"
+          printf 'matrix=%s\n' "${CI_MATRIX}" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: Display Configuration
+        run: |
+          #!/usr/bin/env bash
+          printf 'Finished configuration job:\n'
+          printf '  - received validation profile: %s\n' '${{ inputs.profile }}'
+          printf '  - selected validation checks:\n'
+          for check in $(jq -r '.[] | @sh' <(printf "%s" '${{ steps.configure-checks.outputs.checks }}') | tr -d \'\"); do
+            printf '    - %s\n' "${check}"
+          done
+          printf '  - selected test configurations:\n'
+          for conf in $(jq -r '.[].name | @sh' <(printf "%s" '${{ steps.configure-checks.outputs.matrix }}') | tr -d \'\"); do
+            printf '    - %s\n' "${conf}"
+          done
+
+  check:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'check') }}
+    uses: ./.github/workflows/run-checks.yml
+
+  unit-tests:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'unit') }}
+    name: unit tests
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: unit test `puffin`
+        run: just test puffin x86_64-unknown-linux-gnu "" ""
+      - name: unit test `security-claims`
+        run: just test security-claims x86_64-unknown-linux-gnu "" ""
+      - name: unit test `tlspuffin`
+        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
+      - name: unit test `sshpuffin`
+        run: just test tlspuffin x86_64-unknown-linux-gnu "" "--no-default-features"
+
+  cli-tlspuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'cli') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build OpenSSL dependency
+        uses: ./.github/actions/mk_vendor
+        with:
+          vendor: "openssl"
+          preset: "openssl111j"
+          name: "openssl111j-sancov"
+          options: "sancov"
+      - name: build `tlspuffin`
+        run: just run cargo build --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j
+      - name: run `tlspuffin help`
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- help
+      - name: run `tlspuffin seed`
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- seed && [[ -d ./seeds ]]
+      - name: run `tlspuffin execute` on seeds
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- execute-traces ./seeds
+
+  cli-sshpuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'cli') }}
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: build `sshpuffin`
+        run: just run cargo build --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release
+      - name: run `sshpuffin help`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- help
+      - name: run `sshpuffin seed`
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- seed && [[ -d ./seeds ]]
+      - name: run `sshpuffin execute` on seeds
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- execute-traces ./seeds
+
+  test-tlspuffin:
+    needs: [configure]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.configure.outputs.matrix) }}
+
+    uses: ./.github/workflows/run-tlspuffin-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      vendor: ${{ matrix.vendor }}
+      preset: ${{ matrix.preset }}
+      options: ${{ toJson(matrix.options) }}
+      features: ${{ toJson(matrix.features) }}
