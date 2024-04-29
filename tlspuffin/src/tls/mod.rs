@@ -203,6 +203,8 @@ define_signature!(
     fn_weak_export_cipher_suite
     fn_secure_rsa_cipher_suite12
     // utils
+    fn_new_flight
+    fn_append_flight
     fn_new_transcript
     fn_append_transcript
     fn_decrypt_handshake

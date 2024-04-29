@@ -80,6 +80,19 @@ pub fn fn_decrypt_handshake(
         .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
+pub fn fn_new_flight() -> Result<MessageFlight<Message, OpaqueMessage>, FnError> {
+    Ok(MessageFlight::new())
+}
+
+pub fn fn_append_flight(
+    flight: &MessageFlight<Message, OpaqueMessage>,
+    msg: &Message,
+) -> Result<MessageFlight<Message, OpaqueMessage>, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
 /// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
 pub fn fn_decrypt_handshake_flight(
     flight: &MessageFlight<Message, OpaqueMessage>,
