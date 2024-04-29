@@ -537,10 +537,17 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
+        let mut flight = vec![];
+
         while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
+
+            match &message {
+                Some(m) => flight.push(m.clone()),
+                _ => (),
+            };
 
             let knowledge = message
                 .and_then(|message| message.extract_knowledge().ok())
@@ -574,6 +581,15 @@ impl<M: Matcher> OutputAction<M> {
                 ctx.add_knowledge(knowledge)
             }
         }
+
+        let flight_knowledge = Knowledge::<M> {
+            agent_name: step.agent,
+            matcher: M::flight().into(),
+            data: Box::new(flight),
+        };
+        flight_knowledge.debug_print(ctx, &step.agent);
+        ctx.add_knowledge(flight_knowledge);
+
         Ok(())
     }
 }
