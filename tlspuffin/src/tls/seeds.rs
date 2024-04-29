@@ -1871,11 +1871,7 @@ pub mod tests {
     fn test_seed_client_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
-        let ctx = if cfg!(not(feature = "boringssl-binding")) {
-            seed_client_attacker_full.execute_trace()
-        } else {
-            seed_client_attacker_full_boring.execute_trace()
-        };
+        let ctx = seed_client_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 
