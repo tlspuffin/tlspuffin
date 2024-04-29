@@ -5,11 +5,11 @@
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::Term,
+    protocol::MessageFlight,
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
-use super::rustls::msgs::handshake::EncryptedExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{
@@ -17,6 +17,7 @@ use crate::{
         rustls::msgs::{
             enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
             handshake::{Random, ServerExtension, SessionID},
+            message::{Message, OpaqueMessage},
         },
     },
 };
@@ -808,7 +809,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)[Some(TlsQueryMatcher::Flight)]), // The first flight of messages sent by the server
+            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
@@ -1445,7 +1446,7 @@ pub fn _seed_client_attacker_full(
 
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)[Some(TlsQueryMatcher::Flight)]), // The first flight of messages sent by the server
+            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,

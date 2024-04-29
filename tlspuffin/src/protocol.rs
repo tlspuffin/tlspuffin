@@ -177,10 +177,6 @@ impl Matcher for msgs::enums::HandshakeType {
     fn specificity(&self) -> u32 {
         1
     }
-
-    fn flight() -> Option<Self> {
-        None
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

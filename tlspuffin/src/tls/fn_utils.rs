@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
-    variable_data::VariableData,
+    protocol::MessageFlight,
 };
 
 use crate::tls::{
@@ -82,7 +82,7 @@ pub fn fn_decrypt_handshake(
 
 /// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
 pub fn fn_decrypt_handshake_flight(
-    flight: &Vec<Message>,
+    flight: &MessageFlight<Message, OpaqueMessage>,
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
@@ -94,7 +94,7 @@ pub fn fn_decrypt_handshake_flight(
 
     let mut decrypted_flight = vec![];
 
-    for msg in flight {
+    for msg in &flight.messages {
         if let MessagePayload::ApplicationData(_) = &msg.payload {
             let mut decrypted_msg = fn_decrypt_multiple_handshake_messages(
                 &msg,

@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
     algebra::{signature::Signature, Matcher},
@@ -8,6 +8,22 @@ use crate::{
     trace::Trace,
     variable_data::VariableData,
 };
+
+/// Store a message flight, a vec of all the messages sent by the PUT between two steps
+#[derive(Debug, Clone)]
+pub struct MessageFlight<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
+    pub messages: Vec<M>,
+    phantom: PhantomData<O>,
+}
+
+impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageFlight<M, O> {
+    pub fn new() -> Self {
+        MessageFlight {
+            messages: vec![],
+            phantom: PhantomData,
+        }
+    }
+}
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.

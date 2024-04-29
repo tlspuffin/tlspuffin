@@ -80,10 +80,6 @@ where
             0
         }
     }
-
-    fn flight() -> Option<Self> {
-        None
-    }
 }
 
 /// Determines whether two instances match. We can also ask it how specific it is.
@@ -91,8 +87,6 @@ pub trait Matcher: Debug + Clone + Hash + serde::Serialize + DeserializeOwned + 
     fn matches(&self, matcher: &Self) -> bool;
 
     fn specificity(&self) -> u32;
-
-    fn flight() -> Option<Self>;
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize)]
@@ -105,10 +99,6 @@ impl Matcher for AnyMatcher {
 
     fn specificity(&self) -> u32 {
         0
-    }
-
-    fn flight() -> Option<Self> {
-        None
     }
 }
 

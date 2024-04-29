@@ -32,7 +32,9 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{
+        MessageFlight, MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+    },
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
     variable_data::VariableData,
@@ -537,7 +539,7 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        let mut flight = vec![];
+        let mut flight = MessageFlight::new();
 
         while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
             let matcher = message_result.create_matcher::<PB>();
@@ -545,7 +547,7 @@ impl<M: Matcher> OutputAction<M> {
             let MessageResult(message, opaque_message) = message_result;
 
             match &message {
-                Some(m) => flight.push(m.clone()),
+                Some(m) => flight.messages.push(m.clone()),
                 _ => (),
             };
 
@@ -584,7 +586,7 @@ impl<M: Matcher> OutputAction<M> {
 
         let flight_knowledge = Knowledge::<M> {
             agent_name: step.agent,
-            matcher: M::flight().into(),
+            matcher: None,
             data: Box::new(flight),
         };
         flight_knowledge.debug_print(ctx, &step.agent);

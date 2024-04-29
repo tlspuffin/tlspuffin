@@ -46,10 +46,6 @@ impl Matcher for TlsQueryMatcher {
             _ => 0,
         }
     }
-
-    fn flight() -> Option<Self> {
-        Some(Self::Flight)
-    }
 }
 
 impl TryFrom<&MessageResult<Message, OpaqueMessage>> for TlsQueryMatcher {
