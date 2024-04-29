@@ -80,6 +80,40 @@ pub fn fn_decrypt_handshake(
         .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
+/// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
+pub fn fn_decrypt_handshake_flight(
+    flight: &Vec<Message>,
+    server_hello_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+) -> Result<Vec<Message>, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = vec![];
+
+    for msg in flight {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let mut decrypted_msg = fn_decrypt_multiple_handshake_messages(
+                &msg,
+                server_hello_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.append(&mut decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
+}
+
 /// Decrypt an Application data message containing multiple handshake messages
 /// and return a vec of handshake messages
 pub fn fn_decrypt_multiple_handshake_messages(
@@ -121,6 +155,17 @@ pub fn fn_decrypt_multiple_handshake_messages(
         .collect();
 
     Ok(messages)
+}
+
+pub fn fn_find_server_hello(messages: &Vec<Message>) -> Result<Message, FnError> {
+    for msg in messages {
+        if let MessagePayload::Handshake(x) = &msg.payload {
+            if x.typ == HandshakeType::ServerHello {
+                return Ok(msg.clone());
+            }
+        }
+    }
+    Err(FnError::Unknown("no server hello".to_owned()))
 }
 
 pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, FnError> {
