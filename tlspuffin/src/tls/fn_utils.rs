@@ -287,6 +287,7 @@ pub fn fn_derive_psk(
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
+    psk: &Option<Vec<u8>>,
     group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let psk = tls13_derive_psk(
@@ -295,6 +296,7 @@ pub fn fn_derive_psk(
         client_finished,
         server_key_share,
         new_ticket_nonce,
+        psk,
         group,
     )?;
 
