@@ -4,7 +4,7 @@ use crate::algebra::error::FnError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
-    /// Returned if a concrete function from the module [`tls`] fails or term evaluation fails
+    /// Returned if a concrete function from the protocol fails or term evaluation fails
     Fn(FnError),
     Term(String),
     /// PUT reported an error
@@ -13,7 +13,7 @@ pub enum Error {
     IO(String),
     /// Some error which was caused because of agents or their names. Like an agent which was not found.
     Agent(String),
-    /// Error while operating on a [`Stream`]
+    /// Error while operating on a [`Stream`](crate::stream::Stream)
     Stream(String),
     Extraction(),
     SecurityClaim(&'static str),

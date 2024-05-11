@@ -37,8 +37,8 @@ pub trait ProtocolMessageDeframer {
 
 /// Defines the protocol which is being tested.
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
-/// [opaque messages](OpaqueMessage), [structured messages](Message),
-/// and a way to [deframe](MessageDeframer) an arbitrary stream of bytes into messages.
+/// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured messages](ProtocolBehavior::ProtocolMessage),
+/// and a way to [deframe](ProtocolMessageDeframer) an arbitrary stream of bytes into messages.
 ///
 /// Also the library allows the definition of a type for [claims](Claim) and a
 /// (security policy)[SecurityViolationPolicy] over

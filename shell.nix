@@ -6,8 +6,6 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     pkgs.rustup
     pkgs.just
 
-    #pkgs.gcovr
-
     pkgs.cmake
     pkgs.llvmPackages_11.llvm
 
@@ -15,9 +13,6 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     pkgs.autoconf
     pkgs.automake
     pkgs.libtool
-
-    # macos
-    pkgs.libiconv
 
     # openssh
     pkgs.openssl_1_1
@@ -28,9 +23,12 @@ pkgs.llvmPackages_11.stdenv.mkDerivation {
     pkgs.python310Packages.virtualenv
 
     # docs / website
-    pkgs.pandoc
+    pkgs.nodejs_20
   ] ++
   pkgs.lib.optionals pkgs.stdenv.isDarwin [
+    pkgs.libiconv
+    pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+    pkgs.darwin.apple_sdk.frameworks.CoreServices
     pkgs.darwin.apple_sdk.frameworks.Security
   ];
   # Hardening is not really important for tlspuffina nd might introduce weird compiler flags

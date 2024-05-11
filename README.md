@@ -1,45 +1,8 @@
-<h1 align="center">tlspuffin</h1>
-<p align="center">
-  <img width=200px alt="Logo with Penguin" src="https://raw.githubusercontent.com/tlspuffin/tlspuffin/main/docs/assets/logo.jpg">
-</p>
-<div align="center">
-  <strong>TLS Protocol Under FuzzINg</strong>
-</div>
-<div align="center">
-  A Dolev-Yao guided fuzzer for TLS
-</div>
+## TLS Protocol Under FuzzINg: A Dolev-Yao guided fuzzer for TLS
 
-<div align="center">
-  <img src="https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square"
-      alt="Stability" />
-  <a href="https://github.com/tlspuffin/tlspuffin/actions/workflows/rust.yml">
-    <img src="https://github.com/tlspuffin/tlspuffin/actions/workflows/on_main_push.yml/badge.svg"
-        alt="Build status" />
-  </a>
-</div>
+![Stability Experimental](https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/tlspuffin/tlspuffin/on-pr-merged.yml?branch=main&style=flat-square&label=CI)](https://github.com/tlspuffin/tlspuffin/actions/workflows/on-pr-merged.yml)
 
-<div align="center">
-  Developed at LORIA, Inria, France and Trail of Bits, USA
-</div>
-
-
-<div align="center">
-  <h3>
-    <a href="https://raw.githubusercontent.com/tlspuffin/tlspuffin/main/docs/assets/masterarbeit.pdf">
-      Master Thesis
-    </a>
-    <span> | </span>
-    <a href="https://docs.google.com/presentation/d/e/2PACX-1vS-AogsZAAWBAL19kf2b8f5gbOexg9DWmXAQp4Y8zL8K6RDQbTxgKa4b6vNRMq59IezIBVgwMw7KQq6/pub?start=false&loop=false&delayms=3000">
-      Thesis Presentation
-    </a>
-    <span> | </span>
-    <a href="https://tlspuffin.github.io/tlspuffin/tlspuffin">
-      Documentation
-    </a>
-  </h3>
-</div>
-
-_Disclaimer: The term "symbolic-model-guided" should not be confused with symbolic execution or concolic fuzzing._
 
 ## Description
 

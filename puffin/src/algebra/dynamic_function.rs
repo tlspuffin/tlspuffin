@@ -132,7 +132,7 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 /// closures and functions of the form: `Fn(&Vec<Box<dyn Any>>) -> Box<dyn Any>`
 ///
 /// [`Clone`] is implemented for `Box<dyn DynamicFunction>` using this trick:
-/// https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25
+/// <https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25>
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
@@ -173,7 +173,7 @@ impl Clone for Box<dyn DynamicFunction> {
 /// * describe their shape during runtime
 /// * wrap them into a [`DynamicFunction`] which is callable with arbitrary data
 ///
-/// Adapted from https://jsdw.me/posts/rust-fn-traits/ but using type ids
+/// Adapted from <https://jsdw.me/posts/rust-fn-traits/> but using type ids
 pub trait DescribableFunction<Types> {
     fn name(&'static self) -> &'static str;
     fn shape() -> DynamicFunctionShape;

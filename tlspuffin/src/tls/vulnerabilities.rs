@@ -11,7 +11,7 @@ use crate::{
     tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
 };
 
-/// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
+/// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
@@ -164,7 +164,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-/// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640
+/// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640>
 pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
@@ -283,7 +283,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-/// https://nvd.nist.gov/vuln/detail/cve-2021-3449
+/// <https://nvd.nist.gov/vuln/detail/cve-2021-3449>
 pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
     let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
