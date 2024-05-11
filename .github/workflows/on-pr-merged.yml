@@ -42,6 +42,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      RUSTDOCFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
       - name: setup
@@ -82,8 +84,8 @@ jobs:
 
       - name: push the changes
         run: |
-          git config --global user.name tlspuffin-bot
-          git config --global user.email tlspuffin-bot@tlspuffin
+          git config --global user.email tlspuffin@tlspuffin
+          git config --global user.name tlspuffin
           git add website
           git commit -m "deploy from ${{ github.repository }}/${{ github.ref}}@${{ github.sha }}"
           git push

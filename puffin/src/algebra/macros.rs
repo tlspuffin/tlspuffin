@@ -1,5 +1,5 @@
-//! This module provides a DLS for writing[`Term`]s within Rust.
-//! See the tlspufin crate for usage examples.
+//! This module provides a DLS for writing [`Term`](crate::algebra::Term)s within Rust.
+//! See the tlspuffin crate for usage examples.
 
 #[macro_export]
 macro_rules! term {

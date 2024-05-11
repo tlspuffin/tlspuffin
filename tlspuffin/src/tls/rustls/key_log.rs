@@ -7,9 +7,6 @@
 ///
 /// You'll likely want some interior mutability in your
 /// implementation to make this useful.
-///
-/// See [`KeyLogFile`](crate::tls::rustls::KeyLogFile) that implements the standard
-/// `SSLKEYLOGFILE` environment variable behaviour.
 pub trait KeyLog: Send + Sync {
     /// Log the given `secret`.  `client_random` is provided for
     /// session identification.  `label` describes precisely what

@@ -118,6 +118,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      RUSTDOCFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
       - name: setup
