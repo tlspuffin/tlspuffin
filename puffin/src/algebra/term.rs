@@ -537,8 +537,8 @@ impl<M: Matcher> TermType<M> for Term<M> {
 }
 
 /// Having the same mutator for &'a mut DYTerm is not possible in Rust:
-/// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
-/// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
+/// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
+/// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
 impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
     type Item = &'a Term<M>;
     type IntoIter = std::vec::IntoIter<&'a Term<M>>;

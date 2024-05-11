@@ -23,7 +23,7 @@ extern "C" {
 }
 
 /// Setups the environment variable for ASAN, because `__asan_default_options` is unreliable.
-/// https://www.mail-archive.com/ubuntu-bugs@lists.ubuntu.com/msg6005262.html
+/// <https://www.mail-archive.com/ubuntu-bugs@lists.ubuntu.com/msg6005262.html>
 pub fn setup_asan_env() {
     info!("Appending default options to env options..");
     let defaults = unsafe { CStr::from_ptr(__asan_default_options()).to_str().unwrap() };

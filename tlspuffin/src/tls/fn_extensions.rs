@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 //! Extensions according to IANA:
-//! https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml
+//! <https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml>
 //!
 //! In the source code all IDs are available, but implementations are missing.
 //!

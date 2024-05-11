@@ -12,9 +12,13 @@ pub fn main() {
 
     let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
     bindgen::Builder::default()
-        .header("include/tlspuffin/put.h")
+        .ctypes_prefix("::libc")
+        .raw_line("use libc::*;")
+        .allowlist_file(".*/tlspuffin/[^/]+\\.h")
+        .allowlist_recursively(false)
         .no_copy("^AGENT_DESCRIPTOR$")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .header("include/tlspuffin/put.h")
         .generate()
         .expect("Unable to generate Rust bindings for tlspuffin-harness-sys")
         .write_to_file(&bindings_path)

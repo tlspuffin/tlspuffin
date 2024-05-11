@@ -1,8 +1,3 @@
-//! Generic [`PUT`] trait defining an interface with a TLS library with which we can:
-//! - [`new`] create a client (or server) new initial state + bind buffers
-//! - [`progress`] makes a state progress (interacting with the buffers)
-//!
-//! And specific implementations of PUT for the different PUTs.
 use std::{
     fmt::{Debug, Display, Formatter},
     hash::Hash,
@@ -69,8 +64,8 @@ pub struct PutDescriptor {
     pub options: PutOptions,
 }
 
-/// Defines the interface which all programs-under-test need to implement.
-/// They need a way to progress, reset and describe their state.
+/// Generic trait used to define the interface with a concrete library
+/// implementing the protocol.
 pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {

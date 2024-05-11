@@ -9,7 +9,7 @@ pub fn fill_random(bytes: &mut [u8]) -> Result<(), GetRandomFailed> {
     SystemRandom::new().fill(bytes).map_err(|_| GetRandomFailed)
 }
 
-/// Make a Vec<u8> of the given size
+/// Make a `Vec<u8>` of the given size
 /// containing random material.
 pub fn random_vec(len: usize) -> Result<Vec<u8>, GetRandomFailed> {
     let mut v = vec![0; len];
