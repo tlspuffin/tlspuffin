@@ -15,12 +15,12 @@ The following image shows the terminology and the flow of test cases throught he
 
 <Architecture />
 
-- State: Comprising "Corpus" and "Objectives," this stores all test cases with their traces and metadata, with the Objectives focusing specifically on cases that have triggered security violations.
-- Scheduler: This selects and schedules test cases from the Corpus for mutation and re-testing, based on various strategic criteria.
-- Mutational Stage: The "Mutator" alters a trace from a scheduled test case to create a mutated test case, which is then sent to the harness.
-- Harness: The harness executes the mutated test case in the Program Under Test (PUT) and observes the execution.
-- Feedback: This component evaluates the observed outcomes of the test case execution, adding interesting cases to the Corpus for further testing.
-- Objective Oracle: It checks test cases for violations of security policies, adding those that do violate to the Objectives for focused analysis.
+- **State:** Comprising "Corpus" and "Objectives," this stores all test cases with their traces and metadata, with the Objectives focusing specifically on cases that have triggered security violations.
+- **Scheduler:** This selects and schedules test cases from the Corpus for mutation and re-testing, based on various strategic criteria.
+- **Mutational Stage:** The "Mutator" alters a trace from a scheduled test case to create a mutated test case, which is then sent to the harness.
+- **Harness:** The harness executes the mutated test case in the Program Under Test (PUT) and observes the execution.
+- **Feedback:** This component evaluates the observed outcomes of the test case execution, adding interesting cases to the Corpus for further testing.
+- **Objective Oracle:** It checks test cases for violations of security policies, adding those that do violate to the Objectives for focused analysis.
 
 ## Implementation
 
