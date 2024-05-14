@@ -50,7 +50,7 @@ fn create_app() -> Command {
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
+                         .arg(arg!(-d --description <d> "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")

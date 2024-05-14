@@ -54,7 +54,7 @@ pub struct MutationStageConfig {
 }
 
 impl Default for MutationStageConfig {
-    //  TODO:EVAL: evaluate modif to this config
+    //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
             max_iterations_per_stage: 256,
@@ -75,7 +75,7 @@ pub struct MutationConfig {
 }
 
 impl Default for MutationConfig {
-    //  TODO:EVAL: evaluate modif to this config
+    //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
             fresh_zoo_after: 100000,

@@ -69,7 +69,7 @@ pub struct PutDescriptor {
 pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {
-    /// Process incoming buffer, internal progress, can fill in output buffer
+    /// Process incoming buffer, internal progress, can fill in the output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
 
     /// In-place reset of the state
@@ -94,7 +94,7 @@ pub trait Put<PB: ProtocolBehavior>:
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
 
-    /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
+    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
     /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
     fn determinism_reseed(&mut self) -> Result<(), Error>;
 
@@ -104,7 +104,7 @@ pub trait Put<PB: ProtocolBehavior>:
         agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
     }
 
-    /// Shutdown the PUT by consuming it and returning a string which summarizes the execution.
+    /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;
 
     /// Returns a textual representation of the version of the PUT used by self
