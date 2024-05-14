@@ -7,11 +7,11 @@ import Architecture from './libafl-architecture_new.drawio.svg';
 # What is tlspuffin?
 
 The tlspuffin fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf).
-The fuzzer mostly fuzzes TLS implementaitons like OpenSSL, LibreSSL, or wolfSSL, but can also fuzz other cryptographic protocols like SSH. Internally, puffin uses [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
+The fuzzer mostly fuzzes TLS implementations like OpenSSL, LibreSSL, or wolfSSL, but can also fuzz other cryptographic protocols like SSH. Internally, puffin uses [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
 
 ## Fuzzing Loop
 
-The following image shows the terminology and the flow of test cases throught he fuzzer. We typically start the fuzzing with some "happy protocol flows" in the corpus.
+The following image shows the terminology and the flow of test cases through the fuzzer. We typically start the fuzzing with some "happy protocol flows" in the corpus.
 
 <Architecture />
 
@@ -24,7 +24,7 @@ The following image shows the terminology and the flow of test cases throught he
 
 ## Implementation
 
-From an implementation perspective several modules exist to make the fuzzer reusable:
+From an implementation perspective, several modules exist to make the fuzzer reusable:
 
 - [puffin](https://github.com/tlspuffin/tlspuffin/tree/main/puffin) - Core fuzzing engine which is protocol agnostic.
 - [tlspuffin](https://github.com/tlspuffin/tlspuffin/tree/main/tlspuffin) -  TLS fuzzer which uses puffin and is implementation agnostic.
@@ -60,7 +60,7 @@ pub trait ProtocolBehavior: 'static {
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
 
-    /// Get the signature which is used in the protocol
+    /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.
@@ -93,7 +93,7 @@ pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
 pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {
-    /// Process incoming buffer, internal progress, can fill in output buffer
+    /// Process incoming buffer, internal progress, can fill in the output buffer
     fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
 
     /// In-place reset of the state
@@ -118,7 +118,7 @@ pub trait Put<PB: ProtocolBehavior>:
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
 
-    /// Make the PUT used by self determimistic in the future by making its PRNG "deterministic"
+    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
     /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
     fn determinism_reseed(&mut self) -> Result<(), Error>;
 
@@ -128,7 +128,7 @@ pub trait Put<PB: ProtocolBehavior>:
         agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
     }
 
-    /// Shutdown the PUT by consuming it and returning a string which summarizes the execution.
+    /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;
 
     /// Returns a textual representation of the version of the PUT used by self
