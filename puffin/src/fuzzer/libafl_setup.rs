@@ -404,11 +404,14 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB: ProtocolBehavior + Clone + 'static>(
+pub fn start<PB>(
     put_registry: &PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    PB: ProtocolBehavior + Clone + 'static,
+{
     let FuzzerConfig {
         core_definition,
         corpus_dir,
@@ -430,7 +433,6 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
     } = &config;
 
     log::info!("Running on cores: {}", &core_definition);
-
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
@@ -501,18 +503,11 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         builder.run_client()
     };
 
+    let stats_monitor = StatsMonitor::new(|s| log::info!("{}", s), monitor_file.clone());
+
     if *no_launcher {
-        let (state, restarting_mgr) = setup_restarting_mgr_std(
-            StatsMonitor::new(
-                |s| {
-                    log::info!("{}", s);
-                },
-                monitor_file.clone(),
-            )
-            .unwrap(),
-            *broker_port,
-            EventConfig::AlwaysUnique,
-        )?;
+        let (state, restarting_mgr) =
+            setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
 
         run_client(state, restarting_mgr, CoreId(0))
     } else {
@@ -520,58 +515,42 @@ pub fn start<PB: ProtocolBehavior + Clone + 'static>(
         let configuration: EventConfig = "launcher default".into();
         let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
+        // NOTE tlspuffin's fuzzer should never write to stdout
+        //
+        // During fuzzing the logs are redirected to `log_file` (which is
+        // usually `tlspuffin.log`) and there should be no reason to print
+        // directly to stdout. We should therefore be able to safely discard the
+        // log output of clients.
+        //
+        // To verify this assumption, we save the clients' output to a file that
+        // should always be empty.
+        let out_path = log_file.with_extension("out");
+        let out_file = out_path
+            .to_str()
+            .expect("failed to create path to redirect fuzzer clients' stdout");
+
         if *monitor {
+            let tui_monitor = TuiMonitor::new(TuiUI::new(String::from("tlspuffin"), false));
+
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(TuiMonitor::new(TuiUI::new(String::from("test"), false)))
+                .monitor(tui_monitor)
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin.log.
-                // We can safely, disable the log output of clients.
-                // [LH] Just to test this assumption:
-                .stdout_file(Some(&format!(
-                    "{}.should-be-empty.log",
-                    monitor_file
-                        .clone()
-                        .into_os_string()
-                        .into_string()
-                        .expect("Fail")
-                        .to_owned()
-                )))
+                .stdout_file(Some(out_file))
                 .build()
                 .launch()
         } else {
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(
-                    StatsMonitor::new(
-                        |s| {
-                            log::info!("{}", s);
-                        },
-                        monitor_file.clone(),
-                    )
-                    .unwrap(),
-                )
+                .monitor(stats_monitor)
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin.log.
-                // We can safely, disable the log output of clients.
-                // [LH] Just to test this assumption:
-                .stdout_file(Some(&format!(
-                    "{}.should-be-empty.log",
-                    monitor_file
-                        .clone()
-                        .into_os_string()
-                        .into_string()
-                        .expect("Fail")
-                        .to_owned()
-                )))
+                .stdout_file(Some(out_file))
                 .build()
                 .launch()
         }

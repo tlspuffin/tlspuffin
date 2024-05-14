@@ -3,7 +3,6 @@
 use core::{time, time::Duration};
 use std::{
     fs::{File, OpenOptions},
-    io,
     io::BufWriter,
     path::PathBuf,
     time::SystemTime,
@@ -26,7 +25,6 @@ where
     print_fn: F,
     start_time: Duration,
     client_stats: Vec<ClientStats>,
-    log_count: u64,
     stats_file: PathBuf,
     json_writer: JSONSerializer<BufWriter<File>>,
 }
@@ -36,19 +34,12 @@ where
     F: FnMut(String) + Clone,
 {
     fn clone(&self) -> Self {
-        Self {
-            print_fn: self.print_fn.clone(),
-            start_time: self.start_time,
-            client_stats: self.client_stats.clone(),
-            log_count: self.log_count,
-            stats_file: self.stats_file.clone(),
-            json_writer: JSONSerializer::new(BufWriter::new(
-                OpenOptions::new()
-                    .append(true)
-                    .open(&self.stats_file)
-                    .unwrap(),
-            )),
-        }
+        Self::init(
+            self.print_fn.clone(),
+            self.start_time,
+            self.client_stats.clone(),
+            self.stats_file.clone(),
+        )
     }
 }
 
@@ -371,11 +362,8 @@ impl ErrorStatistics {
 }
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
-    if let Some(user_stat) = user_stats.user_monitor.get(name) {
-        match user_stat {
-            UserStats::Number(n) => *n,
-            _ => 0u64,
-        }
+    if let Some(UserStats::Number(n)) = user_stats.user_monitor.get(name) {
+        *n
     } else {
         0u64
     }
@@ -439,8 +427,6 @@ where
     }
 
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
-        self.log_count += 1;
-
         self.global(&event_msg);
         self.client(&event_msg, sender_id);
     }
@@ -450,20 +436,30 @@ impl<F> StatsMonitor<F>
 where
     F: FnMut(String),
 {
-    pub fn new(print_fn: F, stats_file: PathBuf) -> Result<Self, io::Error> {
+    pub fn new(print_fn: F, stats_file: PathBuf) -> Self {
+        Self::init(print_fn, current_time(), vec![], stats_file)
+    }
+
+    fn init(
+        print_fn: F,
+        start_time: Duration,
+        client_stats: Vec<ClientStats>,
+        stats_file: PathBuf,
+    ) -> Self {
         let json_writer = JSONSerializer::new(BufWriter::new(
             OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(&stats_file)?,
+                .open(&stats_file)
+                .unwrap(),
         ));
-        Ok(Self {
+
+        Self {
             print_fn,
-            start_time: current_time(),
-            client_stats: vec![],
-            log_count: 0,
+            start_time,
+            client_stats,
             stats_file,
             json_writer,
-        })
+        }
     }
 }
