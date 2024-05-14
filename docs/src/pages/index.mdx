@@ -25,7 +25,7 @@ Unfortunately, this blind spot hides numerous attacks, such as recent logical at
 ### DY Model-Guided Fuzzing
 
 We answer by proposing a novel and effective technique that we call DY model-guided fuzzing, which precludes logical attacks against protocol implementations. 
-The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker, and use a novel mutation-based fuzzer to explore this set. The DY fuzzer concretizes each abstract execution to test it on the program under test.
+The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker and use a novel mutation-based fuzzer to explore this set. The DY fuzzer concretizes each abstract execution to test it on the program under test.
 This approach enables reasoning at a more structural and security-related level of messages represented as formal terms (e.g. decrypt a message and re-encrypt it with a different key) as opposed to random bit-level modifications that are much less likely to produce relevant logical adversarial behaviors. 
 
 ### Results
