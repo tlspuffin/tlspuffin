@@ -50,36 +50,6 @@ pub fn fn_append_transcript(
     Ok(new_transcript)
 }
 
-pub fn fn_decrypt_handshake(
-    application_data: &Message,
-    server_hello_transcript: &HandshakeHash,
-    server_key_share: &Option<Vec<u8>>,
-    psk: &Option<Vec<u8>>,
-    group: &NamedGroup,
-    client: &bool,
-    sequence: &u64,
-) -> Result<Message, FnError> {
-    let (suite, key, _) = tls13_handshake_traffic_secret(
-        server_hello_transcript,
-        server_key_share,
-        psk,
-        !*client,
-        group,
-    )?;
-    let decrypter = suite
-        .tls13()
-        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
-        .derive_decrypter(&key);
-    let message = decrypter
-        .decrypt(
-            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-            *sequence,
-        )
-        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
-    Message::try_from(message)
-        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
-}
-
 pub fn fn_new_flight() -> Result<MessageFlight<Message, OpaqueMessage>, FnError> {
     Ok(MessageFlight::new())
 }
@@ -168,17 +138,6 @@ pub fn fn_decrypt_multiple_handshake_messages(
         .collect();
 
     Ok(messages)
-}
-
-pub fn fn_find_server_hello(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::ServerHello {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Unknown("no server hello".to_owned()))
 }
 
 pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, FnError> {

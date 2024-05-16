@@ -1674,16 +1674,20 @@ pub fn seed_session_resumption_dhe_full(
         )
     };
 
-    let resumption_encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+    let resumption_decrypted_handshake = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_psk((@psk))),
             fn_named_group_secp384r1,
             fn_true,
             fn_seq_0  // sequence 0
         )
+    };
+
+    let resumption_encrypted_extensions = term! {
+        fn_find_encrypted_extensions((@resumption_decrypted_handshake))
     };
 
     let resumption_encrypted_extension_transcript = term! {
@@ -1694,15 +1698,7 @@ pub fn seed_session_resumption_dhe_full(
     };
 
     let resumption_server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Server Handshake Finished
-            (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
-            (fn_psk((@psk))),
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_1 // sequence 1
-        )
+        fn_find_server_finished((@resumption_decrypted_handshake))
     };
 
     let resumption_server_finished_transcript = term! {

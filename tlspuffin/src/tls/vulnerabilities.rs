@@ -2,13 +2,21 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
+    protocol::MessageFlight,
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
 use crate::{
     query::TlsQueryMatcher,
-    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
+    tls::{
+        fn_impl::*,
+        rustls::msgs::{
+            enums::HandshakeType,
+            message::{Message, OpaqueMessage},
+        },
+        seeds::*,
+    },
 };
 
 /// https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638
@@ -39,17 +47,21 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    // ApplicationData 0 is EncryptedExtensions
-    let certificate_request_message = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+    let decrypted_handshake = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_1
+            fn_seq_0  // sequence 0
         )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_find_server_certificate_request((@decrypted_handshake))
     };
 
     let certificate_rsa = term! {
@@ -192,17 +204,21 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
         )
     };
 
-    // ApplicationData 0 is EncryptedExtensions
-    let certificate_request_message = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]),
+    let decrypted_handshake = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_1
+            fn_seq_0  // sequence 0
         )
+    };
+
+    // ApplicationData 0 is EncryptedExtensions
+    let certificate_request_message = term! {
+        fn_find_server_certificate_request((@decrypted_handshake))
     };
 
     let certificate = term! {
