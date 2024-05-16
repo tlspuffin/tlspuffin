@@ -2,6 +2,7 @@
 
 use core::{time, time::Duration};
 use std::{
+    fmt::Display,
     fs::{File, OpenOptions},
     io::BufWriter,
     path::{Path, PathBuf},
@@ -83,10 +84,7 @@ impl StatsMonitor {
         let objective_size = client.objective_size;
 
         let coverage = match client.user_monitor.get(MAP_FEEDBACK_NAME) {
-            Some(UserStats::Ratio(a, b)) => Some(CoverageStatistics {
-                discovered: *a,
-                max: *b,
-            }),
+            Some(UserStats::Ratio(a, b)) => Some(CoverageStatistics { hit: *a, max: *b }),
             _ => None,
         };
 
@@ -131,6 +129,44 @@ enum Statistics {
     Global(GlobalStatistics),
 }
 
+impl Display for Statistics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Statistics::Client(client_stats) => {
+                write!(
+                    f,
+                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    client_stats.corpus_size,
+                    client_stats.objective_size,
+                    client_stats.total_execs,
+                    client_stats.exec_per_sec
+                )?;
+
+                if let Some(CoverageStatistics { hit, max }) = client_stats.coverage {
+                    match max {
+                        0 => write!(f, ", edges: {hit}/{max}"),
+                        _ => write!(f, ", edges: {hit}/{max} ({}%)", hit * 100 / max),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+
+            Statistics::Global(global_stats) => {
+                write!(
+                    f,
+                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    global_stats.clients,
+                    global_stats.corpus_size,
+                    global_stats.objective_size,
+                    global_stats.total_execs,
+                    global_stats.exec_per_sec,
+                )
+            }
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct GlobalStatistics {
     time: SystemTime,
@@ -163,7 +199,7 @@ struct ClientStatistics {
 
 #[derive(Serialize)]
 struct CoverageStatistics {
-    discovered: u64,
+    hit: u64,
     max: u64,
 }
 
@@ -382,9 +418,10 @@ impl Monitor for StatsMonitor {
 
 impl StatsMonitor {
     pub fn new(stats_file: PathBuf) -> Self {
-        let mut handlers: Vec<Box<dyn EventHandler>> = vec![];
-        handlers.push(Box::new(log_output));
-        handlers.push(Box::new(JSONEventHandler::new(&stats_file)));
+        let handlers: Vec<Box<dyn EventHandler>> = vec![
+            Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
+            Box::new(JSONEventHandler::new(stats_file)),
+        ];
 
         Self {
             handlers,
@@ -471,43 +508,5 @@ impl Clone for JSONEventHandler {
 impl EventHandler for JSONEventHandler {
     fn process(&mut self, _source: ClientId, _msg: &str, stats: &Statistics) {
         stats.serialize(&mut self.serializer).unwrap();
-    }
-}
-
-fn log_output(_sender: ClientId, msg: &str, stats: &Statistics) {
-    match stats {
-        Statistics::Client(client_stats) => {
-            let mut fmt = format!(
-                "[{}] (CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
-                msg,
-                client_stats.corpus_size,
-                client_stats.objective_size,
-                client_stats.total_execs,
-                client_stats.exec_per_sec
-            );
-
-            if let Some(CoverageStatistics { discovered, max }) = client_stats.coverage {
-                fmt += &match max {
-                    0 => format!(", edges: {discovered}/{max}"),
-                    _ => format!(", edges: {discovered}/{max} ({}%)", discovered * 100 / max),
-                }
-            }
-
-            log::info!("{}", fmt);
-        }
-
-        Statistics::Global(global_stats) => {
-            let fmt = format!(
-                "[{}] (GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
-                msg,
-                global_stats.clients,
-                global_stats.corpus_size,
-                global_stats.objective_size,
-                global_stats.total_execs,
-                global_stats.exec_per_sec,
-            );
-
-            log::info!("{}", fmt);
-        }
     }
 }
