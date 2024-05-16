@@ -503,7 +503,7 @@ where
         builder.run_client()
     };
 
-    let stats_monitor = StatsMonitor::new(|s| log::info!("{}", s), monitor_file.clone());
+    let stats_monitor = StatsMonitor::new(monitor_file.clone());
 
     if *no_launcher {
         let (state, restarting_mgr) =
