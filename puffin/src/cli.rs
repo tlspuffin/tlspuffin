@@ -30,11 +30,14 @@ use crate::{
     trace::{Action, Trace, TraceContext},
 };
 
-fn create_app() -> Command {
+fn create_app<S>(title: S) -> Command
+where
+    S: AsRef<str>,
+{
     Command::new(crate_name!())
         .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
-        .about("Fuzzes OpenSSL on a symbolic level")
+        .about(title.as_ref().to_owned())
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -85,7 +88,11 @@ fn create_app() -> Command {
         ])
 }
 
-pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> ExitCode {
+pub fn main<S, PB>(title: S, put_registry: PutRegistry<PB>) -> ExitCode
+where
+    S: AsRef<str>,
+    PB: ProtocolBehavior + Clone,
+{
     let handle = match log4rs::init_config(config_default()) {
         Ok(handle) => handle,
         Err(err) => {
@@ -94,7 +101,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
         }
     };
 
-    let matches = create_app().get_matches();
+    let matches = create_app(title).get_matches();
 
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
