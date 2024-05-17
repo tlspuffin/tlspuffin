@@ -10,7 +10,6 @@ use crate::tls::rustls::msgs::{
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TlsQueryMatcher {
-    Flight,
     ChangeCipherSpec,
     Alert,
     Handshake(Option<HandshakeType>),
@@ -21,7 +20,6 @@ pub enum TlsQueryMatcher {
 impl Matcher for TlsQueryMatcher {
     fn matches(&self, matcher: &TlsQueryMatcher) -> bool {
         match matcher {
-            TlsQueryMatcher::Flight => matches!(self, TlsQueryMatcher::Flight),
             TlsQueryMatcher::Handshake(query_handshake_type) => match self {
                 TlsQueryMatcher::Handshake(handshake_type) => {
                     handshake_type.matches(query_handshake_type)
