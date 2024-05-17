@@ -10,7 +10,7 @@ use clap::{
     arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
 };
 use libafl::inputs::Input;
-use log::{error, info, LevelFilter};
+use log::{error, info};
 
 use crate::{
     algebra::set_deserialize_signature,
@@ -23,7 +23,7 @@ use crate::{
         start, FuzzerConfig,
     },
     graphviz::write_graphviz,
-    log::create_stderr_config,
+    log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
     put_registry::PutRegistry,
@@ -86,7 +86,7 @@ fn create_app() -> Command {
 }
 
 pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> ExitCode {
-    let handle = match log4rs::init_config(create_stderr_config(LevelFilter::Info)) {
+    let handle = match log4rs::init_config(config_default()) {
         Ok(handle) => handle,
         Err(err) => {
             eprintln!("error: failed to initialize logging: {:?}", err);

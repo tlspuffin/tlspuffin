@@ -14,7 +14,7 @@ use crate::{
         mutations::{trace_mutations, util::TermConstraints},
         stats_monitor::StatsMonitor,
     },
-    log::create_file_config,
+    log::{config_fuzzing, config_fuzzing_client},
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,
@@ -434,11 +434,16 @@ where
 
     log::info!("Running on cores: {}", &core_definition);
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
+    log_handle.set_config(config_fuzzing(log_file));
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
+        log_handle
+            .clone()
+            .set_config(config_fuzzing_client(log_file));
+
         let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
@@ -494,11 +499,6 @@ where
                 .with_observers(observer)
                 .with_scheduler(RandScheduler::new());
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
-
-        // TODO: Allow configuring the following warn level
-        log_handle
-            .clone()
-            .set_config(create_file_config(log::LevelFilter::Warn, log_file));
 
         builder.run_client()
     };
