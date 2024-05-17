@@ -10,8 +10,10 @@ use std::{
 };
 
 use dyn_clone::DynClone;
-use libafl::monitors::tui::{ui::TuiUI, TuiMonitor};
-use libafl::prelude::*;
+use libafl::{
+    monitors::tui::{ui::TuiUI, TuiMonitor},
+    prelude::*,
+};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -35,7 +37,7 @@ pub struct StatsMonitor {
 impl StatsMonitor {
     pub fn with_tui_output(stats_file: PathBuf) -> Self {
         let monitor = Box::new(TuiMonitor::new(TuiUI::new(
-            String::from("tlspuffin"),
+            String::from("tlspuffin [press q to exit]"),
             false,
         )));
         let handlers: Vec<Box<dyn EventHandler>> =

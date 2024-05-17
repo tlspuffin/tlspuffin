@@ -46,7 +46,7 @@ where
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
             .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
-        .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
@@ -109,7 +109,7 @@ where
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
     let minimizer = matches.get_flag("minimizer");
-    let monitor = matches.get_flag("monitor");
+    let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
 
@@ -378,12 +378,12 @@ where
             corpus_dir: experiment_path.join("corpus"),
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
-            monitor_file: experiment_path.join("stats.json"),
+            stats_file: experiment_path.join("stats.json"),
             log_file: experiment_path.join("tlspuffin.log"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
-            monitor,
+            tui,
             no_launcher,
         };
 

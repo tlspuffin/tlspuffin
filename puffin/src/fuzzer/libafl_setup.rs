@@ -29,14 +29,14 @@ pub struct FuzzerConfig {
     pub static_seed: Option<u64>,
     pub max_iters: Option<u64>,
     pub core_definition: String,
-    pub monitor_file: PathBuf,
+    pub stats_file: PathBuf,
     pub corpus_dir: PathBuf,
     pub objective_dir: PathBuf,
     pub broker_port: u16,
     pub minimizer: bool, // FIXME: support this property
     pub mutation_stage_config: MutationStageConfig,
     pub mutation_config: MutationConfig,
-    pub monitor: bool,
+    pub tui: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
 }
@@ -414,9 +414,9 @@ where
         objective_dir,
         static_seed: _,
         log_file,
-        monitor_file,
+        stats_file,
         broker_port,
-        monitor,
+        tui,
         no_launcher,
         mutation_config:
             MutationConfig {
@@ -500,7 +500,7 @@ where
     };
 
     if *no_launcher {
-        let stats_monitor = StatsMonitor::with_raw_output(monitor_file.clone());
+        let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
 
         let (state, restarting_mgr) =
             setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
@@ -525,8 +525,8 @@ where
             .to_str()
             .expect("failed to create path to redirect fuzzer clients' stdout");
 
-        if *monitor {
-            let stats_monitor = StatsMonitor::with_tui_output(monitor_file.clone());
+        if *tui {
+            let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone());
 
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
@@ -539,7 +539,7 @@ where
                 .build()
                 .launch()
         } else {
-            let stats_monitor = StatsMonitor::with_raw_output(monitor_file.clone());
+            let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
 
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
