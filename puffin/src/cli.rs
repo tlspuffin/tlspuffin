@@ -89,7 +89,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
     let handle = match log4rs::init_config(create_stderr_config(LevelFilter::Info)) {
         Ok(handle) => handle,
         Err(err) => {
-            error!("Failed to init logging: {:?}", err);
+            eprintln!("error: failed to initialize logging: {:?}", err);
             return ExitCode::FAILURE;
         }
     };
