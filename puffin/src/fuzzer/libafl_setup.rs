@@ -1,11 +1,7 @@
 use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
-use libafl::{
-    corpus::ondisk::OnDiskMetadataFormat,
-    monitors::tui::{ui::TuiUI, TuiMonitor},
-    prelude::*,
-};
+use libafl::{corpus::ondisk::OnDiskMetadataFormat, prelude::*};
 use log4rs::Handle;
 
 use super::harness;
@@ -503,9 +499,9 @@ where
         builder.run_client()
     };
 
-    let stats_monitor = StatsMonitor::new(monitor_file.clone());
-
     if *no_launcher {
+        let stats_monitor = StatsMonitor::with_raw_output(monitor_file.clone());
+
         let (state, restarting_mgr) =
             setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
 
@@ -530,12 +526,12 @@ where
             .expect("failed to create path to redirect fuzzer clients' stdout");
 
         if *monitor {
-            let tui_monitor = TuiMonitor::new(TuiUI::new(String::from("tlspuffin"), false));
+            let stats_monitor = StatsMonitor::with_tui_output(monitor_file.clone());
 
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(tui_monitor)
+                .monitor(stats_monitor)
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
@@ -543,6 +539,8 @@ where
                 .build()
                 .launch()
         } else {
+            let stats_monitor = StatsMonitor::with_raw_output(monitor_file.clone());
+
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)

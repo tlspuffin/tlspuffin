@@ -1,6 +1,6 @@
 //! Stats to display both cumulative and per-client stats
 
-use core::{time, time::Duration};
+use core::time::Duration;
 use std::{
     fmt::Display,
     fs::{File, OpenOptions},
@@ -9,6 +9,8 @@ use std::{
     time::SystemTime,
 };
 
+use dyn_clone::DynClone;
+use libafl::monitors::tui::{ui::TuiUI, TuiMonitor};
 use libafl::prelude::*;
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
@@ -18,17 +20,46 @@ use crate::fuzzer::{
     stats_stage::{RuntimeStats, STATS},
 };
 
+trait ClonableMonitor: Monitor + DynClone {}
+impl ClonableMonitor for TuiMonitor {}
+impl ClonableMonitor for NopMonitor {}
+dyn_clone::clone_trait_object!(ClonableMonitor);
+
 #[derive(Clone)]
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
 pub struct StatsMonitor {
-    start_time: Duration,
-    client_stats: Vec<ClientStats>,
+    monitor: Box<dyn ClonableMonitor>,
     handlers: Vec<Box<dyn EventHandler>>,
 }
 
 impl StatsMonitor {
-    fn client(&mut self, event_msg: &str, sender_id: ClientId) {
-        let client = self.client_stats_mut_for(sender_id);
+    pub fn with_tui_output(stats_file: PathBuf) -> Self {
+        let monitor = Box::new(TuiMonitor::new(TuiUI::new(
+            String::from("tlspuffin"),
+            false,
+        )));
+        let handlers: Vec<Box<dyn EventHandler>> =
+            vec![Box::new(JSONEventHandler::new(stats_file))];
+
+        Self::new(monitor, handlers)
+    }
+
+    pub fn with_raw_output(stats_file: PathBuf) -> Self {
+        let monitor = Box::new(NopMonitor::new());
+        let handlers: Vec<Box<dyn EventHandler>> = vec![
+            Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
+            Box::new(JSONEventHandler::new(stats_file)),
+        ];
+
+        Self::new(monitor, handlers)
+    }
+
+    fn new(monitor: Box<dyn ClonableMonitor>, handlers: Vec<Box<dyn EventHandler>>) -> Self {
+        Self { monitor, handlers }
+    }
+
+    fn client(&mut self, id: ClientId) -> Statistics {
+        let client = self.client_stats_mut_for(id);
 
         #[cfg(feature = "introspection")]
         let introspect_feature = {
@@ -88,8 +119,8 @@ impl StatsMonitor {
             _ => None,
         };
 
-        let stats = Statistics::Client(ClientStatistics {
-            id: sender_id.0,
+        Statistics::Client(ClientStatistics {
+            id: id.0,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
@@ -100,13 +131,11 @@ impl StatsMonitor {
             objective_size,
             total_execs,
             exec_per_sec: exec_sec as u64,
-        });
-
-        self.dispatch(sender_id, event_msg, &stats);
+        })
     }
 
-    fn global(&mut self, event_msg: &str, sender_id: ClientId) {
-        let stats = Statistics::Global(GlobalStatistics {
+    fn global(&mut self) -> Statistics {
+        Statistics::Global(GlobalStatistics {
             time: SystemTime::now(),
 
             clients: self.client_stats().len() as u32,
@@ -114,9 +143,35 @@ impl StatsMonitor {
             objective_size: self.objective_size(),
             total_execs: self.total_execs(),
             exec_per_sec: self.execs_per_sec() as u64,
-        });
+        })
+    }
 
-        self.dispatch(sender_id, event_msg, &stats);
+    fn dispatch(&mut self, sender: ClientId, msg: &str, stats: &Statistics) {
+        self.handlers
+            .iter_mut()
+            .for_each(|h| h.process(sender, msg, stats));
+    }
+}
+
+impl Monitor for StatsMonitor {
+    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
+        self.monitor.client_stats_mut()
+    }
+
+    fn client_stats(&self) -> &[ClientStats] {
+        self.monitor.client_stats()
+    }
+
+    fn start_time(&mut self) -> Duration {
+        self.monitor.start_time()
+    }
+
+    fn display(&mut self, event_msg: String, sender_id: ClientId) {
+        let global_stats = self.global();
+        let client_stats = self.client(sender_id);
+        self.dispatch(sender_id, &event_msg, &global_stats);
+        self.dispatch(sender_id, &event_msg, &client_stats);
+        self.monitor.display(event_msg, sender_id);
     }
 }
 
@@ -394,76 +449,11 @@ impl TraceStatistics {
     }
 }
 
-impl Monitor for StatsMonitor {
-    /// the client stats, mutable
-    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
-        &mut self.client_stats
-    }
-
-    /// the client stats
-    fn client_stats(&self) -> &[ClientStats] {
-        &self.client_stats
-    }
-
-    /// Time this fuzzing run started
-    fn start_time(&mut self) -> time::Duration {
-        self.start_time
-    }
-
-    fn display(&mut self, event_msg: String, sender_id: ClientId) {
-        self.global(&event_msg, sender_id);
-        self.client(&event_msg, sender_id);
-    }
-}
-
-impl StatsMonitor {
-    pub fn new(stats_file: PathBuf) -> Self {
-        let handlers: Vec<Box<dyn EventHandler>> = vec![
-            Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
-            Box::new(JSONEventHandler::new(stats_file)),
-        ];
-
-        Self {
-            handlers,
-            start_time: current_time(),
-            client_stats: vec![],
-        }
-    }
-
-    fn dispatch(&mut self, sender: ClientId, msg: &str, stats: &Statistics) {
-        self.handlers
-            .iter_mut()
-            .for_each(|h| h.process(sender, msg, stats));
-    }
-}
-
-trait EventHandlerClone {
-    fn clone_box<'a>(&self) -> Box<dyn EventHandler + 'a>
-    where
-        Self: 'a;
-}
-
-impl<T> EventHandlerClone for T
-where
-    T: Clone + EventHandler + 'static,
-{
-    fn clone_box<'a>(&self) -> Box<dyn EventHandler + 'a>
-    where
-        Self: 'a,
-    {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn EventHandler> {
-    fn clone(&self) -> Self {
-        (**self).clone_box()
-    }
-}
-
-trait EventHandler: EventHandlerClone {
+trait EventHandler: DynClone {
     fn process(&mut self, source: ClientId, msg: &str, stats: &Statistics);
 }
+
+dyn_clone::clone_trait_object!(EventHandler);
 
 impl<F> EventHandler for F
 where
