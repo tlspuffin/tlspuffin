@@ -70,7 +70,7 @@ impl MessagePayload {
         vers: ProtocolVersion,
         payload: Payload,
     ) -> Result<Vec<Self>, Error> {
-        let fallback_payload = payload.clone();
+        let fallback_payload = &payload;
         let mut r = Reader::init(&payload.0);
         let mut parsed: Vec<Self> = vec![];
         while r.any_left() {

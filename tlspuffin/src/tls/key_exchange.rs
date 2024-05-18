@@ -40,10 +40,7 @@ pub fn deterministic_key_share(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
     }
 }
 
-pub fn tls13_key_exchange(
-    server_key_share: &Vec<u8>,
-    group: &NamedGroup,
-) -> Result<Vec<u8>, FnError> {
+pub fn tls13_key_exchange(server_key_share: &[u8], group: &NamedGroup) -> Result<Vec<u8>, FnError> {
     // Shared Secret
     let skxg = KeyExchange::choose(*group, &ALL_KX_GROUPS)
         .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
@@ -63,7 +60,7 @@ pub fn tls12_key_exchange(group: &NamedGroup) -> Result<KeyExchange, FnError> {
 
 pub fn tls12_new_secrets(
     server_random: &Random,
-    server_ecdh_pubkey: &Vec<u8>,
+    server_ecdh_pubkey: &[u8],
     group: &NamedGroup,
 ) -> Result<ConnectionSecrets, FnError> {
     let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129

@@ -6,7 +6,6 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
-    variable_data::VariableData,
 };
 
 use crate::tls::{

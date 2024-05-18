@@ -16,7 +16,7 @@ const REF: &str = if cfg!(feature = "libressl333") {
     panic!("Unknown version of LibreSSL requested!")
 };
 
-fn clone(dest: &PathBuf) -> std::io::Result<()> {
+fn clone(dest: &Path) -> std::io::Result<()> {
     std::fs::remove_dir_all(dest)?;
     Command::new("git")
         .arg("clone")
@@ -71,7 +71,7 @@ impl Build {
         self
     }
 
-    pub fn insert_claim_interface(additional_headers: &PathBuf) -> std::io::Result<()> {
+    pub fn insert_claim_interface(additional_headers: &Path) -> std::io::Result<()> {
         let interface = security_claims::CLAIM_INTERFACE_H;
 
         let path = additional_headers.join("claim-interface.h");
