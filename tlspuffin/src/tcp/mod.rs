@@ -15,7 +15,7 @@ use log::{debug, error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    protocol::MessageResult,
+    protocol::{MessageResult, OpaqueMessageFlight},
     put::{Put, PutDescriptor, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -279,8 +279,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight<OpaqueMessage>) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 
@@ -292,8 +292,8 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
 }
 
 impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight<OpaqueMessage>) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 

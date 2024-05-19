@@ -1,9 +1,11 @@
 use std::{fmt::Debug, marker::PhantomData};
 
+use log::debug;
+
 use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::Codec,
+    codec::{Codec, Reader},
     error::Error,
     trace::Trace,
     variable_data::VariableData,
@@ -21,6 +23,71 @@ impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageFlight<M, O> {
         MessageFlight {
             messages: vec![],
             phantom: PhantomData,
+        }
+    }
+
+    pub fn debug(&self, info: &str) {
+        debug!("{}: {:?}", info, self);
+    }
+}
+
+/// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
+#[derive(Debug, Clone)]
+pub struct OpaqueMessageFlight<O: OpaqueProtocolMessage> {
+    pub messages: Vec<O>,
+}
+
+impl<O: OpaqueProtocolMessage> OpaqueMessageFlight<O> {
+    pub fn new() -> Self {
+        OpaqueMessageFlight { messages: vec![] }
+    }
+
+    pub fn debug(&self, info: &str) {
+        debug!("{}: {:?}", info, self);
+    }
+
+    pub fn get_encoding(self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.encode(&mut buf);
+        buf
+    }
+}
+
+impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> From<M> for MessageFlight<M, O> {
+    fn from(value: M) -> Self {
+        MessageFlight {
+            messages: vec![value],
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> From<MessageFlight<M, O>>
+    for OpaqueMessageFlight<O>
+{
+    fn from(value: MessageFlight<M, O>) -> Self {
+        OpaqueMessageFlight {
+            messages: value.messages.iter().map(|m| m.create_opaque()).collect(),
+        }
+    }
+}
+
+impl<O: OpaqueProtocolMessage> Codec for OpaqueMessageFlight<O> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(_reader: &mut Reader) -> Option<Self> {
+        None
+    }
+}
+
+impl<O: OpaqueProtocolMessage> From<O> for OpaqueMessageFlight<O> {
+    fn from(value: O) -> Self {
+        OpaqueMessageFlight {
+            messages: vec![value],
         }
     }
 }

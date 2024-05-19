@@ -94,6 +94,11 @@ pub fn fn_decrypt_handshake_flight(
         }
     }
 
+    println!("Decrypting handshake");
+    for msg in &decrypted_flight {
+        println!("DECRYPTED: {:?}", msg);
+    }
+
     Ok(decrypted_flight)
 }
 
@@ -212,6 +217,46 @@ pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
 
 pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
     Ok(Some(some.clone()))
+}
+
+/// Decrypt a whole flight of application messages and return a Vec of decrypted messages
+pub fn fn_decrypt_application_flight(
+    flight: &MessageFlight<Message, OpaqueMessage>,
+    server_hello_transcript: &HandshakeHash,
+    server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+) -> Result<Vec<Message>, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = vec![];
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_application(
+                &msg,
+                server_hello_transcript,
+                server_finished_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.push(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    for msg in &decrypted_flight {
+        println!("DECRYPTED: {:?}", msg);
+    }
+
+    Ok(decrypted_flight)
 }
 
 pub fn fn_decrypt_application(

@@ -209,6 +209,7 @@ define_signature!(
     fn_append_transcript
     fn_decrypt_handshake_flight
     fn_decrypt_multiple_handshake_messages
+    fn_decrypt_application_flight
     fn_find_server_certificate
     fn_find_server_certificate_request
     fn_find_server_ticket

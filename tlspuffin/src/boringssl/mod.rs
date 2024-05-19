@@ -13,7 +13,7 @@ use log::{debug, info, trace};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    protocol::MessageResult,
+    protocol::{MessageResult, OpaqueMessageFlight},
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
@@ -149,7 +149,7 @@ impl Drop for BoringSSL {
 }
 
 impl Stream<Message, OpaqueMessage> for BoringSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
+    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight<OpaqueMessage>) {
         <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
             self.stream.get_mut(),
             result,

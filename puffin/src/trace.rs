@@ -33,7 +33,8 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{
-        MessageFlight, MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage,
+        MessageFlight, MessageResult, OpaqueMessageFlight, OpaqueProtocolMessage, ProtocolBehavior,
+        ProtocolMessage,
     },
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
@@ -241,10 +242,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
+        message_flight: &OpaqueMessageFlight<PB::OpaqueProtocolMessage>,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message))
+            .map(|agent| agent.put_mut().add_to_inbound(message_flight))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -632,19 +633,35 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+        if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<MessageFlight<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>()
+        {
+            flight.debug("Input message flight");
+
+            ctx.add_to_inbound(step.agent, &flight.clone().into())?;
+        } else if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<OpaqueMessageFlight<PB::OpaqueProtocolMessage>>()
+        {
+            flight.debug("Input opaque message flight");
+
+            ctx.add_to_inbound(step.agent, &flight)?;
+        } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            let message_flight: MessageFlight<PB::ProtocolMessage, PB::OpaqueProtocolMessage> =
+                msg.clone().into();
+            ctx.add_to_inbound(step.agent, &message_flight.into())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`!",
             ))
             .into());
         }

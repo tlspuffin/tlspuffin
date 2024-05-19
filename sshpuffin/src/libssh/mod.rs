@@ -23,7 +23,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    protocol::MessageResult,
+    protocol::{MessageResult, OpaqueMessageFlight},
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -212,7 +212,7 @@ pub struct LibSSL {
 impl LibSSL {}
 
 impl Stream<SshMessage, RawSshMessage> for LibSSL {
-    fn add_to_inbound(&mut self, result: &RawSshMessage) {
+    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight<RawSshMessage>) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);
 
