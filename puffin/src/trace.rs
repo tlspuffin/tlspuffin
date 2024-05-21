@@ -547,10 +547,9 @@ impl<M: Matcher> OutputAction<M> {
 
             let MessageResult(message, opaque_message) = message_result;
 
-            match &message {
-                Some(m) => flight.messages.push(m.clone()),
-                _ => (),
-            };
+            if let Some(m) = &message {
+                flight.messages.push(m.clone());
+            }
 
             let knowledge = message
                 .and_then(|message| message.extract_knowledge().ok())

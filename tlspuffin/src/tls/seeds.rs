@@ -267,6 +267,49 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
     }
 }
 
+pub fn seed_successful_with_flights(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<TlsQueryMatcher> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        (client, 0)/MessageFlight<Message,OpaqueMessage>
+                    },
+                }),
+            },
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        (server, 0)/MessageFlight<Message,OpaqueMessage>
+                    },
+                }),
+            },
+            // Client Finished -> server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        (client, 1)/MessageFlight<Message,OpaqueMessage>
+                    },
+                }),
+            },
+        ],
+    }
+}
+
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
 pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
@@ -1796,6 +1839,7 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
+        seed_successful_with_flights: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
         seed_successful_with_tickets: cfg(feature = "tls13"),
         seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
@@ -1911,6 +1955,16 @@ pub mod tests {
         use crate::tls::trace_helper::TraceExecutor;
 
         let ctx = seed_session_resumption_ke.execute_trace();
+        assert!(ctx.agents_successful());
+    }
+
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[cfg(not(feature = "boringssl-binding"))]
+    #[test]
+    fn test_seed_successful_with_flights() {
+        use crate::tls::trace_helper::TraceExecutor;
+
+        let ctx = seed_successful_with_flights.execute_trace();
         assert!(ctx.agents_successful());
     }
 
