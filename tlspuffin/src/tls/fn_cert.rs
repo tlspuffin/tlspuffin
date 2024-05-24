@@ -106,18 +106,19 @@ pub fn fn_rsa_sign_server(
 
 fn _fn_rsa_sign(
     message: &[u8],
-    private_key: &Vec<u8>,
+    private_key: &[u8],
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    let invalid_scheme = match scheme {
+    let invalid_scheme = !matches!(
+        scheme,
         SignatureScheme::RSA_PKCS1_SHA256
-        | SignatureScheme::RSA_PKCS1_SHA384
-        | SignatureScheme::RSA_PKCS1_SHA512
-        | SignatureScheme::RSA_PSS_SHA256
-        | SignatureScheme::RSA_PSS_SHA384
-        | SignatureScheme::RSA_PSS_SHA512 => false,
-        _ => true,
-    };
+            | SignatureScheme::RSA_PKCS1_SHA384
+            | SignatureScheme::RSA_PKCS1_SHA512
+            | SignatureScheme::RSA_PSS_SHA256
+            | SignatureScheme::RSA_PSS_SHA384
+            | SignatureScheme::RSA_PSS_SHA512
+    );
+
     if invalid_scheme {
         return Err(FnError::Crypto("Unknown signature scheme".to_string()));
     }
@@ -151,7 +152,7 @@ pub fn fn_ecdsa_sign_server(
     _fn_ecdsa_sign(&message, private_key)
 }
 
-fn _fn_ecdsa_sign(message: &[u8], private_key: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+fn _fn_ecdsa_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, FnError> {
     let key = EcdsaSigningKey::new(
         &PrivateKey(private_key.to_vec()),
         SignatureScheme::ECDSA_NISTP256_SHA256,

@@ -279,7 +279,7 @@ fn state() {
     let server = Server::builder().build();
 
     let s = server.client().connect();
-    // NOTE: Boring returs a placeholder string for state_string
+    // NOTE: BoringSSL returns a placeholder string for state_string
     assert_eq!(s.ssl().state_string(), "!!!!!!");
     assert_eq!(
         s.ssl().state_string_long(),

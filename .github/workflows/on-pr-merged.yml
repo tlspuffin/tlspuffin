@@ -63,6 +63,7 @@ jobs:
     name: Update Website Repository
     runs-on: ubuntu-22.04
     environment: github-pages
+    if: github.repository == 'tlspuffin/tlspuffin'
     steps:
       - name: checkout website repository
         uses: actions/checkout@v4
@@ -73,7 +74,7 @@ jobs:
 
       - name: remove previous website folder
         run: |
-          git rm -rf website/
+          git rm -rf --ignore-unmatch website/
           rm -rf website
 
       - name: add updated website

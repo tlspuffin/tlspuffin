@@ -9,7 +9,6 @@ use puffin::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
-use super::rustls::msgs::handshake::EncryptedExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{

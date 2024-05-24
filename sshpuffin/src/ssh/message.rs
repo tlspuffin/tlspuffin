@@ -41,7 +41,7 @@ impl Codec for BinaryPacket {
         let payload_length = packet_length as usize - padding_length as usize - 1;
         let payload = Vec::from(reader.take(payload_length)?);
         let random_padding = Vec::from(reader.take(padding_length as usize)?);
-        let mac = Vec::from(reader.take(0 as usize)?); // TODO: parse non-zero
+        let mac = Vec::from(reader.take(0_usize)?); // TODO: parse non-zero
 
         Some(BinaryPacket {
             payload,
@@ -64,21 +64,17 @@ impl NameList {
 
 impl Codec for NameList {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let names = self.names.join(",").to_string();
+        let names = self.names.join(",");
         let names_bytes = names.as_bytes(); // ASCII is valid UTF-8
         (names_bytes.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&names_bytes);
+        bytes.extend_from_slice(names_bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         let length = u32::read(reader)?;
         let names = if length > 0 {
             let names = std::str::from_utf8(reader.take(length as usize)?).ok()?;
-            names
-                .split(",")
-                //.filter(|name| !name.is_empty())
-                .map(str::to_string)
-                .collect()
+            names.split(',').map(str::to_string).collect()
         } else {
             Vec::new()
         };
@@ -303,7 +299,7 @@ impl ProtocolMessage<RawSshMessage> for SshMessage {
                 first_kex_packet_follows,
             }) => {
                 vec![
-                    Box::new(cookie.clone()),
+                    Box::new(*cookie),
                     Box::new(kex_algorithms.clone()),
                     Box::new(server_host_key_algorithms.clone()),
                     Box::new(encryption_algorithms_server_to_client.clone()),
@@ -314,7 +310,7 @@ impl ProtocolMessage<RawSshMessage> for SshMessage {
                     Box::new(compression_algorithms_server_to_client.clone()),
                     Box::new(languages_client_to_server.clone()),
                     Box::new(languages_server_to_client.clone()),
-                    Box::new(first_kex_packet_follows.clone()),
+                    Box::new(*first_kex_packet_follows),
                 ]
             }
             SshMessage::KexEcdhInit(KexEcdhInitMessage {

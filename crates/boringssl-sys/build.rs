@@ -7,11 +7,10 @@ fn main() {
         GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
     } else if cfg!(feature = "boring-2024-03-22") {
         GitRef::Commit(String::from("368d0d87d0bd00f8227f74ce18e8e4384eaf6afa"))
-    } else if cfg!(feature = "vendored-master") {
-        GitRef::Branch(String::from("master"))
     } else {
         GitRef::Branch(String::from("master"))
     };
+
     let repo = "https://github.com/google/boringssl.git".into();
     let source_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boringssl");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boring");
@@ -24,7 +23,7 @@ fn main() {
         git_repo: repo,
         git_ref,
         out_dir: out_dir.clone(),
-        source_dir: source_dir.clone(),
+        source_dir,
     })
     .unwrap();
 

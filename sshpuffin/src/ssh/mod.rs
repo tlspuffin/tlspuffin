@@ -10,7 +10,6 @@
 #![allow(dead_code)]
 
 pub mod deframe;
-mod fn_message;
 pub mod message;
 mod seeds;
 

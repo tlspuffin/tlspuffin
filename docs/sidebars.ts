@@ -9,6 +9,7 @@ const sidebars: SidebarsConfig = {
       label: 'Getting Started',
       collapsed: false,
       items: [
+        'guides/getting-started/introduction',
         'guides/getting-started/installation',
         'guides/getting-started/building-openssl',
         'guides/getting-started/fuzzing-openssl',

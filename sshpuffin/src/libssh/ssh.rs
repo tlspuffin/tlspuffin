@@ -239,7 +239,7 @@ impl SshBindRef {
     /// `ssh_bind_options_set`
     pub fn set_options_key(&mut self, typ: SshBindOption, value: SshKey) -> Result<(), String> {
         unsafe {
-            let result = cvt_n(
+            cvt_n(
                 libssh_sys::ssh_bind_options_set(
                     self.as_ptr(),
                     typ,
@@ -249,10 +249,7 @@ impl SshBindRef {
             )
             .map(|_| {
                 mem::forget(value);
-                ()
-            });
-
-            result
+            })
         }
     }
 

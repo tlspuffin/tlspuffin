@@ -87,15 +87,16 @@ impl Build {
         let mut mk_vendor_config: Vec<String> = vec![];
         mk_vendor_config.push(format!("openssl:{}", PRESET));
 
-        let mut options: Vec<&str> = vec![];
-        #[cfg(feature = "asan")]
-        options.push("asan");
-        #[cfg(feature = "sancov")]
-        options.push("sancov");
-        #[cfg(feature = "gcov_analysis")]
-        options.push("gcov");
-        #[cfg(feature = "llvm_cov_analysis")]
-        options.push("llvm_cov");
+        let options: Vec<&str> = vec![
+            #[cfg(feature = "asan")]
+            "asan",
+            #[cfg(feature = "sancov")]
+            "sancov",
+            #[cfg(feature = "gcov_analysis")]
+            "gcov",
+            #[cfg(feature = "llvm_cov_analysis")]
+            "llvm_cov",
+        ];
 
         mk_vendor_config.push(format!("--options={}", options.join(",")));
 

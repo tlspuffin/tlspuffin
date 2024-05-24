@@ -10,7 +10,7 @@ use clap::{
     arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
 };
 use libafl::inputs::Input;
-use log::{error, info, LevelFilter};
+use log::{error, info};
 
 use crate::{
     algebra::set_deserialize_signature,
@@ -23,18 +23,21 @@ use crate::{
         start, FuzzerConfig,
     },
     graphviz::write_graphviz,
-    log::create_stderr_config,
+    log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
     put_registry::PutRegistry,
     trace::{Action, Trace, TraceContext},
 };
 
-fn create_app() -> Command {
+fn create_app<S>(title: S) -> Command
+where
+    S: AsRef<str>,
+{
     Command::new(crate_name!())
         .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
         .author(crate_authors!())
-        .about("Fuzzes OpenSSL on a symbolic level")
+        .about(title.as_ref().to_owned())
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -43,14 +46,14 @@ fn create_app() -> Command {
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
             .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
-        .arg(arg!(--monitor "Use a monitor"))
+        .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Descritpion of the experiment"))
+                         .arg(arg!(-d --description <d> "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
@@ -85,16 +88,20 @@ fn create_app() -> Command {
         ])
 }
 
-pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> ExitCode {
-    let handle = match log4rs::init_config(create_stderr_config(LevelFilter::Info)) {
+pub fn main<S, PB>(title: S, put_registry: PutRegistry<PB>) -> ExitCode
+where
+    S: AsRef<str>,
+    PB: ProtocolBehavior + Clone,
+{
+    let handle = match log4rs::init_config(config_default()) {
         Ok(handle) => handle,
         Err(err) => {
-            error!("Failed to init logging: {:?}", err);
+            eprintln!("error: failed to initialize logging: {:?}", err);
             return ExitCode::FAILURE;
         }
     };
 
-    let matches = create_app().get_matches();
+    let matches = create_app(title).get_matches();
 
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
@@ -102,7 +109,7 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
     let minimizer = matches.get_flag("minimizer");
-    let monitor = matches.get_flag("monitor");
+    let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
 
@@ -371,12 +378,12 @@ pub fn main<PB: ProtocolBehavior + Clone>(put_registry: PutRegistry<PB>) -> Exit
             corpus_dir: experiment_path.join("corpus"),
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
-            monitor_file: experiment_path.join("stats.json"),
+            stats_file: experiment_path.join("stats.json"),
             log_file: experiment_path.join("tlspuffin.log"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
-            monitor,
+            tui,
             no_launcher,
         };
 

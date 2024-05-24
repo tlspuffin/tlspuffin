@@ -54,7 +54,7 @@ pub trait ProtocolBehavior: 'static {
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
 
-    /// Get the signature which is used in the protocol
+    /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.

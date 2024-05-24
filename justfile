@@ -87,11 +87,12 @@ run COMMAND *ARGS:
 
 # build a vendor library (examples: `just mk_vendor openssl openssl111k`)
 [no-exit-message]
-mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
+mk_vendor VENDOR PRESET NAME="" OPTIONS="" PATCHES="" EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   #!/usr/bin/env bash
   args=( make "{{VENDOR}}:{{PRESET}}" )
 
   [[ -n "{{OPTIONS}}" ]] && args+=( --options="{{OPTIONS}}" )
+  [[ -n "{{PATCHES}}" ]] && args+=( --patches="{{PATCHES}}" )
   [[ -n "{{NAME}}" ]] && args+=( --name="{{NAME}}" )
 
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
