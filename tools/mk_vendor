@@ -502,12 +502,15 @@ read_build_flags() {
 
     toml_get -a "${config}" vendor.build    |
         map replace "build.@@.cflags_extra" |
-        map toml_get -a -d, "${config}"     |
+        map toml_get -a "${config}"         |
+        remove_duplicated_flags             |
+        join ','                            |
         map replace "-DCFLAGS_EXTRA=@@"
 
     toml_get -a "${config}" vendor.build     |
         map replace "build.@@.ldflags_extra" |
-        map toml_get -a -d, "${config}"      |
+        map toml_get -a "${config}"          |
+        join ','                             |
         map replace "-DLDFLAGS_EXTRA=@@"
 }
 
@@ -619,6 +622,22 @@ remove_duplicated_flags() {
                 declare "${name}_pre"="-D"
                 declare "${name}_sep"="="
                 ;;
+            --enable-*)
+                name=${flag#--enable-}
+
+                seen+=( "${name}" )
+                declare "${name}_val"=""
+                declare "${name}_pre"="--enable-"
+                declare "${name}_sep"=""
+                ;;
+            --disable-*)
+                name=${flag#--disable-}
+
+                seen+=( "${name}" )
+                declare "${name}_val"=""
+                declare "${name}_pre"="--disable-"
+                declare "${name}_sep"=""
+                ;;
         esac
     done
 
@@ -662,6 +681,18 @@ map() {
     done
 }
 
+join() {
+    local separator=${1}
+    local result=()
+
+    while IFS=$'\n' read -r s
+    do
+        result+=( ${s} )
+    done
+
+    (IFS="${separator}"; printf '%s\n' "${result[*]+"${result[*]}"}")
+}
+
 unquote() {
     local value
 
@@ -697,7 +728,7 @@ to_upper() {
     if [[ -z ${1-} ]]; then
         tr '[:lower:].' '[:upper:]_'
     else
-        printf '%s\n' "${1-}" | tr '[:lower:].' '[:upper:]_'
+        printf '%s\n' "${1-}" | tr '[:lower:].-' '[:upper:]__'
     fi
 }
 

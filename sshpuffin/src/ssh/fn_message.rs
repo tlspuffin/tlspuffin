@@ -42,7 +42,7 @@ pub fn fn_kex_init(
     compression_algorithms_server_to_client: &CompressionAlgorithms,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::KexInit(KexInitMessage {
-        cookie: cookie.clone(),
+        cookie: *cookie,
         kex_algorithms: kex_algorithms.clone(),
         server_host_key_algorithms: server_host_key_algorithms.clone(),
         encryption_algorithms_server_to_client: encryption_algorithms_server_to_client.clone(),

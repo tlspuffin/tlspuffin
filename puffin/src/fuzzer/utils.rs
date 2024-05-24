@@ -4,7 +4,7 @@ use libafl::bolts::rands::Rand;
 use log::{debug, error, trace};
 
 use crate::{
-    algebra::{Matcher, DYTerm, Term, TermType},
+    algebra::{DYTerm, Matcher, Term, TermType},
     protocol::ProtocolBehavior,
     trace::{Action, InputAction, Step, Trace},
 };

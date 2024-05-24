@@ -44,7 +44,7 @@ pub unsafe extern "C" fn __sanitizer_cov_trace_div4(_val: u32) {}
 #[no_mangle]
 pub unsafe extern "C" fn __sanitizer_cov_trace_div8(_val: u64) {}
 
-// Called before a GetElemementPtr (GEP) instruction
+// Called before a GetElementPtr (GEP) instruction
 // for every non-constant array index.
 #[no_mangle]
 pub unsafe extern "C" fn __sanitizer_cov_trace_gep(_idx: *mut u32) {}

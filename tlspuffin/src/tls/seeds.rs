@@ -9,14 +9,13 @@ use puffin::{
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
-use super::rustls::msgs::handshake::ServerExtensions;
 use crate::{
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
         rustls::msgs::{
             enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-            handshake::{Random, SessionID},
+            handshake::{Random, ServerExtensions, SessionID},
             message::OpaqueMessage,
         },
     },

@@ -32,7 +32,7 @@ use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{
         bitstrings::Payloads, dynamic_function::TypeShape, error::FnError, remove_prefix,
-        ConcreteMessage, Matcher, DYTerm, Term, TermType,
+        ConcreteMessage, DYTerm, Matcher, Term, TermType,
     },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     codec::Codec,

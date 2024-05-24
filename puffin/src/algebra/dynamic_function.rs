@@ -109,7 +109,6 @@ impl fmt::Display for DynamicFunctionShape {
 }
 
 /// Hashes [`TypeId`]s to be more readable
-///
 fn hash_type_id(type_id: &TypeId) -> u64 {
     let mut hasher = DefaultHasher::new();
     type_id.hash(&mut hasher);

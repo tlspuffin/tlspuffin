@@ -18,7 +18,7 @@ mod tests {
         agent::AgentName,
         algebra::{
             dynamic_function::DescribableFunction, error::FnError, evaluate_lazy_test,
-            signature::FunctionDefinition, ConcreteMessage, Matcher, DYTerm, Term, TermType,
+            signature::FunctionDefinition, ConcreteMessage, DYTerm, Matcher, Term, TermType,
         },
         codec,
         codec::{Codec, Encode},
@@ -428,11 +428,7 @@ mod tests {
     /// Sanity check for the next test
     pub fn test_pay<M: Matcher>(term: &Term<M>) {
         rec_inside(term, false, term);
-        pub fn rec_inside<M: Matcher>(
-            term: &Term<M>,
-            already_found: bool,
-            whole_term: &Term<M>,
-        ) {
+        pub fn rec_inside<M: Matcher>(term: &Term<M>, already_found: bool, whole_term: &Term<M>) {
             let already_found = already_found || !term.is_symbolic();
             match &term.term {
                 DYTerm::Variable(_) => {}

@@ -1,11 +1,7 @@
 use core::time::Duration;
 use std::{env, fmt, path::PathBuf};
 
-use libafl::{
-    corpus::ondisk::OnDiskMetadataFormat,
-    monitors::tui::{ui::TuiUI, TuiMonitor},
-    prelude::*,
-};
+use libafl::{corpus::ondisk::OnDiskMetadataFormat, prelude::*};
 use log4rs::Handle;
 
 use super::harness;
@@ -15,7 +11,7 @@ use crate::{
         stats_monitor::StatsMonitor,
         utils::TermConstraints,
     },
-    log::create_file_config,
+    log::{config_fuzzing, config_fuzzing_client},
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
     trace::Trace,
@@ -34,14 +30,14 @@ pub struct FuzzerConfig {
     pub static_seed: Option<u64>,
     pub max_iters: Option<u64>,
     pub core_definition: String,
-    pub monitor_file: PathBuf,
+    pub stats_file: PathBuf,
     pub corpus_dir: PathBuf,
     pub objective_dir: PathBuf,
     pub broker_port: u16,
     pub minimizer: bool, // FIXME: support this property
     pub mutation_stage_config: MutationStageConfig,
     pub mutation_config: MutationConfig,
-    pub monitor: bool,
+    pub tui: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
 }
@@ -55,7 +51,7 @@ pub struct MutationStageConfig {
 }
 
 impl Default for MutationStageConfig {
-    //  TODO:EVAL: evaluate modif to this config
+    //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
             max_iterations_per_stage: 256,
@@ -388,20 +384,23 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
+pub fn start<'a, PB>(
     put_registry: &'a PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
-) -> Result<(), Error> {
+) -> Result<(), Error>
+where
+    PB: ProtocolBehavior + Clone + 'static,
+{
     let FuzzerConfig {
         core_definition,
         corpus_dir,
         objective_dir,
         static_seed: _,
         log_file,
-        monitor_file,
+        stats_file,
         broker_port,
-        monitor,
+        tui,
         no_launcher,
         mutation_config:
             MutationConfig {
@@ -416,13 +415,17 @@ pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
     } = &config;
 
     log::info!("Running on cores: {}", &core_definition);
-
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
+    log_handle.set_config(config_fuzzing(log_file));
 
     let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
+        log_handle
+            .clone()
+            .set_config(config_fuzzing_client(log_file));
+
         let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
@@ -482,26 +485,14 @@ pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
                 .with_scheduler(RandScheduler::new());
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
-        // TODO: Allow configuring the following warn level
-        log_handle
-            .clone()
-            .set_config(create_file_config(log::LevelFilter::Warn, log_file));
-
         builder.run_client()
     };
 
     if *no_launcher {
-        let (state, restarting_mgr) = setup_restarting_mgr_std(
-            StatsMonitor::new(
-                |s| {
-                    log::info!("{}", s);
-                },
-                monitor_file.clone(),
-            )
-            .unwrap(),
-            *broker_port,
-            EventConfig::AlwaysUnique,
-        )?;
+        let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
+
+        let (state, restarting_mgr) =
+            setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
 
         run_client(state, restarting_mgr, CoreId(0))
     } else {
@@ -509,58 +500,44 @@ pub fn start<'a, PB: ProtocolBehavior + Clone + 'static>(
         let configuration: EventConfig = "launcher default".into();
         let sh_mem_provider = StdShMemProvider::new().expect("Failed to init shared memory");
 
-        if *monitor {
+        // NOTE tlspuffin's fuzzer should never write to stdout
+        //
+        // During fuzzing the logs are redirected to `log_file` (which is
+        // usually `tlspuffin.log`) and there should be no reason to print
+        // directly to stdout. We should therefore be able to safely discard the
+        // log output of clients.
+        //
+        // To verify this assumption, we save the clients' output to a file that
+        // should always be empty.
+        let out_path = log_file.with_extension("out");
+        let out_file = out_path
+            .to_str()
+            .expect("failed to create path to redirect fuzzer clients' stdout");
+
+        if *tui {
+            let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone());
+
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(TuiMonitor::new(TuiUI::new(String::from("test"), false)))
+                .monitor(stats_monitor)
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin.log.
-                // We can safely, disable the log output of clients.
-                // [LH] Just to test this assumption:
-                .stdout_file(Some(&format!(
-                    "{}.should-be-empty.log",
-                    monitor_file
-                        .clone()
-                        .into_os_string()
-                        .into_string()
-                        .expect("Fail")
-                        .to_owned()
-                )))
+                .stdout_file(Some(out_file))
                 .build()
                 .launch()
         } else {
+            let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
+
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
                 .configuration(configuration)
-                .monitor(
-                    StatsMonitor::new(
-                        |s| {
-                            log::info!("{}", s);
-                        },
-                        monitor_file.clone(),
-                    )
-                    .unwrap(),
-                )
+                .monitor(stats_monitor)
                 .run_client(&mut run_client)
                 .cores(&cores)
                 .broker_port(*broker_port)
-                // tlspuffin never logs or outputs to stdout. It always logs its output
-                // to tlspuffin.log.
-                // We can safely, disable the log output of clients.
-                // [LH] Just to test this assumption:
-                .stdout_file(Some(&format!(
-                    "{}.should-be-empty.log",
-                    monitor_file
-                        .clone()
-                        .into_os_string()
-                        .into_string()
-                        .expect("Fail")
-                        .to_owned()
-                )))
+                .stdout_file(Some(out_file))
                 .build()
                 .launch()
         }

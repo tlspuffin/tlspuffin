@@ -7,7 +7,7 @@ use crate::{
     algebra::{
         atoms::Function,
         signature::{FunctionDefinition, Signature},
-        Matcher, DYTerm, Term,
+        DYTerm, Matcher, Term,
     },
     fuzzer::utils::Choosable,
 };

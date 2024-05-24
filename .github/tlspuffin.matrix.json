@@ -9,6 +9,7 @@
         "options": [
             "sancov"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -19,6 +20,7 @@
         "options": [
             "sancov"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -32,6 +34,7 @@
             "asan",
             "sancov"
         ],
+        "patches": [],
         "features": [
             "asan"
         ]
@@ -46,6 +49,7 @@
         "options": [
             "sancov"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -58,6 +62,7 @@
         "options": [
             "sancov"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -68,8 +73,10 @@
         "vendor": "wolfssl",
         "preset": "wolfssl430",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -80,8 +87,10 @@
         "vendor": "wolfssl",
         "preset": "wolfssl510",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -90,7 +99,12 @@
         "vendor": "wolfssl",
         "preset": "wolfssl510",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-25640",
+            "fix-CVE-2022-39173"
         ],
         "features": [
             "fix-CVE-2022-25640",
@@ -103,7 +117,12 @@
         "vendor": "wolfssl",
         "preset": "wolfssl510",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patch": [
+            "fix-CVE-2022-25638",
+            "fix-CVE-2022-39173"
         ],
         "features": [
             "fix-CVE-2022-25638",
@@ -116,8 +135,10 @@
         "vendor": "wolfssl",
         "preset": "wolfssl520",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -127,8 +148,10 @@
         "preset": "wolfssl520",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": [
             "asan"
         ]
@@ -141,8 +164,10 @@
         "vendor": "wolfssl",
         "preset": "wolfssl530",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -154,8 +179,10 @@
         "preset": "wolfssl530",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": [
             "asan"
         ]
@@ -168,8 +195,10 @@
         "vendor": "wolfssl",
         "preset": "wolfssl540",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -178,7 +207,11 @@
         "vendor": "wolfssl",
         "preset": "wolfssl540",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-39173"
         ],
         "features": [
             "wolfssl-disable-postauth",
@@ -191,7 +224,11 @@
         "vendor": "wolfssl",
         "preset": "wolfssl530",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-39173"
         ],
         "features": [
             "fix-CVE-2022-39173"
@@ -204,8 +241,10 @@
         "preset": "wolfssl540",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": [
             "asan"
         ]
@@ -216,7 +255,11 @@
         "vendor": "wolfssl",
         "preset": "wolfssl540",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-42905"
         ],
         "features": [
             "fix-CVE-2022-42905"
@@ -229,7 +272,11 @@
         "preset": "wolfssl540",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-39173"
         ],
         "features": [
             "asan",
@@ -243,7 +290,12 @@
         "preset": "wolfssl540",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-39173",
+            "fix-CVE-2022-42905"
         ],
         "features": [
             "asan",
@@ -257,7 +309,12 @@
         "vendor": "wolfssl",
         "preset": "wolfssl540",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
+        ],
+        "patches": [
+            "fix-CVE-2022-39173",
+            "fix-CVE-2022-42905"
         ],
         "features": [
             "fix-CVE-2022-39173",
@@ -270,8 +327,10 @@
         "vendor": "boringssl",
         "preset": "boringssl202403",
         "options": [
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": []
     },
     {
@@ -283,8 +342,10 @@
         "preset": "boringssl202403",
         "options": [
             "asan",
-            "sancov"
+            "sancov",
+            "postauth"
         ],
+        "patches": [],
         "features": [
             "asan"
         ]

@@ -16,7 +16,7 @@ use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    algebra::{dynamic_function::TypeShape, ConcreteMessage, Matcher, DYTerm, Term, TermType},
+    algebra::{dynamic_function::TypeShape, ConcreteMessage, DYTerm, Matcher, Term, TermType},
     error::Error,
     fuzzer::utils::{find_term_by_term_path, TermPath},
     protocol::ProtocolBehavior,
@@ -47,9 +47,9 @@ impl Payloads {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PayloadContext<'a, M: Matcher> {
     // not used if no payload to replace
-    of_term: &'a Term<M>, // point to the corresponding term
-    payloads: &'a Payloads,   // point to the corresponding term.payload
-    path: TermPath,           // path of the sub-term from which this payload originates
+    of_term: &'a Term<M>,   // point to the corresponding term
+    payloads: &'a Payloads, // point to the corresponding term.payload
+    path: TermPath,         // path of the sub-term from which this payload originates
 }
 
 /// A tree of evaluated term, linked to the term structure itself. Created while evaluating a term.

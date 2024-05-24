@@ -11,7 +11,7 @@ use log::{debug, info, trace, warn};
 
 use super::utils::{Choosable, *};
 use crate::{
-    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, DYTerm, Term, TermType},
+    algebra::{atoms::Function, signature::Signature, DYTerm, Matcher, Subterms, Term, TermType},
     codec::Codec,
     fuzzer::{harness::default_put_options, term_zoo::TermZoo, utils::choose_term_filtered_mut},
     protocol::ProtocolBehavior,

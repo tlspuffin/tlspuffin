@@ -123,8 +123,7 @@ pub mod test_signature {
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{
-            dynamic_function::TypeShape, error::FnError, AnyMatcher, ConcreteMessage, DYTerm,
-            Term,
+            dynamic_function::TypeShape, error::FnError, AnyMatcher, ConcreteMessage, DYTerm, Term,
         },
         claims::{Claim, SecurityViolationPolicy},
         codec::{Codec, Reader},

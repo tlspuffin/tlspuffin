@@ -76,7 +76,7 @@ pub fn tls13_derive_psk(
     server_finished: &HandshakeHash,
     client_finished: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
-    new_ticket_nonce: &Vec<u8>,
+    new_ticket_nonce: &[u8],
     group: &NamedGroup,
 ) -> Result<Vec<u8>, FnError> {
     let (_, _, pending) = tls13_application_traffic_secret(

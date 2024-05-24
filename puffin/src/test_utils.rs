@@ -1,5 +1,5 @@
 use crate::{
-    algebra::{Matcher, DYTerm, Term, TermType},
+    algebra::{DYTerm, Matcher, Term, TermType},
     graphviz::write_graphviz,
     trace::{Action, Trace},
 };

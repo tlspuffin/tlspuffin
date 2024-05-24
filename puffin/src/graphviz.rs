@@ -11,7 +11,7 @@ use itertools::Itertools;
 use log::{debug, error, warn};
 
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Matcher, DYTerm, Term, TermType},
+    algebra::{remove_fn_prefix, remove_prefix, DYTerm, Matcher, Term, TermType},
     trace::{Action, Trace},
 };
 

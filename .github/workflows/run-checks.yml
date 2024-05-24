@@ -48,11 +48,11 @@ jobs:
         run: just check-workspace
       - name: check `libressl-src`
         run: just check-crate libressl-src libressl333
-      - name: check `libressl-src`
-        run: just check-crate libressl-src libressl333
       - name: check `openssl-src`
         run: just check-crate openssl-src-111 openssl101f
       - name: check `wolfssl`
         run: just check-crate wolfssl wolfssl430,wolfssl-sys/wolfssl430
       - name: check `wolfssl-sys`
         run: just check-crate wolfssl-sys wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
+      - name: check `boringssl-sys`
+        run: just check-crate boringssl-sys boring-2024-03-22

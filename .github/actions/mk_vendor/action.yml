@@ -12,6 +12,10 @@ inputs:
     description: 'A comma-separated list of additional build options (e.g. "sancov,asan")'
     required: false
     default: ''
+  patches:
+    description: 'A comma-separated list of patches to apply to the sources'
+    required: false
+    default: ''
   name:
     description: 'The name of the resulting PUT vendor library'
     required: false
@@ -25,8 +29,8 @@ runs:
       shell: bash
       run: |
         #!/usr/bin/env bash
-        SCRIPTS=${{ hashFiles(format('puts/vendor/configs/{0}.toml',inputs.vendor), format('puts/vendor/scripts/{0}/**',inputs.vendor), format('puts/harness/**')) }}
-        CONFUID=$(just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "--quiet --dry-run")
+        SCRIPTS=${{ hashFiles(format('puts/vendor/configs/{0}.toml',inputs.vendor), format('puts/vendor/{0}/**',inputs.vendor), format('puts/harness/**')) }}
+        CONFUID=$(just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "${{ inputs.patches }}" "--quiet --dry-run")
 
         printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"
@@ -41,5 +45,5 @@ runs:
     - name: run mk_vendor
       id: library-build
       shell: bash
-      run: just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}"
+      run: just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "${{ inputs.patches }}"
       if: steps.library-cache.outputs.cache-hit != 'true'

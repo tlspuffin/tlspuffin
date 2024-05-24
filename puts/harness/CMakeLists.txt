@@ -2,6 +2,19 @@ cmake_minimum_required(VERSION 3.15)
 
 project(puts VERSION 0.1 LANGUAGES C)
 
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  # NOTE avoid interactions with system libraries
+  #
+  # The default value of CMAKE_INSTALL_PREFIX lies outside of the project
+  # directory (e.g. /usr/local on UNIX platforms). This prefix is usually part
+  # of the system-wide configuration and might break the system libraries or
+  # their downstream dependencies.
+  #
+  # To be on the safe side, if no prefix is explicitly provided by the caller,
+  # we install the library in an isolated prefix.
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE PATH "installation directory" FORCE)
+endif()
+
 enable_testing()
 
 set(PUTS "")
@@ -66,3 +79,4 @@ endif()
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")
 install(FILES $<TARGET_FILE:puts-bundle> DESTINATION ".")
+

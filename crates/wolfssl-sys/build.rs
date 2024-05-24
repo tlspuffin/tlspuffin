@@ -86,10 +86,7 @@ fn main() {
 
     // Linking Time!
     println!("cargo:rustc-link-lib=static=wolfssl");
-    println!(
-        "cargo:rustc-link-search=native={}",
-        format!("{}/lib/", out_dir.display())
-    );
+    println!("cargo:rustc-link-search=native={}/lib/", out_dir.display());
     println!("cargo:include={}", out_dir.display());
     println!(
         "cargo:rerun-if-changed={}",

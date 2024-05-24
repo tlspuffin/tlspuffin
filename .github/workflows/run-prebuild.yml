@@ -64,6 +64,7 @@ jobs:
           vendor: "${{ matrix.vendor }}"
           preset: "${{ matrix.preset }}"
           name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
+          patches: "${{ join(matrix.patches, ',') }}"
           options: "${{ join(matrix.options, ',') }}"
 
       - name: build

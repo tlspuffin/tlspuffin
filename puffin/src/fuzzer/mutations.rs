@@ -10,7 +10,7 @@ use crate::{
         atoms::Function,
         bitstrings::{search_sub_vec, Payloads},
         signature::Signature,
-        Matcher, Subterms, DYTerm, Term, TermType,
+        DYTerm, Matcher, Subterms, Term, TermType,
     },
     codec::Codec,
     fuzzer::{bit_mutations::*, harness::default_put_options, term_zoo::TermZoo},

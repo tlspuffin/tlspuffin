@@ -179,7 +179,7 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct Term<M: Matcher> {
-    pub term: DYTerm<M>,              // initial DY term
+    pub term: DYTerm<M>,            // initial DY term
     pub payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
@@ -318,10 +318,7 @@ impl<M: Matcher> Term<M> {
     }
 }
 
-pub fn has_payload_to_replace_rec<'a, M: Matcher>(
-    term: &'a Term<M>,
-    include_root: bool,
-) -> bool {
+pub fn has_payload_to_replace_rec<'a, M: Matcher>(term: &'a Term<M>, include_root: bool) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
     } else {
@@ -557,10 +554,7 @@ impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
     }
 
     /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(
-        &self,
-        predicate: P,
-    ) -> Option<&Term<M>> {
+    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<M>> {
         self.iter().find(predicate)
     }
 
