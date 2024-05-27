@@ -88,7 +88,7 @@ impl Signature {
     }
 
     pub fn new_var_with_type<T: 'static, M: Matcher>(
-        agent_name: AgentName,
+        agent_name: Option<AgentName>,
         matcher: Option<M>,
         counter: u16,
     ) -> Variable<M> {
@@ -98,7 +98,7 @@ impl Signature {
 
     pub fn new_var<M: Matcher>(
         type_shape: TypeShape,
-        agent_name: AgentName,
+        agent_name: Option<AgentName>,
         matcher: Option<M>,
         counter: u16,
     ) -> Variable<M> {

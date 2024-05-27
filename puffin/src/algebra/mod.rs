@@ -616,8 +616,12 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable: Variable<AnyMatcher> =
-            Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
+        let variable: Variable<AnyMatcher> = Signature::new_var(
+            TypeShape::of::<Vec<u8>>(),
+            Some(AgentName::first()),
+            None,
+            0,
+        );
 
         let generated_term = Term::Application(
             hmac256,
@@ -681,7 +685,7 @@ mod tests {
                                 Term::Application(Signature::new_function(&example_op_c), vec![]),
                                 Term::Variable(
                                     Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                                        AgentName::first(),
+                                        Some(AgentName::first()),
                                         None,
                                         0,
                                     ),
@@ -689,7 +693,7 @@ mod tests {
                             ],
                         ),
                         Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                            AgentName::first(),
+                            Some(AgentName::first()),
                             None,
                             0,
                         )),
@@ -702,7 +706,7 @@ mod tests {
                             Signature::new_function(&example_op_c),
                             vec![
                                 Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                                    AgentName::first(),
+                                    Some(AgentName::first()),
                                     None,
                                     0,
                                 )),
@@ -710,7 +714,7 @@ mod tests {
                             ],
                         ),
                         Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                            AgentName::first(),
+                            Some(AgentName::first()),
                             None,
                             0,
                         )),

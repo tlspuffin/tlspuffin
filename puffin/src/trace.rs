@@ -43,7 +43,7 @@ use crate::{
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
-    pub agent_name: AgentName,
+    pub agent_name: Option<AgentName>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
@@ -52,7 +52,7 @@ impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "({}, {})[{:?}]",
+            "({:?}, {})[{:?}]",
             self.agent_name, self.counter, self.matcher
         )
     }
@@ -224,7 +224,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
-                && query.agent_name == knowledge.agent_name
+                && (query.agent_name == None || query.agent_name == Some(knowledge.agent_name))
                 && knowledge.matcher.matches(&query.matcher)
             {
                 possibilities.push(knowledge);
