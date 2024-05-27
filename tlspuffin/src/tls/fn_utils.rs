@@ -94,11 +94,6 @@ pub fn fn_decrypt_handshake_flight(
         }
     }
 
-    println!("Decrypting handshake");
-    for msg in &decrypted_flight {
-        println!("DECRYPTED: {:?}", msg);
-    }
-
     Ok(decrypted_flight)
 }
 
@@ -250,10 +245,6 @@ pub fn fn_decrypt_application_flight(
             decrypted_flight.push(decrypted_msg);
             sequence_number += 1;
         }
-    }
-
-    for msg in &decrypted_flight {
-        println!("DECRYPTED: {:?}", msg);
     }
 
     Ok(decrypted_flight)
