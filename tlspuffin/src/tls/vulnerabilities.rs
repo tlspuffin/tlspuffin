@@ -1357,6 +1357,7 @@ pub mod tests {
         use puffin::{
             agent::TLSVersion,
             put_registry::{PutDescriptor, TCP_PUT},
+            trace::TraceContext,
         };
         use test_log::test;
 
@@ -1386,12 +1387,12 @@ pub mod tests {
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
-            let mut context = trace
-                .execute_with_non_default_puts(
-                    &put_registry,
-                    &[(client_name, client), (server_name, server)],
-                )
-                .unwrap();
+            let mut context = TraceContext::builder(&put_registry)
+                .set_put(client_name, client)
+                .set_put(server_name, server)
+                .build();
+
+            trace.execute(&mut context).unwrap();
 
             let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
             log::info!("client: {}", shutdown);
@@ -1411,12 +1412,12 @@ pub mod tests {
             let trace = seed_cve_2022_39173_full.build_trace();
             let init_server = trace.prior_traces[0].descriptors[0].name;
             let next_server = trace.descriptors[0].name;
-            let mut context = trace
-                .execute_with_non_default_puts(
-                    &put_registry,
-                    &[(init_server, server_put.clone()), (next_server, server_put)],
-                )
-                .unwrap();
+            let mut context = TraceContext::builder(&put_registry)
+                .set_put(init_server, server_put.clone())
+                .set_put(next_server, server_put)
+                .build();
+
+            trace.execute(&mut context).unwrap();
 
             let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
             log::info!("server: {}", shutdown);

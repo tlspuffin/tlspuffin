@@ -168,7 +168,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMa
 
 #[cfg(test)]
 mod tests {
-    use puffin::{agent::AgentName, put_registry::PutDescriptor};
+    use puffin::{agent::AgentName, trace::TraceContext};
     use test_log::test;
 
     use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, ssh_registry};
@@ -178,15 +178,9 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        let context = trace
-            .execute_deterministic(
-                &ssh_registry(),
-                PutDescriptor {
-                    factory: ssh_registry().default().name(),
-                    options: Default::default(),
-                },
-            )
-            .unwrap();
+        let mut context = TraceContext::builder(&ssh_registry()).build();
+
+        trace.execute(&mut context).unwrap();
 
         assert!(context.find_agent(client).unwrap().is_state_successful())
     }

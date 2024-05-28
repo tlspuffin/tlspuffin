@@ -28,9 +28,12 @@ impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
             factory: put.as_ref().to_owned(),
             options: Default::default(),
         };
-        self.build_trace()
-            .execute_deterministic(&put_registry, put)
-            .unwrap()
+        let mut context = TraceContext::builder(&put_registry)
+            .set_default_put(put)
+            .build();
+
+        self.build_trace().execute(&mut context).unwrap();
+        context
     }
 }
 

@@ -312,8 +312,9 @@ where
         };
 
         let server = trace.descriptors[0].name;
-        let mut context = TraceContext::new(&put_registry, Default::default());
-        context.set_non_default_puts(&[(server, put)]);
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(server, put)
+            .build();
 
         trace.execute(&mut context).unwrap();
 
