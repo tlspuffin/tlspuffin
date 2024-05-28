@@ -166,7 +166,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher
 
 #[cfg(test)]
 mod tests {
-    use puffin::{agent::AgentName, put::PutOptions};
+    use puffin::{agent::AgentName, trace::TraceContext};
     use test_log::test;
 
     use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, ssh_registry};
@@ -176,9 +176,11 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        let context = trace
-            .execute_deterministic(&ssh_registry(), PutOptions::default())
-            .unwrap();
+        let mut context = TraceContext::builder(&ssh_registry())
+            .set_deterministic(true)
+            .build();
+
+        trace.execute(&mut context).unwrap();
 
         assert!(context
             .find_agent(client)

@@ -455,39 +455,6 @@ impl<M: Matcher> Trace<M> {
         Ok(())
     }
 
-    pub fn execute_deterministic<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        default_put_options: PutOptions,
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::builder(put_registry)
-            .set_default_put_options(default_put_options)
-            .set_deterministic(true)
-            .build();
-
-        self.execute(&mut ctx)?;
-        Ok(ctx)
-    }
-
-    pub fn execute_with_non_default_puts<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        descriptors: &[(AgentName, PutDescriptor)],
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::builder(put_registry)
-            .set_puts(descriptors)
-            .build();
-
-        self.execute(&mut ctx)?;
-        Ok(ctx)
-    }
-
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_allocvec(&self)
     }

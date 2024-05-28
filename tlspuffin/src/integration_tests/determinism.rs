@@ -6,7 +6,7 @@
 ))]
 fn test_attacker_full_det_recreate() {
     // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
-    use puffin::{put::PutOptions, trace::TraceContext};
+    use puffin::trace::TraceContext;
 
     use crate::{
         put_registry::tls_registry,
@@ -20,12 +20,12 @@ fn test_attacker_full_det_recreate() {
     let trace = seed_client_attacker_full.build_trace();
 
     let mut ctx_1 = TraceContext::builder(&put_registry).build();
-    trace.execute(&mut ctx_1);
+    trace.execute(&mut ctx_1).unwrap();
 
     for i in 0..200 {
         println!("Attempt #{i}...");
         let mut ctx_2 = TraceContext::builder(&put_registry).build();
-        trace.execute(&mut ctx_2);
+        trace.execute(&mut ctx_2).unwrap();
         assert_eq!(ctx_1, ctx_2);
     }
 

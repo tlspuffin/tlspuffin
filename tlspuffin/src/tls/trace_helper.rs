@@ -3,7 +3,6 @@ use std::fs::File;
 use puffin::{
     agent::AgentName,
     libafl::inputs::Input,
-    put::PutOptions,
     trace::{Trace, TraceContext},
 };
 
@@ -22,9 +21,12 @@ pub trait TraceExecutor<A> {
 
 impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
-        self.build_trace()
-            .execute_deterministic(&tls_registry(), PutOptions::default())
-            .unwrap()
+        let mut context = TraceContext::builder(&tls_registry())
+            .set_deterministic(true)
+            .build();
+
+        self.build_trace().execute(&mut context).unwrap();
+        context
     }
 
     fn store_to_seeds(self) {

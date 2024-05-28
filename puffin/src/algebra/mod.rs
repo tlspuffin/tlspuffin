@@ -554,7 +554,6 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
-        put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},
