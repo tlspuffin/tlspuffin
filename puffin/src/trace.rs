@@ -435,16 +435,13 @@ impl<M: Matcher> Trace<M> {
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
-            step.action.execute(step, ctx)?;
+            step.execute(ctx)?;
 
             // Output after each InputAction step
-            match step.action {
-                Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<M>::new_step(step.agent);
 
-                    output_step.action.execute(output_step, ctx)?;
-                }
-                Action::Output(_) => {}
+                output_step.execute(ctx)?;
             }
 
             ctx.claims.deref_borrow().log();
@@ -487,6 +484,18 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
+impl<M: Matcher> Step<M> {
+    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.action {
+            Action::Input(input) => input.input(self.agent, ctx),
+            Action::Output(output) => output.output(self.agent, ctx),
+        }
+    }
+}
+
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
 /// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
@@ -501,18 +510,6 @@ pub struct Step<M: Matcher> {
 pub enum Action<M: Matcher> {
     Input(InputAction<M>),
     Output(OutputAction<M>),
-}
-
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Action::Input(input) => input.input(step, ctx),
-            Action::Output(output) => output.output(step, ctx),
-        }
-    }
 }
 
 impl<M: Matcher> fmt::Display for Action<M> {
@@ -542,13 +539,13 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn output<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(step.agent)?;
+        ctx.next_state(agent_name)?;
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
+        while let Some(message_result) = ctx.take_message_from_outbound(agent_name)? {
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
@@ -565,7 +562,7 @@ impl<M: Matcher> OutputAction<M> {
 
             for variable in knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    agent_name,
                     matcher: matcher.clone(),
                     data: variable,
                 };
@@ -576,7 +573,7 @@ impl<M: Matcher> OutputAction<M> {
 
             for variable in opaque_knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    agent_name,
                     matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
                     data: variable,
                 };
@@ -616,25 +613,24 @@ impl<M: Matcher> InputAction<M> {
 
     fn input<PB: ProtocolBehavior>(
         &self,
-        step: &Step<M>,
+        agent_name: AgentName,
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            ctx.add_to_inbound(agent_name, &msg.create_opaque())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            ctx.add_to_inbound(agent_name, opaque_message)?;
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
@@ -642,7 +638,7 @@ impl<M: Matcher> InputAction<M> {
             .into());
         }
 
-        ctx.next_state(step.agent)
+        ctx.next_state(agent_name)
     }
 }
 
