@@ -501,16 +501,13 @@ impl<M: Matcher> Trace<M> {
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
 
-            step.action.execute(step, ctx)?;
+            step.execute(ctx)?;
 
             // Output after each InputAction step
-            match step.action {
-                Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<M>::new_step(step.agent);
 
-                    output_step.action.execute(output_step, ctx)?;
-                }
-                Action::Output(_) => {}
+                output_step.execute(ctx)?;
             }
 
             ctx.claims.deref_borrow().log();
@@ -553,6 +550,18 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
+impl<M: Matcher> Step<M> {
+    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.action {
+            Action::Input(input) => input.input(self.agent, ctx),
+            Action::Output(output) => output.output(self.agent, ctx),
+        }
+    }
+}
+
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
 /// Both actions drive the internal state machine of an [`Agent`] forward by calling `progress()`.
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
@@ -567,18 +576,6 @@ pub struct Step<M: Matcher> {
 pub enum Action<M: Matcher> {
     Input(InputAction<M>),
     Output(OutputAction<M>),
-}
-
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Action::Input(input) => input.input(step, ctx),
-            Action::Output(output) => output.output(step, ctx),
-        }
-    }
 }
 
 impl<M: Matcher> fmt::Display for Action<M> {
@@ -608,11 +605,10 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn output<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let agent_name = step.agent;
         let source = Source::Agent(agent_name);
         let agent = ctx.find_agent_mut(agent_name)?;
 
@@ -668,13 +664,12 @@ impl<M: Matcher> InputAction<M> {
 
     fn input<PB: ProtocolBehavior>(
         &self,
-        step: &Step<M>,
+        agent_name: AgentName,
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let agent_name = step.agent;
         let evaluated = self.recipe.evaluate(&mut |v| ctx.find_variable(v))?;
         let agent = ctx.find_agent_mut(agent_name)?;
 
