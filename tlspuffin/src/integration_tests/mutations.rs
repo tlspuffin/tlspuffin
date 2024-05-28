@@ -12,7 +12,6 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
-    put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };
 

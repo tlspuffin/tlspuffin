@@ -4,7 +4,7 @@ use log::info;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
     put::PutOptions,
-    trace::Trace,
+    trace::{Trace, TraceContext},
 };
 
 use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
@@ -36,10 +36,13 @@ pub fn expect_trace_crash(
         .map(|_| {
             forked_execution(
                 || {
-                    // Ignore Rust errors
-                    let _ = trace
-                        .clone()
-                        .execute_deterministic(&tls_registry(), default_put_options.clone());
+                    let mut context = TraceContext::builder(&tls_registry())
+                        .set_default_put_options(default_put_options.clone())
+                        .set_deterministic(true)
+                        .build();
+
+                    // NOTE: we ignore Rust errors because we expect a crash
+                    let _ = trace.clone().execute(&mut context);
                 },
                 timeout,
             )
