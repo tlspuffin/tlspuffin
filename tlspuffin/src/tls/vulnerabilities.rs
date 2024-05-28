@@ -1295,11 +1295,12 @@ pub mod tests {
         use puffin::{
             agent::{AgentName, TLSVersion},
             put::PutDescriptor,
+            put_registry::TCP_PUT,
         };
         use test_log::test;
 
         use crate::{
-            put_registry::{tls_registry, TCP_PUT},
+            put_registry::tls_registry,
             tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
             tls::{trace_helper::TraceHelper, vulnerabilities::*},
         };
@@ -1311,7 +1312,7 @@ pub mod tests {
 
             let server_guard = openssl_server(port, TLSVersion::V1_2);
             let server = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT.to_owned(),
                 options: server_guard.build_options(),
             };
 
@@ -1319,7 +1320,7 @@ pub mod tests {
 
             let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
             let client = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT.to_owned(),
                 options: client_guard.build_options(),
             };
 
@@ -1347,7 +1348,7 @@ pub mod tests {
             let port = 44338;
             let guard = wolfssl_server(port, TLSVersion::V1_3);
             let put = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT.to_owned(),
                 options: guard.build_options(),
             };
 

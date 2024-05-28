@@ -14,7 +14,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -29,7 +29,7 @@ use crate::{
     },
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
-    put_registry::BORINGSSL_PUT,
+    put_registry::BORINGSSL_RUST_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::{
         deframer::MessageDeframer,
@@ -65,7 +65,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
+                info!("BoringSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
@@ -87,8 +87,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            BORINGSSL_PUT
+        fn name(&self) -> String {
+            BORINGSSL_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -105,7 +105,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                    format!("{} ({})", BORINGSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
@@ -237,7 +237,7 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
     }
 
     fn shutdown(&mut self) -> String {
-        panic!("Unsupported with OpenSSL PUT")
+        panic!("Unsupported with BoringSSL PUT")
     }
 
     fn version() -> String {
@@ -453,7 +453,7 @@ impl<T> From<Result<T, boring::ssl::Error>> for MaybeError {
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),
                 }
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
-                // OpenSSL threw an error, that means that there should be an Alert message in the
+                // BoringSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
                 MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {

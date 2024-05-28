@@ -180,18 +180,18 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         let (_, factory) = context
             .put_registry()
             .puts()
-            .find(|(_, factory)| factory.name() == put_descriptor.name)
+            .find(|(_, factory)| factory.name() == put_descriptor.factory)
             .ok_or_else(|| {
                 Error::Agent(format!(
                     "unable to find PUT {} factory in binary",
-                    &put_descriptor.name
+                    &put_descriptor.factory
                 ))
             })?;
 
-        let stream = factory.create(context, agent_descriptor)?;
+        let put = factory.create(context, agent_descriptor)?;
         let agent = Agent {
             name: agent_descriptor.name,
-            put: stream,
+            put,
             put_descriptor,
         };
 

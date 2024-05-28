@@ -1,7 +1,7 @@
 use puffin::{put_registry::Factory, VERSION_STR};
 use tls_harness::{CPutHarness, CPutLibrary, C_PUT_TYPE};
 
-use crate::{protocol::TLSProtocolBehavior, put_registry::TLS_C_PUT};
+use crate::protocol::TLSProtocolBehavior;
 
 pub fn new_factory(
     harness: CPutHarness,
@@ -37,8 +37,8 @@ impl Factory<TLSProtocolBehavior> for TlsCPut {
         puffin::put_registry::PutKind::CPUT
     }
 
-    fn name(&self) -> puffin::put::PutName {
-        TLS_C_PUT
+    fn name(&self) -> String {
+        self.library.config_name.to_string()
     }
 
     fn versions(&self) -> Vec<(String, String)> {

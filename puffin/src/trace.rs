@@ -303,7 +303,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     fn default_put_descriptor(&self) -> PutDescriptor {
         let factory = self.put_registry.default();
         PutDescriptor {
-            name: factory.name(),
+            factory: factory.name(),
             options: self.default_put_options.clone(),
         }
     }
@@ -348,7 +348,7 @@ pub struct Trace<M: Matcher> {
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
-/// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
+/// or client role and a specific TLS version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {

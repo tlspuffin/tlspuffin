@@ -6,14 +6,16 @@ use std::{
 use log::debug;
 
 use crate::{
-    agent::AgentDescriptor,
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutName},
-    trace::TraceContext,
+    agent::AgentDescriptor, error::Error, protocol::ProtocolBehavior, put::Put, trace::TraceContext,
 };
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+// FIXME TCP_PUT should be defined in the tlspuffin package
+//
+//     The TCP PUT is specific to TLS and is therefore defined in the `tlspuffin` package. However,
+//     we expose it here in `puffin` so that the generic CLI is able to provide the `tcp` command.
+//
+//     Once we factor out the `tcp` command, we can move this definition into `tlspuffin`.
+pub const TCP_PUT: &str = "rust-put-tcp";
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
@@ -121,7 +123,7 @@ pub trait Factory<PB: ProtocolBehavior> {
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
-    fn name(&self) -> PutName;
+    fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
     fn determinism_set_reseed(&self);
