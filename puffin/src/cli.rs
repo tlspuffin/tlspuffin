@@ -471,7 +471,10 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::new(put_registry, put.clone());
+            let mut ctx = TraceContext::builder(put_registry)
+                .set_default_put(put.clone())
+                .build();
+
             if let Err(err) = trace.execute(&mut ctx) {
                 log::error!(
                     "Failed to execute trace {}: {:?}",

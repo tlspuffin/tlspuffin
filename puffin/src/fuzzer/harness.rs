@@ -14,7 +14,9 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put: PutDescriptor,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::new(put_registry, put);
+    let mut ctx = TraceContext::builder(put_registry)
+        .set_default_put(put)
+        .build();
 
     TRACE_LENGTH.update(input.steps.len());
 

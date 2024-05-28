@@ -250,6 +250,10 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
+    pub fn builder(registry: &PutRegistry<PB>) -> TraceContextBuilder<PB> {
+        TraceContextBuilder::new(registry)
+    }
+
     pub fn new(put_registry: &PutRegistry<PB>, default_put: PutDescriptor) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName.
@@ -371,17 +375,58 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .unwrap_or_else(|| self.default_put.clone())
     }
 
-    /// Makes agents use the non-default PUT
-    pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
-        self.put_descriptors.insert(agent_name, put_descriptor);
-    }
-
-    pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
-        self.put_descriptors.extend(descriptors.iter().cloned());
-    }
-
     pub fn agents_successful(&self) -> bool {
         self.agents.iter().all(|agent| agent.is_state_successful())
+    }
+}
+
+pub struct TraceContextBuilder<'a, PB: ProtocolBehavior> {
+    knowledge: Vec<Knowledge<PB::Matcher>>,
+    registry: &'a PutRegistry<PB>,
+    put_descriptors: HashMap<AgentName, PutDescriptor>,
+    default_put: PutDescriptor,
+}
+
+impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
+    pub fn new(registry: &'a PutRegistry<PB>) -> Self {
+        Self {
+            knowledge: vec![],
+            registry,
+            put_descriptors: Default::default(),
+            default_put: PutDescriptor {
+                factory: registry.default().name(),
+                options: Default::default(),
+            },
+        }
+    }
+
+    pub fn set_default_put(mut self, put: PutDescriptor) -> Self {
+        self.default_put = put;
+        self
+    }
+
+    /// Makes agents use the non-default PUT
+    pub fn set_put(mut self, agent_name: AgentName, put_descriptor: PutDescriptor) -> Self {
+        self.put_descriptors.insert(agent_name, put_descriptor);
+        self
+    }
+
+    pub fn set_puts(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
+        self.put_descriptors.extend(descriptors.iter().cloned());
+        self
+    }
+
+    pub fn with_knowledge(mut self, knowledge: Knowledge<PB::Matcher>) -> Self {
+        self.knowledge.push(knowledge);
+        self
+    }
+
+    pub fn build(mut self) -> TraceContext<PB> {
+        let mut result = TraceContext::new(self.registry, self.default_put);
+        result.knowledge.append(&mut self.knowledge);
+        result.put_descriptors.extend(self.put_descriptors);
+
+        result
     }
 }
 
@@ -484,7 +529,10 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry, default_put);
+        let mut ctx = TraceContext::builder(put_registry)
+            .set_default_put(default_put)
+            .build();
+
         self.execute(&mut ctx)?;
         Ok(ctx)
     }
@@ -501,9 +549,10 @@ impl<M: Matcher> Trace<M> {
             factory: put_registry.default().name(),
             options: Default::default(),
         };
-        let mut ctx = TraceContext::new(put_registry, default_put);
-
-        ctx.set_non_default_puts(descriptors);
+        let mut ctx = TraceContext::builder(put_registry)
+            .set_default_put(default_put)
+            .set_puts(descriptors)
+            .build();
 
         self.execute(&mut ctx)?;
         Ok(ctx)
