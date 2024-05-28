@@ -19,12 +19,12 @@ fn test_attacker_full_det_recreate() {
 
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(&put_registry, PutOptions::default());
+    let mut ctx_1 = TraceContext::builder(&put_registry).build();
     trace.execute(&mut ctx_1);
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::new(&put_registry, PutOptions::default());
+        let mut ctx_2 = TraceContext::builder(&put_registry).build();
         trace.execute(&mut ctx_2);
         assert_eq!(ctx_1, ctx_2);
     }
