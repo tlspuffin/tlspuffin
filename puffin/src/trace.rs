@@ -72,7 +72,7 @@ pub struct Knowledge<M: Matcher> {
 }
 
 impl<M: Matcher> Knowledge<M> {
-    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>)
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -81,7 +81,7 @@ impl<M: Matcher> Knowledge<M> {
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
-            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+            ctx.number_matching_message(self.agent_name, data_type_id, &self.matcher)
         );
         trace!("Knowledge data: {:?}", self.data);
     }
@@ -570,7 +570,7 @@ impl<M: Matcher> OutputAction<M> {
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
+                knowledge.debug_print(ctx);
                 ctx.add_knowledge(knowledge)
             }
 
@@ -581,7 +581,7 @@ impl<M: Matcher> OutputAction<M> {
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
+                knowledge.debug_print(ctx);
                 ctx.add_knowledge(knowledge)
             }
         }
