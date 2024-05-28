@@ -469,7 +469,10 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            let mut ctx = TraceContext::builder(put_registry)
+                .set_default_put_options(default_put_options().clone())
+                .build();
+
             if let Err(err) = trace.execute(&mut ctx) {
                 error!(
                     "Failed to execute trace {}: {:?}",
@@ -494,7 +497,9 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let ctx = TraceContext::builder(put_registry)
+        .set_default_put_options(default_put_options().clone())
+        .build();
 
     info!("Agents: {:?}", &trace.descriptors);
 

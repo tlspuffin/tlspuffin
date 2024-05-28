@@ -220,7 +220,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("attempts 5: {}", attempts);
 
                 let put_registry = tls_registry();
-                let mut context = TraceContext::new(&put_registry, PutOptions::default());
+                let mut context = TraceContext::builder(&put_registry).build();
                 let _ = trace.execute(&mut context);
                 println!("try");
             }

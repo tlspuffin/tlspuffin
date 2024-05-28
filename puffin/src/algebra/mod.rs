@@ -635,19 +635,20 @@ mod tests {
 
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
-        context.add_knowledge(Knowledge {
-            agent_name: AgentName::first(),
-            matcher: None,
-            data: Box::new(data),
-        });
+
+        let context = TraceContext::builder(&put_registry)
+            .with_knowledge(Knowledge {
+                agent_name: AgentName::first(),
+                matcher: None,
+                data: Box::new(data),
+            })
+            .build();
 
         let _string = generated_term
             .evaluate(&context)
             .as_ref()
             .unwrap()
             .downcast_ref::<Vec<u8>>();
-        //println!("{:?}", string);
     }
 
     #[test]
