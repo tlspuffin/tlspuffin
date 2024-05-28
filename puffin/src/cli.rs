@@ -26,7 +26,7 @@ use crate::{
     log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
-    put_registry::PutRegistry,
+    put_registry::{PutRegistry, TCP_PUT},
     trace::{Action, Trace, TraceContext},
 };
 
@@ -307,7 +307,7 @@ where
         }
 
         let put = PutDescriptor {
-            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
+            factory: TCP_PUT.to_owned(),
             options: PutOptions::from_slice_vec(options),
         };
 
@@ -452,10 +452,7 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use crate::{
-    agent::AgentName,
-    put::{PutDescriptor, PutName},
-};
+use crate::{agent::AgentName, put::PutDescriptor};
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {

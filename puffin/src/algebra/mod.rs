@@ -129,7 +129,7 @@ pub mod test_signature {
         protocol::{
             OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
-        put::{Put, PutName},
+        put::Put,
         put_registry::{Factory, PutKind},
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
@@ -520,8 +520,8 @@ pub mod test_signature {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        fn name(&self) -> String {
+            "TESTSTUB_RUST_PUT".to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {

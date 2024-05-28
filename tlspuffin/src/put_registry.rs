@@ -1,30 +1,28 @@
-use puffin::{put::PutName, put_registry::PutRegistry};
+use puffin::put_registry::{PutRegistry, TCP_PUT};
 use tls_harness::{CPutHarness, CPutLibrary, C_PUT_TYPE};
 
 use crate::protocol::TLSProtocolBehavior;
 
-pub const OPENSSL111_PUT: PutName = PutName(['O', 'P', 'E', 'N', 'S', 'S', 'L', '1', '1', '1']);
-pub const WOLFSSL520_PUT: PutName = PutName(['W', 'O', 'L', 'F', 'S', 'S', 'L', '5', '2', '0']);
-pub const BORINGSSL_PUT: PutName = PutName(['B', 'O', 'R', 'I', 'N', 'G', 'S', 'S', 'L', '_']);
-pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
-pub const TLS_C_PUT: PutName = PutName(['T', 'L', 'S', '_', 'C', '_', 'P', 'U', 'T', 'S']);
+pub const OPENSSL_RUST_PUT: &str = "rust-put-openssl";
+pub const WOLFSSL_RUST_PUT: &str = "rust-put-wolfssl";
+pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     let mut puts = vec![
-        (String::from("rust-tcp"), crate::tcp::new_tcp_factory()),
+        (TCP_PUT.to_owned(), crate::tcp::new_tcp_factory()),
         #[cfg(feature = "openssl-binding")]
         (
-            String::from("rust-openssl"),
+            OPENSSL_RUST_PUT.to_owned(),
             crate::openssl::new_openssl_factory(),
         ),
         #[cfg(feature = "wolfssl-binding")]
         (
-            String::from("rust-wolfssl"),
+            WOLFSSL_RUST_PUT.to_owned(),
             crate::wolfssl::new_wolfssl_factory(),
         ),
         #[cfg(feature = "boringssl-binding")]
         (
-            String::from("rust-boringssl"),
+            BORINGSSL_RUST_PUT.to_owned(),
             crate::boringssl::new_boringssl_factory(),
         ),
     ];
@@ -47,13 +45,13 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     let default = {
         cfg_if::cfg_if! {
             if #[cfg(feature = "openssl-binding")] {
-                "rust-openssl"
+                OPENSSL_RUST_PUT
             } else if #[cfg(feature = "wolfssl-binding")] {
-                "rust-wolfssl"
+                WOLFSSL_RUST_PUT
             } else if #[cfg(feature = "boringssl-binding")] {
-                "rust-boringssl"
+                BORINGSSL_RUST_PUT
             } else {
-                "rust-tcp"
+                TCP_PUT
             }
         }
     };

@@ -10,7 +10,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -21,7 +21,7 @@ use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
-    put_registry::OPENSSL111_PUT,
+    put_registry::OPENSSL_RUST_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::{
         deframer::MessageDeframer,
@@ -70,8 +70,8 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            OPENSSL111_PUT
+        fn name(&self) -> String {
+            OPENSSL_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -96,7 +96,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", OPENSSL111_PUT, VERSION_STR),
+                    format!("{} ({})", OPENSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

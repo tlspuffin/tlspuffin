@@ -16,8 +16,8 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
-    put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, PutKind},
+    put::{Put, PutDescriptor},
+    put_registry::{Factory, PutKind, TCP_PUT},
     stream::Stream,
     trace::TraceContext,
     VERSION_STR,
@@ -25,7 +25,6 @@ use puffin::{
 
 use crate::{
     protocol::TLSProtocolBehavior,
-    put_registry::TCP_PUT,
     tls::rustls::msgs::{
         deframer::MessageDeframer,
         message::{Message, OpaqueMessage},
@@ -86,8 +85,8 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            TCP_PUT
+        fn name(&self) -> String {
+            TCP_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -733,11 +732,12 @@ mod tests {
     use puffin::{
         agent::{AgentName, TLSVersion},
         put::PutDescriptor,
+        put_registry::TCP_PUT,
     };
     use test_log::test;
 
     use crate::{
-        put_registry::{tls_registry, TCP_PUT},
+        put_registry::tls_registry,
         tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
@@ -753,7 +753,7 @@ mod tests {
         let port = 44330;
         let guard = openssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: guard.build_options(),
         };
 
@@ -780,7 +780,7 @@ mod tests {
 
         let guard = openssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: guard.build_options(),
         };
 
@@ -804,7 +804,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: server_guard.build_options(),
         };
 
@@ -812,7 +812,7 @@ mod tests {
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: client_guard.build_options(),
         };
 
@@ -846,7 +846,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: server_guard.build_options(),
         };
 
@@ -854,7 +854,7 @@ mod tests {
 
         let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: client_guard.build_options(),
         };
 
