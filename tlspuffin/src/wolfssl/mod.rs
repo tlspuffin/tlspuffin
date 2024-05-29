@@ -223,7 +223,7 @@ impl WolfSSL {
 }
 
 impl Put<TLSProtocolBehavior> for WolfSSL {
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
@@ -234,7 +234,7 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
             maybe_error.into()
         };
 
-        self.deferred_transcript_extraction(agent_name);
+        self.deferred_transcript_extraction();
 
         result
     }
@@ -430,7 +430,7 @@ impl WolfSSL {
         Ok(ssl)
     }
 
-    fn deferred_transcript_extraction(&self, agent_name: &AgentName) {
+    fn deferred_transcript_extraction(&self) {
         let config = &self.config;
         if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
             if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
@@ -456,7 +456,7 @@ impl WolfSSL {
 
                 if let Some(data) = data {
                     config.claims.deref_borrow_mut().claim_sized(TlsClaim {
-                        agent_name: *agent_name,
+                        agent_name: config.descriptor.name,
                         origin: config.descriptor.typ,
                         protocol_version: config.descriptor.tls_version,
                         data,
