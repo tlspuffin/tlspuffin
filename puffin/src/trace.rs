@@ -242,39 +242,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .map(|possibility| possibility.data.as_ref())
     }
 
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn add_to_inbound(
-        &mut self,
-        agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
-    ) -> Result<(), Error> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message))
-    }
-
-    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().progress(&agent_name)
-    }
-
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    /// See [`crate::stream::Stream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(
-        &mut self,
-        agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().take_message_from_outbound()
-    }
-
-    fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name();
-        self.agents.push(agent);
-        name
-    }
-
     pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
+        let agent = Agent::new(self, descriptor)?;
+        let agent_name = agent.name();
+
+        self.agents.push(agent);
         Ok(agent_name)
     }
 
@@ -497,7 +469,7 @@ impl<M: Matcher> Step<M> {
 }
 
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
-/// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
+/// Both actions drive the internal state machine of an [`Agent`] forward by calling `progress()`.
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
@@ -543,9 +515,13 @@ impl<M: Matcher> OutputAction<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(agent_name)?;
+        ctx.find_agent_mut(agent_name)?.put_mut().progress()?;
 
-        while let Some(message_result) = ctx.take_message_from_outbound(agent_name)? {
+        while let Some(message_result) = ctx
+            .find_agent_mut(agent_name)?
+            .put_mut()
+            .take_message_from_outbound()?
+        {
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
@@ -620,17 +596,17 @@ impl<M: Matcher> InputAction<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let evaluated = self.recipe.evaluate(ctx)?;
+        let agent = ctx.find_agent_mut(agent_name)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
-
-            ctx.add_to_inbound(agent_name, &msg.create_opaque())?;
+            agent.put_mut().add_to_inbound(&msg.create_opaque());
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(agent_name, opaque_message)?;
+            agent.put_mut().add_to_inbound(opaque_message);
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
@@ -638,7 +614,7 @@ impl<M: Matcher> InputAction<M> {
             .into());
         }
 
-        ctx.next_state(agent_name)
+        agent.put_mut().progress()
     }
 }
 

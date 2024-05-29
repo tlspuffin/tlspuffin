@@ -364,7 +364,7 @@ fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrPa
 }
 
 impl Put<TLSProtocolBehavior> for TcpServerPut {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
@@ -417,7 +417,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
 }
 
 impl Put<TLSProtocolBehavior> for TcpClientPut {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
