@@ -207,8 +207,8 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         self.put.rename_agent(new_name)
     }
 
-    pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.put.reset(agent_name)
+    pub fn reset(&mut self) -> Result<(), Error> {
+        self.put.reset()
     }
 
     pub fn name(&self) -> AgentName {

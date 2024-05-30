@@ -324,7 +324,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         panic!("Not supported")
     }
 

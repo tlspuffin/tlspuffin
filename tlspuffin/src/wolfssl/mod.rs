@@ -239,7 +239,7 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         if self.config.use_clear {
             self.stream.clear();
         } else {

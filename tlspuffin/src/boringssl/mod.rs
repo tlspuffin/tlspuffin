@@ -180,7 +180,7 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         self.stream.ssl_mut().clear();
         Ok(())
     }
