@@ -69,7 +69,7 @@ pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight<OpaqueMessage>, FnEr
 
 pub fn fn_append_opaque_flight(
     flight: &OpaqueMessageFlight<OpaqueMessage>,
-    msg: &Message,
+    msg: &OpaqueMessage,
 ) -> Result<OpaqueMessageFlight<OpaqueMessage>, FnError> {
     let mut new_flight = flight.clone();
     new_flight.messages.push(msg.clone());
