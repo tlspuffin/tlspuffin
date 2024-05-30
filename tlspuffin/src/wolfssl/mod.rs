@@ -2,8 +2,8 @@
 
 use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
 
-use foreign_types::{ForeignType, ForeignTypeRef};
-use log::{error, warn};
+use foreign_types::ForeignType;
+use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
@@ -111,11 +111,11 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
+        fn determinism_set_reseed(&self) {
             error!("[determinism_set_reseed] Not yet implemented.")
         }
 
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             error!("[determinism_reseed] Not yet implemented.")
         }
 
@@ -172,50 +172,45 @@ impl Drop for WolfSSL {
 impl WolfSSL {
     fn new(config: TlsPutConfig) -> Result<Self, Error> {
         let agent_descriptor = &config.descriptor;
-        #[allow(unused_mut)]
         let mut ctx = match agent_descriptor.typ {
             AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
-
-        #[cfg(not(feature = "wolfssl430"))]
-        ctx.set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
-            .map_err(|err| WolfSSLErrorStack::from(err))?;
-
-        #[allow(unused_mut)]
-        let mut stream = Self::new_stream(&ctx, &config)?;
-
-        #[cfg(feature = "wolfssl430")]
-        stream
-            .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent_descriptor.name, &config))
-            .map_err(|err| WolfSSLErrorStack::from(err))?;
-
-        #[allow(unused_mut)]
+        let stream = Self::new_stream(&mut ctx, &config)?;
+        let agent_name = agent_descriptor.name;
         let mut wolfssl = WolfSSL {
             ctx,
             stream,
-            config: config.clone(),
+            config,
         };
 
-        #[cfg(feature = "claims")]
-        stream.register_claimer(config.claims, config.agent_name);
+        wolfssl.register_claimer(agent_name);
         Ok(wolfssl)
     }
 
     fn new_stream(
-        ctx: &SslContextRef,
+        ctx: &mut SslContextRef,
         config: &TlsPutConfig,
     ) -> Result<SslStream<MemoryStream<MessageDeframer>>, WolfSSLErrorStack> {
+        #[cfg(not(feature = "wolfssl430"))]
+        ctx.set_msg_callback(Self::create_msg_callback(config.descriptor.name, &config))
+            .expect("Failed to set msg_callback to extract transcript");
+
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
 
-        Ok(SslStream::new(
-            ssl,
-            MemoryStream::new(MessageDeframer::new()),
-        )?)
+        #[allow(unused_mut)]
+        let mut stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
+
+        #[cfg(feature = "wolfssl430")]
+        stream
+            .ssl_mut()
+            .set_msg_callback(Self::create_msg_callback(config.descriptor.name, &config))
+            .expect("Failed to set msg_callback to extract transcript");
+
+        Ok(stream)
     }
 }
 
@@ -240,37 +235,37 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         if self.config.use_clear {
             self.stream.clear();
         } else {
-            self.stream = Self::new_stream(&self.ctx, &self.config)?;
+            self.stream = Self::new_stream(&mut self.ctx, &self.config)?;
         }
 
         Ok(())
     }
 
     fn register_claimer(&mut self, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
         unsafe {
+            use crate::claims::claims_helpers;
+
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    (*claims).borrow_mut().claim(agent_name, claim)
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        });
+                    }
                 },
             );
         }
-
-        #[cfg(not(feature = "wolfssl430"))]
-        self.ctx
-            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))
-            .map_err(|err| WolfSSLErrorStack::from(err))?;
-
-        #[cfg(feature = "wolfssl430")]
-        self.stream
-            .ssl_mut()
-            .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))
-            .map_err(|err| WolfSSLErrorStack::from(err))?;
     }
 
     fn deregister_claimer(&mut self) {
-        #[cfg(feature = "claims")]
         unsafe {
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }

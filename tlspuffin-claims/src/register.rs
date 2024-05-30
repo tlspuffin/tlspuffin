@@ -31,6 +31,10 @@ pub unsafe fn deregister_claimer(ssl_like_ptr: TLSLike) {
     // drop the callback
     let _: Box<Box<Claimer>> = {
         let ptr = ffi::deregister_claimer(ssl_like_ptr);
+        if ptr.is_null() {
+            return;
+        }
+
         let raw: Box<Box<Claimer>> = Box::from_raw(ptr as *mut _);
         raw
     };

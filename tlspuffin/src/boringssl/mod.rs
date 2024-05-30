@@ -189,7 +189,6 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
     }
 
     fn register_claimer(&mut self, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
         self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
             .expect("Failed to set msg_callback to extract transcript");
     }
@@ -241,15 +240,11 @@ impl BoringSSL {
             AgentType::Server => Self::create_server(agent_descriptor)?,
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
-
         let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
-
         let agent_name = agent_descriptor.name;
-
         let mut boringssl = BoringSSL { config, stream };
 
         boringssl.register_claimer(agent_name);
-
         Ok(boringssl)
     }
 
