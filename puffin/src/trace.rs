@@ -445,7 +445,6 @@ impl<M: Matcher> Trace<M> {
         ctx.put_registry.determinism_reseed_all_factories();
 
         for trace in &self.prior_traces {
-            trace.spawn_agents(&mut pool, ctx)?;
             trace.execute(ctx)?;
 
             // release agents, keep them for reuse in the pool
