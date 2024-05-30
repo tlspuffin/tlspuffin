@@ -22,6 +22,7 @@ use std::{
     marker::PhantomData,
 };
 
+use itertools::Itertools;
 use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
@@ -242,12 +243,19 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .map(|possibility| possibility.data.as_ref())
     }
 
-    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent = Agent::new(self, descriptor)?;
-        let agent_name = agent.name();
-
+    /// Add an `agent` to the execution context
+    pub fn add_agent(&mut self, agent: Agent<PB>) {
         self.agents.push(agent);
-        Ok(agent_name)
+    }
+
+    /// Release all the agents from the execution context.
+    ///
+    /// Note that the retrieved agents are no longer available in the current execution context,
+    /// making them unavailable for further interaction (e.g. when applying a [`Step`]). This is
+    /// therefore mostly used at the end of an execution, when one wants to reuse the agents in
+    /// future executions.
+    pub fn get_agents(&mut self) -> Vec<Agent<PB>> {
+        self.agents.drain(..).collect_vec()
     }
 
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
@@ -277,13 +285,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .get(&agent_descriptor.name)
             .cloned()
             .unwrap_or_else(|| self.default_put.clone())
-    }
-
-    pub fn reset_agents(&mut self) -> Result<(), Error> {
-        for agent in &mut self.agents {
-            agent.reset()?;
-        }
-        Ok(())
     }
 
     pub fn agents_successful(&self) -> bool {
@@ -363,28 +364,35 @@ pub struct Trace<M: Matcher> {
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLS version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        pool: &mut Vec<Agent<PB>>,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            let name = if let Some(reusable) = ctx
-                .agents
+            // NOTE only spawn completely new Agent if cannot reuse any from the pool
+            let mut agent = if let Some(position) = pool
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor))
+                .position(|existing| existing.put().is_reusable_with(descriptor))
             {
-                // rename if it already exists and we want to reuse
+                let mut reusable = pool.swap_remove(position);
+                reusable.reset()?;
                 reusable.rename(descriptor.name)?;
-                descriptor.name
+                reusable
             } else {
-                // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?
+                Agent::new(ctx, descriptor)?
             };
 
             if ctx.deterministic_put {
-                if let Ok(agent) = ctx.find_agent_mut(name) {
-                    if let Err(err) = agent.put_mut().determinism_reseed() {
-                        warn!("Unable to make agent {} deterministic: {}", name, err)
-                    }
+                if let Err(err) = agent.put_mut().determinism_reseed() {
+                    warn!(
+                        "Unable to make agent {} deterministic: {}",
+                        descriptor.name, err
+                    )
                 }
             }
+
+            ctx.add_agent(agent);
         }
 
         Ok(())
@@ -394,15 +402,20 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
+        let mut pool: Vec<Agent<PB>> = ctx.get_agents();
+
         // We reseed all PUTs before executing a trace!
         ctx.put_registry.determinism_reseed_all_factories();
 
         for trace in &self.prior_traces {
-            trace.spawn_agents(ctx)?;
+            trace.spawn_agents(&mut pool, ctx)?;
             trace.execute(ctx)?;
-            ctx.reset_agents()?;
+
+            // release agents, keep them for reuse in the pool
+            pool.extend(ctx.get_agents().into_iter());
         }
-        self.spawn_agents(ctx)?;
+
+        self.spawn_agents(&mut pool, ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
